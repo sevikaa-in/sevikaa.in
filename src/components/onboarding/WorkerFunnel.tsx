@@ -5,7 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { supabase } from '../../lib/supabaseClient';
 import { 
   Camera, Calendar, ClipboardCheck, ArrowLeft, ArrowRight,
-  Shield, Check, User, DollarSign, Upload, Video, AlertCircle 
+  Shield, Check, User, IndianRupee, Upload, Video, AlertCircle 
 } from 'lucide-react';
 
 interface WorkerFunnelProps {
@@ -495,7 +495,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                 className="w-full py-4 pl-12 pr-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200"
               />
               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                <DollarSign size={20} />
+                <IndianRupee size={20} />
               </div>
             </div>
 
