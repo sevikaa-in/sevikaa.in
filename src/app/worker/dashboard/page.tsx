@@ -8,6 +8,7 @@ import {
   FileText, CheckCircle2, Bell, Shield, Wallet, Settings, LogOut, Check
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const SLOTS = [
@@ -431,6 +432,17 @@ export default function WorkerDashboard() {
                 <LogOut size={16} />
                 <span>Log Out Session</span>
               </button>
+
+              <div className="flex justify-center gap-3.5 text-[10px] text-gray-400 font-bold pt-6 mt-4 border-t border-gray-100">
+                <Link href="/terms" className="hover:text-gray-600 transition-colors">Terms of Use</Link>
+                <span>•</span>
+                <Link href="/privacy" className="hover:text-gray-600 transition-colors">Privacy Policy</Link>
+                <span>•</span>
+                <Link href="/contact" className="hover:text-gray-600 transition-colors">Contact Support</Link>
+              </div>
+              <p className="text-[9px] text-gray-400 text-center mt-3 font-semibold">
+                © {new Date().getFullYear()} Sevikaa. All rights reserved.
+              </p>
             </div>
           </div>
         )}
