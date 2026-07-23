@@ -9,6 +9,7 @@ import {
   MessageSquare, Phone, Lock, Sparkles, CreditCard, Bell, Settings, LogOut, ShieldCheck 
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const MOCK_SOCIETIES = [
   { id: '91cb520f-d5b7-4b71-9f20-b44c3c3de101', name: 'DLF Westend Heights - Akshayanagar' },
@@ -528,11 +529,26 @@ export default function EmployerDashboard() {
             <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-4 space-y-4">
               <button
                 onClick={handleLogout}
-                className="w-full py-4 border border-[#EA4335]/20 hover:bg-[#EA4335]/5 text-[#EA4335] font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-4 mt-4 border border-[#EA4335]/20 hover:bg-[#EA4335]/5 text-[#EA4335] font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
               >
                 <LogOut size={16} />
                 <span>Log Out Session</span>
               </button>
+
+              <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-[10px] text-gray-400 font-bold pt-6 mt-4 border-t border-gray-100">
+                <Link href="/terms" className="hover:text-gray-600 transition-colors">Terms of Use</Link>
+                <span>•</span>
+                <Link href="/privacy" className="hover:text-gray-600 transition-colors">Privacy Policy</Link>
+                <span>•</span>
+                <Link href="/refunds" className="hover:text-gray-600 transition-colors">Refund Policy</Link>
+                <span>•</span>
+                <Link href="/shipping" className="hover:text-gray-600 transition-colors">Shipping Policy</Link>
+                <span>•</span>
+                <Link href="/contact" className="hover:text-gray-600 transition-colors">Contact Support</Link>
+              </div>
+              <p className="text-[9px] text-gray-400 text-center mt-3 font-semibold">
+                © {new Date().getFullYear()} Sevikaa. All rights reserved.
+              </p>
             </div>
           </div>
         )}

@@ -7,6 +7,7 @@ import {
   PlusCircle, LogOut, CheckCircle2, UserPlus, FileText, ChevronRight 
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function SuperAdminDashboard() {
   const router = useRouter();
@@ -269,6 +270,18 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* Consistent Regulatory Footer */}
+        <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-[10px] text-gray-400 font-bold pt-6 mt-8 border-t border-gray-100/80">
+          <Link href="/terms" className="hover:text-gray-600 transition-colors">Terms of Use</Link>
+          <span>•</span>
+          <Link href="/privacy" className="hover:text-gray-600 transition-colors">Privacy Policy</Link>
+          <span>•</span>
+          <Link href="/contact" className="hover:text-gray-600 transition-colors">Contact Support</Link>
+        </div>
+        <p className="text-[9px] text-gray-400 text-center mt-3 font-semibold mb-6">
+          Powered by YugaYatra Retail (OPC) Private Limited • © {new Date().getFullYear()} All Rights Reserved
+        </p>
       </div>
 
       {/* Super Admin footer */}
