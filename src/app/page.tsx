@@ -243,34 +243,58 @@ export default function Home() {
 
   // Render onboarding wizard pages if in active signup flows
   if (view !== 'landing') {
+    const isFunnelView = view === 'worker-funnel' || view === 'employer-funnel';
+
     return (
-      <main className="flex-1 w-full bg-gray-50">
-        {view === 'language' && (
-          <LanguageSelector onNext={() => setView('login')} />
+      <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-[#202124]">
+        {isFunnelView && (
+          <header className="bg-white border-b border-gray-200 py-3 px-6 flex justify-between items-center sticky top-0 z-50">
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="Sevikaa Logo" className="h-12 w-auto object-contain" />
+              <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full ${
+                view === 'worker-funnel' 
+                  ? 'bg-[#1A73E8]/10 text-[#1A73E8]' 
+                  : 'bg-[#34A853]/10 text-[#34A853]'
+              }`}>
+                {view === 'worker-funnel' ? 'Worker Registration' : 'Employer Profile Setup'}
+              </span>
+            </div>
+            <button 
+              onClick={handleReset}
+              className="text-xs font-bold text-gray-400 hover:text-[#EA4335] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer bg-gray-50 hover:bg-[#EA4335]/5 border border-gray-200 hover:border-[#EA4335]/20 px-3.5 py-2 rounded-xl"
+            >
+              Sign Out &rarr;
+            </button>
+          </header>
         )}
-        {view === 'login' && (
-          <OtpLogin 
-            onBack={() => setView('landing')} 
-            onSuccess={handleLoginSuccess} 
-            role={targetRole}
-          />
-        )}
-        {view === 'worker-funnel' && user && (
-          <WorkerFunnel 
-            userId={user.id} 
-            onComplete={onWorkerOnboardingComplete} 
-          />
-        )}
-        {view === 'employer-funnel' && user && (
-          <EmployerFunnel 
-            userId={user.id} 
-            onComplete={onEmployerOnboardingComplete} 
-          />
-        )}
-        {view === 'status-pending' && (
-          <StatusPending onReset={handleReset} />
-        )}
-      </main>
+        <main className={`flex-1 w-full bg-gray-50 ${isFunnelView ? 'flex items-center justify-center py-6' : ''}`}>
+          {view === 'language' && (
+            <LanguageSelector onNext={() => setView('login')} />
+          )}
+          {view === 'login' && (
+            <OtpLogin 
+              onBack={() => setView('landing')} 
+              onSuccess={handleLoginSuccess} 
+              role={targetRole}
+            />
+          )}
+          {view === 'worker-funnel' && user && (
+            <WorkerFunnel 
+              userId={user.id} 
+              onComplete={onWorkerOnboardingComplete} 
+            />
+          )}
+          {view === 'employer-funnel' && user && (
+            <EmployerFunnel 
+              userId={user.id} 
+              onComplete={onEmployerOnboardingComplete} 
+            />
+          )}
+          {view === 'status-pending' && (
+            <StatusPending onReset={handleReset} />
+          )}
+        </main>
+      </div>
     );
   }
 
