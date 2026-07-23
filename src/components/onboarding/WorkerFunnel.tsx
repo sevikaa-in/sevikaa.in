@@ -11,6 +11,7 @@ import {
 interface WorkerFunnelProps {
   userId: string;
   onComplete: () => void;
+  onCancel: () => void;
 }
 
 const MOCK_SOCIETIES = [
@@ -30,7 +31,7 @@ const SLOTS = [
   { id: 'night', label: 'Night (6 PM - 9 PM)' }
 ];
 
-export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete }) => {
+export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, onCancel }) => {
   const { t, language } = useLanguage();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -603,9 +604,18 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete }
 
         {/* Funnel Navigation Footer */}
         <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
-          {step > 1 && (
+          {step > 1 ? (
             <button
               onClick={handleBack}
+              disabled={loading}
+              className="py-3 px-4 border border-gray-200 hover:bg-gray-50 active:scale-95 text-gray-700 font-bold rounded-2xl transition-all text-sm flex items-center justify-center gap-1"
+            >
+              <ArrowLeft size={16} />
+              <span>{t('back')}</span>
+            </button>
+          ) : (
+            <button
+              onClick={onCancel}
               disabled={loading}
               className="py-3 px-4 border border-gray-200 hover:bg-gray-50 active:scale-95 text-gray-700 font-bold rounded-2xl transition-all text-sm flex items-center justify-center gap-1"
             >

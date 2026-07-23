@@ -282,6 +282,7 @@ export default function Home() {
             <WorkerFunnel 
               userId={user.id} 
               onComplete={onWorkerOnboardingComplete} 
+              onCancel={handleReset}
             />
           )}
           {view === 'employer-funnel' && user && (
