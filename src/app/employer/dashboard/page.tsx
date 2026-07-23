@@ -223,9 +223,7 @@ export default function EmployerDashboard() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-[#1A73E8] flex items-center justify-center text-white font-black text-sm">
-            S
-          </div>
+          <img src="/logo.png" alt="Sevikaa Logo" className="h-8 w-auto object-contain bg-white rounded-full p-0.5 border border-gray-100" />
           <span className="font-extrabold text-lg tracking-tight text-[#202124]">Sevikaa</span>
         </div>
         <div className="flex items-center gap-2">

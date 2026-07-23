@@ -105,9 +105,7 @@ export default function SuperAdminDashboard() {
       {/* Header */}
       <header className="bg-black text-white px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-[#EA4335] flex items-center justify-center text-white font-black text-sm">
-            S
-          </div>
+          <img src="/logo.png" alt="Sevikaa Logo" className="h-8 w-auto object-contain bg-white rounded-full p-0.5 border border-gray-200" />
           <span className="font-extrabold text-lg tracking-tight">Super Admin</span>
         </div>
         <span className="bg-[#EA4335]/20 text-[#EA4335] text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
