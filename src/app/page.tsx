@@ -80,9 +80,31 @@ export default function Home() {
 
           if (profile) {
             if (profile.role === 'worker') {
-              router.push('/worker/dashboard');
+              const { data: workerProfile } = await supabase
+                .from('worker_profiles')
+                .select('id')
+                .eq('user_id', session.user.id)
+                .maybeSingle();
+
+              if (workerProfile) {
+                router.push('/worker/dashboard');
+              } else {
+                setTargetRole('worker');
+                setView('worker-funnel');
+              }
             } else if (profile.role === 'employer') {
-              router.push('/employer/dashboard');
+              const { data: employerProfile } = await supabase
+                .from('employer_profiles')
+                .select('id')
+                .eq('user_id', session.user.id)
+                .maybeSingle();
+
+              if (employerProfile) {
+                router.push('/employer/dashboard');
+              } else {
+                setTargetRole('employer');
+                setView('employer-funnel');
+              }
             } else {
               setView('landing');
               checkUrlParams();
@@ -147,9 +169,31 @@ export default function Home() {
 
       if (profile) {
         if (profile.role === 'worker') {
-          router.push('/worker/dashboard');
+          const { data: workerProfile } = await supabase
+            .from('worker_profiles')
+            .select('id')
+            .eq('user_id', sessionUser.id)
+            .maybeSingle();
+
+          if (workerProfile) {
+            router.push('/worker/dashboard');
+          } else {
+            setTargetRole('worker');
+            setView('worker-funnel');
+          }
         } else if (profile.role === 'employer') {
-          router.push('/employer/dashboard');
+          const { data: employerProfile } = await supabase
+            .from('employer_profiles')
+            .select('id')
+            .eq('user_id', sessionUser.id)
+            .maybeSingle();
+
+          if (employerProfile) {
+            router.push('/employer/dashboard');
+          } else {
+            setTargetRole('employer');
+            setView('employer-funnel');
+          }
         } else {
           setView(targetRole === 'worker' ? 'worker-funnel' : 'employer-funnel');
         }

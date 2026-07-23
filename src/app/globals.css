@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@custom-variant hover (&:hover);
+@custom-variant group-hover (.group:hover &);
+
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

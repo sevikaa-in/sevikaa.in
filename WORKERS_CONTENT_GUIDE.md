@@ -105,6 +105,9 @@ This document holds the central copywriting registry and localized content confi
 *   **Privacy Notice:** `🛡️ Your privacy matters. Your selfie is securely encrypted, used only for identity verification, and is never shared publicly without your consent.`
 *   **Action Button Label:** `Continue →`
 
+*Note: This version builds confidence, clearly explains why the selfie is required, reassures users about privacy, and guides them toward successfully completing the verification process.*
+
+
 ### Step 2: Basic Details & Languages
 *   **Step Indicator:** `STEP 2 OF 5 • DETAILS`
 *   **Title:**
