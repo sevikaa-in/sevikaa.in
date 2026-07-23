@@ -11,11 +11,9 @@ import {
 import { useRouter } from 'next/navigation';
 
 const MOCK_SOCIETIES = [
-  { id: '1', name: 'Prestige Shantiniketan, Whitefield' },
-  { id: '2', name: 'Brigade Gateway, Rajajinagar' },
-  { id: '3', name: 'Sobha Clovelly, Padmanabhanagar' },
-  { id: '4', name: 'DLF New Heights, Bannerghatta Road' },
-  { id: '5', name: 'L&T South City, JP Nagar' }
+  { id: '91cb520f-d5b7-4b71-9f20-b44c3c3de101', name: 'DLF Westend Heights - Akshayanagar' },
+  { id: 'c7e2d9a3-5bc5-442a-a921-ef743bd2b6d2', name: 'Prestige Song of the South - Bangalore' },
+  { id: 'b1a2f3c4-e888-4c91-a1b2-3f8c8dcb2e83', name: 'SNN Raj Serenity - Bangalore' }
 ];
 
 export default function EmployerDashboard() {
@@ -31,7 +29,7 @@ export default function EmployerDashboard() {
 
   // Search filter states
   const [searchCategory, setSearchCategory] = useState<'maid' | 'cook' | 'nanny'>('maid');
-  const [searchSociety, setSearchSociety] = useState('1');
+  const [searchSociety, setSearchSociety] = useState('91cb520f-d5b7-4b71-9f20-b44c3c3de101');
   const [maxSalary, setMaxSalary] = useState(15000);
   const [workers, setWorkers] = useState<any[]>([]);
 
