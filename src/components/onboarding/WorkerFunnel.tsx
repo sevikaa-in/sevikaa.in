@@ -330,7 +330,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Enter full name"
-                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-all"
+                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200"
               />
             </div>
 
@@ -342,10 +342,10 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                     key={g}
                     type="button"
                     onClick={() => setGender(g as any)}
-                    className={`py-3 rounded-xl border-2 transition-all font-bold text-sm capitalize ${
+                    className={`py-3 rounded-xl border-2 transition-all duration-200 font-bold text-sm capitalize active:scale-98 cursor-pointer ${
                       gender === g 
-                        ? 'border-[#1A73E8] bg-[#1A73E8]/5 text-[#1A73E8]' 
-                        : 'border-gray-200 text-gray-700'
+                        ? 'border-[#1A73E8] bg-[#1A73E8]/10 text-[#1A73E8] shadow-sm' 
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                   >
                     {t(g)}
@@ -361,7 +361,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
                 placeholder="Enter age (18 - 80)"
-                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200"
               />
             </div>
 
@@ -375,10 +375,10 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                       key={lang}
                       type="button"
                       onClick={() => toggleLanguage(lang)}
-                      className={`py-2 px-4 rounded-full border text-xs font-bold transition-all ${
+                      className={`py-2 px-4 rounded-full border text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer ${
                         isSelected 
-                          ? 'border-[#1A73E8] bg-[#1A73E8] text-white shadow-sm' 
-                          : 'border-gray-200 bg-white text-gray-700'
+                          ? 'border-[#1A73E8] bg-[#1A73E8] text-white shadow-md shadow-blue-100 hover:bg-[#155cb4] hover:border-[#155cb4]' 
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       {lang}
@@ -403,10 +403,10 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                     key={cat}
                     type="button"
                     onClick={() => toggleSkill(cat)}
-                    className={`p-3 rounded-xl border-2 transition-all font-bold text-xs flex flex-col items-center gap-1.5 capitalize ${
+                    className={`p-3 rounded-xl border-2 transition-all duration-200 font-bold text-xs flex flex-col items-center gap-1.5 capitalize active:scale-95 cursor-pointer ${
                       isSelected 
-                        ? 'border-[#1A73E8] bg-[#1A73E8]/5 text-[#1A73E8]' 
-                        : 'border-gray-200 text-gray-700'
+                        ? 'border-[#1A73E8] bg-[#1A73E8]/10 text-[#1A73E8] shadow-sm shadow-blue-50' 
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                   >
                     <span className="text-lg">
@@ -427,7 +427,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                 value={experience}
                 onChange={(e) => setExperience(e.target.value)}
                 placeholder="Experience in years"
-                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8]"
+                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200"
               />
             </div>
 
@@ -492,7 +492,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                 type="number"
                 value={expectedSalary}
                 onChange={(e) => setExpectedSalary(e.target.value)}
-                className="w-full py-4 pl-12 pr-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8]"
+                className="w-full py-4 pl-12 pr-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200"
               />
               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
                 <DollarSign size={20} />
@@ -504,7 +504,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
               <select
                 value={preferredSociety}
                 onChange={(e) => setPreferredSociety(e.target.value)}
-                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8]"
+                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200 cursor-pointer"
               >
                 <option value="">-- Choose Society --</option>
                 {MOCK_SOCIETIES.map(s => (
@@ -521,12 +521,12 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                   value={preferredAreasInput}
                   onChange={(e) => setPreferredAreasInput(e.target.value)}
                   placeholder="E.g., Whitefield, JP Nagar"
-                  className="flex-1 py-3 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8]"
+                  className="flex-1 py-3 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200"
                 />
                 <button
                   type="button"
                   onClick={handleAddArea}
-                  className="px-4 py-3 bg-[#1A73E8] text-white rounded-2xl font-bold text-sm hover:bg-[#1A73E8]/90"
+                  className="px-4 py-3 bg-[#1A73E8] text-white rounded-2xl font-bold text-sm hover:bg-[#155cb4] hover:shadow-lg hover:shadow-blue-100 active:scale-95 transition-all duration-200 cursor-pointer"
                 >
                   Add
                 </button>
@@ -608,7 +608,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
             <button
               onClick={handleBack}
               disabled={loading}
-              className="py-3 px-4 border border-gray-200 hover:bg-gray-50 active:scale-95 text-gray-700 font-bold rounded-2xl transition-all text-sm flex items-center justify-center gap-1"
+              className="py-3 px-4 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:scale-95 text-gray-700 font-bold rounded-2xl transition-all duration-200 text-sm flex items-center justify-center gap-1 cursor-pointer"
             >
               <ArrowLeft size={16} />
               <span>{t('back')}</span>
@@ -617,7 +617,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
             <button
               onClick={onCancel}
               disabled={loading}
-              className="py-3 px-4 border border-gray-200 hover:bg-gray-50 active:scale-95 text-gray-700 font-bold rounded-2xl transition-all text-sm flex items-center justify-center gap-1"
+              className="py-3 px-4 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:scale-95 text-gray-700 font-bold rounded-2xl transition-all duration-200 text-sm flex items-center justify-center gap-1 cursor-pointer"
             >
               <ArrowLeft size={16} />
               <span>{t('back')}</span>
@@ -627,8 +627,10 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
           <button
             onClick={step === 5 ? handleSubmit : handleNext}
             disabled={loading}
-            className={`flex-1 py-3 text-white font-bold rounded-2xl shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 text-sm min-h-[46px] ${
-              step === 5 ? 'bg-[#34A853] hover:bg-[#34A853]/90' : 'bg-[#1A73E8] hover:bg-[#1A73E8]/90'
+            className={`flex-1 py-3 text-white font-bold rounded-2xl shadow-sm transition-all duration-200 active:scale-98 flex items-center justify-center gap-1.5 text-sm min-h-[46px] cursor-pointer ${
+              step === 5 
+                ? 'bg-[#34A853] hover:bg-[#2e954b] hover:shadow-lg hover:shadow-green-100' 
+                : 'bg-[#1A73E8] hover:bg-[#155cb4] hover:shadow-lg hover:shadow-blue-100'
             }`}
           >
             {loading ? (
