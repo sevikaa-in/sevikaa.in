@@ -73,6 +73,18 @@ export default function EmployerDashboard() {
         const sessionUser = session.user;
         setUser(sessionUser);
 
+        // Verify primary profile role to ensure route isolation
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', sessionUser.id)
+          .single();
+
+        if (profile && profile.role !== 'employer') {
+          router.push(profile.role === 'worker' ? '/worker/dashboard' : '/');
+          return;
+        }
+
         // Get employer profile
         const { data: ep } = await supabase
           .from('employer_profiles')

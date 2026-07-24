@@ -86,6 +86,11 @@ export default function WorkerDashboard() {
           .eq('id', sessionUser.id)
           .single();
 
+        if (profile && profile.role !== 'worker') {
+          router.push(profile.role === 'employer' ? '/employer/dashboard' : '/');
+          return;
+        }
+
         // Get worker_profiles row
         const { data: wp } = await supabase
           .from('worker_profiles')
