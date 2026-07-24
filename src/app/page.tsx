@@ -69,9 +69,10 @@ export default function Home() {
           const checkUrlParams = () => {
             const searchParams = new URLSearchParams(window.location.search);
             const roleParam = searchParams.get('role');
+            const stepParam = searchParams.get('step');
             if (roleParam === 'worker') {
               setTargetRole('worker');
-              setView('language');
+              setView(stepParam === 'login' ? 'login' : 'language');
             } else if (roleParam === 'employer') {
               setTargetRole('employer');
               setView('login');
@@ -121,9 +122,10 @@ export default function Home() {
           setView('landing');
           const searchParams = new URLSearchParams(window.location.search);
           const roleParam = searchParams.get('role');
+          const stepParam = searchParams.get('step');
           if (roleParam === 'worker') {
             setTargetRole('worker');
-            setView('language');
+            setView(stepParam === 'login' ? 'login' : 'language');
           } else if (roleParam === 'employer') {
             setTargetRole('employer');
             setView('login');
@@ -142,11 +144,18 @@ export default function Home() {
   const handleStartWorkerFlow = () => {
     setTargetRole('worker');
     setView('language');
+    window.history.pushState({}, '', '?role=worker&step=language');
   };
 
   const handleStartEmployerFlow = () => {
     setTargetRole('employer');
     setView('login'); // Skip language selector for employers
+    window.history.pushState({}, '', '?role=employer&step=login');
+  };
+
+  const handleBackToLanding = () => {
+    setView('landing');
+    window.history.pushState({}, '', '/');
   };
 
   const handleLoginSuccess = async (sessionData: { user: { id: string; email?: string; phone?: string } }) => {
@@ -236,6 +245,7 @@ export default function Home() {
       }
       setUser(null);
       setView('landing');
+      window.history.pushState({}, '', '/');
     } catch (err) {
       console.error("Sign out error:", err);
     }
@@ -277,11 +287,14 @@ export default function Home() {
         )}
         <main className={`flex-1 w-full bg-gray-50 ${isFunnelView ? 'flex items-center justify-center py-6' : ''}`}>
           {view === 'language' && (
-            <LanguageSelector onNext={() => setView('login')} />
+            <LanguageSelector onNext={() => {
+              setView('login');
+              window.history.pushState({}, '', '?role=worker&step=login');
+            }} />
           )}
           {view === 'login' && (
             <OtpLogin 
-              onBack={() => setView('landing')} 
+              onBack={handleBackToLanding} 
               onSuccess={handleLoginSuccess} 
               role={targetRole}
             />
