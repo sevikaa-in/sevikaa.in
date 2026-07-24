@@ -242,7 +242,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
       if (aadhaarFrontFile) {
         const { data: docData, error: docErr } = await supabase.storage
           .from('worker-documents')
-          .upload(`${userId}/aadhaar-front.png`, aadhaarFrontFile);
+          .upload(`${userId}/aadhaar-front.png`, aadhaarFrontFile, { upsert: true });
         if (docErr) throw docErr;
         aadhaarFrontUrl = docData.path;
       }
@@ -250,7 +250,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
       if (videoFile) {
         const { data: vidData, error: vidErr } = await supabase.storage
           .from('worker-videos')
-          .upload(`${userId}/intro-video.mp4`, videoFile);
+          .upload(`${userId}/intro-video.mp4`, videoFile, { upsert: true });
         if (vidErr) throw vidErr;
         videoUrl = vidData.path;
       }
