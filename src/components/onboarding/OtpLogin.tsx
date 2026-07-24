@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { supabase } from '../../lib/supabaseClient';
 import { ArrowLeft, Key, Mail, Phone, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
 
 interface OtpLoginProps {
   onBack: () => void;
@@ -149,6 +150,14 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[85vh] px-4 py-8 max-w-md mx-auto w-full">
+      
+      {/* Brand Logo Header */}
+      <div className="mb-4 flex flex-col items-center text-center">
+        <img src="/logo.png" alt="Sevikaa Logo" className="h-28 w-auto object-contain" />
+        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">POWERED BY YUGAYATRA RETAIL</p>
+        <p className="text-[11px] text-gray-500 font-semibold mt-0.5">Helping India hire trusted Maids, Cooks & Nannies.</p>
+      </div>
+
       <div className="w-full bg-white rounded-3xl border border-gray-200 shadow-sm p-6 relative">
         {/* Back Button */}
         <button
@@ -250,6 +259,28 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
           </form>
         )}
       </div>
+
+      {/* Public & Compliance Footer */}
+      <footer className="mt-8 space-y-4 w-full text-xs text-gray-400 text-center">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 font-bold">
+          <Link href="/about" className="hover:text-[#1A73E8] transition-colors">About</Link>
+          <Link href="/how-it-works" className="hover:text-[#1A73E8] transition-colors">How It Works</Link>
+          <Link href="/pricing" className="hover:text-[#1A73E8] transition-colors">Pricing</Link>
+          <Link href="/safety" className="hover:text-[#1A73E8] transition-colors">Safety</Link>
+          <Link href="/contact" className="hover:text-[#1A73E8] transition-colors">Contact Us</Link>
+          <Link href="/faq" className="hover:text-[#1A73E8] transition-colors">FAQ</Link>
+        </div>
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] font-semibold text-gray-400/80">
+          <Link href="/terms" className="hover:text-gray-600 transition-colors">Terms of Service</Link>
+          <Link href="/privacy" className="hover:text-gray-600 transition-colors">Privacy Policy</Link>
+          <Link href="/refunds" className="hover:text-gray-600 transition-colors">Refund Policy</Link>
+          <Link href="/shipping" className="hover:text-gray-600 transition-colors">Shipping Policy</Link>
+        </div>
+        <p className="text-[10px] mt-2 font-medium">
+          Powered by YugaYatra Retail (OPC) Private Limited<br />
+          © {new Date().getFullYear()} All Rights Reserved
+        </p>
+      </footer>
     </div>
   );
 };
