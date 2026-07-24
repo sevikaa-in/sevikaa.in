@@ -105,6 +105,10 @@ export default function Home() {
                 setTargetRole('employer');
                 setView('employer-funnel');
               }
+            } else if (profile.role === 'super-admin') {
+              router.push('/super-admin/dashboard');
+            } else if (profile.role === 'admin') {
+              router.push('/admin/dashboard');
             } else {
               setView('landing');
               checkUrlParams();
@@ -194,6 +198,10 @@ export default function Home() {
             setTargetRole('employer');
             setView('employer-funnel');
           }
+        } else if (profile.role === 'super-admin') {
+          router.push('/super-admin/dashboard');
+        } else if (profile.role === 'admin') {
+          router.push('/admin/dashboard');
         } else {
           setView(targetRole === 'worker' ? 'worker-funnel' : 'employer-funnel');
         }
