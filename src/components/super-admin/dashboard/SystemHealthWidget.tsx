@@ -51,24 +51,24 @@ export const SystemHealthWidget: React.FC<SystemHealthWidgetProps> = ({
             switch (service.status) {
               case 'Healthy':
                 return {
-                  bg: 'bg-emerald-50/50 border-emerald-100',
-                  indicator: 'bg-emerald-500',
-                  text: 'text-emerald-700',
-                  icon: <ShieldCheck size={14} className="text-emerald-500" />
+                  bg: 'bg-[#34A853]/5 border-[#34A853]/10',
+                  indicator: 'bg-[#34A853]',
+                  text: 'text-[#34A853]',
+                  icon: <ShieldCheck size={14} className="text-[#34A853]" />
                 };
               case 'Warning':
                 return {
-                  bg: 'bg-amber-50/50 border-amber-100',
-                  indicator: 'bg-amber-500',
-                  text: 'text-amber-700',
-                  icon: <AlertCircle size={14} className="text-amber-500" />
+                  bg: 'bg-[#FBBC05]/5 border-[#FBBC05]/10',
+                  indicator: 'bg-[#FBBC05]',
+                  text: 'text-amber-600',
+                  icon: <AlertCircle size={14} className="text-amber-600" />
                 };
               default:
                 return {
-                  bg: 'bg-red-50/50 border-red-100',
-                  indicator: 'bg-red-500',
-                  text: 'text-red-700',
-                  icon: <AlertCircle size={14} className="text-red-500" />
+                  bg: 'bg-[#EA4335]/5 border-[#EA4335]/10',
+                  indicator: 'bg-[#EA4335]',
+                  text: 'text-[#EA4335]',
+                  icon: <AlertCircle size={14} className="text-[#EA4335]" />
                 };
             }
           };

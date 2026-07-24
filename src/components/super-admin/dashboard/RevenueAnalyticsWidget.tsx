@@ -63,38 +63,33 @@ export const RevenueAnalyticsWidget: React.FC<RevenueAnalyticsWidgetProps> = ({
                 <p className="text-[10px] text-gray-400 font-bold">Historical system subscription billing path</p>
               </div>
               <div className="flex gap-4 text-[9px] font-bold text-gray-400">
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Subscription Unlocks</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#1A73E8]"></span> Subscription Unlocks</span>
               </div>
             </div>
 
             {/* Simple Responsive SVG Graph */}
             <div className="relative w-full h-40 bg-slate-50/50 rounded-xl flex items-end px-4 pb-2 pt-6">
               <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-                {/* Area under curve */}
+                {/* Area under curve (Flat Opacity Fill) */}
                 <path
                   d="M 10 100 L 10 80 Q 100 50 190 60 T 370 20 L 370 100 Z"
-                  fill="url(#revenueGrad)"
+                  fill="#1A73E8"
+                  fillOpacity="0.08"
                 />
-                {/* Line path */}
+                {/* Line path (Official Brand Blue) */}
                 <path
                   d="M 10 80 Q 100 50 190 60 T 370 20"
                   fill="none"
-                  stroke="#6366f1"
+                  stroke="#1A73E8"
                   strokeWidth="3"
                   strokeLinecap="round"
                 />
                 {/* Dot coordinates */}
-                <circle cx="10" cy="80" r="4" fill="#4f46e5" stroke="#ffffff" strokeWidth="1.5" />
-                <circle cx="100" cy="65" r="4" fill="#4f46e5" stroke="#ffffff" strokeWidth="1.5" />
-                <circle cx="190" cy="60" r="4" fill="#4f46e5" stroke="#ffffff" strokeWidth="1.5" />
-                <circle cx="280" cy="40" r="4" fill="#4f46e5" stroke="#ffffff" strokeWidth="1.5" />
-                <circle cx="370" cy="20" r="4" fill="#4f46e5" stroke="#ffffff" strokeWidth="1.5" />
+                <circle cx="10" cy="80" r="4" fill="#1A73E8" stroke="#ffffff" strokeWidth="1.5" />
+                <circle cx="100" cy="65" r="4" fill="#1A73E8" stroke="#ffffff" strokeWidth="1.5" />
+                <circle cx="190" cy="60" r="4" fill="#1A73E8" stroke="#ffffff" strokeWidth="1.5" />
+                <circle cx="280" cy="40" r="4" fill="#1A73E8" stroke="#ffffff" strokeWidth="1.5" />
+                <circle cx="370" cy="20" r="4" fill="#1A73E8" stroke="#ffffff" strokeWidth="1.5" />
               </svg>
               {/* X-Axis labels */}
               <div className="absolute bottom-1 left-0 right-0 flex justify-between px-3 text-[8px] font-bold text-gray-400">

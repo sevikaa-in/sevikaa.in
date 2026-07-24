@@ -57,18 +57,18 @@ export const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({
           {insights.map((insight, idx) => {
             const getIcon = () => {
               switch (insight.category) {
-                case 'growth': return <TrendingUp size={16} className="text-emerald-500" />;
-                case 'revenue': return <Award size={16} className="text-indigo-500" />;
-                case 'efficiency': return <Sparkles size={16} className="text-yellow-600" />;
-                default: return <Lightbulb size={16} className="text-blue-500" />;
+                case 'growth': return <TrendingUp size={16} className="text-[#34A853]" />;
+                case 'revenue': return <Award size={16} className="text-[#1A73E8]" />;
+                case 'efficiency': return <Sparkles size={16} className="text-[#FBBC05]" />;
+                default: return <Lightbulb size={16} className="text-[#1A73E8]" />;
               }
             };
             const getBg = () => {
               switch (insight.category) {
-                case 'growth': return 'bg-emerald-50/40 border-emerald-100/50';
-                case 'revenue': return 'bg-indigo-50/40 border-indigo-100/50';
-                case 'efficiency': return 'bg-yellow-50/40 border-yellow-100/50';
-                default: return 'bg-blue-50/40 border-blue-100/50';
+                case 'growth': return 'bg-[#34A853]/5 border-[#34A853]/10';
+                case 'revenue': return 'bg-[#1A73E8]/5 border-[#1A73E8]/10';
+                case 'efficiency': return 'bg-[#FBBC05]/5 border-[#FBBC05]/10';
+                default: return 'bg-[#1A73E8]/5 border-[#1A73E8]/10';
               }
             };
             return (
