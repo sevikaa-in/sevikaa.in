@@ -316,6 +316,34 @@ export default function Home() {
             <StatusPending onReset={handleReset} />
           )}
         </main>
+
+        {/* Unified Compliance Footer for Onboarding */}
+        {isFunnelView && (
+          <footer className="bg-white border-t border-gray-200 py-6 px-4 text-center text-xs text-gray-400">
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 font-bold mb-3">
+              <Link href="/about" className="hover:text-[#1A73E8] transition-colors">About</Link>
+              <Link href="/how-it-works" className="hover:text-[#1A73E8] transition-colors">How It Works</Link>
+              <Link href="/pricing" className="hover:text-[#1A73E8] transition-colors">Pricing</Link>
+              <Link href="/safety" className="hover:text-[#1A73E8] transition-colors">Safety</Link>
+              <Link href="/contact" className="hover:text-[#1A73E8] transition-colors">Contact Us</Link>
+              <Link href="/faq" className="hover:text-[#1A73E8] transition-colors">FAQ</Link>
+            </div>
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] font-semibold text-gray-400/80 mb-3">
+              <Link href="/terms" className="hover:text-gray-600 transition-colors">Terms of Service</Link>
+              <Link href="/privacy" className="hover:text-gray-600 transition-colors">Privacy Policy</Link>
+              {view === 'employer-funnel' && (
+                <>
+                  <Link href="/refunds" className="hover:text-gray-600 transition-colors">Refund & Cancellation</Link>
+                  <Link href="/shipping" className="hover:text-gray-600 transition-colors">Shipping & Delivery</Link>
+                </>
+              )}
+            </div>
+            <p className="text-[10px] font-medium">
+              Powered by YugaYatra Retail (OPC) Private Limited<br />
+              © {new Date().getFullYear()} All Rights Reserved
+            </p>
+          </footer>
+        )}
       </div>
     );
   }
