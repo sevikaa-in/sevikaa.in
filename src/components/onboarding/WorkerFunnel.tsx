@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { supabase } from '../../lib/supabaseClient';
 import { 
@@ -38,6 +38,9 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
   // Step 1 State: Selfie
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string>('');
 
   // Step 2 State: Basic Details & Languages
   const [fullName, setFullName] = useState('');
@@ -99,6 +102,64 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
       setSelfieFile(file);
       setSelfiePreview(URL.createObjectURL(file));
     }
+  };
+
+  useEffect(() => {
+    if (step === 1 && !selfiePreview) {
+      navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } 
+      })
+      .then((mediaStream) => {
+        setStream(mediaStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      })
+      .catch((err) => {
+        console.error("Camera access error:", err);
+        setCameraError("Camera access is required. Please grant permission or use a device with a camera.");
+      });
+    }
+
+    // Cleanup: Stop the camera stream when moving to other steps or unmounting
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [step, selfiePreview]);
+
+  const captureSelfie = () => {
+    if (videoRef.current && stream) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Mirror the canvas capture context so the captured photo matches the mirrored webcam view
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], "selfie.jpg", { type: "image/jpeg" });
+            setSelfieFile(file);
+            setSelfiePreview(URL.createObjectURL(file));
+            
+            // Turn off camera tracks once photo is captured
+            stream.getTracks().forEach(track => track.stop());
+            setStream(null);
+          }
+        }, 'image/jpeg');
+      }
+    }
+  };
+
+  const handleRetake = () => {
+    setSelfieFile(null);
+    setSelfiePreview(null);
   };
 
   // Form Validations per step
@@ -267,7 +328,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
           </div>
         )}
 
-        {/* STEP 1: Selfie upload */}
+        {/* STEP 1: Selfie capture */}
         {step === 1 && (
           <div className="space-y-6">
             <div className="text-center">
@@ -280,33 +341,44 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
               </p>
             </div>
 
-            <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-3xl p-6 bg-gray-50 hover:bg-gray-100/50 transition-all cursor-pointer relative min-h-[220px]">
-              {selfiePreview ? (
-                <div className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-white shadow-md">
+            <div className="flex flex-col items-center justify-center rounded-3xl p-6 bg-gray-50/50 border border-gray-100 min-h-[260px] text-center">
+              <div className="relative w-48 h-48 rounded-full overflow-hidden border-4 border-white shadow-md bg-gray-100 flex items-center justify-center mb-4">
+                {selfiePreview ? (
                   <img src={selfiePreview} alt="Selfie preview" className="w-full h-full object-cover" />
-                  <label htmlFor="selfie-file" className="absolute inset-0 bg-black/40 flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                    <Camera size={20} />
-                  </label>
-                </div>
-              ) : (
-                <label htmlFor="selfie-file" className="flex flex-col items-center justify-center cursor-pointer w-full h-full py-6">
-                  <div className="w-16 h-16 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 shadow-sm mb-3">
-                    <Camera size={28} />
-                  </div>
-                  <span className="text-sm font-bold text-gray-700">📷 Take a Photo or Upload a Selfie</span>
-                  <span className="text-xs text-gray-400 mt-1">PNG, JPG or JPEG • Max 5 MB</span>
-                  <span className="text-[10px] text-[#EA4335] mt-2 font-bold bg-[#EA4335]/5 px-2.5 py-0.5 rounded-full">
-                    Make sure your face is clearly visible.
-                  </span>
-                </label>
-              )}
-              <input
-                id="selfie-file"
-                type="file"
-                accept="image/*"
-                onChange={handleSelfieChange}
-                className="hidden"
-              />
+                ) : cameraError ? (
+                  <p className="text-xs text-red-500 font-bold p-4 leading-normal">{cameraError}</p>
+                ) : (
+                  <video 
+                    ref={videoRef} 
+                    autoPlay 
+                    playsInline 
+                    muted 
+                    className="w-full h-full object-cover scale-x-[-1]" 
+                  />
+                )}
+              </div>
+
+              <div className="flex justify-center">
+                {selfiePreview ? (
+                  <button
+                    type="button"
+                    onClick={handleRetake}
+                    className="py-3 px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-2xl text-xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    Retake Photo
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={captureSelfie}
+                    disabled={!!cameraError}
+                    className="py-3 px-6 bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-sm shadow-blue-100"
+                  >
+                    <Camera size={14} />
+                    <span>Capture Photo</span>
+                  </button>
+                )}
+              </div>
             </div>
             
             <div className="p-3 bg-[#1A73E8]/5 rounded-2xl text-[10px] text-gray-500 font-bold leading-relaxed flex gap-2">
