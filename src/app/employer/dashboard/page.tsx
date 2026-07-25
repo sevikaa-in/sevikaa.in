@@ -324,7 +324,7 @@ export default function EmployerDashboard() {
         const { error: jobErr } = await supabase
           .from('jobs')
           .insert({
-            employer_id: employerProfile.id,
+            employer_id: user.id,
             title: jobTitle,
             category: jobCategory,
             description: jobDescription,

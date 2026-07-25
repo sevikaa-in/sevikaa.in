@@ -202,18 +202,21 @@ export default function AdminDashboard() {
       // 3. Fetch pending jobs
       const { data: pendingJobs } = await supabase
         .from('jobs')
-        .select('*, employer:employer_profiles(*)')
+        .select('*, employer:profiles(*, employer_profiles(*))')
         .eq('status', 'pending_approval');
       if (pendingJobs) {
-        setPendingJobsList(pendingJobs.map(j => ({
-          id: j.id,
-          title: j.title || 'General Job',
-          category: j.category || 'General',
-          salary_offered: j.salary_range || 0,
-          society_name: j.society_name || 'Bangalore Sector',
-          employer: j.employer?.name || 'Household',
-          description: j.description || ''
-        })));
+        setPendingJobsList(pendingJobs.map(j => {
+          const employerProfile = j.employer?.employer_profiles?.[0];
+          return {
+            id: j.id,
+            title: j.title || 'General Job',
+            category: j.category || 'General',
+            salary_offered: j.salary_range_min || 0,
+            society_name: j.society_name || 'Bangalore Sector',
+            employer: employerProfile?.name || 'Household',
+            description: j.description || ''
+          };
+        }));
       }
 
       // 4. Fetch pending reviews

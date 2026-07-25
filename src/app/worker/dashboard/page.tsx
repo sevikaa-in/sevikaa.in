@@ -243,42 +243,48 @@ export default function WorkerDashboard() {
         // Fetch applications with joined profiles containing phone number
         const { data: apps } = await supabase
           .from('applications')
-          .select('*, job:jobs(*, employer:employer_profiles(*, user:profiles(phone)))')
+          .select('*, job:jobs(*, employer:profiles(*, employer_profiles(*)))')
           .eq('worker_id', sessionUser.id);
 
         if (apps && apps.length > 0) {
-          setApplications(apps.map(a => ({
-            id: a.id,
-            job_id: a.job_id,
-            employer: a.job?.employer?.name || 'Employer',
-            category: a.job?.category || 'General',
-            salary: `₹${a.job?.salary_range_min?.toLocaleString()}/mo`,
-            status: a.status || 'Applied',
-            date: `Applied ${new Date(a.created_at).toLocaleDateString()}`,
-            employer_phone: a.job?.employer?.user?.phone || '',
-            employer_user_id: a.job?.employer?.user_id || ''
-          })));
+          setApplications(apps.map(a => {
+            const employerProfile = a.job?.employer?.employer_profiles?.[0];
+            return {
+              id: a.id,
+              job_id: a.job_id,
+              employer: employerProfile?.name || 'Employer',
+              category: a.job?.category || 'General',
+              salary: `₹${a.job?.salary_range_min?.toLocaleString()}/mo`,
+              status: a.status || 'Applied',
+              date: `Applied ${new Date(a.created_at).toLocaleDateString()}`,
+              employer_phone: a.job?.employer?.phone || '',
+              employer_user_id: a.job?.employer?.id || ''
+            };
+          }));
         }
 
         // Fetch open approved jobs
         const { data: openJobs } = await supabase
           .from('jobs')
-          .select('*, employer:employer_profiles(*, user:profiles(phone)), society:societies(*)')
+          .select('*, employer:profiles(*, employer_profiles(*)), society:societies(*)')
           .eq('status', 'approved');
 
         if (openJobs) {
-          setAvailableJobs(openJobs.map(j => ({
-            id: j.id,
-            title: j.title || `${j.category?.toUpperCase() || 'General'} Helper Needed`,
-            category: j.category,
-            description: j.description || '',
-            salary_range_min: j.salary_range_min || 0,
-            salary_range_max: j.salary_range_max || 0,
-            society: j.society?.name || 'Nearby Society',
-            employer: j.employer?.name || 'Employer Household',
-            employer_user_id: j.employer?.user_id || '',
-            employer_phone: j.employer?.user?.phone || ''
-          })));
+          setAvailableJobs(openJobs.map(j => {
+            const employerProfile = j.employer?.employer_profiles?.[0];
+            return {
+              id: j.id,
+              title: j.title || `${j.category?.toUpperCase() || 'General'} Helper Needed`,
+              category: j.category,
+              description: j.description || '',
+              salary_range_min: j.salary_range_min || 0,
+              salary_range_max: j.salary_range_max || 0,
+              society: j.society?.name || 'Nearby Society',
+              employer: employerProfile?.name || 'Employer Household',
+              employer_user_id: j.employer?.id || '',
+              employer_phone: j.employer?.phone || ''
+            };
+          }));
         }
 
       } catch (err) {
