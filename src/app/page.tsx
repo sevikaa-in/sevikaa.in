@@ -80,7 +80,26 @@ export default function Home() {
           };
 
           if (profile) {
-            if (profile.role === 'worker') {
+            let activeRole = profile.role;
+            const searchParams = new URLSearchParams(window.location.search);
+            const urlRole = searchParams.get('role');
+            if (profile.role === 'worker' && urlRole === 'employer') {
+              const { data: workerProfile } = await supabase
+                .from('worker_profiles')
+                .select('id')
+                .eq('user_id', session.user.id)
+                .maybeSingle();
+
+              if (!workerProfile) {
+                await supabase
+                  .from('profiles')
+                  .update({ role: 'employer' })
+                  .eq('id', session.user.id);
+                activeRole = 'employer';
+              }
+            }
+
+            if (activeRole === 'worker') {
               const { data: workerProfile } = await supabase
                 .from('worker_profiles')
                 .select('id')
@@ -181,7 +200,24 @@ export default function Home() {
         .single();
 
       if (profile) {
-        if (profile.role === 'worker') {
+        let activeRole = profile.role;
+        if (profile.role === 'worker' && targetRole === 'employer') {
+          const { data: workerProfile } = await supabase
+            .from('worker_profiles')
+            .select('id')
+            .eq('user_id', sessionUser.id)
+            .maybeSingle();
+
+          if (!workerProfile) {
+            await supabase
+              .from('profiles')
+              .update({ role: 'employer' })
+              .eq('id', sessionUser.id);
+            activeRole = 'employer';
+          }
+        }
+
+        if (activeRole === 'worker') {
           const { data: workerProfile } = await supabase
             .from('worker_profiles')
             .select('id')
