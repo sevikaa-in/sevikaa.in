@@ -29,7 +29,7 @@ const MOCK_SOCIETIES = [
 export default function WorkerDashboard() {
   const { t, setLanguage } = useLanguage();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'availability' | 'applications' | 'wallet' | 'settings'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'availability' | 'applications' | 'wallet' | 'settings' | 'jobs'>('home');
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -59,7 +59,10 @@ export default function WorkerDashboard() {
     age: "26",
     preferred_areas: ["JP Nagar", "Bannerghatta Road"],
     profile_picture_url: "",
-    video_url: ""
+    video_url: "",
+    emergency_contact: "",
+    aadhaar_front_url: "",
+    aadhaar_back_url: ""
   });
 
   // Badges list
@@ -72,10 +75,10 @@ export default function WorkerDashboard() {
   ]);
 
   // Applications list
-  const [applications, setApplications] = useState<any[]>([
-    { employer: "Sharma Family", category: "Nanny", salary: "₹18,000/mo", status: "Interviewing", date: "Applied 2 days ago" },
-    { employer: "Prestige Apt 402", category: "Cook", salary: "₹12,500/mo", status: "Applied", date: "Applied 5 days ago" }
-  ]);
+  const [applications, setApplications] = useState<any[]>([]);
+
+  // Open Jobs list
+  const [availableJobs, setAvailableJobs] = useState<any[]>([]);
 
   // Edit states
   const [isEditing, setIsEditing] = useState(false);
@@ -89,6 +92,7 @@ export default function WorkerDashboard() {
   const [editAreasInput, setEditAreasInput] = useState('');
   const [editGender, setEditGender] = useState<'male' | 'female' | 'other' | ''>('');
   const [editAge, setEditAge] = useState('');
+  const [editEmergencyContact, setEditEmergencyContact] = useState('');
 
   // Edit upload files
   const [editSelfieFile, setEditSelfieFile] = useState<File | null>(null);
@@ -96,6 +100,31 @@ export default function WorkerDashboard() {
   const [editAadhaarFrontFile, setEditAadhaarFrontFile] = useState<File | null>(null);
   const [editAadhaarBackFile, setEditAadhaarBackFile] = useState<File | null>(null);
   const [editVideoFile, setEditVideoFile] = useState<File | null>(null);
+
+  // Review Modal State
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selectedJobForReview, setSelectedJobForReview] = useState<any>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+
+  const handleLogout = async () => {
+    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!isPlaceholder) {
+      await supabase.auth.signOut();
+    }
+    router.push('/');
+  };
+
+  const validateFile = (file: File, maxMb: number, allowedTypes: string[]) => {
+    if (file.size > maxMb * 1024 * 1024) {
+      return `File size is too large. Acceptable limit is up to ${maxMb}MB.`;
+    }
+    if (!allowedTypes.includes(file.type)) {
+      return `Unsupported file format. Acceptable formats: ${allowedTypes.map(t => t.split('/')[1]).join(', ').toUpperCase()}.`;
+    }
+    return null;
+  };
 
   useEffect(() => {
     const fetchWorkerData = async () => {
@@ -105,6 +134,14 @@ export default function WorkerDashboard() {
       if (isPlaceholder) {
         setUser({ id: 'mock-user-uuid-12345' });
         setLoading(false);
+        // Load some mock jobs
+        setAvailableJobs([
+          { id: 'j_mock_1', title: 'Full Time Cook Needed', category: 'cook', description: 'Need professional cook for vegetarian household.', salary_range_min: 15000, salary_range_max: 18000, society: 'DLF Westend Heights', employer: 'Sharma Household', employer_user_id: 'e_mock_1' },
+          { id: 'j_mock_2', title: 'Experienced Nanny for Toddler', category: 'nanny', description: 'Looking for child-loving nanny for a 2-year old boy.', salary_range_min: 20000, salary_range_max: 22000, society: 'Prestige Song of the South', employer: 'Kothari Residence', employer_user_id: 'e_mock_2' }
+        ]);
+        setApplications([
+          { id: 'app_mock_1', job_id: 'j_mock_2', employer: "Kothari Residence", category: "Nanny", salary: "₹20,000/mo", status: "Interviewing", date: "Applied 2 days ago", employer_phone: "+919876543210", employer_user_id: 'e_mock_2' }
+        ]);
         return;
       }
 
@@ -147,7 +184,7 @@ export default function WorkerDashboard() {
             name: wp.full_name || 'No Name Set',
             category: wp.skills?.join(' / ') || 'None',
             expectedSalary: wp.expected_salary?.toString() || '0',
-            experience: `${wp.age ? Math.max(0, parseInt(wp.age) - 20) : 0} Years`, // fallback calculate
+            experience: `${wp.experience_years || 0} Years`, 
             society: wp.preferred_society?.name || 'No society chosen',
             phone: sessionUser.phone || sessionUser.email || '',
             languages: wp.languages_spoken || [],
@@ -156,7 +193,10 @@ export default function WorkerDashboard() {
             preferred_areas: wp.preferred_areas || [],
             profile_picture_url: wp.profile_picture_url || '',
             video_url: wp.video_url || '',
-            preferred_society_id: wp.preferred_society_id || ''
+            preferred_society_id: wp.preferred_society_id || '',
+            emergency_contact: wp.emergency_contact || '',
+            aadhaar_front_url: wp.aadhaar_front_url || '',
+            aadhaar_back_url: wp.aadhaar_back_url || ''
           });
 
           // Check badges status
@@ -172,7 +212,6 @@ export default function WorkerDashboard() {
           ]);
 
           if (wp.availability_slots) {
-            // slots can contain weekly_grid or direct grid structure
             const slots = wp.availability_slots as any;
             if (slots.weekly_grid) {
               setAvailability(slots.weekly_grid);
@@ -194,23 +233,51 @@ export default function WorkerDashboard() {
             preferred_areas: [],
             profile_picture_url: '',
             video_url: '',
-            preferred_society_id: ''
+            preferred_society_id: '',
+            emergency_contact: '',
+            aadhaar_front_url: '',
+            aadhaar_back_url: ''
           });
         }
 
-        // Fetch applications
+        // Fetch applications with joined profiles containing phone number
         const { data: apps } = await supabase
           .from('applications')
-          .select('*, job:jobs(*, employer:employer_profiles(*))')
+          .select('*, job:jobs(*, employer:employer_profiles(*, user:profiles(phone)))')
           .eq('worker_id', sessionUser.id);
 
         if (apps && apps.length > 0) {
           setApplications(apps.map(a => ({
+            id: a.id,
+            job_id: a.job_id,
             employer: a.job?.employer?.name || 'Employer',
             category: a.job?.category || 'General',
             salary: `₹${a.job?.salary_range_min?.toLocaleString()}/mo`,
             status: a.status || 'Applied',
-            date: `Applied ${new Date(a.created_at).toLocaleDateString()}`
+            date: `Applied ${new Date(a.created_at).toLocaleDateString()}`,
+            employer_phone: a.job?.employer?.user?.phone || '',
+            employer_user_id: a.job?.employer?.user_id || ''
+          })));
+        }
+
+        // Fetch open approved jobs
+        const { data: openJobs } = await supabase
+          .from('jobs')
+          .select('*, employer:employer_profiles(*, user:profiles(phone)), society:societies(*)')
+          .eq('status', 'approved');
+
+        if (openJobs) {
+          setAvailableJobs(openJobs.map(j => ({
+            id: j.id,
+            title: j.title || `${j.category?.toUpperCase() || 'General'} Helper Needed`,
+            category: j.category,
+            description: j.description || '',
+            salary_range_min: j.salary_range_min || 0,
+            salary_range_max: j.salary_range_max || 0,
+            society: j.society?.name || 'Nearby Society',
+            employer: j.employer?.name || 'Employer Household',
+            employer_user_id: j.employer?.user_id || '',
+            employer_phone: j.employer?.user?.phone || ''
           })));
         }
 
@@ -248,16 +315,6 @@ export default function WorkerDashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!isPlaceholder) {
-      await supabase.auth.signOut();
-    }
-    localStorage.removeItem('sevikaa_language');
-    router.push('/');
-  };
-
   // Edit handlers
   const handleEditClick = () => {
     setEditName(workerProfile.name);
@@ -269,6 +326,7 @@ export default function WorkerDashboard() {
     setEditPreferredAreas(workerProfile.preferred_areas);
     setEditGender(workerProfile.gender);
     setEditAge(workerProfile.age);
+    setEditEmergencyContact(workerProfile.emergency_contact);
     setEditSelfiePreview(workerProfile.profile_picture_url ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/worker-selfies/${workerProfile.profile_picture_url}` : null);
     
     setIsEditing(true);
@@ -284,18 +342,6 @@ export default function WorkerDashboard() {
 
   const handleRemovePreferredArea = (area: string) => {
     setEditPreferredAreas(editPreferredAreas.filter(a => a !== area));
-  };
-
-  // File size validation helpers
-  const validateFile = (file: File, maxMB: number, allowedTypes: string[]) => {
-    const maxBytes = maxMB * 1024 * 1024;
-    if (file.size > maxBytes) {
-      return `File is too large. Max limit is ${maxMB}MB.`;
-    }
-    if (!allowedTypes.includes(file.type)) {
-      return `Invalid format. Allowed types: ${allowedTypes.map(t => t.split('/')[1].toUpperCase()).join(', ')}.`;
-    }
-    return null;
   };
 
   const onSelfieFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -368,7 +414,8 @@ export default function WorkerDashboard() {
             preferred_areas: editPreferredAreas,
             gender: editGender,
             age: editAge,
-            preferred_society_id: editSocietyId
+            preferred_society_id: editSocietyId,
+            emergency_contact: editEmergencyContact
           }));
           setSuccess('Profile updated successfully (Mock mode)!');
           setSaveLoading(false);
@@ -380,6 +427,8 @@ export default function WorkerDashboard() {
       // Live Supabase update
       let selfiePath = workerProfile.profile_picture_url;
       let videoPath = workerProfile.video_url;
+      let frontPath = workerProfile.aadhaar_front_url;
+      let backPath = workerProfile.aadhaar_back_url;
 
       if (editSelfieFile) {
         const { data, error: selfieErr } = await supabase.storage
@@ -390,17 +439,19 @@ export default function WorkerDashboard() {
       }
 
       if (editAadhaarFrontFile) {
-        const { error: fErr } = await supabase.storage
+        const { data, error: fErr } = await supabase.storage
           .from('worker-documents')
-          .upload(`${user.id}/aadhaar-front.png`, editAadhaarFrontFile, { upsert: true });
+          .upload(`${user.id}/aadhaar-front-${Date.now()}.png`, editAadhaarFrontFile, { upsert: true });
         if (fErr) throw fErr;
+        frontPath = data.path;
       }
 
       if (editAadhaarBackFile) {
-        const { error: bErr } = await supabase.storage
+        const { data, error: bErr } = await supabase.storage
           .from('worker-documents')
-          .upload(`${user.id}/aadhaar-back.png`, editAadhaarBackFile, { upsert: true });
+          .upload(`${user.id}/aadhaar-back-${Date.now()}.png`, editAadhaarBackFile, { upsert: true });
         if (bErr) throw bErr;
+        backPath = data.path;
       }
 
       if (editVideoFile) {
@@ -411,7 +462,7 @@ export default function WorkerDashboard() {
         videoPath = data.path;
       }
 
-      // Update worker_profiles
+      // Update worker_profiles using the correct table schema
       const { error: wpErr } = await supabase
         .from('worker_profiles')
         .update({
@@ -423,8 +474,12 @@ export default function WorkerDashboard() {
           expected_salary: parseInt(editExpectedSalary) || 0,
           preferred_society_id: editSocietyId || null,
           preferred_areas: editPreferredAreas,
+          experience_years: parseInt(editExperience) || 0,
+          emergency_contact: editEmergencyContact,
           profile_picture_url: selfiePath,
-          video_url: videoPath
+          video_url: videoPath,
+          aadhaar_front_url: frontPath,
+          aadhaar_back_url: backPath
         })
         .eq('user_id', user.id);
 
@@ -441,13 +496,88 @@ export default function WorkerDashboard() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50 text-slate-500 font-bold text-sm font-sans">
-        <span className="animate-pulse">Loading Sevikaa Worker Dashboard...</span>
-      </div>
-    );
-  }
+  // Job application submission
+  const handleApplyJob = async (jobId: string) => {
+    setError('');
+    setSuccess('');
+    try {
+      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+      if (isPlaceholder) {
+        setApplications(prev => [
+          ...prev,
+          {
+            id: `app_mock_${Date.now()}`,
+            job_id: jobId,
+            employer: "Mock Household",
+            category: "Maid",
+            salary: "₹15,000/mo",
+            status: "Applied",
+            date: "Applied just now",
+            employer_phone: "+919876543210",
+            employer_user_id: 'e_mock_1'
+          }
+        ]);
+        setSuccess('Applied successfully (Mock mode)!');
+        return;
+      }
+
+      const { error: appErr } = await supabase
+        .from('applications')
+        .insert({
+          job_id: jobId,
+          worker_id: user.id,
+          status: 'applied'
+        });
+
+      if (appErr) throw appErr;
+
+      setSuccess('Job application submitted successfully!');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err: any) {
+      console.error("Apply job error:", err);
+      setError(err.message || 'Failed to submit application.');
+    }
+  };
+
+  // Star review submit
+  const submitEmployerReview = async () => {
+    setError('');
+    setSuccess('');
+    if (!reviewRating) return setError('Please select a star rating.');
+
+    try {
+      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+      if (isPlaceholder) {
+        setShowReviewModal(false);
+        setSuccess('Review submitted successfully for admin review (Mock)!');
+        return;
+      }
+
+      const { error: rErr } = await supabase
+        .from('reviews')
+        .insert({
+          author_id: user.id,
+          target_id: selectedJobForReview.employer_user_id,
+          rating: reviewRating,
+          comment: reviewComment,
+          status: 'pending' // Enforces admin moderation
+        });
+
+      if (rErr) throw rErr;
+
+      setShowReviewModal(false);
+      setSuccess('Your review has been submitted for admin moderation!');
+    } catch (err: any) {
+      console.error("Submit review error:", err);
+      setError(err.message || 'Failed to submit review.');
+    }
+  };
 
   // Helper avatar URL construct
   const isPlaceholder = !workerProfile.profile_picture_url;
@@ -476,8 +606,22 @@ export default function WorkerDashboard() {
       </header>
 
       {/* DYNAMIC SCROLLABLE CONTENT */}
-      <div className="flex-1 px-4 py-6 overflow-y-auto space-y-6">
+      <div className="flex-1 px-4 py-6 overflow-y-auto space-y-6 pb-24">
         
+        {/* Global Action Notifications Banner */}
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-500 text-center font-medium flex items-center justify-center gap-1.5">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
+        {success && (
+          <div className="p-3 bg-green-50 border border-green-100 rounded-xl text-xs text-green-500 text-center font-medium flex items-center justify-center gap-1.5">
+            <Check size={16} />
+            <span>{success}</span>
+          </div>
+        )}
+
         {/* Sub-tab Back Navigation helper */}
         {activeTab !== 'home' && (
           <button 
@@ -698,19 +842,6 @@ export default function WorkerDashboard() {
         {/* ================= PROFILE TAB ================= */}
         {activeTab === 'profile' && (
           <div className="space-y-6 animate-fade-in">
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-500 text-center font-medium flex items-center justify-center gap-1.5">
-                <AlertCircle size={16} />
-                <span>{error}</span>
-              </div>
-            )}
-            {success && (
-              <div className="p-3 bg-green-50 border border-green-100 rounded-xl text-xs text-green-500 text-center font-medium flex items-center justify-center gap-1.5">
-                <Check size={16} />
-                <span>{success}</span>
-              </div>
-            )}
-
             {!isEditing ? (
               <div className="space-y-4">
                 <div className="flex justify-between items-center px-1">
@@ -768,9 +899,15 @@ export default function WorkerDashboard() {
                       </div>
                     </div>
 
-                    <div>
-                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Mobile Number</span>
-                      <span className="block text-xs font-bold text-slate-700 mt-0.5">{workerProfile.phone}</span>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Mobile Number</span>
+                        <span className="block text-xs font-bold text-slate-700 mt-0.5">{workerProfile.phone}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Emergency Contact</span>
+                        <span className="block text-xs font-bold text-slate-700 mt-0.5">{workerProfile.emergency_contact || 'None set'}</span>
+                      </div>
                     </div>
 
                     <div>
@@ -882,6 +1019,18 @@ export default function WorkerDashboard() {
                         className="w-full py-3 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#2563EB] focus:outline-none transition-colors"
                       />
                     </div>
+                  </div>
+
+                  {/* Emergency Contact */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Emergency Contact Number</label>
+                    <input
+                      type="text"
+                      value={editEmergencyContact}
+                      onChange={(e) => setEditEmergencyContact(e.target.value)}
+                      placeholder="Enter emergency phone number"
+                      className="w-full py-3 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#2563EB] focus:outline-none transition-colors"
+                    />
                   </div>
 
                   {/* Categories/Skills */}
@@ -1094,24 +1243,97 @@ export default function WorkerDashboard() {
             <h2 className="text-lg font-black text-slate-800 px-1">Job Applications</h2>
             <div className="space-y-3">
               {applications.map((app, i) => (
-                <div key={i} className="p-5 bg-white rounded-[20px] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-black text-slate-700">{app.employer}</h3>
-                    <p className="text-xs text-[#2563EB] font-bold mt-0.5">{app.category} • {app.salary}</p>
-                    <p className="text-[9px] text-slate-400 mt-1.5 font-bold">{app.date}</p>
+                <div key={i} className="p-5 bg-white rounded-[20px] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-700">{app.employer}</h3>
+                      <p className="text-xs text-[#2563EB] font-bold mt-0.5">{app.category} • {app.salary}</p>
+                      <p className="text-[9px] text-slate-400 mt-1.5 font-bold">{app.date}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
+                      app.status === 'Interviewing' 
+                        ? 'bg-amber-50 text-[#F59E0B] border border-amber-100/50' 
+                        : app.status === 'Accepted'
+                        ? 'bg-green-50 text-green-600 border border-green-100/50'
+                        : 'bg-slate-50 text-slate-500 border border-slate-200/50'
+                    }`}>
+                      {app.status}
+                    </span>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
-                    app.status === 'Interviewing' 
-                      ? 'bg-amber-50 text-[#F59E0B] border border-amber-100/50' 
-                      : 'bg-slate-50 text-slate-500 border border-slate-200/50'
-                  }`}>
-                    {app.status}
-                  </span>
+
+                  {/* WhatsApp redirect connector if status allows it */}
+                  {(app.status === 'Interviewing' || app.status === 'Accepted') && app.employer_phone && (
+                    <button
+                      onClick={() => {
+                        const cleanPhone = app.employer_phone.replace(/\D/g, '');
+                        const waUrl = `https://wa.me/${cleanPhone}?text=Hello%20${encodeURIComponent(app.employer)},%20I%20am%20contacting%20you%20regarding%20my%20job%20application%20on%20Sevikaa.`;
+                        window.open(waUrl, '_blank');
+                      }}
+                      className="w-full py-2 bg-green-50 text-[#22C55E] hover:bg-green-100 border border-green-200/50 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98"
+                    >
+                      <PhoneCall size={12} />
+                      <span>Contact via WhatsApp</span>
+                    </button>
+                  )}
+
+                  {/* Rate Employer Button */}
+                  {(app.status === 'Accepted' || app.status === 'Interviewing') && (
+                    <button
+                      onClick={() => {
+                        setSelectedJobForReview(app);
+                        setShowReviewModal(true);
+                      }}
+                      className="w-full py-2 bg-amber-50 text-[#F59E0B] hover:bg-amber-100 border border-amber-200/50 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98"
+                    >
+                      ★ Rate Employer
+                    </button>
+                  )}
                 </div>
               ))}
               {applications.length === 0 && (
                 <div className="p-8 text-center text-xs font-bold text-slate-400 bg-white rounded-[20px] border border-slate-100">
-                  No applications submitted yet.
+                  No applications submitted yet. Go to the "Jobs" tab to apply!
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ================= JOBS TAB ================= */}
+        {activeTab === 'jobs' && (
+          <div className="space-y-4 animate-fade-in">
+            <h2 className="text-lg font-black text-slate-800 px-1">Available Jobs Near You</h2>
+            <div className="space-y-3">
+              {availableJobs.map((job) => {
+                const isApplied = applications.some(app => app.job_id === job.id);
+                return (
+                  <div key={job.id} className="p-5 bg-white rounded-[20px] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] space-y-3">
+                    <div>
+                      <span className="bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase">{job.category}</span>
+                      <h3 className="text-sm font-black text-slate-800 mt-2">{job.title}</h3>
+                      <p className="text-xs text-slate-400 font-semibold leading-relaxed mt-1">{job.description}</p>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 pt-2.5 border-t border-slate-50">
+                      <span>Salary: ₹{job.salary_range_min?.toLocaleString()} - ₹{job.salary_range_max?.toLocaleString()}/mo</span>
+                      <span>📍 {job.society}</span>
+                    </div>
+                    <button 
+                      onClick={() => handleApplyJob(job.id)}
+                      disabled={isApplied}
+                      className={`w-full py-3 rounded-xl text-xs font-bold transition-all border-0 ${
+                        isApplied 
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                          : 'bg-[#2563EB] text-white hover:bg-blue-700 active:scale-95 cursor-pointer shadow-sm shadow-blue-100'
+                      }`}
+                    >
+                      {isApplied ? '✓ Applied' : 'Apply for Job'}
+                    </button>
+                  </div>
+                );
+              })}
+              {availableJobs.length === 0 && (
+                <div className="p-8 text-center text-xs font-bold text-slate-400 bg-white rounded-[20px] border border-slate-100">
+                  No open job requirements available near you at this time.
                 </div>
               )}
             </div>
@@ -1188,13 +1410,65 @@ export default function WorkerDashboard() {
 
       </div>
 
+      {/* RATINGS & REVIEW MODAL */}
+      {showReviewModal && selectedJobForReview && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-[20px] p-6 max-w-sm w-full space-y-4 shadow-xl border border-slate-100">
+            <div>
+              <h3 className="text-sm font-black text-slate-800">Rate Employer: {selectedJobForReview.employer}</h3>
+              <p className="text-[10px] text-slate-400 font-semibold mt-1">Submit your rating. This review is held in pending status for moderation.</p>
+            </div>
+            
+            {/* Star Selector */}
+            <div className="flex gap-2.5 justify-center py-2 text-3xl">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button 
+                  key={star} 
+                  type="button"
+                  onClick={() => setReviewRating(star)} 
+                  className={`transition-colors bg-transparent border-0 cursor-pointer ${reviewRating >= star ? 'text-amber-500' : 'text-slate-200'}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <textarea 
+              value={reviewComment}
+              onChange={(e) => setReviewComment(e.target.value)}
+              placeholder="How was your experience working with this household? (Polite and professional comments only)"
+              className="w-full py-3 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:bg-white focus:border-blue-600 focus:outline-none resize-none"
+              rows={3}
+            />
+
+            <div className="flex gap-2">
+              <button 
+                type="button"
+                onClick={() => setShowReviewModal(false)} 
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border-0 cursor-pointer active:scale-98 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={submitEmployerReview} 
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold border-0 cursor-pointer active:scale-98 transition-all shadow-sm shadow-blue-100"
+              >
+                Submit Review
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <nav className="bg-white border-t border-slate-100 flex justify-between items-center px-4 py-2 sticky bottom-0 z-50 shadow-lg max-w-md mx-auto w-full">
         {[
           { id: 'home', label: 'Home', icon: <Briefcase size={18} /> },
           { id: 'profile', label: 'Profile', icon: <User size={18} /> },
           { id: 'availability', label: 'Availability', icon: <Calendar size={18} /> },
-          { id: 'applications', label: 'Jobs', icon: <FileText size={18} /> },
+          { id: 'jobs', label: 'Find Jobs', icon: <Briefcase size={18} /> },
+          { id: 'applications', label: 'My Applications', icon: <FileText size={18} /> },
           { id: 'settings', label: 'Settings', icon: <Settings size={18} /> }
         ].map((tab) => {
           const isActive = activeTab === tab.id;
@@ -1205,12 +1479,12 @@ export default function WorkerDashboard() {
                 setIsEditing(false);
                 setActiveTab(tab.id as any);
               }}
-              className={`flex flex-col items-center justify-center flex-1 py-1.5 px-2 select-none active:scale-95 transition-all min-h-[48px] cursor-pointer bg-transparent border-0 ${
+              className={`flex flex-col items-center justify-center flex-1 py-1.5 px-1 select-none active:scale-95 transition-all min-h-[48px] cursor-pointer bg-transparent border-0 ${
                 isActive ? 'text-[#2563EB] font-extrabold' : 'text-slate-400 hover:text-slate-600 font-medium'
               }`}
             >
               {tab.icon}
-              <span className="text-[9px] mt-1 leading-tight">{tab.label}</span>
+              <span className="text-[8px] mt-1 leading-tight text-center">{tab.label}</span>
             </button>
           );
         })}
