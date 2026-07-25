@@ -81,8 +81,6 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
 
   const lifecycleStages = [
     'pending_review',
-    'admin_interview',
-    'approved',
     'live',
     'suspended'
   ];
@@ -114,7 +112,7 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
 
       {/* Filter Tabs */}
       <div className="flex overflow-x-auto whitespace-nowrap gap-1 pb-2 scrollbar-hide">
-        {['all', 'pending_review', 'admin_interview', 'approved', 'live', 'suspended'].map((status) => (
+        {['all', 'pending_review', 'live', 'suspended'].map((status) => (
           <button
             key={status}
             onClick={() => {

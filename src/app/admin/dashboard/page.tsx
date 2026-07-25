@@ -240,7 +240,7 @@ export default function AdminDashboard() {
         pendingEmployers: mappedEmployers.filter((e: any) => e.status === 'pending_review').length || 0,
         pendingJobs: pendingJobs?.length || 0,
         pendingReviews: pendingReviews?.length || 0,
-        interviewsToday: profilesList?.filter((p: any) => p.status === 'admin_interview').length || 0,
+        interviewsToday: profilesList?.filter((p: any) => p.status === 'pending_review').length || 0,
         activeDisputes: 0
       });
 
@@ -280,7 +280,7 @@ export default function AdminDashboard() {
   }, [router]);
 
   // Document Badge updater
-  const handleUpdateBadge = (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => {
+  const handleUpdateBadge = async (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => {
     if (selectedWorker) {
       setSelectedWorker((prev: any) => ({
         ...prev,
@@ -296,6 +296,27 @@ export default function AdminDashboard() {
           [badgeKey]: status
         }
       } : w));
+
+      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+      if (!isPlaceholder) {
+        try {
+          const updateFields: any = {};
+          if (badgeKey === 'aadhaar') updateFields.is_aadhaar_verified = (status === 'Verified');
+          if (badgeKey === 'police') updateFields.is_police_verified = (status === 'Verified');
+          if (badgeKey === 'interview') updateFields.is_interview_verified = (status === 'Verified');
+
+          const { error } = await supabase
+            .from('worker_profiles')
+            .update(updateFields)
+            .eq('user_id', selectedWorker.id);
+
+          if (error) throw error;
+        } catch (err) {
+          console.error("Failed to save verification badge:", err);
+        }
+      }
     }
   };
 
