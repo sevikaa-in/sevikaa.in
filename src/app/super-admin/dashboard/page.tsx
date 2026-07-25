@@ -119,7 +119,7 @@ export default function SuperAdminDashboard() {
 
       setWorkersList([
         { id: 'w1', full_name: 'Sunita Devi', skills: ['Maid', 'Cook'], languages_spoken: ['Hindi'], status: 'pending_review', age: 34, gender: 'female' },
-        { id: 'w2', full_name: 'Ramesh Singh', skills: ['Gardener'], languages_spoken: ['Hindi', 'English'], status: 'approved', age: 41, gender: 'male' },
+        { id: 'w2', full_name: 'Ramesh Singh', skills: ['Gardener'], languages_spoken: ['Hindi', 'English'], status: 'live', age: 41, gender: 'male' },
         { id: 'w3', full_name: 'Seema Bai', skills: ['Nanny', 'Maid'], languages_spoken: ['Kannada', 'Tamil'], status: 'live', age: 29, gender: 'female' }
       ]);
 
@@ -825,9 +825,8 @@ export default function SuperAdminDashboard() {
                               className="py-1 px-2.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-gray-700 focus:outline-none cursor-pointer"
                             >
                               <option value="pending_review">Pending Review</option>
-                              <option value="admin_interview">Interview Scheduled</option>
-                              <option value="approved">Approved</option>
-                              <option value="live">Live</option>
+                              <option value="live">Live (Approved)</option>
+                              <option value="rejected">Rejected</option>
                               <option value="suspended">Suspended</option>
                             </select>
                           </td>
