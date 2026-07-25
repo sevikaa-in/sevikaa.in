@@ -304,7 +304,8 @@ export default function EmployerDashboard() {
             title: jobTitle,
             category: jobCategory,
             description: jobDescription,
-            salary_range: parseInt(jobSalary) || 0,
+            salary_range_min: parseInt(jobSalary) || 0,
+            salary_range_max: parseInt(jobSalary) || 0,
             status: 'pending_approval',
             society: societiesList.find(s => s.id === jobSociety)?.name || 'Demo Society'
           }
@@ -327,7 +328,8 @@ export default function EmployerDashboard() {
             title: jobTitle,
             category: jobCategory,
             description: jobDescription,
-            salary_range: parseInt(jobSalary) || 0,
+            salary_range_min: parseInt(jobSalary) || 0,
+            salary_range_max: parseInt(jobSalary) || 0,
             society_id: jobSociety,
             specific_tasks: jobSpecificTasks,
             required_slots: jobRequiredSlots,
@@ -551,7 +553,7 @@ export default function EmployerDashboard() {
                   <div key={job.id} className="p-3 bg-slate-50 border border-slate-100/80 rounded-xl flex items-center justify-between">
                     <div>
                       <h4 className="text-xs font-black text-slate-700 capitalize">{job.title || `${job.category} requirement`}</h4>
-                      <span className="block text-[9px] text-slate-400 font-bold mt-0.5">Offer: ₹{job.salary_range?.toLocaleString()}/mo • {job.society?.name || 'Local Society'}</span>
+                      <span className="block text-[9px] text-slate-400 font-bold mt-0.5">Offer: ₹{job.salary_range_min?.toLocaleString()}/mo • {job.society?.name || 'Local Society'}</span>
                     </div>
                     <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
                       job.status === 'approved' ? 'bg-green-50 text-[#22C55E]' : 'bg-amber-50 text-[#F59E0B]'
