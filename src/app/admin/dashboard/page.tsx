@@ -189,9 +189,14 @@ export default function AdminDashboard() {
       // 2. Fetch pending employers
       const { data: employers } = await supabase
         .from('employer_profiles')
-        .select('*');
+        .select('*, profiles(status)');
+      let mappedEmployers: any[] = [];
       if (employers) {
-        setEmployersList(employers);
+        mappedEmployers = employers.map((e: any) => ({
+          ...e,
+          status: e.profiles?.status || 'pending_review'
+        }));
+        setEmployersList(mappedEmployers);
       }
 
       // 3. Fetch pending jobs
@@ -229,7 +234,7 @@ export default function AdminDashboard() {
       // Counts state
       setCounts({
         pendingWorkers: profilesList?.filter((p: any) => p.status === 'pending_review').length || 0,
-        pendingEmployers: employers?.filter((e: any) => e.status === 'pending_review').length || 0,
+        pendingEmployers: mappedEmployers.filter((e: any) => e.status === 'pending_review').length || 0,
         pendingJobs: pendingJobs?.length || 0,
         pendingReviews: pendingReviews?.length || 0,
         interviewsToday: profilesList?.filter((p: any) => p.status === 'admin_interview').length || 0,
@@ -700,11 +705,14 @@ export default function AdminDashboard() {
                                         !process.env.NEXT_PUBLIC_SUPABASE_URL;
                   try {
                     if (!isPlaceholder) {
-                      const { error: updateErr } = await supabase
-                        .from('employer_profiles')
-                        .update({ status: 'approved' })
-                        .eq('id', id);
-                      if (updateErr) throw updateErr;
+                      const emp = employersList.find(e => e.id === id);
+                      if (emp?.user_id) {
+                        const { error: updateErr } = await supabase
+                          .from('profiles')
+                          .update({ status: 'live' })
+                          .eq('id', emp.user_id);
+                        if (updateErr) throw updateErr;
+                      }
                     }
                     setEmployersList(prev => prev.filter(e => e.id !== id));
                     alert("Employer profile approved!");
@@ -717,11 +725,14 @@ export default function AdminDashboard() {
                                         !process.env.NEXT_PUBLIC_SUPABASE_URL;
                   try {
                     if (!isPlaceholder) {
-                      const { error: updateErr } = await supabase
-                        .from('employer_profiles')
-                        .update({ status: 'rejected' })
-                        .eq('id', id);
-                      if (updateErr) throw updateErr;
+                      const emp = employersList.find(e => e.id === id);
+                      if (emp?.user_id) {
+                        const { error: updateErr } = await supabase
+                          .from('profiles')
+                          .update({ status: 'rejected' })
+                          .eq('id', emp.user_id);
+                        if (updateErr) throw updateErr;
+                      }
                     }
                     setEmployersList(prev => prev.filter(e => e.id !== id));
                     alert("Employer profile rejected.");

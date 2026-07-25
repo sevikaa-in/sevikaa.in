@@ -562,7 +562,7 @@ export default function WorkerDashboard() {
       const { error: rErr } = await supabase
         .from('reviews')
         .insert({
-          author_id: user.id,
+          reviewer_id: user.id,
           target_id: selectedJobForReview.employer_user_id,
           rating: reviewRating,
           comment: reviewComment,

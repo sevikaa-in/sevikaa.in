@@ -57,10 +57,10 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
       }
 
       // Live Supabase inserts
-      // 1. Update profiles table: role to employer, status to approved (employers approve quickly or go live)
+      // 1. Update profiles table: role to employer, status to live (employers approve quickly or go live)
       const { error: profileErr } = await supabase
         .from('profiles')
-        .update({ role: 'employer', status: 'approved' })
+        .update({ role: 'employer', status: 'live' })
         .eq('id', userId);
 
       if (profileErr) throw profileErr;
