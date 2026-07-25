@@ -104,6 +104,60 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
     }
   };
 
+  const handleAadhaarFrontChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const maxBytes = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxBytes) {
+        setError('Aadhaar front image is too large. Max size allowed is 5MB.');
+        return;
+      }
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Invalid image format. Allowed formats: JPG, PNG, WEBP.');
+        return;
+      }
+      setAadhaarFrontFile(file);
+    }
+  };
+
+  const handleAadhaarBackChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const maxBytes = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxBytes) {
+        setError('Aadhaar back image is too large. Max size allowed is 5MB.');
+        return;
+      }
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Invalid image format. Allowed formats: JPG, PNG, WEBP.');
+        return;
+      }
+      setAadhaarBackFile(file);
+    }
+  };
+
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const maxBytes = 50 * 1024 * 1024; // 50MB
+      if (file.size > maxBytes) {
+        setError('Video is too large. Max size allowed is 50MB.');
+        return;
+      }
+      const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Invalid video format. Allowed formats: MP4, WEBM, MOV.');
+        return;
+      }
+      setVideoFile(file);
+    }
+  };
+
   useEffect(() => {
     if (step === 1 && !selfiePreview) {
       navigator.mediaDevices.getUserMedia({ 
@@ -245,6 +299,13 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
           .upload(`${userId}/aadhaar-front.png`, aadhaarFrontFile, { upsert: true });
         if (docErr) throw docErr;
         aadhaarFrontUrl = docData.path;
+      }
+
+      if (aadhaarBackFile) {
+        const { data: docBackData, error: docBackErr } = await supabase.storage
+          .from('worker-documents')
+          .upload(`${userId}/aadhaar-back.png`, aadhaarBackFile, { upsert: true });
+        if (docBackErr) throw docBackErr;
       }
 
       if (videoFile) {
@@ -630,8 +691,9 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                   <span className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[120px]">
                     {aadhaarFrontFile ? aadhaarFrontFile.name : 'Aadhaar Front'}
                   </span>
+                  <span className="text-[9px] text-gray-400 mt-1 font-bold">Max 5MB (JPG, PNG, WEBP)</span>
                 </label>
-                <input id="aadhaar-front" type="file" accept="image/*" onChange={(e) => e.target.files && setAadhaarFrontFile(e.target.files[0])} className="hidden" />
+                <input id="aadhaar-front" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleAadhaarFrontChange} className="hidden" />
               </div>
 
               <div className="flex flex-col items-center p-4 border border-gray-200 rounded-2xl bg-gray-50 text-center relative cursor-pointer active:scale-95 transition-all">
@@ -641,8 +703,9 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                   <span className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[120px]">
                     {aadhaarBackFile ? aadhaarBackFile.name : 'Aadhaar Back'}
                   </span>
+                  <span className="text-[9px] text-gray-400 mt-1 font-bold">Max 5MB (JPG, PNG, WEBP)</span>
                 </label>
-                <input id="aadhaar-back" type="file" accept="image/*" onChange={(e) => e.target.files && setAadhaarBackFile(e.target.files[0])} className="hidden" />
+                <input id="aadhaar-back" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleAadhaarBackChange} className="hidden" />
               </div>
             </div>
 
@@ -658,11 +721,12 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                     <span className="block text-[10px] text-gray-400 mt-0.5">
                       {videoFile ? videoFile.name : t('videoSub').split(' ').slice(0, 5).join(' ') + '...'}
                     </span>
+                    <span className="block text-[9px] text-gray-400 mt-1 font-bold">Max 50MB (MP4, WEBM, MOV)</span>
                   </div>
                 </div>
                 <Upload size={16} className="text-gray-400" />
               </label>
-              <input id="video-intro" type="file" accept="video/*" onChange={(e) => e.target.files && setVideoFile(e.target.files[0])} className="hidden" />
+              <input id="video-intro" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={handleVideoChange} className="hidden" />
             </div>
 
             <div className="p-3 bg-[#1A73E8]/5 rounded-2xl text-[11px] text-gray-500 font-medium leading-relaxed flex gap-2">
