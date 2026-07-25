@@ -349,7 +349,7 @@ export default function EmployerDashboard() {
     }
   };
 
-  // Simulate upgrading using standard premium DB string value
+  // Trigger live Razorpay checkout portal popup
   const handleUpgrade = async () => {
     setError('');
     setSuccess('');
@@ -364,28 +364,38 @@ export default function EmployerDashboard() {
         return;
       }
 
-      const { error: updErr } = await supabase
-        .from('employer_profiles')
-        .update({ subscription_status: 'premium' }) // Updates status string to 'premium'
-        .eq('user_id', user.id);
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_live_YOUR_KEY_HERE',
+        amount: 999 * 100, // ₹999 in paise
+        currency: "INR",
+        name: "Sevikaa",
+        description: "Premium Employer Pass (30 Days Unlimited Unlocks)",
+        image: "/logo.png",
+        handler: async function (response: any) {
+          setSuccess("Payment authorized! Syncing subscription status...");
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        },
+        prefill: {
+          name: employerProfile?.name || "",
+          email: user?.email || "",
+          contact: user?.phone || ""
+        },
+        notes: {
+          userId: user.id
+        },
+        theme: {
+          color: "#2563EB"
+        }
+      };
 
-      if (updErr) throw updErr;
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
 
-      setIsPremium(true);
-      setSuccess("Subscription upgraded successfully (Simulated Razorpay capture)!");
-      
-      // Update receipts ledger locally
-      setReceipts(prev => [
-        ...prev,
-        { id: `REC-${Math.floor(1000 + Math.random() * 9000)}`, date: new Date().toISOString().split('T')[0], description: 'Sevikaa Elite Pass Upgrade', amount: '₹999', method: 'Razorpay', status: 'Success' }
-      ]);
-
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
     } catch (err: any) {
-      console.error("Upgrade error:", err);
-      setError("Failed to upgrade subscription tier.");
+      console.error("Razorpay payment initiation error:", err);
+      setError("Failed to open Razorpay payment popup. Please try again.");
     }
   };
 
