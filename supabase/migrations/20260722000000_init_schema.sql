@@ -254,7 +254,10 @@ CREATE POLICY "Admins have full access to reviews" ON public.reviews
     );
 
 -- Audit Logs Policies
-CREATE POLICY "Audit logs visible to admins only" ON public.audit_logs
+CREATE POLICY "Allow authenticated users to insert audit logs" ON public.audit_logs
+    FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Allow admins full read/write access to audit logs" ON public.audit_logs
     FOR ALL TO authenticated USING (
         EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'super-admin'))
     );
