@@ -19,6 +19,12 @@ CREATE POLICY "Allow workers to view their own uploaded documents" ON storage.ob
         (storage.foldername(name))[1] = auth.uid()::text
     );
 
+CREATE POLICY "Allow workers to update their own documents" ON storage.objects
+    FOR UPDATE TO authenticated USING (
+        bucket_id = 'worker-documents' AND 
+        (storage.foldername(name))[1] = auth.uid()::text
+    );
+
 CREATE POLICY "Allow admins to view all documents" ON storage.objects
     FOR SELECT TO authenticated USING (
         bucket_id = 'worker-documents' AND 
