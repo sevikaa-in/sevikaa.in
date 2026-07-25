@@ -414,8 +414,7 @@ export default function WorkerDashboard() {
       // Update worker_profiles
       const { error: wpErr } = await supabase
         .from('worker_profiles')
-        .upsert({
-          user_id: user.id,
+        .update({
           full_name: editName,
           gender: editGender,
           age: parseInt(editAge),
@@ -426,7 +425,8 @@ export default function WorkerDashboard() {
           preferred_areas: editPreferredAreas,
           profile_picture_url: selfiePath,
           video_url: videoPath
-        });
+        })
+        .eq('user_id', user.id);
 
       if (wpErr) throw wpErr;
 
