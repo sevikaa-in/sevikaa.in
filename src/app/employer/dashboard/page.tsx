@@ -306,7 +306,7 @@ export default function EmployerDashboard() {
             description: jobDescription,
             salary_range_min: parseInt(jobSalary) || 0,
             salary_range_max: parseInt(jobSalary) || 0,
-            status: 'pending_approval',
+            status: 'pending',
             society: societiesList.find(s => s.id === jobSociety)?.name || 'Demo Society'
           }
         ]);
@@ -333,7 +333,7 @@ export default function EmployerDashboard() {
             society_id: jobSociety,
             specific_tasks: jobSpecificTasks,
             required_slots: jobRequiredSlots,
-            status: 'pending_approval'
+            status: 'pending'
           });
 
         if (jobErr) throw jobErr;

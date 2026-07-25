@@ -201,7 +201,7 @@ export default function SuperAdminDashboard() {
         .from('profiles')
         .select('*', { count: 'exact', head: true })
         .eq('role', 'worker')
-        .eq('status', 'approved');
+        .eq('status', 'live');
 
       // 4. Fetch total employers count
       const { count: employerCount } = await supabase
@@ -223,7 +223,7 @@ export default function SuperAdminDashboard() {
       const { data: pendingJobs, count: pendingJobsCount } = await supabase
         .from('jobs')
         .select('*')
-        .eq('status', 'pending_approval');
+        .eq('status', 'pending');
 
       // 8. Fetch pending reviews
       const { data: pendingReviews, count: pendingReviewsCount } = await supabase

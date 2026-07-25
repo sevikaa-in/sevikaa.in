@@ -203,7 +203,7 @@ export default function AdminDashboard() {
       const { data: pendingJobs } = await supabase
         .from('jobs')
         .select('*, employer:profiles(*, employer_profiles(*))')
-        .eq('status', 'pending_approval');
+        .eq('status', 'pending');
       if (pendingJobs) {
         setPendingJobsList(pendingJobs.map(j => {
           const employerProfile = j.employer?.employer_profiles?.[0];
