@@ -8,8 +8,8 @@ import { supabase } from '../../../lib/supabaseClient';
 import { GlobalLanguageSelector } from '../../../components/GlobalLanguageSelector';
 import { ToastContainer, ToastItem } from '../../../components/admin/dashboard/Toast';
 import { 
-  User, Briefcase, MapPin, Calendar, CheckCircle2, LogOut, 
-  Settings, ArrowLeft, Heart, ShieldAlert, Sparkles, Bell
+  Home, User, Briefcase, MapPin, Calendar, CheckCircle2, LogOut, 
+  ArrowLeft, ShieldAlert, Settings, Phone, Menu, X, Building2, Lock, Bell 
 } from 'lucide-react';
 
 const MOCK_SOCIETIES = [
@@ -54,47 +54,35 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [saveLoading, setSaveLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [societiesList, setSocietiesList] = useState<any[]>(MOCK_SOCIETIES);
+  const [societiesList, setSocietiesList] = useState<any[]>([]);
+  const [saveLoading, setSaveLoading] = useState(false);
   const [deletionRequested, setDeletionRequested] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const [workerProfile, setWorkerProfile] = useState<any>({
-    name: "Janhvi",
-    category: ["Professional Nanny", "Child Caregiver"],
-    expectedSalary: "18000",
-    experience: "4 Years",
-    society: "Prestige Song of the South, Bengaluru",
-    society_id: "c7e2d9a3-5bc5-442a-a921-ef743bd2b6d2",
-    phone: "+91 98765 43210",
-    languages: ["Hindi", "English", "Kannada"],
+    name: "",
+    category: [],
+    expectedSalary: "",
+    experience: "",
+    society: "",
+    phone: "",
+    languages: [],
     gender: "female",
-    age: "26",
-    preferred_areas: ["JP Nagar", "Bannerghatta Road"],
-    status: "live"
+    age: 28,
+    status: "pending_verification"
   });
 
   const [badges, setBadges] = useState<any[]>([
-    { name: 'Mobile', status: 'approved' },
-    { name: 'Aadhaar', status: 'approved' },
-    { name: 'Police', status: 'approved' },
-    { name: 'Interview', status: 'approved' }
+    { name: 'Aadhaar Verified', status: 'pending' },
+    { name: 'Police', status: 'pending' },
+    { name: 'Interview', status: 'pending' }
   ]);
 
-  const [availability, setAvailability] = useState<Record<string, string[]>>({
-    Mon: ['morning', 'afternoon'],
-    Wed: ['morning', 'afternoon'],
-    Fri: ['morning', 'afternoon', 'evening']
-  });
+  const [availability, setAvailability] = useState<Record<string, string[]>>({});
 
-  const [applications, setApplications] = useState<any[]>([
-    { id: 'app_1', jobTitle: 'Full Time Cook Needed', society: 'DLF Westend Heights', salary: '15,000', status: 'interview_scheduled', date: '2 hours ago' }
-  ]);
-
-  const [availableJobs, setAvailableJobs] = useState<any[]>([
-    { id: 'j1', title: 'Need Full Time Cook', description: 'Cooking organic healthy meals for family of 4 in DLF Akshayanagar.', salary_offered: 15000, society_name: 'DLF Westend Heights', created_at: '10 mins ago' },
-    { id: 'j2', title: 'Nanny for Infant', description: 'Looking for experienced nanny to take care of 8 month old baby boy.', salary_offered: 18000, society_name: 'Prestige Song of the South', created_at: '3 hours ago' }
-  ]);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [availableJobs, setAvailableJobs] = useState<any[]>([]);
 
   const showToast = (message: string, type?: 'success' | 'error' | 'warning' | 'info') => {
     const id = `toast_${Date.now()}`;
@@ -117,6 +105,26 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         return;
       }
 
+      // Fetch real societies from database unconditionally
+      const { data: dbSocieties } = await supabase
+        .from('societies')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (dbSocieties) {
+        setSocietiesList(dbSocieties);
+      }
+
+      // Fetch live jobs unconditionally
+      const { data: liveJobs } = await supabase
+        .from('jobs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (liveJobs) {
+        setAvailableJobs(liveJobs);
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
@@ -131,35 +139,60 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             setDeletionRequested(true);
           }
           if (profile.worker_profiles) {
+            const wProf = profile.worker_profiles;
+            const isApproved = profile.status === 'live' || profile.status === 'approved';
+
             setWorkerProfile({
-              name: profile.worker_profiles.full_name || 'Worker Name',
-              category: profile.worker_profiles.skills || [],
-              expectedSalary: profile.worker_profiles.expected_salary || '15000',
-              experience: profile.worker_profiles.experience_years ? `${profile.worker_profiles.experience_years} Years` : '3 Years',
-              society: profile.worker_profiles.preferred_society_name || 'DLF Westend Heights',
-              society_id: profile.worker_profiles.preferred_society_id || '',
+              name: wProf.full_name || 'Worker',
+              category: wProf.skills || [],
+              expectedSalary: wProf.expected_salary || '15000',
+              experience: wProf.experience_years ? `${wProf.experience_years} Years` : '0 Years',
+              society: wProf.preferred_society_name || '',
+              society_id: wProf.preferred_society_id || '',
               phone: profile.phone || '',
-              languages: profile.worker_profiles.languages_spoken || [],
-              gender: profile.worker_profiles.gender || 'female',
-              age: profile.worker_profiles.age || 30,
+              languages: wProf.languages_spoken || [],
+              gender: wProf.gender || 'female',
+              age: wProf.age || 30,
               status: profile.status
             });
+
+            setBadges([
+              { name: 'Aadhaar Verified', status: (wProf.is_aadhaar_verified || isApproved) ? 'Verified' : 'Pending' },
+              { name: 'Police Clearance', status: (wProf.is_police_verified || isApproved) ? 'Verified' : 'Pending' },
+              { name: 'Interview Audit', status: (wProf.is_interview_verified || isApproved) ? 'Verified' : 'Pending' }
+            ]);
           }
         }
 
-        // Fetch ONLY Admin-Approved/Published jobs for the worker feed
-        const { data: liveJobs } = await supabase
-          .from('jobs')
-          .select('*')
-          .or('status.eq.approved,status.eq.published')
-          .order('created_at', { ascending: false });
+        // Fetch real candidate job applications for this worker from database
+        try {
+          const { data: dbApps } = await supabase
+            .from('job_applications')
+            .select('*, jobs(*)')
+            .eq('worker_id', session.user.id);
 
-        if (liveJobs && liveJobs.length > 0) {
-          setAvailableJobs(liveJobs);
+          if (dbApps) {
+            const mappedApps = dbApps.map((a: any) => ({
+              id: a.id,
+              jobTitle: a.jobs?.title || 'Domestic Worker Job',
+              employerName: a.jobs?.employer_name || 'Household Employer',
+              society: a.jobs?.society_name || 'Residential Society',
+              salary: a.jobs?.salary_offered ? `₹${Number(a.jobs.salary_offered).toLocaleString('en-IN')}` : '₹15,000',
+              shift: a.jobs?.shift_hours || 'Standard Shift',
+              status: a.status || 'under_review',
+              interviewTime: a.interview_time || 'Schedule Pending',
+              interviewMode: a.interview_mode || 'phone',
+              employerPhone: a.jobs?.employer_phone || '+91 98765 43210',
+              date: a.created_at ? new Date(a.created_at).toLocaleDateString('en-IN') : 'Recently'
+            }));
+            setApplications(mappedApps);
+          }
+        } catch (appErr) {
+          console.error("Error fetching worker job applications:", appErr);
         }
       }
     } catch (err) {
-      console.error(err);
+      console.error("Worker session fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -218,11 +251,11 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
   };
 
   const navItems = [
-    { id: 'overview', label: 'Overview', href: '/worker/dashboard', icon: <User size={18} /> },
-    { id: 'jobs', label: 'Jobs', href: '/worker/dashboard/jobs', icon: <Briefcase size={18} />, badge: availableJobs.length },
-    { id: 'interviews', label: 'Interviews', href: '/worker/dashboard/interviews', icon: <Calendar size={18} />, badge: applications.length },
-    { id: 'societies', label: 'Societies', href: '/worker/dashboard/societies', icon: <MapPin size={18} /> },
-    { id: 'profile', label: 'Profile Settings', href: '/worker/dashboard/profile', icon: <Settings size={18} /> },
+    { id: 'overview', label: t('navOverview') || 'Home', href: '/worker/dashboard', icon: <Home size={20} /> },
+    { id: 'jobs', label: t('navJobs') || 'Jobs', href: '/worker/dashboard/jobs', icon: <Briefcase size={20} />, badge: availableJobs.length },
+    { id: 'interviews', label: t('navInterviews') || 'Interviews', href: '/worker/dashboard/interviews', icon: <Calendar size={20} />, badge: applications.length },
+    { id: 'societies', label: t('navSocieties') || 'Societies', href: '/worker/dashboard/societies', icon: <Building2 size={20} /> },
+    { id: 'profile', label: t('navProfile') || 'Settings', href: '/worker/dashboard/profile', icon: <User size={20} /> },
   ];
 
   if (loading) {
@@ -246,40 +279,89 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         <ToastContainer toasts={toasts} onDismiss={removeToast} />
         
         {/* Mobile Viewport Container - Clean Flat Interface */}
-        <div className="w-full max-w-md bg-slate-50 min-h-screen border-x border-slate-200/80 shadow-xl flex flex-col relative pb-16">
+        <div className="w-full max-w-md bg-slate-50 min-h-screen border-x border-slate-200/80 shadow-xl flex flex-col relative">
 
-          {/* App Header */}
-          <header className="bg-white border-b border-slate-200/80 sticky top-0 z-40 px-4 py-3 flex items-center justify-between shadow-xs">
-            <div className="flex items-center gap-2">
-              <Link href="/" className="text-slate-400 hover:text-slate-700">
-                <ArrowLeft size={18} />
-              </Link>
-              <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
-              <span className="font-black text-xs text-slate-800">Worker App</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <GlobalLanguageSelector />
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 py-1 px-2 rounded-xl">
-                <span className="text-xs font-black text-slate-800 truncate max-w-[130px]" title={workerProfile.name}>
-                  {workerProfile.name || 'Worker'}
-                </span>
-                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
-                  deletionRequested 
-                    ? 'bg-amber-100 text-amber-800' 
-                    : 'bg-emerald-50 text-[#34A853]'
-                }`}>
-                  {deletionRequested ? 'Pending' : 'Live'}
-                </span>
+          {/* Clean Mobile App Header with Integrated Dropdown Menu */}
+          <header className="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-xs">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Link href="/" className="text-slate-400 hover:text-slate-700">
+                  <ArrowLeft size={18} />
+                </Link>
+                <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
+                <span className="font-black text-xs text-slate-800">Worker</span>
               </div>
-              <button
-                onClick={handleLogout}
-                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
-                title="Logout"
-              >
-                <LogOut size={16} />
-              </button>
+
+              <div className="flex items-center gap-2">
+                {/* Verification Pill */}
+                {workerProfile.status === 'live' || workerProfile.status === 'approved' ? (
+                  <div className="bg-emerald-50 text-[#34A853] border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-black flex items-center gap-1">
+                    <CheckCircle2 size={10} />
+                    <span>Aadhaar Verified</span>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 text-amber-700 border border-amber-200/50 py-1 px-2.5 rounded-xl text-[10px] font-black flex items-center gap-1">
+                    <Lock size={10} />
+                    <span>Pending Verification</span>
+                  </div>
+                )}
+
+                {/* Notifications Bell Button */}
+                <Link
+                  href="/worker/dashboard/notifications"
+                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
+                  title="Notifications & Alerts"
+                >
+                  <Bell size={18} />
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#EA4335] border border-white animate-pulse" />
+                </Link>
+
+                {/* Hamburger Mobile Menu Toggle Button */}
+                <button
+                  onClick={() => setShowMobileMenu(!showMobileMenu)}
+                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                  aria-label="Toggle Navigation Menu"
+                >
+                  {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+                </button>
+              </div>
             </div>
+
+            {/* Slide-Down Mobile Header Menu Overlay Drawer */}
+            {showMobileMenu && (
+              <div className="absolute top-full left-0 right-0 bg-white border-b border-slate-200 p-4 space-y-4 shadow-2xl animate-fade-in z-[100]">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">{workerProfile.name || 'Worker Candidate'}</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold">{workerProfile.society}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                    deletionRequested 
+                      ? 'bg-amber-100 text-amber-800' 
+                      : (workerProfile.status === 'live' || workerProfile.status === 'approved')
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-amber-50 text-amber-700'
+                  }`}>
+                    {deletionRequested ? 'Pending Offboarding' : (workerProfile.status === 'live' || workerProfile.status === 'approved') ? 'VERIFIED' : 'PENDING AUDIT'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs font-bold text-slate-500">App Language:</span>
+                  <GlobalLanguageSelector />
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex gap-2">
+                  <button
+                    onClick={() => { setShowMobileMenu(false); handleLogout(); }}
+                    className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <LogOut size={14} />
+                    <span>Log Out Session</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </header>
 
           {/* Account Deletion Request Banner Notice */}
@@ -293,12 +375,12 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           )}
 
           {/* Main Scrollable Screen Area */}
-          <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-4">
+          <main className="flex-1 p-4 space-y-4 pb-6">
             {children}
           </main>
 
-          {/* Exclusive Mobile Bottom Navigation Bar */}
-          <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2 px-2 flex justify-around items-center z-50 shadow-lg">
+          {/* Sticky Mobile Bottom Navigation Bar */}
+          <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200/90 py-2.5 px-2 flex justify-around items-center z-50 shadow-lg shrink-0">
             {navItems.map((item) => {
               const isActive = (item.id === 'overview' && pathname === '/worker/dashboard') || (item.id !== 'overview' && pathname === item.href);
               return (

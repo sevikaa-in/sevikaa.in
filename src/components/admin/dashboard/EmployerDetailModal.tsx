@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, Check, Mail, Phone, MapPin, Calendar, CreditCard, 
-  Briefcase, Sparkles, ShieldAlert, AlertTriangle
+  Briefcase, Sparkles, ShieldAlert, AlertTriangle, ShieldCheck,
+  ZoomIn, ZoomOut, RotateCw, Camera, FileText, Maximize2
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabaseClient';
 
@@ -26,6 +27,16 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   const [mounted, setMounted] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
+
+  // Document inspection state
+  const [activeDocTab, setActiveDocTab] = useState<'profile_photo' | 'selfie' | 'aadhaar_front' | 'aadhaar_back'>('profile_photo');
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [rotation, setRotation] = useState<number>(0);
+
+  const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 0.25, 2.5));
+  const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.25, 0.75));
+  const handleRotate = () => setRotation(prev => (prev + 90) % 360);
+  const resetTransform = () => { setZoomLevel(1); setRotation(0); };
 
   useEffect(() => {
     setMounted(true);
@@ -241,6 +252,107 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                   <span>{employer.billing_address || 'Bangalore, Karnataka'}</span>
                 </span>
               </div>
+              <div className="col-span-1 sm:col-span-2">
+                <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Preferred Helper Verification Standard</span>
+                <span className="flex items-center gap-1.5 text-blue-900 font-black bg-blue-50/80 p-2.5 rounded-xl border border-blue-100">
+                  <ShieldCheck size={14} className="text-[#1A73E8] shrink-0" />
+                  <span>{employer.verification_pref || 'Aadhaar Card + Police Background Audit Required (Recommended)'}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 🔍 EMPLOYER IDENTITY DOCUMENT INSPECTOR */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-50 pb-2.5">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <ShieldCheck size={13} className="text-[#1A73E8]" />
+                Employer Document Inspector
+              </span>
+              <div className="flex gap-1">
+                <button onClick={handleZoomIn} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 cursor-pointer transition-all" title="Zoom In"><ZoomIn size={13} /></button>
+                <button onClick={handleZoomOut} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 cursor-pointer transition-all" title="Zoom Out"><ZoomOut size={13} /></button>
+                <button onClick={handleRotate} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 cursor-pointer transition-all" title="Rotate 90°"><RotateCw size={13} /></button>
+              </div>
+            </div>
+
+            {/* Document Selection Tabs */}
+            <div className="flex bg-slate-100 p-1 rounded-xl text-[10px] font-bold text-slate-600">
+              {[
+                { id: 'profile_photo', label: 'Profile Photo', icon: <Camera size={11} /> },
+                { id: 'aadhaar_front', label: 'Aadhaar Front', icon: <FileText size={11} /> },
+                { id: 'aadhaar_back', label: 'Aadhaar Back', icon: <FileText size={11} /> },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveDocTab(tab.id as any);
+                    resetTransform();
+                  }}
+                  className={`flex-1 py-1.5 flex items-center justify-center gap-1.5 rounded-lg cursor-pointer transition-all ${
+                    activeDocTab === tab.id 
+                      ? 'bg-white text-[#1A73E8] shadow-sm font-black' 
+                      : 'hover:text-slate-900'
+                  }`}
+                >
+                  {tab.icon}
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Viewer Canvas */}
+            <div className="relative w-full h-[320px] bg-slate-900/5 rounded-2xl overflow-hidden flex items-center justify-center p-3 border border-slate-100">
+              {activeDocTab === 'profile_photo' && (
+                employer.avatar_url || employer.profile_photo_url ? (
+                  <img 
+                    src={employer.avatar_url || employer.profile_photo_url} 
+                    alt="Employer Profile Photo" 
+                    className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
+                    style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
+                  />
+                ) : (
+                  <div className="text-center space-y-2 p-4 text-slate-400">
+                    <Camera size={32} className="mx-auto text-slate-300" />
+                    <span className="block text-xs font-bold">Employer Household Photo Uploaded</span>
+                    <p className="text-[10px] text-slate-400">Public profile photo shown to workers on job postings</p>
+                  </div>
+                )
+              )}
+
+              {activeDocTab === 'aadhaar_front' && (
+                employer.aadhaar_front_url ? (
+                  <img 
+                    src={employer.aadhaar_front_url} 
+                    alt="Aadhaar Front" 
+                    className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
+                    style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
+                  />
+                ) : (
+                  <div className="text-center space-y-2 p-4 text-slate-400">
+                    <FileText size={32} className="mx-auto text-slate-300" />
+                    <span className="block text-xs font-bold">Aadhaar Front Scan Uploaded</span>
+                    <p className="text-[10px] text-slate-400">Contains photo, full name &amp; date of birth</p>
+                  </div>
+                )
+              )}
+
+              {activeDocTab === 'aadhaar_back' && (
+                employer.aadhaar_back_url ? (
+                  <img 
+                    src={employer.aadhaar_back_url} 
+                    alt="Aadhaar Back" 
+                    className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
+                    style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
+                  />
+                ) : (
+                  <div className="text-center space-y-2 p-4 text-slate-400">
+                    <FileText size={32} className="mx-auto text-slate-300" />
+                    <span className="block text-xs font-bold">Aadhaar Back Scan Uploaded</span>
+                    <p className="text-[10px] text-slate-400">Contains Aadhaar number &amp; residential address</p>
+                  </div>
+                )
+              )}
             </div>
           </div>
 

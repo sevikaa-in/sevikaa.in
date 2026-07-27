@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import { useWorkerDashboard } from './layout';
+import { useLanguage } from '../../../context/LanguageContext';
 import { 
   User, CheckCircle2, Briefcase, MapPin, IndianRupee, 
-  Calendar, ShieldCheck, ArrowRight, HeartHandshake, PhoneCall, Check, X, Clock, Bell, BellRing
+  Calendar, ShieldCheck, ArrowRight, HeartHandshake, PhoneCall, Check, X, Clock, Bell, BellRing, Sparkles, Award, Star, Zap, Shield, ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -12,6 +13,7 @@ export default function WorkerOverviewPage() {
   const { 
     workerProfile, badges, availableJobs, applications, showToast 
   } = useWorkerDashboard();
+  const { t } = useLanguage();
 
   const isLive = workerProfile.status === 'live' || workerProfile.status === 'approved';
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -45,163 +47,239 @@ export default function WorkerOverviewPage() {
       id: 'notif_1',
       icon: '🎉',
       title: isLive ? 'Your profile has been verified and published.' : 'Your profile documents are under admin audit.',
-      subtitle: isLive ? 'Local society employers can now contact you.' : 'Audit complete within 24 hours.',
+      subtitle: isLive ? 'Local society employers can now view your profile and send interview requests.' : 'Express audit completes within 24 hours.',
       href: '/worker/dashboard/profile',
       time: 'Just now'
     },
     {
       id: 'notif_2',
-      icon: '💼',
-      title: `${availableJobs.length} new jobs available near your preferred societies.`,
-      subtitle: 'Apply now with 1-click free application.',
-      href: '/worker/dashboard/jobs',
-      time: '10 mins ago'
-    },
-    {
-      id: 'notif_3',
       icon: '📅',
-      title: 'Upcoming interview scheduled.',
-      subtitle: 'Check your interview time slots & contact instructions.',
+      title: `${applications.length} Active Job Applications & Interviews`,
+      subtitle: 'Tap to check scheduled interview times and unlock employer contacts.',
       href: '/worker/dashboard/interviews',
-      time: '2 hours ago'
+      time: 'Today'
     }
   ];
 
-  const handleApply = (jobTitle: string) => {
-    showToast(`Application submitted for ${jobTitle}!`, 'success');
-  };
-
   return (
-    <div className="space-y-5 animate-fade-in pb-16">
+    <div className="space-y-6 animate-fade-in max-w-4xl mx-auto pb-20">
       
-      {/* Candidate Profile Summary Header Card */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-5 rounded-3xl shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-1.5 relative z-10">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-black">{workerProfile.name}</h2>
-            <span className={`text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-              isLive ? 'bg-emerald-500' : 'bg-amber-500'
-            }`}>
-              {isLive ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-              {isLive ? 'LIVE VERIFIED' : 'PENDING ADMIN AUDIT'}
+      {/* 🚀 PENDING AUDIT EXPRESS NOTICE */}
+      {!isLive && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 border-2 border-amber-300 p-4.5 rounded-3xl space-y-2.5 shadow-sm relative overflow-hidden backdrop-blur-xs">
+          <div className="flex items-center justify-between">
+            <span className="bg-amber-500 text-white text-[9.5px] font-black uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
+              <Clock size={11} className="animate-spin" /> {t('pendingAdminAudit')}
+            </span>
+            <span className="text-[10px] text-amber-800 font-extrabold flex items-center gap-1">
+              <Sparkles size={11} className="text-amber-600" /> Express Audit Guarantee
             </span>
           </div>
-          <p className="text-xs text-slate-300 font-medium">
-            {Array.isArray(workerProfile.category) ? workerProfile.category.join(' • ') : workerProfile.category}
-          </p>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-bold pt-1">
-            <span className="flex items-center gap-1"><MapPin size={12} className="text-[#1A73E8]" /> {workerProfile.society}</span>
-            <span className="flex items-center gap-1"><IndianRupee size={12} className="text-emerald-400" /> ₹{workerProfile.expectedSalary} / Month</span>
-          </div>
-        </div>
-
-        <Link
-          href="/worker/dashboard/profile"
-          className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all active:scale-95 shadow-md shrink-0 flex items-center gap-1.5 cursor-pointer relative z-10"
-        >
-          <span>Edit Profile &amp; Skills</span>
-          <ArrowRight size={14} />
-        </Link>
-      </div>
-
-      {/* PENDING ADMIN AUDIT NOTICE BANNER */}
-      {!isLive && (
-        <div className="bg-amber-50 border border-amber-200/80 p-4 rounded-2xl space-y-1.5 text-amber-900 shadow-sm">
-          <div className="flex items-center gap-2 text-xs font-black text-amber-800">
-            <Clock size={16} className="text-amber-600 shrink-0" />
-            <span>Onboarding Documents Submitted – Admin Audit Pending</span>
-          </div>
-          <p className="text-[11px] text-amber-800/90 font-medium leading-relaxed">
-            Your selfie, Aadhaar card, and video intro have been submitted successfully. A Sevikaa Admin is currently auditing your documents. Once verified, your status will change to <strong>LIVE</strong> and society employers will be able to contact you.
+          <h3 className="text-sm font-black text-amber-950">Your Sevikaa Passport is Under Verification</h3>
+          <p className="text-xs text-amber-900/90 font-medium leading-relaxed">
+            Sevikaa verification officers are verifying your Aadhaar card &amp; background records. Your candidate card will go live in your residential society feed as soon as approval completes!
           </p>
         </div>
       )}
 
-      {/* INTERACTIVE LATEST UPDATES & PUSH NOTIFICATION CARD */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BellRing size={18} className="text-[#1A73E8]" />
+      {/* 💳 ULTRA-PREMIUM GLASSMOPHIC WORKER PASSPORT CARD */}
+      <div className="bg-gradient-to-br from-[#0b132b] via-[#1c2541] to-[#1e1b4b] text-white p-6 sm:p-7 rounded-3xl shadow-2xl relative overflow-hidden space-y-6 border border-indigo-400/20">
+        
+        {/* Glow Accents */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-400 p-0.5 shadow-lg shadow-blue-500/20 shrink-0">
+              <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-white font-black text-xl">
+                {workerProfile.name ? workerProfile.name.charAt(0).toUpperCase() : 'W'}
+              </div>
+            </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900">Latest Updates &amp; Notifications</h3>
-              <p className="text-xs text-slate-400 font-semibold mt-0.5">Real-time alerts for job interviews &amp; status</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl font-black text-white tracking-tight">{workerProfile.name || 'Verified Candidate'}</h2>
+                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xs ${
+                  isLive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' : 'bg-amber-500/20 text-amber-300 border border-amber-400/40'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                  {isLive ? 'Live Worker Passport' : t('pendingAdminAudit')}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-300 font-semibold flex items-center gap-1.5 mt-1">
+                <MapPin size={13} className="text-blue-400" />
+                <span>{workerProfile.society || 'Bangalore Society'}</span>
+              </p>
             </div>
           </div>
 
-          <button
-            onClick={handleEnablePushNotifications}
-            className={`py-1.5 px-3 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-              pushEnabled 
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                : 'bg-blue-50 hover:bg-blue-100 text-[#1A73E8] border border-blue-200'
-            }`}
+          <Link
+            href="/worker/dashboard/profile"
+            className="py-2.5 px-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md rounded-2xl text-xs font-black transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
           >
-            <Bell size={12} />
-            <span>{pushEnabled ? '✓ Push Active' : 'Enable Push Alerts'}</span>
-          </button>
+            <User size={14} />
+            <span>Edit Profile Details</span>
+          </Link>
         </div>
 
-        {/* Clickable Notification Feed */}
+        {/* Verification Badges Grid */}
+        <div className="grid grid-cols-3 gap-2.5 pt-4 border-t border-white/10 relative z-10">
+          {badges.map((badge, idx) => {
+            const isBadgeVerified = badge.status === 'Verified';
+            return (
+              <div key={idx} className="bg-white/5 backdrop-blur-md p-3 rounded-2xl border border-white/10 text-center hover:border-white/20 transition-all">
+                <span className="text-[9.5px] font-black text-slate-300 uppercase tracking-wider block truncate">{badge.name}</span>
+                <span className={`text-[10.5px] font-extrabold flex items-center justify-center gap-1 mt-1 ${
+                  isBadgeVerified ? 'text-emerald-400' : 'text-amber-400'
+                }`}>
+                  {isBadgeVerified ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                  <span>{isBadgeVerified ? 'Verified' : 'Pending Audit'}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 📊 EXECUTIVE METRICS ROW */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs space-y-1 hover:border-blue-200 transition-all">
+          <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Available Jobs</span>
+          <span className="text-xl font-black text-[#1A73E8] block font-mono">{availableJobs.length}</span>
+          <span className="text-[10px] text-slate-500 font-bold block truncate">In Preferred Society</span>
+        </div>
+
+        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs space-y-1 hover:border-blue-200 transition-all">
+          <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">My Applications</span>
+          <span className="text-xl font-black text-emerald-600 block font-mono">{applications.length}</span>
+          <span className="text-[10px] text-slate-500 font-bold block truncate">Active Interviews</span>
+        </div>
+
+        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs space-y-1 hover:border-blue-200 transition-all">
+          <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Trust Rating</span>
+          <span className="text-xl font-black text-amber-500 flex items-center gap-1 font-mono">
+            4.9 <Star size={14} className="fill-amber-400 text-amber-400 inline" />
+          </span>
+          <span className="text-[10px] text-slate-500 font-bold block truncate">Verified Member</span>
+        </div>
+      </div>
+
+      {/* 🔔 PUSH NOTIFICATIONS & UPDATES BOX */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#1A73E8] flex items-center justify-center font-black">
+              <Bell size={16} />
+            </div>
+            <div>
+              <h3 className="text-xs font-black text-slate-900">{t('latestUpdates')}</h3>
+              <p className="text-[10px] text-slate-400 font-medium">Real-time alerts for interview requests &amp; job approvals</p>
+            </div>
+          </div>
+
+          {!pushEnabled ? (
+            <button
+              onClick={handleEnablePushNotifications}
+              className="py-2 px-3.5 bg-blue-50 hover:bg-blue-100 text-[#1A73E8] rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+            >
+              <BellRing size={13} />
+              <span>{t('enablePushAlerts')}</span>
+            </button>
+          ) : (
+            <span className="text-[10.5px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1 border border-emerald-200/50">
+              <Check size={12} strokeWidth={3} /> {t('pushAlertsActive')}
+            </span>
+          )}
+        </div>
+
         <div className="space-y-2.5">
           {notifications.map((notif) => (
-            <Link 
+            <Link
               key={notif.id}
               href={notif.href}
-              className="p-3.5 bg-slate-50 hover:bg-slate-100/80 rounded-2xl border border-slate-100 flex items-center justify-between transition-all group cursor-pointer"
+              className="p-3.5 bg-slate-50/80 hover:bg-blue-50/50 rounded-2xl border border-slate-100 flex items-start gap-3 transition-all block group"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-xl p-2 bg-white rounded-xl shadow-xs shrink-0">{notif.icon}</span>
-                <div>
-                  <h4 className="text-xs font-black text-slate-900 group-hover:text-[#1A73E8] transition-colors">{notif.title}</h4>
-                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{notif.subtitle}</p>
-                </div>
+              <span className="text-base shrink-0 p-2 bg-white rounded-xl shadow-2xs">{notif.icon}</span>
+              <div className="space-y-0.5 flex-1 min-w-0">
+                <h4 className="text-xs font-black text-slate-800 group-hover:text-[#1A73E8] transition-colors truncate">
+                  {notif.title}
+                </h4>
+                <p className="text-[10.5px] text-slate-500 font-medium truncate">
+                  {notif.subtitle}
+                </p>
               </div>
-              <ArrowRight size={14} className="text-slate-300 group-hover:text-[#1A73E8] group-hover:translate-x-0.5 transition-all shrink-0" />
+              <span className="text-[9.5px] font-bold text-slate-400 shrink-0">{notif.time}</span>
             </Link>
           ))}
         </div>
       </div>
 
-      {/* Recommended Jobs Feed */}
-      <div className="space-y-3">
+      {/* 💼 FEATURED NEARBY REQUISITIONS FEED */}
+      <div className="space-y-3.5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-            <Briefcase size={16} className="text-[#1A73E8]" />
-            <span>Recommended Jobs Near Your Societies</span>
-          </h3>
-          <Link href="/worker/dashboard/jobs" className="text-xs font-bold text-[#1A73E8] hover:underline">
-            View All ({availableJobs.length})
+          <div>
+            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+              <Briefcase size={16} className="text-[#1A73E8]" />
+              <span>{t('nearbyJobs')}</span>
+            </h3>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Matching job requisitions posted by employers in your society</p>
+          </div>
+          <Link href="/worker/dashboard/jobs" className="text-xs font-black text-[#1A73E8] hover:underline flex items-center gap-1 shrink-0">
+            <span>{t('viewAllJobs')} ({availableJobs.length})</span>
+            <ChevronRight size={13} />
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {availableJobs.map((job) => (
-            <div key={job.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all space-y-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="text-sm font-black text-slate-900">{job.title}</h4>
-                  <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
-                    <MapPin size={10} /> {job.society_name}
-                  </span>
-                </div>
-                <span className="text-sm font-black text-[#34A853]">₹{job.salary_offered}/mo</span>
-              </div>
-
-              <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                {job.description}
-              </p>
-
-              <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                <span className="text-[9.5px] font-mono text-slate-400">{job.created_at}</span>
-                <button
-                  onClick={() => handleApply(job.title)}
-                  className="py-1.5 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm cursor-pointer"
-                >
-                  Apply Now
-                </button>
-              </div>
+        <div className="space-y-3">
+          {availableJobs.length === 0 ? (
+            <div className="bg-white p-6 rounded-3xl border border-slate-100 text-center space-y-2">
+              <Briefcase size={28} className="mx-auto text-slate-300" />
+              <h4 className="text-xs font-black text-slate-800">No Job Requisitions Posted Yet</h4>
+              <p className="text-[11px] text-slate-400 font-medium">As local society employers post new job requisitions, matching offers will appear here live.</p>
             </div>
-          ))}
+          ) : (
+            availableJobs.slice(0, 3).map((job) => (
+              <div key={job.id} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-3 flex flex-col justify-between hover:border-blue-200">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-sm font-black text-slate-900">{job.title}</h4>
+                      <span className="bg-blue-50 text-[#1A73E8] text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-blue-200/50">
+                        {job.category || 'General'}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500 font-bold flex items-center gap-1">
+                      <MapPin size={12} className="text-slate-400" /> {job.society_name || workerProfile.society || 'Residential Society'}
+                    </span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Salary</span>
+                    <span className="text-sm font-black text-[#34A853] font-mono">
+                      ₹{Number(job.salary_offered || job.salary || 15000).toLocaleString('en-IN')}/mo
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-600 font-medium line-clamp-2 leading-relaxed bg-slate-50/80 p-3 rounded-2xl border border-slate-100/60">
+                  {job.description || 'Verified domestic job requirement.'}
+                </p>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400">
+                    {job.created_at ? new Date(job.created_at).toLocaleDateString('en-IN') : 'Recently posted'}
+                  </span>
+                  <Link
+                    href="/worker/dashboard/jobs"
+                    className="py-2 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>{t('applyNow')}</span>
+                    <ArrowRight size={12} />
+                  </Link>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

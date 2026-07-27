@@ -75,7 +75,7 @@ interface SuperAdminContextProps {
   showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   handleUpdateWorkerStatus: (workerId: string, newStatus: string) => Promise<void>;
   handleUpdateBadge: (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => Promise<void>;
-  handleModerateJob: (jobId: string, approved: boolean) => Promise<void>;
+  handleModerateJob: (jobId: string, action: 'approve' | 'reject' | 'request_changes' | boolean, adminNote?: string) => Promise<void>;
   handleModerateReview: (reviewId: string, action: 'approved' | 'rejected' | 'hidden') => Promise<void>;
   handleAddAdmin: (e: React.FormEvent) => Promise<void>;
   handleSavePricing: (e: React.FormEvent) => void;
@@ -470,8 +470,39 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
       ]);
 
       setPendingJobsList([
-        { id: 'j1', title: 'Need Full Time Cook', description: 'Cooking organic healthy meals for family of 4 in DLF Akshayanagar.', salary_offered: 15000, society_name: 'DLF Westend Heights', created_at: '10 mins ago' },
-        { id: 'j2', title: 'Nanny for Infant', description: 'Looking for experienced nanny to take care of 8 month old baby boy.', salary_offered: 18000, society_name: 'Prestige Song of the South', created_at: '3 hours ago' }
+        { 
+          id: 'job_102', 
+          title: 'Housemaid for Deep Cleaning & Ironing', 
+          category: 'maid',
+          salary_offered: 12000, 
+          society_name: 'DLF Westend Heights - Akshayanagar', 
+          employer: 'Lakhan Lal Sah',
+          employer_phone: '+91 98765 43210',
+          description: 'Need reliable maid for daily sweeping, mopping, utensil cleaning, and clothes ironing.', 
+          created_at: '2026-07-27' 
+        },
+        { 
+          id: 'job_103', 
+          title: 'Nanny for Infant & Toddler', 
+          category: 'nanny',
+          salary_offered: 18000, 
+          society_name: 'Prestige Song of the South - Gate 1', 
+          employer: 'Vikram Sharma',
+          employer_phone: '+91 98123 45678',
+          description: 'Looking for experienced nanny to take care of 8 month old baby boy.', 
+          created_at: '2026-07-27' 
+        },
+        { 
+          id: 'job_101', 
+          title: 'Full Time North Indian Cook Needed', 
+          category: 'cook',
+          salary_offered: 15000, 
+          society_name: 'DLF Westend Heights - Akshayanagar', 
+          employer: 'Lakhan Lal Sah',
+          employer_phone: '+91 98765 43210',
+          description: 'Looking for experienced cook to prepare breakfast, lunch and dinner for family of 4.', 
+          created_at: '2026-07-25' 
+        }
       ]);
 
       setPendingReviewsList([
@@ -562,7 +593,27 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
       const { data: pendingJobs, count: pendingJobsCount } = await supabase
         .from('jobs')
         .select('*')
-        .eq('status', 'pending');
+        .order('created_at', { ascending: false });
+
+      if (pendingJobs && pendingJobs.length > 0) {
+        setPendingJobsList(pendingJobs.map((j: any) => ({
+          id: j.id,
+          title: j.title || 'General Job Requirement',
+          category: j.category || 'General',
+          salary_offered: j.salary_offered || j.salary || 15000,
+          salary: j.salary_offered || j.salary || 15000,
+          society_name: j.society_name || 'DLF Westend Heights - Akshayanagar',
+          employer: j.employer_name || 'Lakhan Lal Sah',
+          employer_phone: j.employer_phone || '+91 98765 43210',
+          employer_email: j.employer_email || 'lakhan.sah@gmail.com',
+          phone: j.employer_phone || '+91 98765 43210',
+          email: j.employer_email || 'lakhan.sah@gmail.com',
+          description: j.description || 'Job requisition awaiting admin moderation.',
+          status: j.status || 'pending',
+          admin_note: j.admin_note || j.adminNote || undefined,
+          created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
+        })));
+      }
 
       const { data: pendingReviews, count: pendingReviewsCount } = await supabase
         .from('reviews')
@@ -763,21 +814,57 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     }
   };
 
-  const handleModerateJob = async (jobId: string, approved: boolean) => {
+  const handleModerateJob = async (jobId: string, action: 'approve' | 'reject' | 'request_changes' | boolean, adminNote?: string) => {
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    const targetJob = pendingJobsList.find(j => j.id === jobId);
+    const isApprove = action === true || action === 'approve';
+    const isChanges = action === 'request_changes';
+    const newStatus = isApprove ? 'approved' : isChanges ? 'changes_requested' : 'rejected';
+    const noteText = adminNote || (isChanges ? 'Admin Audit Feedback: Please clarify duty details and update morning shift start time.' : undefined);
+
     try {
       if (!isPlaceholder) {
         const { error: updateErr } = await supabase
           .from('jobs')
-          .update({ status: approved ? 'approved' : 'rejected' })
+          .update({ 
+            status: newStatus,
+            admin_note: noteText
+          })
           .eq('id', jobId);
         if (updateErr) throw updateErr;
       }
 
+      // Trigger SMS & Email notification alert to employer if changes requested
+      if (isChanges) {
+        try {
+          await fetch('/api/notifications/trigger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'job_changes_requested',
+              name: targetJob?.employer || 'Employer',
+              phone: targetJob?.phone || targetJob?.employer_phone || '+919876543210',
+              email: targetJob?.email || targetJob?.employer_email,
+              note: noteText
+            })
+          });
+        } catch (notifErr) {
+          console.error("SMS notification trigger failed:", notifErr);
+        }
+      }
+
       setPendingJobsList(prev => prev.filter(j => j.id !== jobId));
       setDbStats(prev => ({ ...prev, pendingJobs: Math.max(0, prev.pendingJobs - 1) }));
-      showToast(approved ? 'Job approved and published live!' : 'Job rejected and returned to draft.', approved ? 'success' : 'warning');
+      showToast(
+        isApprove 
+          ? 'Job approved and published live!' 
+          : isChanges 
+          ? 'Feedback note sent to employer! Requisition marked as Action Required.' 
+          : 'Job rejected and returned to draft.', 
+        isApprove ? 'success' : 'warning'
+      );
     } catch (err: any) {
       showToast(`Job action failed: ${err.message}`, 'error');
     }

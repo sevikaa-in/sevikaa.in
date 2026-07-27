@@ -11,20 +11,27 @@ interface JobDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   job: any;
-  onModerateJob: (id: string, approved: boolean) => void;
+  onModerateJob: (id: string, action: 'approve' | 'reject' | 'request_changes' | boolean, note?: string) => void;
+  initialShowFeedback?: boolean;
 }
 
 export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   isOpen,
   onClose,
   job,
-  onModerateJob
+  onModerateJob,
+  initialShowFeedback = false
 }) => {
   const [mounted, setMounted] = useState(false);
+  const [showFeedbackForm, setShowFeedbackForm] = useState(initialShowFeedback);
+  const [feedbackNote, setFeedbackNote] = useState('Admin Audit Feedback: Please clarify if ironing duties are included and update morning shift start time.');
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (initialShowFeedback) {
+      setShowFeedbackForm(true);
+    }
+  }, [initialShowFeedback]);
 
   if (!isOpen || !job || !mounted) return null;
 
@@ -53,6 +60,12 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   const hasSlot = (day: string, shift: string) => {
     const daySlots = gridData[day];
     return Array.isArray(daySlots) && daySlots.includes(shift);
+  };
+
+  const handleSendFeedback = () => {
+    if (!feedbackNote.trim()) return;
+    onModerateJob(job.id, 'request_changes', feedbackNote.trim());
+    onClose();
   };
 
   return createPortal(
@@ -93,6 +106,47 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         {/* Drawer Body - Scrollable Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30">
           
+          {/* 🚨 REQUEST CHANGES FEEDBACK FORM IN MODAL */}
+          {showFeedbackForm && (
+            <div className="bg-amber-50 border-2 border-amber-300 p-5 rounded-2xl space-y-3 animate-fade-in shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-black text-amber-900">
+                  <AlertTriangle size={16} className="text-amber-600" />
+                  <span>Request Requisition Changes from Employer</span>
+                </div>
+                <button 
+                  onClick={() => setShowFeedbackForm(false)}
+                  className="text-amber-700 hover:text-amber-900 text-xs font-bold"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+                Specify feedback note detailing what the employer needs to clarify or update before this requisition can go live.
+              </p>
+
+              <textarea
+                rows={3}
+                value={feedbackNote}
+                onChange={(e) => setFeedbackNote(e.target.value)}
+                placeholder="e.g. Please clarify if ironing duties are included and update morning shift start time."
+                className="w-full p-3 bg-white border border-amber-200 rounded-xl text-xs font-medium text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleSendFeedback}
+                  className="py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <AlertTriangle size={13} />
+                  <span>Send Feedback Note &amp; Flag Job</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Job Overview Card */}
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
             <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Job Requisition Metadata</span>
@@ -106,8 +160,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
               </div>
               <div>
                 <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider">Offered Salary</span>
-                <span className="font-black text-slate-900 mt-0.5 block">
-                  ₹{job.salary_offered || job.salary_range_min || 'N/A'} {job.salary_range_max ? `- ₹${job.salary_range_max}` : ''}/mo
+                <span className="font-black text-slate-900 mt-0.5 block font-mono">
+                  ₹{job.salary_offered || job.salary || '15,000'}/mo
                 </span>
               </div>
               <div>
@@ -140,14 +194,14 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                 <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider">Phone</span>
                 <span className="flex items-center gap-1 text-slate-700 font-bold mt-0.5 truncate">
                   <Phone size={10} className="text-slate-400 shrink-0" />
-                  <span className="truncate">{job.phone || 'N/A'}</span>
+                  <span className="truncate">{job.phone || job.employer_phone || 'N/A'}</span>
                 </span>
               </div>
               <div className="min-w-0">
                 <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider">Email</span>
                 <span className="flex items-center gap-1 text-slate-700 font-bold mt-0.5 truncate">
                   <Mail size={10} className="text-slate-400 shrink-0" />
-                  <span className="truncate">{job.email || 'N/A'}</span>
+                  <span className="truncate">{job.email || job.employer_email || 'N/A'}</span>
                 </span>
               </div>
             </div>
@@ -201,25 +255,27 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         <div className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white shrink-0 shadow-lg">
           <button
             onClick={() => {
-              onModerateJob(job.id, false);
+              onModerateJob(job.id, 'reject');
               onClose();
             }}
-            className="w-full sm:w-auto py-2.5 px-4 bg-red-50 hover:bg-red-100 text-[#EA4335] rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer border border-red-200/50 flex items-center justify-center gap-1.5"
+            className="w-full sm:w-auto py-2.5 px-3 bg-red-50 hover:bg-red-100 text-[#EA4335] rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer border border-red-200/50 flex items-center justify-center gap-1.5"
           >
             <XCircle size={14} />
-            Reject &amp; Draft Requisition
+            Reject Job
           </button>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
-              onClick={onClose}
-              className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
+              onClick={() => setShowFeedbackForm(!showFeedbackForm)}
+              className="py-2.5 px-3.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
             >
-              Close Drawer
+              <AlertTriangle size={14} className="text-amber-600" />
+              Request Changes
             </button>
+
             <button
               onClick={() => {
-                onModerateJob(job.id, true);
+                onModerateJob(job.id, 'approve');
                 onClose();
               }}
               className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#34A853]/20 flex items-center justify-center gap-1.5"

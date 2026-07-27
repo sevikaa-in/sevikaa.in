@@ -5,16 +5,12 @@ import { useLanguage } from '../../context/LanguageContext';
 import { supabase } from '../../lib/supabaseClient';
 import { UserCheck, ArrowRight, Shield, AlertCircle } from 'lucide-react';
 
+import { useEffect } from 'react';
+
 interface EmployerFunnelProps {
   userId: string;
   onComplete: () => void;
 }
-
-const MOCK_SOCIETIES = [
-  { id: '91cb520f-d5b7-4b71-9f20-b44c3c3de101', name: 'DLF Westend Heights - Akshayanagar' },
-  { id: 'c7e2d9a3-5bc5-442a-a921-ef743bd2b6d2', name: 'Prestige Song of the South - Bangalore' },
-  { id: 'b1a2f3c4-e888-4c91-a1b2-3f8c8dcb2e83', name: 'SNN Raj Serenity - Bangalore' }
-];
 
 export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComplete }) => {
   const { t } = useLanguage();
@@ -22,8 +18,23 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
   const [companyName, setCompanyName] = useState('');
   const [billingAddress, setBillingAddress] = useState('');
   const [preferredSociety, setPreferredSociety] = useState('');
+  const [societiesList, setSocietiesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchSocieties = async () => {
+      try {
+        const { data } = await supabase.from('societies').select('*').order('name', { ascending: true });
+        if (data && data.length > 0) {
+          setSocietiesList(data);
+        }
+      } catch (err) {
+        console.error("Error fetching societies:", err);
+      }
+    };
+    fetchSocieties();
+  }, []);
 
   // Strict Input Sanitizer - Only letters (A-Z, a-z) and spaces
   const handleFullNameChange = (val: string) => {
@@ -165,7 +176,7 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
               className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-all cursor-pointer"
             >
               <option value="">-- Choose Society --</option>
-              {MOCK_SOCIETIES.map(s => (
+              {societiesList.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>

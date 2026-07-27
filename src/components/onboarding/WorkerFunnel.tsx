@@ -14,12 +14,6 @@ interface WorkerFunnelProps {
   onCancel: () => void;
 }
 
-const MOCK_SOCIETIES = [
-  { id: '91cb520f-d5b7-4b71-9f20-b44c3c3de101', name: 'DLF Westend Heights - Akshayanagar' },
-  { id: 'c7e2d9a3-5bc5-442a-a921-ef743bd2b6d2', name: 'Prestige Song of the South - Bangalore' },
-  { id: 'b1a2f3c4-e888-4c91-a1b2-3f8c8dcb2e83', name: 'SNN Raj Serenity - Bangalore' }
-];
-
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const SLOTS = [
   { id: 'early_morning', label: 'Early Morning (6 AM - 9 AM)' },
@@ -34,6 +28,21 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [societiesList, setSocietiesList] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchSocieties = async () => {
+      try {
+        const { data } = await supabase.from('societies').select('*').order('name', { ascending: true });
+        if (data && data.length > 0) {
+          setSocietiesList(data);
+        }
+      } catch (err) {
+        console.error("Error fetching societies:", err);
+      }
+    };
+    fetchSocieties();
+  }, []);
 
   // Step 1 State: Selfie
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
@@ -328,7 +337,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
           skills,
           expected_salary: parseInt(expectedSalary),
           preferred_society_id: preferredSociety,
-          preferred_areas: preferredAreas.length > 0 ? preferredAreas : [MOCK_SOCIETIES.find(s => s.id === preferredSociety)?.name || ''],
+          preferred_areas: preferredAreas.length > 0 ? preferredAreas : [societiesList.find(s => s.id === preferredSociety)?.name || ''],
           profile_picture_url: profilePicUrl,
           video_url: videoUrl,
           availability_slots: {
@@ -638,7 +647,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                 className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200 cursor-pointer"
               >
                 <option value="">-- Choose Society --</option>
-                {MOCK_SOCIETIES.map(s => (
+                {societiesList.map(s => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>

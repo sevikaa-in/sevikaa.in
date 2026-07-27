@@ -8,15 +8,11 @@ import { supabase } from '../../../lib/supabaseClient';
 import { GlobalLanguageSelector } from '../../../components/GlobalLanguageSelector';
 import { ToastContainer, ToastItem } from '../../../components/admin/dashboard/Toast';
 import { 
-  Home, PlusCircle, Search, User, CreditCard, LogOut, 
-  ArrowLeft, CheckCircle2, ShieldAlert, Sparkles, Phone, Lock, Briefcase
+  Home, PlusCircle, Search, User, Users, CreditCard, LogOut, 
+  ArrowLeft, CheckCircle2, ShieldAlert, Sparkles, Phone, Lock, Briefcase, Menu, X, Bell 
 } from 'lucide-react';
 
-const MOCK_SOCIETIES = [
-  { id: '91cb520f-d5b7-4b71-9f20-b44c3c3de101', name: 'DLF Westend Heights - Akshayanagar' },
-  { id: 'c7e2d9a3-5bc5-442a-a921-ef743bd2b6d2', name: 'Prestige Song of the South - Bangalore' },
-  { id: 'b1a2f3c4-e888-4c91-a1b2-3f8c8dcb2e83', name: 'SNN Raj Serenity - Bangalore' }
-];
+
 
 interface EmployerDashboardContextProps {
   user: any;
@@ -24,17 +20,14 @@ interface EmployerDashboardContextProps {
   employerProfile: any;
   setEmployerProfile: React.Dispatch<React.SetStateAction<any>>;
   isPremium: boolean;
-  unlockedContacts: string[];
-  unlockedPhones: Record<string, string>;
   bookmarkedContacts: string[];
   postedJobs: any[];
   societiesList: any[];
-  unlockCredits: number;
   deletionRequested: boolean;
   showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-  handleUnlockContact: (workerId: string) => Promise<void>;
   handleToggleBookmark: (workerId: string) => void;
   handlePostJob: (jobData: any) => Promise<void>;
+  handleUpdateJob: (jobId: string, updatedData: any) => Promise<void>;
   handleRequestAccountDeletion: (reason: string) => Promise<void>;
   handleLogout: () => Promise<void>;
 }
@@ -58,35 +51,21 @@ export default function EmployerDashboardLayout({ children }: { children: React.
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(true);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [unlockCredits, setUnlockCredits] = useState(10);
-  const [unlockedContacts, setUnlockedContacts] = useState<string[]>(['w_1']);
-  const [unlockedPhones, setUnlockedPhones] = useState<Record<string, string>>({
-    'w_1': '+91 98765 43210'
-  });
   const [bookmarkedContacts, setBookmarkedContacts] = useState<string[]>([]);
-  const [societiesList, setSocietiesList] = useState<any[]>(MOCK_SOCIETIES);
+  const [societiesList, setSocietiesList] = useState<any[]>([]);
   const [deletionRequested, setDeletionRequested] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const [employerProfile, setEmployerProfile] = useState<any>({
-    company_name: "Ria Bhagat",
-    society_name: "DLF Westend Heights - Akshayanagar",
-    phone: "+91 98765 43210",
+    company_name: "Employer Profile",
+    email: "",
+    society_name: "",
+    phone: "",
     subscription_status: "Standard Plan",
-    address: "Tower 4, Apt 802"
+    address: ""
   });
 
-  const [postedJobs, setPostedJobs] = useState<any[]>([
-    {
-      id: 'job_101',
-      title: 'Full Time North Indian Cook Needed',
-      category: 'cook',
-      salary: '15000',
-      status: 'active',
-      created_at: '2026-07-25',
-      applicationsCount: 4,
-      description: 'Looking for experienced cook to prepare breakfast, lunch and dinner for family of 4 in Akshayanagar.'
-    }
-  ]);
+  const [postedJobs, setPostedJobs] = useState<any[]>([]);
 
   const showToast = (message: string, type?: 'success' | 'error' | 'warning' | 'info') => {
     const id = `toast_${Date.now()}`;
@@ -104,12 +83,14 @@ export default function EmployerDashboardLayout({ children }: { children: React.
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
       if (isPlaceholder) {
-        setUser({ id: 'emp_demo', email: 'employer@demo.com' });
+        setUser({ id: 'emp_demo', email: 'lakhan.sah@gmail.com' });
         setLoading(false);
         return;
       }
 
       const { data: { session } } = await supabase.auth.getSession();
+      let activeUserId = session?.user?.id;
+
       if (session?.user) {
         setUser(session.user);
         const { data: profile } = await supabase
@@ -124,17 +105,53 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           }
           if (profile.employer_profiles) {
             setEmployerProfile({
-              company_name: profile.employer_profiles.name || profile.employer_profiles.company_name || 'Employer',
-              society_name: profile.employer_profiles.billing_address || 'DLF Westend Heights',
-              phone: profile.phone || '',
-              subscription_status: profile.employer_profiles.subscription_status || 'free',
-              address: profile.employer_profiles.billing_address || ''
+              company_name: profile.employer_profiles.name || profile.employer_profiles.company_name || 'Lakhan Lal Sah',
+              email: profile.email || session.user.email || 'lakhan.sah@gmail.com',
+              society_name: profile.employer_profiles.billing_address || 'DLF Westend Heights - Akshayanagar',
+              phone: profile.phone || '+91 98765 43210',
+              subscription_status: profile.employer_profiles.subscription_status || 'Standard Plan',
+              address: profile.employer_profiles.billing_address || 'Tower 4, Apt 802'
             });
           }
         }
       }
+
+      // Fetch ONLY this Employer's Own Jobs from Supabase Database
+      let jobsQuery = supabase
+        .from('jobs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (activeUserId) {
+        jobsQuery = jobsQuery.eq('employer_id', activeUserId);
+      } else {
+        // Fallback filter for demo employer name if not logged into auth
+        jobsQuery = jobsQuery.or(`employer_name.eq."Lakhan Lal Sah",employer_id.eq."emp_demo"`);
+      }
+
+      const { data: dbJobs, error: jobsErr } = await jobsQuery;
+
+      if (dbJobs) {
+        const mappedJobs = dbJobs.map((j: any) => ({
+          id: j.id,
+          title: j.title || 'Job Requisition',
+          category: j.category || 'general',
+          salary: j.salary_offered || j.salary || '15000',
+          status: j.status || 'active',
+          adminNote: j.admin_note || j.adminNote || undefined,
+          created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today',
+          applicationsCount: j.applications_count || j.applicationsCount || 0,
+          description: j.description || '',
+          family_members: j.family_members || '4 Members (2 Adults, 2 Kids)',
+          flat_type: j.flat_type || '3BHK Apartment',
+          shift_hours: j.shift_hours || 'Full Day (8:00 AM – 4:00 PM)',
+          dietary_pref: j.dietary_pref || 'Both Veg & Non-Veg',
+          leave_policy: j.leave_policy || '4 Sundays Off + 1 Paid Leave'
+        }));
+        setPostedJobs(mappedJobs);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching employer session/jobs:", err);
     } finally {
       setLoading(false);
     }
@@ -143,26 +160,6 @@ export default function EmployerDashboardLayout({ children }: { children: React.
   useEffect(() => {
     fetchSession();
   }, []);
-
-  const handleUnlockContact = async (workerId: string) => {
-    if (unlockedContacts.includes(workerId)) return;
-    if (unlockCredits <= 0) {
-      showToast('Unlock limit reached. Upgrade your subscription plan for more unlocks.', 'warning');
-      return;
-    }
-
-    try {
-      setUnlockedContacts(prev => [...prev, workerId]);
-      setUnlockCredits(prev => prev - 1);
-      setUnlockedPhones(prev => ({
-        ...prev,
-        [workerId]: `+91 ${Math.floor(6000000000 + Math.random() * 3999999999)}`
-      }));
-      showToast('Contact phone unlocked successfully!', 'success');
-    } catch (err: any) {
-      showToast(`Unlock failed: ${err.message}`, 'error');
-    }
-  };
 
   const handleToggleBookmark = (workerId: string) => {
     setBookmarkedContacts(prev => 
@@ -176,14 +173,64 @@ export default function EmployerDashboardLayout({ children }: { children: React.
       title: jobData.title,
       category: jobData.category,
       salary: jobData.salary,
-      status: 'pending', // Pending Admin Audit & Approval before appearing on Worker feed
+      salary_offered: jobData.salary,
+      status: 'pending',
       created_at: new Date().toISOString().split('T')[0],
       applicationsCount: 0,
-      description: jobData.description
+      description: jobData.description,
+      dietary_pref: jobData.dietaryPref,
+      leave_policy: jobData.leavePolicy,
+      family_members: '4 Members (2 Adults, 2 Kids)',
+      flat_type: '3BHK Apartment',
+      shift_hours: 'Full Day (8:00 AM – 4:00 PM)'
     };
+
+    try {
+      if (user?.id) {
+        await supabase.from('jobs').insert([{
+          title: jobData.title,
+          category: jobData.category,
+          salary_offered: jobData.salary,
+          status: 'pending',
+          description: jobData.description,
+          employer_name: employerProfile.company_name,
+          society_name: employerProfile.society_name
+        }]);
+      }
+    } catch (err) {
+      console.error("Supabase job insert error:", err);
+    }
+
     setPostedJobs(prev => [newJob, ...prev]);
     showToast('New job requisition submitted! Pending Admin audit before going live for workers.', 'info');
-    router.push('/employer/dashboard');
+    router.push('/employer/dashboard/jobs');
+  };
+
+  const handleUpdateJob = async (jobId: string, updatedData: any) => {
+    try {
+      await supabase.from('jobs').update({
+        title: updatedData.title,
+        salary_offered: updatedData.salary,
+        description: updatedData.description,
+        category: updatedData.category,
+        status: 'pending' // Resubmit for review
+      }).eq('id', jobId);
+    } catch (err) {
+      console.error("Supabase job update error:", err);
+    }
+
+    setPostedJobs(prev => prev.map(job => {
+      if (job.id === jobId) {
+        return {
+          ...job,
+          ...updatedData,
+          status: 'pending',
+          adminNote: undefined
+        };
+      }
+      return job;
+    }));
+    showToast('Job requisition updated and resubmitted for Admin review!', 'success');
   };
 
   const handleRequestAccountDeletion = async (reason: string) => {
@@ -210,10 +257,11 @@ export default function EmployerDashboardLayout({ children }: { children: React.
   };
 
   const navItems = [
-    { id: 'overview', label: 'Explore', href: '/employer/dashboard', icon: <Search size={18} /> },
-    { id: 'post-job', label: 'Post Job', href: '/employer/dashboard/post-job', icon: <PlusCircle size={18} /> },
-    { id: 'workers', label: 'Candidates', href: '/employer/dashboard/workers', icon: <User size={18} />, badge: unlockedContacts.length },
-    { id: 'account', label: 'Account', href: '/employer/dashboard/account', icon: <CreditCard size={18} /> },
+    { id: 'overview', label: t('navOverview') || 'Home', href: '/employer/dashboard', icon: <Home size={20} /> },
+    { id: 'post-job', label: t('navPostJob') || 'Post Job', href: '/employer/dashboard/post-job', icon: <PlusCircle size={20} /> },
+    { id: 'my-jobs', label: 'My Jobs', href: '/employer/dashboard/jobs', icon: <Briefcase size={20} /> },
+    { id: 'workers', label: t('navCandidates') || 'Applicants', href: '/employer/dashboard/workers', icon: <Users size={20} /> },
+    { id: 'account', label: t('navAccount') || 'Account', href: '/employer/dashboard/account', icon: <User size={20} /> },
   ];
 
   if (loading) {
@@ -229,58 +277,88 @@ export default function EmployerDashboardLayout({ children }: { children: React.
 
   return (
     <EmployerDashboardContext.Provider value={{
-      user, loading, employerProfile, setEmployerProfile, isPremium, unlockedContacts,
-      unlockedPhones, bookmarkedContacts, postedJobs, societiesList, unlockCredits,
-      deletionRequested, showToast, handleUnlockContact, handleToggleBookmark, handlePostJob,
-      handleRequestAccountDeletion, handleLogout
+      user, loading, employerProfile, setEmployerProfile, isPremium,
+      bookmarkedContacts, postedJobs, societiesList, deletionRequested,
+      showToast, handleToggleBookmark, handlePostJob,
+      handleUpdateJob, handleRequestAccountDeletion, handleLogout
     }}>
       <div className="bg-slate-100 min-h-screen flex justify-center items-start font-sans antialiased">
         <ToastContainer toasts={toasts} onDismiss={removeToast} />
-
+        
         {/* Mobile Viewport Container - Clean Flat Interface */}
-        <div className="w-full max-w-md bg-slate-50 min-h-screen border-x border-slate-200/80 shadow-xl flex flex-col relative pb-16">
+        <div className="w-full max-w-md bg-slate-50 min-h-screen border-x border-slate-200/80 shadow-xl flex flex-col relative">
 
-          {/* App Header */}
-          <header className="bg-white border-b border-slate-200/80 sticky top-0 z-40 px-4 py-3 flex items-center justify-between shadow-xs">
-            <div className="flex items-center gap-2">
-              <Link href="/" className="text-slate-400 hover:text-slate-700">
-                <ArrowLeft size={18} />
-              </Link>
-              <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
-              <span className="font-black text-xs text-slate-800">Employer App</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <GlobalLanguageSelector />
-              
-              {/* Unlock Credits Pill */}
-              <div className="bg-blue-50 text-[#1A73E8] border border-blue-200/50 py-0.5 px-2 rounded-xl text-[10px] font-black flex items-center gap-1">
-                <Phone size={10} />
-                <span>{unlockCredits} Unlocks</span>
+          {/* Clean Mobile App Header with Integrated Dropdown Menu */}
+          <header className="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-xs">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Link href="/" className="text-slate-400 hover:text-slate-700">
+                  <ArrowLeft size={18} />
+                </Link>
+                <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
+                <span className="font-black text-xs text-slate-800">Employer</span>
               </div>
 
-              {/* Employer Name Pill */}
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 py-1 px-2 rounded-xl">
-                <span className="text-xs font-black text-slate-800 truncate max-w-[130px]" title={employerProfile.company_name}>
-                  {employerProfile.company_name || 'Employer'}
-                </span>
-                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
-                  deletionRequested 
-                    ? 'bg-amber-100 text-amber-800' 
-                    : 'bg-blue-50 text-[#1A73E8]'
-                }`}>
-                  {deletionRequested ? 'Pending' : 'Active'}
-                </span>
-              </div>
+              <div className="flex items-center gap-2">
+              <div className="bg-emerald-50 text-emerald-700 border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-black flex items-center gap-1">
+                  <CheckCircle2 size={10} />
+                  <span>Subscribed</span>
+                </div>
 
-              <button
-                onClick={handleLogout}
-                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
-                title="Logout"
-              >
-                <LogOut size={16} />
-              </button>
+                {/* Notifications Bell Button */}
+                <Link
+                  href="/employer/dashboard/notifications"
+                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
+                  title="Notifications & Alerts"
+                >
+                  <Bell size={18} />
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#EA4335] border border-white animate-pulse" />
+                </Link>
+
+                {/* Hamburger Mobile Menu Toggle Button */}
+                <button
+                  onClick={() => setShowMobileMenu(!showMobileMenu)}
+                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                  aria-label="Toggle Navigation Menu"
+                >
+                  {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+                </button>
+              </div>
             </div>
+
+            {/* Slide-Down Mobile Header Menu Overlay Drawer (Floats over the screen content) */}
+            {showMobileMenu && (
+              <div className="absolute top-full left-0 right-0 bg-white border-b border-slate-200 p-4 space-y-4 shadow-2xl animate-fade-in z-[100]">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">{employerProfile.company_name}</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold">{employerProfile.society_name}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                    deletionRequested 
+                      ? 'bg-amber-100 text-amber-800' 
+                      : 'bg-blue-50 text-[#1A73E8]'
+                  }`}>
+                    {deletionRequested ? 'Pending' : 'Active'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs font-bold text-slate-500">App Language:</span>
+                  <GlobalLanguageSelector />
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex gap-2">
+                  <button
+                    onClick={() => { setShowMobileMenu(false); handleLogout(); }}
+                    className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <LogOut size={14} />
+                    <span>Log Out Session</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </header>
 
           {/* Account Deletion Request Banner Notice */}
@@ -294,12 +372,12 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           )}
 
           {/* Main Scrollable Screen Area */}
-          <main className="flex-1 overflow-y-auto p-4 space-y-4">
+          <main className="flex-1 p-4 space-y-4 pb-6">
             {children}
           </main>
 
-          {/* Exclusive Mobile Bottom Navigation Bar */}
-          <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2 px-2 flex justify-around items-center z-50 shadow-lg">
+          {/* Sticky Mobile Bottom Navigation Bar */}
+          <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200/90 py-2.5 px-2 flex justify-around items-center z-50 shadow-lg shrink-0">
             {navItems.map((item) => {
               const isActive = (item.id === 'overview' && pathname === '/employer/dashboard') || (item.id !== 'overview' && pathname === item.href);
               return (
@@ -313,12 +391,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
                   }`}
                 >
                   {item.icon}
-                  <span>{item.label}</span>
-                  {item.badge && item.badge > 0 ? (
-                    <span className="absolute -top-1 -right-1 bg-[#1A73E8] text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center">
-                      {item.badge}
-                    </span>
-                  ) : null}
+                  <span>{item.label.split(' ')[0]}</span>
                 </Link>
               );
             })}

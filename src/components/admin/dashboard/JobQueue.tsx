@@ -7,8 +7,8 @@ interface JobQueueProps {
   loading: boolean;
   error: string;
   jobs: any[];
-  onModerateJob: (id: string, approved: boolean) => void;
-  onSelectJob: (job: any) => void;
+  onModerateJob: (id: string, action: 'approve' | 'reject' | 'request_changes' | boolean, note?: string) => void;
+  onSelectJob: (job: any, showFeedback?: boolean) => void;
 }
 
 export const JobQueue: React.FC<JobQueueProps> = ({
@@ -95,7 +95,7 @@ export const JobQueue: React.FC<JobQueueProps> = ({
                     <span>•</span>
                     <span className="flex items-center gap-0.5"><MapPin size={8} /> {job.society_name || 'Society'}</span>
                     <span>•</span>
-                    <span>Salary: {job.salary || `₹${job.salary_offered}/mo`}</span>
+                    <span>Salary: {job.salary_offered ? `₹${Number(job.salary_offered).toLocaleString('en-IN')}/mo` : job.salary ? `₹${Number(job.salary).toLocaleString('en-IN')}/mo` : 'Market Rate'}</span>
                   </div>
                 </div>
                 <ChevronRight size={14} className="text-gray-400 group-hover:text-slate-800 transition-colors" />
@@ -123,8 +123,8 @@ export const JobQueue: React.FC<JobQueueProps> = ({
                   <span>Reject</span>
                 </button>
                 <button
-                  onClick={() => { const el = document.activeElement as HTMLElement; el?.blur(); }}
-                  className="py-2 px-3 border border-[#EA4335]/20 hover:bg-[#EA4335]/5 text-[#EA4335] text-[10px] font-bold rounded-xl active:scale-95 transition-all cursor-pointer"
+                  onClick={() => onSelectJob(job, true)}
+                  className="py-2 px-3 border border-amber-300 hover:bg-amber-50 text-amber-800 text-[10px] font-bold rounded-xl active:scale-95 transition-all cursor-pointer"
                 >
                   Request Changes
                 </button>

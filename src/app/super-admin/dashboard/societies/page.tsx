@@ -29,6 +29,30 @@ export default function SocietiesPage() {
   const [pincode, setPincode] = useState('');
   const [gatePhone, setGatePhone] = useState('');
   const [totalFlats, setTotalFlats] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
+  const handleDetectGPS = () => {
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser.', 'error');
+      return;
+    }
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(pos.coords.latitude.toFixed(6));
+        setLongitude(pos.coords.longitude.toFixed(6));
+        setIsDetectingLocation(false);
+        showToast(`GPS coordinates captured! (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`, 'success');
+      },
+      (err) => {
+        setIsDetectingLocation(false);
+        showToast('Could not fetch GPS position. Enter coordinates manually.', 'error');
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   const filtered = societiesList.filter((soc) => {
     const matchesSearch = soc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -50,6 +74,8 @@ export default function SocietiesPage() {
       city: city.trim(),
       area: area.trim() || 'General Sector',
       pincode: pincode.trim() || '560001',
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
       workers_count: 0,
       active_jobs: 0,
       created_at: new Date().toISOString()
@@ -59,12 +85,19 @@ export default function SocietiesPage() {
       try {
         const { data, error } = await supabase
           .from('societies')
-          .insert([{ name: newSoc.name, city: newSoc.city, area: newSoc.area, pincode: newSoc.pincode }])
+          .insert([{ 
+            name: newSoc.name, 
+            city: newSoc.city, 
+            area: newSoc.area, 
+            pincode: newSoc.pincode,
+            latitude: newSoc.latitude,
+            longitude: newSoc.longitude
+          }])
           .select()
           .single();
         if (error) throw error;
         if (data) newSoc.id = data.id;
-        showToast(`Society "${newSoc.name}" registered successfully!`, 'success');
+        showToast(`Society "${newSoc.name}" registered successfully with GPS coordinates!`, 'success');
       } catch (err: any) {
         showToast(`Failed to add society: ${err.message}`, 'error');
         return;
@@ -79,6 +112,8 @@ export default function SocietiesPage() {
     setPincode('');
     setGatePhone('');
     setTotalFlats('');
+    setLatitude('');
+    setLongitude('');
     setIsAdding(false);
   };
 
@@ -93,7 +128,9 @@ export default function SocietiesPage() {
             name: updated.name,
             city: updated.city,
             area: updated.area,
-            pincode: updated.pincode
+            pincode: updated.pincode,
+            latitude: updated.latitude ? parseFloat(updated.latitude) : null,
+            longitude: updated.longitude ? parseFloat(updated.longitude) : null
           })
           .eq('id', updated.id);
         if (error) throw error;
@@ -203,6 +240,38 @@ export default function SocietiesPage() {
                 onChange={(e) => setTotalFlats(e.target.value)}
                 className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
               />
+            </div>
+
+            {/* GPS Geolocation Coordinates */}
+            <div className="space-y-1 sm:col-span-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[9.5px] text-slate-400 uppercase font-black">GPS Geo Coordinates (Latitude / Longitude)</label>
+                <button
+                  type="button"
+                  onClick={handleDetectGPS}
+                  disabled={isDetectingLocation}
+                  className="text-[9.5px] font-black text-[#1A73E8] hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <MapPin size={10} />
+                  <span>{isDetectingLocation ? 'Detecting...' : '📍 Auto-Detect GPS Location'}</span>
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Latitude e.g. 12.8720"
+                  value={latitude}
+                  onChange={(e) => setLatitude(e.target.value)}
+                  className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
+                />
+                <input
+                  type="text"
+                  placeholder="Longitude e.g. 77.6105"
+                  value={longitude}
+                  onChange={(e) => setLongitude(e.target.value)}
+                  className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
+                />
+              </div>
             </div>
 
             <div className="sm:col-span-4 flex justify-end gap-2 pt-2 border-t border-slate-50">

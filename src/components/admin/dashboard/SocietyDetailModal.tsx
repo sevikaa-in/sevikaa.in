@@ -34,6 +34,9 @@ export const SocietyDetailModal: React.FC<SocietyDetailModalProps> = ({
   const [editCity, setEditCity] = useState('');
   const [editArea, setEditArea] = useState('');
   const [editPincode, setEditPincode] = useState('');
+  const [editLatitude, setEditLatitude] = useState('');
+  const [editLongitude, setEditLongitude] = useState('');
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -46,9 +49,27 @@ export const SocietyDetailModal: React.FC<SocietyDetailModalProps> = ({
       setEditCity(society.city || 'Bangalore');
       setEditArea(society.area || '');
       setEditPincode(society.pincode || '');
+      setEditLatitude(society.latitude ? String(society.latitude) : '');
+      setEditLongitude(society.longitude ? String(society.longitude) : '');
       setIsEditing(false);
     }
   }, [society, isOpen]);
+
+  const handleDetectGPS = () => {
+    if (!navigator.geolocation) return;
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setEditLatitude(pos.coords.latitude.toFixed(6));
+        setEditLongitude(pos.coords.longitude.toFixed(6));
+        setIsDetectingLocation(false);
+      },
+      () => {
+        setIsDetectingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   if (!isOpen || !society || !mounted) return null;
 
@@ -76,7 +97,9 @@ export const SocietyDetailModal: React.FC<SocietyDetailModalProps> = ({
       name: editName.trim(),
       city: editCity.trim(),
       area: editArea.trim(),
-      pincode: editPincode.trim()
+      pincode: editPincode.trim(),
+      latitude: editLatitude ? parseFloat(editLatitude) : null,
+      longitude: editLongitude ? parseFloat(editLongitude) : null
     };
     if (onUpdateSociety) {
       await onUpdateSociety(updated);
@@ -193,8 +216,40 @@ export const SocietyDetailModal: React.FC<SocietyDetailModalProps> = ({
                     type="text"
                     value={editPincode}
                     onChange={(e) => setEditPincode(e.target.value)}
-                    className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+                    className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
                   />
+                </div>
+
+                {/* GPS Geolocation Coordinates */}
+                <div className="space-y-1 sm:col-span-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9.5px] text-slate-400 uppercase font-black">GPS Geo Coordinates (Latitude / Longitude)</label>
+                    <button
+                      type="button"
+                      onClick={handleDetectGPS}
+                      disabled={isDetectingLocation}
+                      className="text-[9.5px] font-black text-[#1A73E8] hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <MapPin size={10} />
+                      <span>{isDetectingLocation ? 'Detecting...' : '📍 Auto-Detect GPS Location'}</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Latitude e.g. 12.8720"
+                      value={editLatitude}
+                      onChange={(e) => setEditLatitude(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Longitude e.g. 77.6105"
+                      value={editLongitude}
+                      onChange={(e) => setEditLongitude(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
+                    />
+                  </div>
                 </div>
 
                 <div className="sm:col-span-4 flex justify-end gap-2 pt-2 border-t border-slate-50">

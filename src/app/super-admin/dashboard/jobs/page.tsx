@@ -15,6 +15,7 @@ export default function JobsPage() {
 
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   return (
     <div className="animate-fade-in max-w-5xl space-y-4">
@@ -23,8 +24,9 @@ export default function JobsPage() {
         error={error}
         jobs={pendingJobsList}
         onModerateJob={handleModerateJob}
-        onSelectJob={(job) => {
+        onSelectJob={(job, feedback = false) => {
           setSelectedJob(job);
+          setShowFeedback(feedback);
           setIsModalOpen(true);
         }}
       />
@@ -34,6 +36,7 @@ export default function JobsPage() {
         onClose={() => setIsModalOpen(false)}
         job={selectedJob}
         onModerateJob={handleModerateJob}
+        initialShowFeedback={showFeedback}
       />
     </div>
   );
