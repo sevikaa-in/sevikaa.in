@@ -1,0 +1,152 @@
+================================================================================
+SEVKAA - JIO TRUECONNECT SMS DLT TEMPLATE REGISTRATION LIST & STATUS
+================================================================================
+Header (Sender ID): SEVKAA
+Entity Type: Principal Entity (PE)
+Placeholders Format: Jio TrueConnect standard ({#number#}, {#alphanumeric#}, {#var#})
+
+================================================================================
+SECTION A: APPROVED DLT TEMPLATES (GLOBAL STATUS: ACTIVE ✅)
+================================================================================
+
+[✅ APPROVED] 1. SEVKAA_REGISTER_OTP
+--------------------------------------------------------------------------------
+DLT Status: Active (APPROVED ✅)
+Template Message:
+Welcome to Sevikaa.
+Your registration verification code is {#number#}.
+Valid for 10 minutes.
+
+Sample Backend variables:
+- {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
+
+
+[✅ APPROVED] 2. SEVKAA_FORGOT_PASSWORD_OTP
+--------------------------------------------------------------------------------
+DLT Status: Active (APPROVED ✅)
+Template Message:
+Your Sevikaa password reset code is {#number#}.
+Valid for 10 minutes.
+
+Sample Backend variables:
+- {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
+
+
+[✅ APPROVED] 3. SEVKAA_INTERVIEW_SCHEDULED
+--------------------------------------------------------------------------------
+DLT Status: Active (APPROVED ✅)
+Template Message:
+Interview scheduled on {#alphanumeric#} at {#alphanumeric#}.
+Check Sevikaa for complete details.
+
+Sample Backend variables:
+- First {#alphanumeric#} (Date)   =>  Expected key in code: 'date' (e.g. "28-07-2026")
+- Second {#alphanumeric#} (Time)  =>  Expected key in code: 'time' (e.g. "10:30 AM")
+
+
+[✅ APPROVED] 4. SEVKAA_SUBSCRIPTION_ACTIVATED
+--------------------------------------------------------------------------------
+DLT Status: Active (APPROVED ✅)
+Template Message:
+Your Sevikaa subscription {#alphanumeric#} is now active.
+Thank you.
+
+Sample Backend variables:
+- {#alphanumeric#} (Plan Name)  =>  Expected key in code: 'plan_name' (e.g. "Standard Plan")
+
+
+[✅ APPROVED] 5. SEVKAA_SECURITY_ALERT
+--------------------------------------------------------------------------------
+DLT Status: Active (APPROVED ✅)
+Template Message:
+A security-sensitive action was detected on your Sevikaa account.
+If this wasn't you, contact support immediately.
+
+Sample Backend variables:
+- None (This template has no variables)
+
+
+[✅ APPROVED] 6. SEVKAA_LOGIN_OTP
+--------------------------------------------------------------------------------
+DLT Status: Active (APPROVED ✅)
+Template Message:
+Your Sevikaa verification code is {#number#}.
+Valid for 10 minutes.
+Do not share this code with anyone.
+
+Sample Backend variables:
+- {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
+
+
+[✅ APPROVED] 7. SEVKAA_WORKER_VERIFIED
+--------------------------------------------------------------------------------
+DLT Status: Active (APPROVED ✅)
+Template Message:
+Congratulations!
+Your Sevikaa profile has been verified successfully.
+
+Sample Backend variables:
+- None (This template has no variables)
+
+
+================================================================================
+SECTION B: REJECTED TEMPLATES & REVISED READY-TO-RESUBMIT TEMPLATES ❌
+================================================================================
+Note: DLT Operators (Jio/Fast2SMS) reject templates that:
+  1. Do not explicitly contain the Brand Name "Sevikaa".
+  2. Have a placeholder variable ({#var#}) as the very LAST word of the message.
+
+Below are the REVISED, FIXED templates ready for re-submission on Jio Trueconnect:
+
+
+[❌ REJECTED -> 🔄 RESUBMIT THIS] 1. SEVKAA_CHANGE_MOBILE_OTP
+--------------------------------------------------------------------------------
+Rejection Reason: Template should have Entity / Trade / Brand Name
+FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
+Verify your new mobile number on Sevikaa using OTP {#number#}. Valid for 10 minutes. Team Sevikaa.
+
+Sample Backend variables:
+- {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
+
+
+[❌ REJECTED -> 🔄 RESUBMIT THIS] 2. SEVKAA_JOB_APPLIED
+--------------------------------------------------------------------------------
+Rejection Reason: Template should have Entity / Trade / Brand Name & Last word variable
+FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
+Your application for {#alphanumeric#} has been submitted successfully on Sevikaa.
+
+Sample Backend variables:
+- {#alphanumeric#} (Job Title)  =>  Expected key in code: 'job_title' (e.g. "Full Time Cook")
+
+
+[❌ REJECTED -> 🔄 RESUBMIT THIS] 3. SEVKAA_JOB_ACCEPTED
+--------------------------------------------------------------------------------
+Rejection Reason: Template should have Entity / Trade / Brand Name & Last word variable
+FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
+Congratulations! Your application for {#alphanumeric#} has been accepted by {#alphanumeric#} on Sevikaa.
+
+Sample Backend variables:
+- First {#alphanumeric#} (Job Title)   =>  Expected key in code: 'job_title' (e.g. "Nanny")
+- Second {#alphanumeric#} (Employer)    =>  Expected key in code: 'company' (e.g. "Ria Bhagat")
+
+
+[❌ REJECTED -> 🔄 RESUBMIT THIS] 4. SEVKAA_NEW_APPLICATION
+--------------------------------------------------------------------------------
+Rejection Reason: Template should have Entity / Trade / Brand Name
+FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
+Sevikaa: A new worker has applied for {#alphanumeric#}. Login to Sevikaa to review the application.
+
+Sample Backend variables:
+- {#alphanumeric#} (Job Title)  =>  Expected key in code: 'job_title' (e.g. "Housemaid")
+
+
+[❌ REJECTED -> 🔄 RESUBMIT THIS] 5. SEVKAA_PAYMENT_SUCCESS
+--------------------------------------------------------------------------------
+Rejection Reason: Last word variable not allowed & Template should have Entity / Trade / Brand Name
+FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
+Sevikaa: Payment of Rs.{#number#} received successfully. Transaction ID {#alphanumeric#}. Thank you for using Sevikaa.
+
+Sample Backend variables:
+- {#number#} (Amount)             =>  Expected key in code: 'amount' (e.g. "699")
+- {#alphanumeric#} (Transaction ID) =>  Expected key in code: 'transaction_id' (e.g. "PAY_901248")
+================================================================================

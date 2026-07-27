@@ -1,20 +1,22 @@
 "use client";
 
 import React, { useState } from 'react';
-import { ShieldAlert, Sparkles, Star, Search, Check, Trash2, EyeOff } from 'lucide-react';
+import { ShieldAlert, Sparkles, Star, Search, Check, Trash2, EyeOff, ChevronRight } from 'lucide-react';
 
 interface ReviewQueueProps {
   loading: boolean;
   error: string;
   reviews: any[];
   onModerateReview: (id: string, action: 'approved' | 'rejected' | 'hidden') => void;
+  onSelectReview: (review: any) => void;
 }
 
 export const ReviewQueue: React.FC<ReviewQueueProps> = ({
   loading,
   error,
   reviews,
-  onModerateReview
+  onModerateReview,
+  onSelectReview
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -77,7 +79,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
           <span>No rating feedbacks pending review</span>
         </div>
       ) : (
-        <div className="space-y-4 divide-y divide-slate-50">
+        <div className="space-y-3">
           {paginated.map((rev) => {
             // Generate mock safety quality indicators
             const spamScore = Math.floor(Math.random() * 15);
@@ -85,10 +87,13 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
             const duplicateScore = Math.floor(Math.random() * 10);
 
             return (
-              <div key={rev.id} className="pt-4 first:pt-0 space-y-3">
-                <div className="flex justify-between items-start">
+              <div key={rev.id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/20 transition-all duration-200 space-y-3">
+                <div 
+                  onClick={() => onSelectReview(rev)}
+                  className="flex justify-between items-start cursor-pointer group"
+                >
                   <div>
-                    <span className="block text-[10px] font-extrabold text-gray-400 uppercase">Review by {rev.reviewer || 'Employer'} &rarr; {rev.target || 'Worker'}</span>
+                    <span className="block text-[10px] font-extrabold text-[#1A73E8] uppercase tracking-wider">Review by {rev.reviewer || 'Employer'} &rarr; {rev.target || 'Worker'}</span>
                     
                     {/* Safety flags */}
                     <div className="flex flex-wrap gap-1.5 mt-1 text-[8px] font-bold">
@@ -104,9 +109,12 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                     </div>
                   </div>
 
-                  <span className="flex items-center gap-0.5 text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                    <Star size={10} fill="#FBBC05" className="text-[#FBBC05]" /> {rev.rating}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-0.5 text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                      <Star size={10} fill="#FBBC05" className="text-[#FBBC05]" /> {rev.rating}
+                    </span>
+                    <ChevronRight size={14} className="text-gray-400 group-hover:text-slate-800 transition-colors" />
+                  </div>
                 </div>
 
                 <p className="text-[10px] text-gray-500 font-medium leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100/50">

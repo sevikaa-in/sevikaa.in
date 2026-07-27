@@ -1,20 +1,22 @@
 "use client";
 
 import React, { useState } from 'react';
-import { ShieldAlert, Sparkles, User, AlertCircle, Search, HelpCircle, CheckCircle } from 'lucide-react';
+import { ShieldAlert, Sparkles, User, AlertCircle, Search, HelpCircle, CheckCircle, ChevronRight } from 'lucide-react';
 
 interface DisputesQueueProps {
   loading: boolean;
   error: string;
   disputes: any[];
   onResolveDispute: (id: string) => void;
+  onSelectDispute: (dispute: any) => void;
 }
 
 export const DisputesQueue: React.FC<DisputesQueueProps> = ({
   loading,
   error,
   disputes,
-  onResolveDispute
+  onResolveDispute,
+  onSelectDispute
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,11 +81,14 @@ export const DisputesQueue: React.FC<DisputesQueueProps> = ({
       ) : (
         <div className="space-y-4 divide-y divide-slate-50">
           {paginated.map((item) => (
-            <div key={item.id} className="pt-4 first:pt-0 space-y-3">
-              <div className="flex justify-between items-start">
+            <div key={item.id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/20 transition-all duration-200 space-y-3">
+              <div
+                onClick={() => onSelectDispute(item)}
+                className="flex justify-between items-start cursor-pointer group"
+              >
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="block text-xs font-black text-slate-800">Target: {item.reported_user}</span>
+                    <span className="block text-xs font-black text-slate-800 group-hover:text-[#1A73E8] transition-colors">Target: {item.reported_user}</span>
                     <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
                       item.priority === 'High' ? 'bg-red-50 text-[#EA4335]' : 'bg-slate-100 text-gray-400'
                     }`}>
@@ -92,6 +97,7 @@ export const DisputesQueue: React.FC<DisputesQueueProps> = ({
                   </div>
                   <span className="block text-[9px] text-gray-400 font-bold mt-1">Reporter: {item.reporter}</span>
                 </div>
+                <ChevronRight size={14} className="text-gray-400 group-hover:text-slate-800 transition-colors" />
               </div>
 
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100/50 space-y-1">
@@ -112,13 +118,13 @@ export const DisputesQueue: React.FC<DisputesQueueProps> = ({
                   <span>Resolve & Dismiss</span>
                 </button>
                 <button
-                  onClick={() => alert("Flag forwarded to Super Admin Escalations.")}
+                  onClick={() => {}}
                   className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold active:scale-95 transition-all cursor-pointer border border-slate-200/20"
                 >
                   Escalate
                 </button>
                 <button
-                  onClick={() => alert("Worker profile deactivated pending police check audit.")}
+                  onClick={() => {}}
                   className="py-1.5 px-3 border border-[#EA4335]/20 hover:bg-[#EA4335]/5 text-[#EA4335] text-[10px] font-bold rounded-xl active:scale-95 transition-all cursor-pointer"
                 >
                   Suspend User

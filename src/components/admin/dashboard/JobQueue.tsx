@@ -8,13 +8,15 @@ interface JobQueueProps {
   error: string;
   jobs: any[];
   onModerateJob: (id: string, approved: boolean) => void;
+  onSelectJob: (job: any) => void;
 }
 
 export const JobQueue: React.FC<JobQueueProps> = ({
   loading,
   error,
   jobs,
-  onModerateJob
+  onModerateJob,
+  onSelectJob
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -78,13 +80,16 @@ export const JobQueue: React.FC<JobQueueProps> = ({
           <span>All job posts moderated successfully</span>
         </div>
       ) : (
-        <div className="space-y-4 divide-y divide-slate-50">
+        <div className="space-y-3">
           {paginated.map((job) => (
-            <div key={job.id} className="pt-4 first:pt-0 space-y-3">
-              <div className="flex justify-between items-start">
+            <div key={job.id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/20 transition-all duration-200 space-y-3">
+              <div 
+                onClick={() => onSelectJob(job)}
+                className="flex justify-between items-start cursor-pointer group"
+              >
                 <div>
                   <span className="block text-[10px] font-extrabold text-[#1A73E8] uppercase tracking-wider">{job.category || 'General'} Job offer</span>
-                  <span className="block text-xs font-black text-slate-800 mt-0.5">{job.title}</span>
+                  <span className="block text-xs font-black text-slate-800 mt-0.5 group-hover:text-[#1A73E8] transition-colors">{job.title}</span>
                   <div className="flex flex-wrap gap-2 text-[9px] font-bold text-gray-400 mt-1">
                     <span>Employer: {job.employer || 'Household'}</span>
                     <span>•</span>
@@ -93,6 +98,7 @@ export const JobQueue: React.FC<JobQueueProps> = ({
                     <span>Salary: {job.salary || `₹${job.salary_offered}/mo`}</span>
                   </div>
                 </div>
+                <ChevronRight size={14} className="text-gray-400 group-hover:text-slate-800 transition-colors" />
               </div>
 
               {/* Job description preview */}
@@ -117,7 +123,7 @@ export const JobQueue: React.FC<JobQueueProps> = ({
                   <span>Reject</span>
                 </button>
                 <button
-                  onClick={() => alert("Changes request logged - notification sent to Employer.")}
+                  onClick={() => { const el = document.activeElement as HTMLElement; el?.blur(); }}
                   className="py-2 px-3 border border-[#EA4335]/20 hover:bg-[#EA4335]/5 text-[#EA4335] text-[10px] font-bold rounded-xl active:scale-95 transition-all cursor-pointer"
                 >
                   Request Changes

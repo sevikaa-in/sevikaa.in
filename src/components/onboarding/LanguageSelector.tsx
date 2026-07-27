@@ -9,15 +9,18 @@ interface LanguageSelectorProps {
   onNext: () => void;
 }
 
-const FLAG_MAP: Record<string, string> = {
-  en: '🇬🇧',
-  hi: '🇮🇳',
-  hn: '🇮🇳',
-  kn: '🇮🇳',
-  ta: '🇮🇳',
-  te: '🇮🇳',
-  as: '🇮🇳',
-  ne: '🇳🇵'
+const renderLanguageImage = (code: string, name: string) => {
+  const extension = code === 'bn' ? 'jpg' : 'png';
+  const sizeClass = code === 'bn' 
+    ? 'w-[72px] h-11 object-contain mix-blend-multiply' 
+    : 'w-14 h-14 object-contain';
+  return (
+    <img 
+      src={`/icons/languages/${code}.${extension}`} 
+      className={`${sizeClass} mb-1.5 group-hover:scale-105 transition-transform duration-300 select-none pointer-events-none`} 
+      alt={name} 
+    />
+  );
 };
 
 export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onNext }) => {
@@ -58,13 +61,12 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onNext }) =>
         <div className="grid grid-cols-2 gap-3">
           {supportedLanguages.map((lang) => {
             const isSelected = selectedLang === lang.code;
-            const flag = FLAG_MAP[lang.code] || '🌐';
             return (
               <button
                 key={lang.code}
                 type="button"
                 onClick={() => handleSelect(lang.code)}
-                className={`py-3.5 px-3 rounded-2xl text-center border-2 transition-all duration-300 relative flex flex-col items-center justify-center min-h-[85px] cursor-pointer ${
+                className={`py-4 px-3 rounded-2xl text-center border-2 transition-all duration-300 relative flex flex-col items-center justify-center min-h-[110px] cursor-pointer group ${
                   isSelected
                     ? 'border-[#1A73E8] bg-[#1A73E8]/5 shadow-md shadow-blue-100/50 text-[#1A73E8] scale-[1.02] -translate-y-0.5'
                     : 'border-gray-200 hover:border-gray-300 hover:shadow-md hover:shadow-gray-100/55 hover:-translate-y-0.5 text-gray-700'
@@ -75,11 +77,11 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onNext }) =>
                     <Check size={8} strokeWidth={4} />
                   </div>
                 )}
-                <span className="text-base font-black leading-tight flex items-center gap-1.5">
-                  <span className="text-lg leading-none shrink-0">{flag}</span>
+                {renderLanguageImage(lang.code, lang.name)}
+                <span className="text-xs font-black leading-tight">
                   {lang.nativeName}
                 </span>
-                <span className="text-[10px] text-gray-400 mt-1 font-bold">
+                <span className="text-[9px] text-gray-400 mt-1 font-bold">
                   {lang.code === 'hn' ? 'Hindi + English' : lang.name}
                 </span>
               </button>

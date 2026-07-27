@@ -8,6 +8,16 @@ interface DocumentInspectorProps {
   onUpdateBadge: (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => void;
 }
 
+const getPublicUrl = (bucketName: string, path: string) => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) {
+    return path;
+  }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  if (!supabaseUrl) return `/${path}`;
+  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${path}`;
+};
+
 export const DocumentInspector: React.FC<DocumentInspectorProps> = ({
   worker,
   onUpdateBadge
@@ -135,7 +145,7 @@ export const DocumentInspector: React.FC<DocumentInspectorProps> = ({
           >
             {worker.profile_picture_url || worker.selfie ? (
               <img 
-                src={worker.profile_picture_url || '/logo.png'} 
+                src={getPublicUrl('worker-selfies', worker.profile_picture_url) || '/logo.png'} 
                 alt="Selfie audit" 
                 className="w-full h-full object-cover" 
               />
@@ -156,7 +166,7 @@ export const DocumentInspector: React.FC<DocumentInspectorProps> = ({
           >
             {worker.aadhaar_front_url ? (
               <img 
-                src={worker.aadhaar_front_url} 
+                src={getPublicUrl('worker-documents', worker.aadhaar_front_url)} 
                 alt="Aadhaar Front audit" 
                 className="max-w-full max-h-full object-contain" 
               />
@@ -184,7 +194,7 @@ export const DocumentInspector: React.FC<DocumentInspectorProps> = ({
           <div className="w-full h-full flex items-center justify-center">
             {worker.video_url ? (
               <video 
-                src={worker.video_url} 
+                src={getPublicUrl('worker-videos', worker.video_url)} 
                 controls 
                 className="max-w-full max-h-full rounded-lg" 
               />

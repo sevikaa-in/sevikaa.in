@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, HelpCircle, ChevronDown, User, MapPin, Shield, CreditCard, Lock } from 'lucide-react';
+import { GlobalLanguageSelector } from '../../components/GlobalLanguageSelector';
 
 export default function FAQPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -99,7 +100,7 @@ export default function FAQPage() {
           </Link>
           <img src="/logo.png" alt="Sevikaa Logo" className="h-10 w-auto object-contain" />
         </div>
-        <span className="font-extrabold text-sm tracking-tight text-gray-500 uppercase">FAQ Panel</span>
+        <GlobalLanguageSelector />
       </header>
 
       <main className="flex-1 p-6 space-y-6">

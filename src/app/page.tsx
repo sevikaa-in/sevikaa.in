@@ -9,6 +9,7 @@ import { WorkerFunnel } from '../components/onboarding/WorkerFunnel';
 import { EmployerFunnel } from '../components/onboarding/EmployerFunnel';
 import { StatusPending } from '../components/onboarding/StatusPending';
 import { useLanguage } from '../context/LanguageContext';
+import { GlobalLanguageSelector } from '../components/GlobalLanguageSelector';
 import { supabase } from '../lib/supabaseClient';
 import { 
   Check, Shield, ChevronDown, HelpCircle, Star, Phone, Mail, 
@@ -394,26 +395,30 @@ export default function Home() {
             <img src="/logo.png" alt="Sevikaa Logo" className="h-20 w-auto object-contain" />
           </Link>
 
-          {/* Desktop Nav Links */}
-          <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
-            {[
-              { label: 'About Us', href: '/about' },
-              { label: 'How It Works', href: '/how-it-works' },
-              { label: 'Pricing', href: '/pricing' },
-              { label: 'Safety', href: '/safety' },
-              { label: 'Contact', href: '/contact' },
-              { label: 'FAQ', href: '/faq' }
-            ].map((link, index) => (
-              <Link 
-                key={index} 
-                href={link.href} 
-                className="relative py-1 text-gray-600 hover:text-[#1A73E8] transition-all hover:scale-105 active:scale-95 duration-200 group font-bold"
-              >
-                {link.label}
-                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[#1A73E8] transform scale-x-0 group-hover:scale-x-100 transition-transform origin-center duration-300" />
-              </Link>
-            ))}
-          </nav>
+          <div className="flex items-center gap-4">
+            {/* Desktop Nav Links */}
+            <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
+              {[
+                { label: 'About Us', href: '/about' },
+                { label: 'How It Works', href: '/how-it-works' },
+                { label: 'Pricing', href: '/pricing' },
+                { label: 'Safety', href: '/safety' },
+                { label: 'Contact', href: '/contact' },
+                { label: 'FAQ', href: '/faq' }
+              ].map((link, index) => (
+                <Link 
+                  key={index} 
+                  href={link.href} 
+                  className="relative py-1 text-gray-600 hover:text-[#1A73E8] transition-all hover:scale-105 active:scale-95 duration-200 group font-bold"
+                >
+                  {link.label}
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[#1A73E8] transform scale-x-0 group-hover:scale-x-100 transition-transform origin-center duration-300" />
+                </Link>
+              ))}
+            </nav>
+            
+            <GlobalLanguageSelector />
+          </div>
         </div>
       </header>
 

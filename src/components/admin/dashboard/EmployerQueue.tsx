@@ -7,9 +7,10 @@ interface EmployerQueueProps {
   loading: boolean;
   error: string;
   employers: any[];
-  onToggleSubscription: (id: string, currentSub: string) => void;
+  onToggleSubscription?: (id: string, currentSub: string) => void;
   onApproveEmployer: (id: string) => void;
   onRejectEmployer: (id: string) => void;
+  onSelectEmployer: (employer: any) => void;
 }
 
 export const EmployerQueue: React.FC<EmployerQueueProps> = ({
@@ -18,8 +19,10 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
   employers,
   onToggleSubscription,
   onApproveEmployer,
-  onRejectEmployer
+  onRejectEmployer,
+  onSelectEmployer
 }) => {
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -42,11 +45,13 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
     );
   }
 
-  const filtered = employers.filter(e => 
-    (e.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (e.company_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (e.billing_address || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = employers.filter(e => {
+    const matchesSearch = (e.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (e.company_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (e.billing_address || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || e.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -75,20 +80,54 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
         </div>
       </div>
 
+      {/* Filter Tabs */}
+      <div className="flex overflow-x-auto whitespace-nowrap gap-1 pb-2 scrollbar-hide">
+        {['all', 'pending_review', 'live', 'suspended', 'deletion_requested'].map((status) => (
+          <button
+            key={status}
+            onClick={() => {
+              setFilterStatus(status);
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all active:scale-95 cursor-pointer ${
+              filterStatus === status 
+                ? status === 'deletion_requested' ? 'bg-amber-600 text-white shadow-sm' : 'bg-[#1A73E8] text-white shadow-sm' 
+                : status === 'deletion_requested' ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-slate-50 text-gray-500 hover:bg-slate-100/75'
+            }`}
+          >
+            {status === 'deletion_requested' ? '⚠️ Deletion Pending' : status.replace('_', ' ')}
+          </button>
+        ))}
+      </div>
+
       {paginated.length === 0 ? (
         <div className="text-center py-8 text-xs text-gray-400 font-bold flex flex-col items-center justify-center gap-2">
           <Sparkles size={20} className="text-gray-300" />
           <span>No employers in this queue</span>
         </div>
       ) : (
-        <div className="divide-y divide-slate-50">
+        <div className="space-y-3">
           {paginated.map((emp) => (
-            <div key={emp.id} className="py-4 space-y-3">
-              <div className="flex justify-between items-start">
+            <div key={emp.id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/20 transition-all duration-200 space-y-3">
+              <div 
+                onClick={() => onSelectEmployer(emp)}
+                className="flex justify-between items-start cursor-pointer group"
+              >
                 <div className="space-y-0.5">
-                  <span className="block text-xs font-black text-slate-800">{emp.name}</span>
-                  <span className="block text-[9px] text-gray-400 font-bold">Company: {emp.company_name || 'Individual Household'}</span>
-                  <span className="block text-[9px] text-gray-400 font-semibold flex items-center gap-0.5"><MapPin size={8} /> {emp.billing_address || 'Bangalore'}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-800 group-hover:text-[#1A73E8] transition-colors">{emp.name}</span>
+                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                      emp.status === 'live' || emp.status === 'approved' 
+                        ? 'bg-[#34A853]/10 text-[#34A853]' 
+                        : emp.status === 'suspended' || emp.status === 'rejected'
+                        ? 'bg-[#EA4335]/10 text-[#EA4335]'
+                        : 'bg-[#FBBC05]/10 text-amber-600'
+                    }`}>
+                      {emp.status?.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <span className="block text-[9.5px] text-slate-500 font-bold">Household / Entity: {emp.company_name || 'Individual Household'}</span>
+                  <span className="block text-[9.5px] text-slate-500 font-semibold flex items-center gap-1"><MapPin size={9} className="text-[#1A73E8]" /> Society / Locality: {emp.society_name || emp.billing_address || 'Bangalore'}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-1 ${
@@ -99,29 +138,58 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
                     <CreditCard size={10} />
                     {emp.subscription_status}
                   </span>
+                  <ChevronRight size={14} className="text-gray-400 group-hover:text-slate-800 transition-colors" />
                 </div>
               </div>
 
               {/* Action Toolbar */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onToggleSubscription(emp.id, emp.subscription_status)}
-                  className="flex-1 py-1.5 px-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl text-[10px] font-bold text-gray-500 active:scale-95 transition-all border border-slate-100/50 cursor-pointer"
-                >
-                  Toggle Pass (Free/Premium)
-                </button>
-                <button
-                  onClick={() => onApproveEmployer(emp.id)}
-                  className="py-1.5 px-3.5 bg-[#34A853] hover:bg-[#34A853]/90 text-white rounded-xl text-[10px] font-black uppercase active:scale-95 transition-all cursor-pointer"
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() => onRejectEmployer(emp.id)}
-                  className="py-1.5 px-3.5 bg-slate-100 hover:bg-red-50 hover:text-[#EA4335] rounded-xl text-[10px] font-bold text-gray-400 active:scale-95 transition-all cursor-pointer border border-slate-100/50"
-                >
-                  Reject
-                </button>
+              <div className="flex items-center justify-between border-t border-slate-50 pt-2.5">
+                {onToggleSubscription ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSubscription(emp.id, emp.subscription_status);
+                    }}
+                    className={`py-1 px-3 rounded-xl text-[9.5px] font-black uppercase transition-all border active:scale-95 cursor-pointer flex items-center gap-1 ${
+                      emp.subscription_status === 'premium'
+                        ? 'bg-blue-50 text-[#1A73E8] border-blue-200/50 hover:bg-blue-100'
+                        : 'bg-slate-50 text-slate-600 border-slate-200/60 hover:bg-slate-100'
+                    }`}
+                    title="Super Admin override: switch between Free and Premium subscription"
+                  >
+                    <CreditCard size={11} />
+                    <span>{emp.subscription_status === 'premium' ? 'Downgrade to Free' : 'Grant Premium Access'}</span>
+                  </button>
+                ) : (
+                  <span className="text-[9.5px] font-bold text-slate-400 flex items-center gap-1">
+                    <CreditCard size={11} className="text-slate-400" />
+                    <span>Plan: <strong className="uppercase text-slate-700">{emp.subscription_status || 'Free'}</strong> (Automated via Payment)</span>
+                  </span>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onApproveEmployer(emp.id);
+                    }}
+                    className="py-1 px-3.5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-[10px] font-black uppercase active:scale-95 transition-all cursor-pointer shadow-sm shadow-[#34A853]/20"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRejectEmployer(emp.id);
+                    }}
+                    className="py-1 px-3.5 bg-slate-100 hover:bg-red-50 hover:text-[#EA4335] rounded-xl text-[10px] font-bold text-slate-500 active:scale-95 transition-all cursor-pointer border border-slate-200/50"
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
             </div>
           ))}

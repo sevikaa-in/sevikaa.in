@@ -173,13 +173,13 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
           </div>
           <h2 className="text-xl font-bold text-[#202124]">
             {step === 'input' 
-              ? (role === 'worker' ? 'Welcome, Worker!' : t('loginTitle')) 
+              ? (role === 'worker' ? t('workerWelcome') : t('loginTitle')) 
               : t('enterOtp')}
           </h2>
           <p className="text-xs text-gray-500 font-semibold mt-2 px-4 leading-relaxed">
             {step === 'input' 
               ? (role === 'worker' 
-                  ? 'Sign in or create your free account to find trusted Maid, Cook, and Nanny jobs. Enter your mobile number or email to receive a secure OTP.' 
+                  ? t('workerLoginSub') 
                   : t('loginSub')) 
               : t('otpSub')}
           </p>

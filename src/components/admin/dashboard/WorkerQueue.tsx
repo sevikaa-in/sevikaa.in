@@ -81,6 +81,7 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
 
   const lifecycleStages = [
     'pending_review',
+    'admin_interview',
     'live',
     'suspended'
   ];
@@ -112,7 +113,7 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
 
       {/* Filter Tabs */}
       <div className="flex overflow-x-auto whitespace-nowrap gap-1 pb-2 scrollbar-hide">
-        {['all', 'pending_review', 'live', 'suspended'].map((status) => (
+        {['all', 'pending_review', 'admin_interview', 'live', 'suspended', 'deletion_requested'].map((status) => (
           <button
             key={status}
             onClick={() => {
@@ -121,11 +122,11 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
             }}
             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all active:scale-95 cursor-pointer ${
               filterStatus === status 
-                ? 'bg-[#1A73E8] text-white shadow-sm' 
-                : 'bg-slate-50 text-gray-500 hover:bg-slate-100/75'
+                ? status === 'deletion_requested' ? 'bg-amber-600 text-white shadow-sm' : 'bg-[#1A73E8] text-white shadow-sm' 
+                : status === 'deletion_requested' ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-slate-50 text-gray-500 hover:bg-slate-100/75'
             }`}
           >
-            {status.replace('_', ' ')}
+            {status === 'deletion_requested' ? '⚠️ Deletion Pending' : status.replace('_', ' ')}
           </button>
         ))}
       </div>

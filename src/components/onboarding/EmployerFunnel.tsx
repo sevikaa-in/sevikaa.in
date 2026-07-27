@@ -25,12 +25,23 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Strict Input Sanitizer - Only letters (A-Z, a-z) and spaces
+  const handleFullNameChange = (val: string) => {
+    const lettersOnly = val.replace(/[^a-zA-Z\s]/g, '');
+    setFullName(lettersOnly);
+  };
+
+  const handleCompanyNameChange = (val: string) => {
+    const lettersOnly = val.replace(/[^a-zA-Z\s]/g, '');
+    setCompanyName(lettersOnly);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!fullName.trim()) {
-      setError('Please enter your full name');
+      setError('Please enter a valid full name (letters only)');
       return;
     }
     if (!billingAddress.trim()) {
@@ -52,12 +63,11 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
         setTimeout(() => {
           setLoading(false);
           onComplete();
-        }, 1500);
+        }, 1200);
         return;
       }
 
-      // Live Supabase inserts
-      // 1. Update profiles table: role to employer, status to live (employers approve quickly or go live)
+      // Live Supabase updates
       const { error: profileErr } = await supabase
         .from('profiles')
         .update({ role: 'employer', status: 'live' })
@@ -65,7 +75,6 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
 
       if (profileErr) throw profileErr;
 
-      // 2. Insert into employer_profiles
       const { error: employerErr } = await supabase
         .from('employer_profiles')
         .insert({
@@ -106,11 +115,14 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Full Name</label>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex justify-between">
+              <span>Full Name</span>
+              <span className="text-[9px] text-slate-400 font-normal lowercase">(letters only)</span>
+            </label>
             <input
               type="text"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => handleFullNameChange(e.target.value)}
               placeholder="E.g., Ananth Sharma"
               disabled={loading}
               className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-all"
@@ -118,14 +130,17 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Company / Home Name (Optional)</label>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex justify-between">
+              <span>Company / Home Name (Optional)</span>
+              <span className="text-[9px] text-slate-400 font-normal lowercase">(letters only)</span>
+            </label>
             <input
               type="text"
               value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
+              onChange={(e) => handleCompanyNameChange(e.target.value)}
               placeholder="E.g., Sharma Residence"
               disabled={loading}
-              className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8]"
+              className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-all"
             />
           </div>
 
@@ -135,9 +150,9 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
               type="text"
               value={billingAddress}
               onChange={(e) => setBillingAddress(e.target.value)}
-              placeholder="Flat 402, Block B"
+              placeholder="E.g., Apt 402, Tower B"
               disabled={loading}
-              className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8]"
+              className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-all"
             />
           </div>
 
@@ -147,7 +162,7 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
               value={preferredSociety}
               onChange={(e) => setPreferredSociety(e.target.value)}
               disabled={loading}
-              className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8]"
+              className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-all cursor-pointer"
             >
               <option value="">-- Choose Society --</option>
               {MOCK_SOCIETIES.map(s => (
@@ -156,19 +171,21 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
             </select>
           </div>
 
-          <div className="p-3 bg-[#34A853]/5 rounded-2xl text-[11px] text-gray-500 font-medium leading-relaxed flex gap-2 pt-2">
+          <div className="p-3 bg-gray-50 rounded-2xl text-[11px] text-gray-500 font-medium leading-relaxed flex gap-2">
             <Shield className="text-[#34A853] shrink-0" size={16} />
             <span>Employer profiles undergo instant validation. Upon completion, you can browse workers in your selected society.</span>
           </div>
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full py-3.5 mt-2 bg-[#34A853] hover:bg-[#34A853]/90 active:scale-[0.98] text-white font-bold rounded-2xl shadow-sm transition-all duration-150 disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-1.5 text-sm min-h-[46px]"
+            disabled={loading || !fullName.trim() || !billingAddress.trim() || !preferredSociety}
+            className="w-full py-4 bg-[#34A853] hover:bg-[#2e954b] disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-2xl shadow-sm transition-all duration-200 active:scale-98 flex items-center justify-center gap-2 text-sm min-h-[48px] cursor-pointer disabled:cursor-not-allowed"
           >
-            {loading ? <span>{t('loading')}</span> : (
+            {loading ? (
+              <span>Please wait...</span>
+            ) : (
               <>
-                <span>Complete Registration</span>
+                <span>Complete Employer Setup</span>
                 <ArrowRight size={16} />
               </>
             )}

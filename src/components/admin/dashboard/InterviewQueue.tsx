@@ -1,20 +1,22 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Calendar, Clock, CheckCircle2, AlertCircle, XCircle, Search, Sparkles } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, XCircle, Search, Sparkles, ChevronRight } from 'lucide-react';
 
 interface InterviewQueueProps {
   loading: boolean;
   error: string;
   interviews: any[];
   onLogResult: (id: string, result: 'Pass' | 'Fail' | 'Re-interview', notes: string) => void;
+  onSelectInterview: (interview: any) => void;
 }
 
 export const InterviewQueue: React.FC<InterviewQueueProps> = ({
   loading,
   error,
   interviews,
-  onLogResult
+  onLogResult,
+  onSelectInterview
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSubTab, setActiveSubTab] = useState<'today' | 'upcoming' | 'completed'>('today');
@@ -93,18 +95,22 @@ export const InterviewQueue: React.FC<InterviewQueueProps> = ({
           <span>No interviews in this sub-queue</span>
         </div>
       ) : (
-        <div className="space-y-4 divide-y divide-slate-50">
+        <div className="space-y-3">
           {filtered.map((item) => (
-            <div key={item.id} className="pt-4 first:pt-0 space-y-3">
-              <div className="flex justify-between items-start">
+            <div key={item.id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/20 transition-all duration-200 space-y-3">
+              <div
+                onClick={() => onSelectInterview(item)}
+                className="flex justify-between items-start cursor-pointer group"
+              >
                 <div>
-                  <span className="block text-xs font-black text-slate-800">{item.workerName}</span>
+                  <span className="block text-xs font-black text-slate-800 group-hover:text-[#1A73E8] transition-colors">{item.workerName}</span>
                   <div className="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 mt-1">
                     <span className="flex items-center gap-0.5"><Clock size={10} /> {item.time}</span>
                     <span>•</span>
                     <span>Category: {item.category}</span>
                   </div>
                 </div>
+                <ChevronRight size={14} className="text-gray-400 group-hover:text-slate-800 transition-colors" />
               </div>
 
               {item.status !== 'Completed' ? (
