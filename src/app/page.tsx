@@ -108,7 +108,7 @@ export default function Home() {
                 .maybeSingle();
 
               if (workerProfile) {
-                router.push('/worker/dashboard');
+                router.push('/worker');
               } else {
                 setTargetRole('worker');
                 setView('worker-funnel');
@@ -121,7 +121,7 @@ export default function Home() {
                 .maybeSingle();
 
               if (employerProfile) {
-                router.push('/employer/dashboard');
+                router.push('/employer');
               } else {
                 setTargetRole('employer');
                 setView('employer-funnel');
@@ -226,7 +226,7 @@ export default function Home() {
             .maybeSingle();
 
           if (workerProfile) {
-            router.push('/worker/dashboard');
+            router.push('/worker');
           } else {
             setTargetRole('worker');
             setView('worker-funnel');
