@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Clock, CheckCircle2, AlertCircle, XCircle, Search, Sparkles, ChevronRight } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, XCircle, Search, Sparkles, ChevronRight, Send } from 'lucide-react';
 
 interface InterviewQueueProps {
   loading: boolean;
@@ -115,13 +115,24 @@ export const InterviewQueue: React.FC<InterviewQueueProps> = ({
 
               {item.status !== 'Completed' ? (
                 <div className="space-y-2">
-                  <textarea
-                    rows={1}
-                    value={notes[item.id] || ''}
-                    onChange={(e) => setNotes({ ...notes, [item.id]: e.target.value })}
-                    placeholder="Log summary interview feedback notes..."
-                    className="w-full py-2 px-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold text-slate-800 focus:bg-white focus:outline-none resize-none"
-                  />
+                  <div className="flex gap-2">
+                    <textarea
+                      rows={1}
+                      value={notes[item.id] || ''}
+                      onChange={(e) => setNotes({ ...notes, [item.id]: e.target.value })}
+                      placeholder="Log summary interview feedback notes..."
+                      className="flex-1 py-2 px-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold text-slate-800 focus:bg-white focus:outline-none resize-none"
+                    />
+                    <button
+                      onClick={() => onLogResult(item.id, item.result || 'Pass', notes[item.id] || 'Feedback notes recorded.')}
+                      disabled={!notes[item.id]?.trim()}
+                      className="py-2 px-3 bg-[#1A73E8] hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer shrink-0"
+                      title="Send / Save Feedback Notes"
+                    >
+                      <Send size={12} />
+                      <span>Save Notes</span>
+                    </button>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => onLogResult(item.id, 'Pass', notes[item.id] || 'Passed checks')}

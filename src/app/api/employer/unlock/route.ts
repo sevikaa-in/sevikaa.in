@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabaseAdminClient';
+import { checkRateLimit, sanitizePayload } from '../../../../lib/adminSecurityGuard';
+import { logSecurityAudit } from '../../../../lib/auditLogger';
 
 export async function POST(request: NextRequest) {
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+
+  if (!checkRateLimit(clientIp, 30, 60000)) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 });
+  }
+
   try {
-    const { workerId, employerUserId } = await request.json();
+    const rawBody = await request.json();
+    const { workerId, employerUserId } = sanitizePayload(rawBody);
 
     if (!workerId || !employerUserId) {
       return NextResponse.json({ error: 'Parameters workerId and employerUserId are required' }, { status: 400 });
@@ -17,14 +26,32 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (epErr || !ep) {
+      await logSecurityAudit({
+        userId: employerUserId,
+        role: 'employer',
+        action: 'UNLOCK_WORKER_CONTACT',
+        resource: `Worker:${workerId}`,
+        ipAddress: clientIp,
+        status: 'FAILED',
+        details: { reason: 'Employer profile not found' }
+      });
       return NextResponse.json({ error: 'Employer profile not found' }, { status: 404 });
     }
 
     if (ep.subscription_status !== 'premium') {
-      return NextResponse.json({ error: 'Premium subscription required to unlock candidates' }, { status: 403 });
+      await logSecurityAudit({
+        userId: employerUserId,
+        role: 'employer',
+        action: 'UNLOCK_WORKER_CONTACT',
+        resource: `Worker:${workerId}`,
+        ipAddress: clientIp,
+        status: 'DENIED',
+        details: { reason: 'Free plan restriction' }
+      });
+      return NextResponse.json({ error: 'Premium subscription required to unlock candidate contact details' }, { status: 403 });
     }
 
-    // 2. Register the unlock log (conflict ignored if already unlocked)
+    // 2. Register the unlock log
     const { error: unlockErr } = await supabaseAdmin
       .from('employer_unlocks')
       .upsert({
@@ -33,11 +60,10 @@ export async function POST(request: NextRequest) {
       }, { onConflict: 'employer_id, worker_id' });
 
     if (unlockErr) {
-      console.error("[Unlock API] Upsert unlock failed:", unlockErr);
-      return NextResponse.json({ error: 'Failed to record unlock' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to record contact unlock' }, { status: 500 });
     }
 
-    // 3. Securely fetch and return the worker's phone number from profiles table
+    // 3. Fetch worker contact number securely
     const { data: worker, error: wErr } = await supabaseAdmin
       .from('profiles')
       .select('phone')
@@ -48,8 +74,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Worker contact number not found' }, { status: 404 });
     }
 
+    await logSecurityAudit({
+      userId: employerUserId,
+      role: 'employer',
+      action: 'UNLOCK_WORKER_CONTACT',
+      resource: `Worker:${workerId}`,
+      ipAddress: clientIp,
+      status: 'SUCCESS'
+    });
+
     return NextResponse.json({ success: true, phone: worker.phone });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server unlock failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error processing candidate unlock' }, { status: 500 });
   }
 }

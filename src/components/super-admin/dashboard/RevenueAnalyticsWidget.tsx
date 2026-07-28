@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { DollarSign, BarChart3, TrendingUp, HelpCircle } from 'lucide-react';
+import { IndianRupee, BarChart3, TrendingUp, HelpCircle } from 'lucide-react';
 
 interface RevenueAnalyticsWidgetProps {
   loading: boolean;
@@ -48,7 +48,7 @@ export const RevenueAnalyticsWidget: React.FC<RevenueAnalyticsWidgetProps> = ({
       {!hasRevenue ? (
         <div className="bg-white border border-slate-100 rounded-[20px] p-8 text-center flex flex-col items-center justify-center min-h-[220px]">
           <div className="w-12 h-12 rounded-full bg-slate-50 text-gray-400 flex items-center justify-center mb-3">
-            <DollarSign size={20} />
+            <IndianRupee size={20} />
           </div>
           <span className="text-xs font-extrabold text-slate-800">No Revenue Generated</span>
           <span className="text-[10px] text-gray-400 font-semibold mt-1">Onboard paying employers to start tracking transaction analytics.</span>

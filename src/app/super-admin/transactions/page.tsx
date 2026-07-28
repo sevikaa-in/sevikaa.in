@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useSuperAdminDashboard } from '../layout';
 import { supabase } from '@/lib/supabaseClient';
 import { 
-  CreditCard, Search, Download, DollarSign, CheckCircle2, AlertCircle, 
+  CreditCard, Search, Download, IndianRupee, CheckCircle2, AlertCircle, 
   RefreshCcw, ArrowUpRight, ShieldCheck, Clock, FileText, XCircle, Loader2, PlusCircle
 } from 'lucide-react';
 
@@ -226,7 +226,7 @@ export default function TransactionsPage() {
             <span className="text-xl font-black text-[#34A853]">₹{totalProcessedRevenue.toLocaleString('en-IN')}</span>
           </div>
           <div className="p-2.5 bg-emerald-50 text-[#34A853] rounded-xl">
-            <DollarSign size={18} />
+            <IndianRupee size={18} />
           </div>
         </div>
 

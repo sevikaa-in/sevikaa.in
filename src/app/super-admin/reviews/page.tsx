@@ -29,56 +29,7 @@ export default function SuperAdminReviewsPage() {
   const [filterStatus, setFilterStatus] = useState<'pending_approval' | 'approved' | 'rejected' | 'all'>('pending_approval');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const [reviewsList, setReviewsList] = useState<ReviewItem[]>([
-    {
-      id: 'rev-101',
-      reviewer_name: 'Priya Sharma (Flat 402, DLF Phase 5)',
-      reviewer_role: 'employer',
-      target_name: 'Sunita Devi',
-      target_role: 'worker',
-      interaction_type: 'worked',
-      rating: 5,
-      punctuality_rating: 5,
-      hygiene_behavior_rating: 5,
-      work_quality_respect_rating: 5,
-      comment: 'Sunita is extremely punctual and prepares fantastic North Indian meals. Has been working at our household for 6 months.',
-      status: 'pending_approval',
-      created_at: '2026-07-28T09:30:00Z',
-      society_name: 'DLF Westend Heights'
-    },
-    {
-      id: 'rev-102',
-      reviewer_name: 'Ramesh Kumar (Security Guard Supervisor)',
-      reviewer_role: 'employer',
-      target_name: 'Rajesh Verma',
-      target_role: 'worker',
-      interaction_type: 'interviewed',
-      rating: 4,
-      punctuality_rating: 4,
-      hygiene_behavior_rating: 4,
-      work_quality_respect_rating: 4,
-      comment: 'Attended full 20-minute interview for Gate Guard role. Clear communication and valid Aadhaar + Police clearance.',
-      status: 'pending_approval',
-      created_at: '2026-07-27T14:15:00Z',
-      society_name: 'Prestige Lakeside Habitat'
-    },
-    {
-      id: 'rev-103',
-      reviewer_name: 'Lakshmi Narayanan (Nanny)',
-      reviewer_role: 'worker',
-      target_name: 'Ananya Gupta (Flat 1204)',
-      target_role: 'employer',
-      interaction_type: 'worked',
-      rating: 5,
-      punctuality_rating: 5,
-      hygiene_behavior_rating: 5,
-      work_quality_respect_rating: 5,
-      comment: 'Very polite household. Always pays monthly salary on the 1st of every month without delay.',
-      status: 'approved',
-      created_at: '2026-07-25T11:00:00Z',
-      society_name: 'Godrej Woods'
-    }
-  ]);
+  const [reviewsList, setReviewsList] = useState<ReviewItem[]>([]);
 
   React.useEffect(() => {
     const fetchReviews = async () => {
@@ -103,9 +54,11 @@ export default function SuperAdminReviewsPage() {
             comment: r.comment || r.feedback || '',
             status: r.status || 'pending_approval',
             created_at: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
-            society_name: r.society_name || 'DLF Westend Heights'
+            society_name: r.society_name || 'General Locality'
           }));
           setReviewsList(mapped);
+        } else {
+          setReviewsList([]);
         }
       } catch (err) {
         console.error("Error fetching reviews:", err);

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { ToastContainer, ToastItem } from '@/components/admin/dashboard/Toast';
 import { 
-  TrendingUp, MapPin, DollarSign, Database, PlusCircle, LogOut, 
+  TrendingUp, MapPin, IndianRupee, Database, PlusCircle, LogOut, 
   CheckCircle2, UserPlus, FileText, ChevronRight, Menu, X, Search,
   Settings, Server, Activity, ShieldAlert, Sparkles, ChevronLeft, 
   LayoutDashboard, ThumbsUp, ThumbsDown, Check, Trash2, Calendar, Star, Clock,
@@ -691,9 +691,21 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
 
       const { data: employers } = await supabase
         .from('employer_profiles')
-        .select('*');
+        .select('*, profiles(email, phone, status)');
       if (employers) {
-        setEmployersList(employers);
+        setEmployersList(employers.map((e: any) => ({
+          id: e.id,
+          user_id: e.user_id,
+          name: e.company_name || e.name || e.profiles?.email?.split('@')[0] || 'Employer Household',
+          company_name: e.company_name || e.name || 'Individual Household',
+          billing_address: e.billing_address || e.address || 'Locality Not Specified',
+          society_name: e.society_name || e.billing_address || 'General Locality',
+          phone: e.phone || e.profiles?.phone || '',
+          email: e.email || e.profiles?.email || '',
+          subscription_status: e.subscription_status || 'free',
+          status: e.status || e.profiles?.status || 'pending_review',
+          created_at: e.created_at
+        })));
       }
 
       if (pendingJobs) {
@@ -1043,7 +1055,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
                 { id: 'jobs',       label: 'Job Moderation',         href: '/super-admin/jobs',        icon: <FileText size={16} />,         badge: dbStats.pendingJobs, badgeType: 'amber' },
                 { id: 'reviews',    label: 'Review Moderation',      href: '/super-admin/reviews',     icon: <Star size={16} />,             badge: dbStats.pendingReviews, badgeType: 'amber' },
                 { id: 'societies',  label: 'Societies List',         href: '/super-admin/societies',   icon: <MapPin size={16} />,           badge: 0, badgeType: 'neutral' },
-                { id: 'pricing',    label: 'Pricing Config',         href: '/super-admin/pricing',     icon: <DollarSign size={16} />,       badge: 0, badgeType: 'neutral' },
+                { id: 'pricing',    label: 'Pricing Config',         href: '/super-admin/pricing',     icon: <IndianRupee size={16} />,       badge: 0, badgeType: 'neutral' },
                 { id: 'transactions', label: 'Payments Ledger',      href: '/super-admin/transactions',icon: <CreditCard size={16} />,       badge: 0, badgeType: 'neutral' },
                 { id: 'logs',       label: 'Audit Security Logs',    href: '/super-admin/logs',        icon: <Database size={16} />,         badge: 0, badgeType: 'neutral' },
                 { id: 'sms',        label: 'SMS Template Config',    href: '/super-admin/sms',         icon: <MessageSquare size={16} />,    badge: 0, badgeType: 'neutral' },
@@ -1120,7 +1132,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
                     { id: 'jobs', label: 'Job Moderation', href: '/super-admin/dashboard/jobs', icon: <FileText size={16} /> },
                     { id: 'reviews', label: 'Review Moderation', href: '/super-admin/dashboard/reviews', icon: <Star size={16} /> },
                     { id: 'societies', label: 'Societies List', href: '/super-admin/dashboard/societies', icon: <MapPin size={16} /> },
-                    { id: 'pricing', label: 'Pricing Config', href: '/super-admin/dashboard/pricing', icon: <DollarSign size={16} /> },
+                    { id: 'pricing', label: 'Pricing Config', href: '/super-admin/dashboard/pricing', icon: <IndianRupee size={16} /> },
                     { id: 'transactions', label: 'Payments Ledger', href: '/super-admin/dashboard/transactions', icon: <CreditCard size={16} /> },
                     { id: 'logs', label: 'Audit Security Logs', href: '/super-admin/dashboard/logs', icon: <Database size={16} /> },
                     { id: 'sms', label: 'SMS Template Config', href: '/super-admin/dashboard/sms', icon: <MessageSquare size={16} /> },
@@ -1179,16 +1191,18 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Date Range Selector */}
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="py-1.5 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-gray-700 hover:border-gray-300 focus:outline-none transition-all cursor-pointer hidden sm:block"
-              >
-                {['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'This Month', 'Last Month', 'Last 90 Days', 'This Year'].map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
+              {/* Date Range Selector - Only visible on Overview Dashboard */}
+              {(pathname === '/super-admin' || pathname === '/super-admin/dashboard') && (
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value)}
+                  className="py-1.5 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-gray-700 hover:border-gray-300 focus:outline-none transition-all cursor-pointer hidden sm:block"
+                >
+                  {['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'This Month', 'Last Month', 'Last 90 Days', 'This Year'].map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              )}
 
               <span className="bg-[#EA4335]/10 text-[#EA4335] text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider hidden sm:inline-block">
                 Owner Mode

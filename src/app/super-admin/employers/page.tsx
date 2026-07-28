@@ -42,34 +42,50 @@ export default function EmployersPage() {
   const onApproveEmployer = async (id: string) => {
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const empItem = employersList.find((e: any) => e.id === id);
+    const userId = empItem?.user_id || id;
     try {
       if (!isPlaceholder) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ status: 'live' })
+        await supabase
+          .from('employer_profiles')
+          .update({ status: 'approved' })
           .eq('id', id);
-        if (error) throw error;
+
+        if (userId) {
+          await supabase
+            .from('profiles')
+            .update({ status: 'approved' })
+            .eq('id', userId);
+        }
       }
-      setEmployersList(prev => prev.map(e => e.id === id ? { ...e, status: 'live' } : e));
+      setEmployersList(prev => prev.map(e => e.id === id ? { ...e, status: 'approved' } : e));
       if (selectedEmp?.id === id) {
-        setSelectedEmp((prev: any) => ({ ...prev, status: 'live' }));
+        setSelectedEmp((prev: any) => ({ ...prev, status: 'approved' }));
       }
       fetchDashboardData();
     } catch (err: any) {
-      console.error(err.message);
+      console.error("Approve employer error:", err.message);
     }
   };
 
   const onRejectEmployer = async (id: string) => {
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const empItem = employersList.find((e: any) => e.id === id);
+    const userId = empItem?.user_id || id;
     try {
       if (!isPlaceholder) {
-        const { error } = await supabase
-          .from('profiles')
+        await supabase
+          .from('employer_profiles')
           .update({ status: 'rejected' })
           .eq('id', id);
-        if (error) throw error;
+
+        if (userId) {
+          await supabase
+            .from('profiles')
+            .update({ status: 'rejected' })
+            .eq('id', userId);
+        }
       }
       setEmployersList(prev => prev.map(e => e.id === id ? { ...e, status: 'rejected' } : e));
       if (selectedEmp?.id === id) {
@@ -77,7 +93,7 @@ export default function EmployersPage() {
       }
       fetchDashboardData();
     } catch (err: any) {
-      console.error(err.message);
+      console.error("Reject employer error:", err.message);
     }
   };
 

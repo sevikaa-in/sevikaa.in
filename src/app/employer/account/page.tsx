@@ -17,11 +17,11 @@ export default function EmployerAccountPage() {
   } = useEmployerDashboard();
   const { t } = useLanguage();
 
-  const [companyName, setCompanyName] = useState(employerProfile.company_name || 'Lakhan Lal Sah');
-  const [phone, setPhone] = useState(employerProfile.phone?.replace(/\D/g, '').slice(-10) || '9876543210');
-  const [email, setEmail] = useState(employerProfile.email || 'lakhan.sah@gmail.com');
-  const [towerBlock, setTowerBlock] = useState(employerProfile.tower || 'Tower 4');
-  const [address, setAddress] = useState(employerProfile.address || 'Apt 802');
+  const [companyName, setCompanyName] = useState(employerProfile.company_name || employerProfile.name || '');
+  const [phone, setPhone] = useState(employerProfile.phone?.replace(/\D/g, '').slice(-10) || '');
+  const [email, setEmail] = useState(employerProfile.email || '');
+  const [towerBlock, setTowerBlock] = useState(employerProfile.tower || '');
+  const [address, setAddress] = useState(employerProfile.address || '');
   const [altPhone, setAltPhone] = useState(employerProfile.alt_phone || '');
   const [verificationPref, setVerificationPref] = useState(employerProfile.verification_pref || 'Aadhaar + Police Audit (Default)');
   const [saveLoading, setSaveLoading] = useState(false);

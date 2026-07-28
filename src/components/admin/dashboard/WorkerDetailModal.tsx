@@ -38,6 +38,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [notes, setNotes] = useState('');
+  const [isTranslated, setIsTranslated] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -57,8 +58,6 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
   const applyNoteTemplate = (tpl: string) => {
     setNotes(prev => prev ? `${prev}\n${tpl}` : tpl);
   };
-
-  const [isTranslated, setIsTranslated] = useState(false);
 
   return createPortal(
     <div 

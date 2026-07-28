@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useLanguage } from '@/context/LanguageContext';
+import { supabase } from '@/lib/supabaseClient';
 
 interface ReviewItem {
   id: string;
@@ -30,67 +31,65 @@ export default function AdminReviewsPage() {
   const [filterStatus, setFilterStatus] = useState<'pending_approval' | 'approved' | 'rejected' | 'all'>('pending_approval');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const [reviewsList, setReviewsList] = useState<ReviewItem[]>([
-    {
-      id: 'rev-101',
-      reviewer_name: 'Priya Sharma (Flat 402, DLF Phase 5)',
-      reviewer_role: 'employer',
-      target_name: 'Sunita Devi',
-      target_role: 'worker',
-      interaction_type: 'worked',
-      rating: 5,
-      punctuality_rating: 5,
-      hygiene_behavior_rating: 5,
-      work_quality_respect_rating: 5,
-      comment: 'Sunita is extremely punctual and prepares fantastic North Indian meals. Has been working at our household for 6 months.',
-      status: 'pending_approval',
-      created_at: '2026-07-28T09:30:00Z',
-      society_name: 'DLF Westend Heights'
-    },
-    {
-      id: 'rev-102',
-      reviewer_name: 'Ramesh Kumar (Security Guard Supervisor)',
-      reviewer_role: 'employer',
-      target_name: 'Rajesh Verma',
-      target_role: 'worker',
-      interaction_type: 'interviewed',
-      rating: 4,
-      punctuality_rating: 4,
-      hygiene_behavior_rating: 4,
-      work_quality_respect_rating: 4,
-      comment: 'Attended full 20-minute interview for Gate Guard role. Clear communication and valid Aadhaar + Police clearance.',
-      status: 'pending_approval',
-      created_at: '2026-07-27T14:15:00Z',
-      society_name: 'Prestige Lakeside Habitat'
-    },
-    {
-      id: 'rev-103',
-      reviewer_name: 'Lakshmi Narayanan (Nanny)',
-      reviewer_role: 'worker',
-      target_name: 'Ananya Gupta (Flat 1204)',
-      target_role: 'employer',
-      interaction_type: 'worked',
-      rating: 5,
-      punctuality_rating: 5,
-      hygiene_behavior_rating: 5,
-      work_quality_respect_rating: 5,
-      comment: 'Very polite household. Always pays monthly salary on the 1st of every month without delay.',
-      status: 'approved',
-      created_at: '2026-07-25T11:00:00Z',
-      society_name: 'Godrej Woods'
-    }
-  ]);
+  const [reviewsList, setReviewsList] = useState<ReviewItem[]>([]);
 
-  const handleApprove = (id: string) => {
+  React.useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const { data } = await supabase
+          .from('reviews')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (data && data.length > 0) {
+          const mapped: ReviewItem[] = data.map((r: any) => ({
+            id: r.id,
+            reviewer_name: r.reviewer_name || r.author_name || 'Verified User',
+            reviewer_role: r.reviewer_role || 'employer',
+            target_name: r.target_name || r.worker_name || 'Platform User',
+            target_role: r.target_role || 'worker',
+            interaction_type: r.interaction_type || 'worked',
+            rating: r.rating || 5,
+            punctuality_rating: r.punctuality_rating || 5,
+            hygiene_behavior_rating: r.hygiene_behavior_rating || 5,
+            work_quality_respect_rating: r.work_quality_respect_rating || 5,
+            comment: r.comment || r.feedback || '',
+            status: r.status || 'pending_approval',
+            created_at: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+            society_name: r.society_name || 'General Locality'
+          }));
+          setReviewsList(mapped);
+        } else {
+          setReviewsList([]);
+        }
+      } catch (err) {
+        console.error("Error fetching reviews:", err);
+      }
+    };
+
+    fetchReviews();
+  }, []);
+
+  const handleApprove = async (id: string) => {
     setReviewsList(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r));
     setToastMessage('Review approved and published to public profiles ✓');
     setTimeout(() => setToastMessage(null), 3000);
+    try {
+      await supabase.from('reviews').update({ status: 'approved' }).eq('id', id);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
     setReviewsList(prev => prev.map(r => r.id === id ? { ...r, status: 'rejected' } : r));
     setToastMessage('Review rejected and archived.');
     setTimeout(() => setToastMessage(null), 3000);
+    try {
+      await supabase.from('reviews').update({ status: 'rejected' }).eq('id', id);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const filteredReviews = reviewsList.filter(r => filterStatus === 'all' || r.status === filterStatus);

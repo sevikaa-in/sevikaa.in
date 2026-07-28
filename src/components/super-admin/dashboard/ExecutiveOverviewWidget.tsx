@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { DollarSign, CreditCard, Sparkles, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
+import { IndianRupee, CreditCard, Sparkles, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface ExecutiveOverviewWidgetProps {
   loading: boolean;
@@ -53,7 +53,7 @@ export const ExecutiveOverviewWidget: React.FC<ExecutiveOverviewWidgetProps> = (
     {
       title: "Gross Revenue",
       value: `₹${stats.grossRevenue.toLocaleString()}`,
-      icon: <DollarSign size={18} />,
+      icon: <IndianRupee size={18} />,
       colorClass: "bg-[#34A853]/10 text-[#34A853]",
       trend: stats.revenueGrowth >= 0 ? `+${stats.revenueGrowth}%` : `${stats.revenueGrowth}%`,
       trendColor: stats.revenueGrowth >= 0 ? "text-[#34A853] bg-[#34A853]/10" : "text-[#EA4335] bg-[#EA4335]/10",

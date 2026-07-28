@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check, Sparkles, Heart, ShieldCheck, Zap, Award, Star, ArrowRight, X } from 'lucide-react';
-import { GlobalLanguageSelector } from '../../components/GlobalLanguageSelector';
 import { executeRazorpayCheckout } from '../../utils/razorpay';
 
 export default function PricingPage() {
@@ -43,7 +42,6 @@ export default function PricingPage() {
           <img src="/logo.png" alt="Sevikaa Logo" className="h-9 w-auto object-contain" />
         </div>
         <div className="flex items-center gap-3">
-          <GlobalLanguageSelector />
           <Link
             href="/employer/dashboard"
             className="py-2 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all active:scale-95 shadow-sm hidden sm:inline-flex"

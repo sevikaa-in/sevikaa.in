@@ -129,12 +129,12 @@ export default function EmployerDashboardLayout({ children }: { children: React.
             setDeletionRequested(true);
           }
           setEmployerProfile({
-            company_name: empProf?.company_name || empProf?.name || profile?.full_name || 'Employer Profile',
+            company_name: empProf?.company_name || empProf?.name || profile?.full_name || '',
             email: profile?.email || session.user.email || empProf?.email || '',
-            society_name: empProf?.society_name || empProf?.billing_address || 'DLF Westend Heights - Akshayanagar',
+            society_name: empProf?.society_name || empProf?.billing_address || '',
             phone: profile?.phone || empProf?.phone || '',
-            subscription_status: empProf?.subscription_status || 'Standard Plan',
-            address: empProf?.billing_address || empProf?.address || 'Tower 4, Apt 802'
+            subscription_status: empProf?.subscription_status || 'Free',
+            address: empProf?.billing_address || empProf?.address || ''
           });
         }
       }

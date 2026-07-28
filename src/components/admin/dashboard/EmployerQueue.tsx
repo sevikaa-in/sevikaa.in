@@ -108,11 +108,12 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
       ) : (
         <div className="space-y-3">
           {paginated.map((emp) => (
-            <div key={emp.id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/20 transition-all duration-200 space-y-3">
-              <div 
-                onClick={() => onSelectEmployer(emp)}
-                className="flex justify-between items-start cursor-pointer group"
-              >
+            <div 
+              key={emp.id} 
+              onClick={() => onSelectEmployer(emp)}
+              className="p-4 rounded-2xl border border-slate-100 hover:border-[#1A73E8]/40 hover:bg-slate-50/70 hover:shadow-md transition-all duration-200 cursor-pointer group space-y-3"
+            >
+              <div className="flex justify-between items-start">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-black text-slate-800 group-hover:text-[#1A73E8] transition-colors">{emp.name}</span>
@@ -129,7 +130,7 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
                   <span className="block text-[9.5px] text-slate-500 font-bold">Household / Entity: {emp.company_name || 'Individual Household'}</span>
                   <span className="block text-[9.5px] text-slate-500 font-semibold flex items-center gap-1"><MapPin size={9} className="text-[#1A73E8]" /> Society / Locality: {emp.society_name || emp.billing_address || 'Bangalore'}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-1 ${
                     emp.subscription_status === 'premium'
                       ? 'bg-indigo-50 text-[#1A73E8]'
@@ -138,13 +139,12 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
                     <CreditCard size={10} />
                     {emp.subscription_status}
                   </span>
-                  <ChevronRight size={14} className="text-gray-400 group-hover:text-slate-800 transition-colors" />
+                  <ChevronRight size={16} className="text-gray-400 group-hover:text-[#1A73E8] group-hover:translate-x-0.5 transition-all" />
                 </div>
               </div>
 
-              {/* Action Toolbar */}
-              <div className="flex items-center justify-between border-t border-slate-50 pt-2.5">
-                {onToggleSubscription ? (
+              {onToggleSubscription && (
+                <div className="flex items-center justify-between border-t border-slate-100/60 pt-2.5">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -161,19 +161,8 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
                     <CreditCard size={11} />
                     <span>{emp.subscription_status === 'premium' ? 'Downgrade to Free' : 'Grant Premium Access'}</span>
                   </button>
-                ) : (
-                  <span className="text-[9.5px] font-bold text-slate-400 flex items-center gap-1">
-                    <CreditCard size={11} className="text-slate-400" />
-                    <span>Plan: <strong className="uppercase text-slate-700">{emp.subscription_status || 'Free'}</strong> (Automated via Payment)</span>
-                  </span>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-[#1A73E8] group-hover:underline flex items-center gap-0.5">
-                    View Details & Verify &rarr;
-                  </span>
                 </div>
-              </div>
+              )}
             </div>
           ))}
         </div>

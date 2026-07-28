@@ -319,6 +319,19 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                   placeholder="Enter detailed evaluation notes regarding telephone checks or references verification..."
                   className="flex-1 min-h-[120px] w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none resize-none text-slate-800"
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (notesText.trim()) {
+                      onLogResult(interview.id, interview.result || 'Pass', notesText.trim());
+                    }
+                  }}
+                  disabled={!notesText.trim()}
+                  className="w-full mt-2 py-2 px-3 bg-[#1A73E8] hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
+                >
+                  <MessageSquare size={13} />
+                  <span>Send &amp; Save Feedback Notes</span>
+                </button>
               </div>
 
               {interview.status === 'Completed' && (

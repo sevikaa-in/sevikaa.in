@@ -442,19 +442,12 @@ export const SocietyDetailModal: React.FC<SocietyDetailModalProps> = ({
         </div>
 
         {/* Drawer Sticky Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-white shrink-0 shadow-lg">
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-          >
-            <Edit3 size={14} />
-            <span>{isEditing ? 'Close Edit' : 'Edit Details'}</span>
-          </button>
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end bg-white shrink-0 shadow-lg">
           <button
             onClick={onClose}
             className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#1A73E8]/20"
           >
-            Close Drawer
+            Close Modal
           </button>
         </div>
       </div>
