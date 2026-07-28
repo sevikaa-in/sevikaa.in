@@ -5,8 +5,9 @@ import { createPortal } from 'react-dom';
 import { 
   X, Check, Mail, Phone, MapPin, Calendar, CreditCard, 
   Briefcase, Sparkles, ShieldAlert, AlertTriangle, ShieldCheck,
-  ZoomIn, ZoomOut, RotateCw, Camera, FileText, Maximize2
+  ZoomIn, ZoomOut, RotateCw, Camera, FileText, Maximize2, Globe
 } from 'lucide-react';
+import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
 import { supabase } from '../../../lib/supabaseClient';
 
 interface EmployerDetailModalProps {
@@ -29,7 +30,7 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   const [loadingJobs, setLoadingJobs] = useState(false);
 
   // Document inspection state
-  const [activeDocTab, setActiveDocTab] = useState<'profile_photo' | 'selfie' | 'aadhaar_front' | 'aadhaar_back'>('profile_photo');
+  const [activeDocTab, setActiveDocTab] = useState<'profile_photo' | 'selfie' | 'residency_proof' | 'aadhaar_front' | 'aadhaar_back'>('profile_photo');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [rotation, setRotation] = useState<number>(0);
 
@@ -37,6 +38,8 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.25, 0.75));
   const handleRotate = () => setRotation(prev => (prev + 90) % 360);
   const resetTransform = () => { setZoomLevel(1); setRotation(0); };
+
+  const [isTranslated, setIsTranslated] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -277,9 +280,10 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
             </div>
 
             {/* Document Selection Tabs */}
-            <div className="flex bg-slate-100 p-1 rounded-xl text-[10px] font-bold text-slate-600">
+            <div className="flex bg-slate-100 p-1 rounded-xl text-[10px] font-bold text-slate-600 overflow-x-auto">
               {[
                 { id: 'profile_photo', label: 'Profile Photo', icon: <Camera size={11} /> },
+                { id: 'residency_proof', label: 'Maintenance Bill / Rent Receipt', icon: <Globe size={11} /> },
                 { id: 'aadhaar_front', label: 'Aadhaar Front', icon: <FileText size={11} /> },
                 { id: 'aadhaar_back', label: 'Aadhaar Back', icon: <FileText size={11} /> },
               ].map((tab) => (
@@ -289,7 +293,7 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                     setActiveDocTab(tab.id as any);
                     resetTransform();
                   }}
-                  className={`flex-1 py-1.5 flex items-center justify-center gap-1.5 rounded-lg cursor-pointer transition-all ${
+                  className={`flex-1 py-1.5 px-2 flex items-center justify-center gap-1.5 rounded-lg cursor-pointer transition-all whitespace-nowrap ${
                     activeDocTab === tab.id 
                       ? 'bg-white text-[#1A73E8] shadow-sm font-black' 
                       : 'hover:text-slate-900'
@@ -316,6 +320,23 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                     <Camera size={32} className="mx-auto text-slate-300" />
                     <span className="block text-xs font-bold">Employer Household Photo Uploaded</span>
                     <p className="text-[10px] text-slate-400">Public profile photo shown to workers on job postings</p>
+                  </div>
+                )
+              )}
+
+              {activeDocTab === 'residency_proof' && (
+                employer.residency_proof_url || employer.maintenance_bill_url ? (
+                  <img 
+                    src={employer.residency_proof_url || employer.maintenance_bill_url} 
+                    alt="Society Residency Proof / Maintenance Receipt" 
+                    className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
+                    style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
+                  />
+                ) : (
+                  <div className="text-center space-y-2 p-4 text-slate-400">
+                    <Globe size={32} className="mx-auto text-slate-300" />
+                    <span className="block text-xs font-bold text-slate-700">Society Maintenance Bill / Rent Receipt</span>
+                    <p className="text-[10px] text-slate-400">Shows Flat &amp; Tower address for instant Admin residency approval</p>
                   </div>
                 )
               )}

@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSuperAdminDashboard } from '../layout';
-import { 
-  DollarSign, Check, ShieldCheck, Sparkles, Zap, Award, Layers, 
-  HelpCircle, Save, FileText, ArrowRight, UserCheck, Heart, AlertCircle, Calculator, X
-} from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { 
+  CreditCard, Save, Check, Heart, X, Users, Sparkles, ShieldCheck, UserCheck, BarChart3, ChevronRight
+} from 'lucide-react';
 
 export default function PricingPage() {
   const {
@@ -31,23 +30,46 @@ export default function PricingPage() {
   const [proUnlocks, setProUnlocks] = useState(pricing?.proPlan?.contactUnlocksLimit || 'Unlimited');
   const [proJobs, setProJobs] = useState(pricing?.proPlan?.jobPostsLimit || 'Unlimited');
 
-  // Add-ons state
-  const [verificationPrice, setVerificationPrice] = useState(pricing?.addons?.workerVerificationReport || '199');
-  const [featuredJobPrice, setFeaturedJobPrice] = useState(pricing?.addons?.featuredJobBoost || '99');
-  const [replacementPrice, setReplacementPrice] = useState(pricing?.addons?.replacementGuarantee || '499');
-
-  // Projection Calculator state
-  const [estBasicSubscribers, setEstBasicSubscribers] = useState(150);
-  const [estPremiumSubscribers, setEstPremiumSubscribers] = useState(300);
-  const [estProSubscribers, setEstProSubscribers] = useState(80);
+  // Real DB Subscriber statistics state
+  const [subscriberCounts, setSubscriberCounts] = useState({
+    free: 0,
+    basic: 0,
+    standard: 0,
+    pro: 0,
+    total: 0
+  });
 
   const [saving, setSaving] = useState(false);
 
-  const calculatedMRR = (
-    (estBasicSubscribers * (parseInt(basicPrice) || 0)) +
-    (estPremiumSubscribers * (parseInt(premiumPrice) || 0)) +
-    (estProSubscribers * (parseInt(proPrice) || 0))
-  );
+  useEffect(() => {
+    const fetchLiveSubscribers = async () => {
+      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') ||
+                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (isPlaceholder) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('employer_profiles')
+          .select('subscription_status');
+
+        if (!error && data) {
+          let free = 0, basic = 0, standard = 0, pro = 0;
+          data.forEach((emp: any) => {
+            const status = (emp.subscription_status || '').toLowerCase();
+            if (status.includes('pro')) pro++;
+            else if (status.includes('basic')) basic++;
+            else if (status.includes('standard') || status.includes('premium')) standard++;
+            else free++;
+          });
+          setSubscriberCounts({ free, basic, standard, pro, total: data.length });
+        }
+      } catch (err) {
+        console.error("Error fetching live subscriber data:", err);
+      }
+    };
+
+    fetchLiveSubscribers();
+  }, []);
 
   const handleSaveAllPricing = async () => {
     setSaving(true);
@@ -56,12 +78,7 @@ export default function PricingPage() {
       freePlan: { price: '0', validityDays: 'Unlimited', jobPostsLimit: '1', contactUnlocksLimit: '0', name: 'Free Trial' },
       basicPlan: { price: basicPrice, validityDays: basicValidity, jobPostsLimit: basicJobs, contactUnlocksLimit: basicUnlocks, name: 'Basic Plan' },
       premiumPlan: { price: premiumPrice, validityDays: premiumValidity, jobPostsLimit: premiumJobs, contactUnlocksLimit: premiumUnlocks, name: 'Standard (Recommended)' },
-      proPlan: { price: proPrice, validityDays: proValidity, jobPostsLimit: proJobs, contactUnlocksLimit: proUnlocks, name: 'Pro Enterprise' },
-      addons: {
-        workerVerificationReport: verificationPrice,
-        featuredJobBoost: featuredJobPrice,
-        replacementGuarantee: replacementPrice
-      }
+      proPlan: { price: proPrice, validityDays: proValidity, jobPostsLimit: proJobs, contactUnlocksLimit: proUnlocks, name: 'Pro Enterprise' }
     };
 
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') ||
@@ -80,22 +97,29 @@ export default function PricingPage() {
 
     setPricing(updatedPricing);
     setSaving(false);
-    showToast('Pricing configuration and revenue tiers updated live across the platform!', 'success');
+    showToast('Subscription pricing tiers updated live across the platform!', 'success');
+  };
+
+  const calcPercentage = (count: number) => {
+    if (!subscriberCounts.total) return 0;
+    return Math.round((count / subscriberCounts.total) * 100);
   };
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl pb-12">
+      
       {/* Header & Save Action */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
         <div>
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-            <span>Platform Monetization &amp; Pricing Architecture</span>
+            <CreditCard size={18} className="text-[#1A73E8]" />
+            <span>Employer Subscription Plans &amp; Pricing Architecture</span>
             <span className="bg-emerald-50 text-[#34A853] text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200/50">
-              Live Config
+              Live Configuration
             </span>
           </h3>
           <p className="text-[10.5px] text-slate-400 font-semibold mt-0.5">
-            Configure employer subscription tiers, worker free-forever guarantees, and add-on verification fees.
+            Manage household employer subscription tiers, price points, contact unlock allowances &amp; validity duration.
           </p>
         </div>
 
@@ -109,6 +133,72 @@ export default function PricingPage() {
         </button>
       </div>
 
+      {/* 📊 LIVE SUBSCRIBER PLAN DISTRIBUTION METRICS */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-50 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-blue-50 text-[#1A73E8] rounded-xl">
+              <BarChart3 size={18} />
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-slate-900">Employer Plan Subscribers Distribution</h4>
+              <p className="text-[10px] text-slate-400 font-bold">Real-time breakdown of active users per subscription tier</p>
+            </div>
+          </div>
+          <span className="text-xs font-black text-[#1A73E8] bg-blue-50 px-3 py-1 rounded-full border border-blue-200/50 flex items-center gap-1.5">
+            <Users size={13} />
+            <span>{subscriberCounts.total} Total Employers</span>
+          </span>
+        </div>
+
+        {/* Breakdown Stat Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100/80 space-y-1">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Free Trial Users</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-lg font-black text-slate-800">{subscriberCounts.free}</span>
+              <span className="text-[10px] font-bold text-slate-400">{calcPercentage(subscriberCounts.free)}%</span>
+            </div>
+            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-slate-400 h-full rounded-full" style={{ width: `${calcPercentage(subscriberCounts.free)}%` }} />
+            </div>
+          </div>
+
+          <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-100 space-y-1">
+            <span className="text-[9px] font-bold text-[#1A73E8] uppercase tracking-wider block">Basic Plan Users</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-lg font-black text-[#1A73E8]">{subscriberCounts.basic}</span>
+              <span className="text-[10px] font-bold text-blue-400">{calcPercentage(subscriberCounts.basic)}%</span>
+            </div>
+            <div className="w-full bg-blue-200/60 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-[#1A73E8] h-full rounded-full" style={{ width: `${calcPercentage(subscriberCounts.basic)}%` }} />
+            </div>
+          </div>
+
+          <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100 space-y-1">
+            <span className="text-[9px] font-bold text-[#34A853] uppercase tracking-wider block">Standard Plan Users</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-lg font-black text-[#34A853]">{subscriberCounts.standard}</span>
+              <span className="text-[10px] font-bold text-emerald-400">{calcPercentage(subscriberCounts.standard)}%</span>
+            </div>
+            <div className="w-full bg-emerald-200/60 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-[#34A853] h-full rounded-full" style={{ width: `${calcPercentage(subscriberCounts.standard)}%` }} />
+            </div>
+          </div>
+
+          <div className="bg-purple-50/50 p-3.5 rounded-xl border border-purple-100 space-y-1">
+            <span className="text-[9px] font-bold text-purple-700 uppercase tracking-wider block">Pro Enterprise Users</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-lg font-black text-purple-700">{subscriberCounts.pro}</span>
+              <span className="text-[10px] font-bold text-purple-400">{calcPercentage(subscriberCounts.pro)}%</span>
+            </div>
+            <div className="w-full bg-purple-200/60 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-purple-600 h-full rounded-full" style={{ width: `${calcPercentage(subscriberCounts.pro)}%` }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 🟢 WORKER POLICY BANNER - FREE FOREVER */}
       <div className="bg-gradient-to-r from-emerald-50 to-teal-50/60 p-5 rounded-2xl border border-emerald-200/70 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
@@ -119,12 +209,12 @@ export default function PricingPage() {
             <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
               <span>Domestic Workers: 100% FREE FOREVER</span>
               <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-emerald-100 text-[#34A853] rounded">
-                Zero Friction Policy
+                Zero Fee Policy
               </span>
             </h4>
             <p className="text-[10.5px] text-slate-600 font-medium leading-relaxed max-w-2xl">
               Workers (maids, cooks, nannies, drivers, caregivers) <strong>never pay to search or apply for jobs</strong>.
-              Unlimited profile creation, OTP login, job applications, and verification requests are guaranteed ₹0 to maximize candidate supply.
+              Profile creation, job applications, and verification audits are guaranteed ₹0.
             </p>
           </div>
         </div>
@@ -135,18 +225,18 @@ export default function PricingPage() {
         </div>
       </div>
 
-      {/* 🔵 EMPLOYER TIERED SUBSCRIPTION CARDS */}
+      {/* 🔵 EMPLOYER SUBSCRIPTION PLAN CARDS */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <div>
             <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Household Employer Subscription Tiers</h4>
-            <p className="text-[10px] text-slate-400 font-bold">Monetize hiring households based on contact unlocks &amp; job posting volume</p>
+            <p className="text-[10px] text-slate-400 font-bold">Configure contact unlock limits and validity periods for hiring households</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           
-          {/* TIER 1: FREE PLAN */}
+          {/* TIER 1: FREE TRIAL */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between space-y-4 relative overflow-hidden">
             <div className="space-y-2">
               <div className="flex justify-between items-start">
@@ -166,11 +256,15 @@ export default function PricingPage() {
               <li className="flex items-center gap-1.5"><Check size={12} className="text-[#34A853]" /> Post 1 Job Requisition</li>
               <li className="flex items-center gap-1.5"><Check size={12} className="text-[#34A853]" /> Browse Worker Profiles</li>
               <li className="flex items-center gap-1.5 text-slate-400 line-through"><X size={12} className="text-red-400" /> Phone Numbers Locked</li>
-              <li className="flex items-center gap-1.5 text-slate-400 line-through"><X size={12} className="text-red-400" /> Verified Worker Filters</li>
+              <li className="flex items-center gap-1.5 text-slate-400 line-through"><X size={12} className="text-red-400" /> Verified Candidate Filter</li>
             </ul>
 
-            <div className="bg-slate-50 p-2.5 rounded-xl text-center text-[10px] font-black text-slate-500 uppercase border border-slate-100">
-              Default Onboarding Tier
+            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[10px] font-bold">
+              <span className="text-slate-400 uppercase">Subscribers:</span>
+              <span className="font-black text-slate-800 flex items-center gap-1">
+                <Users size={11} className="text-slate-400" />
+                {subscriberCounts.free} Users ({calcPercentage(subscriberCounts.free)}%)
+              </span>
             </div>
           </div>
 
@@ -226,12 +320,16 @@ export default function PricingPage() {
               </div>
             </div>
 
-            <div className="bg-blue-50/60 p-2.5 rounded-xl text-center text-[10px] font-black text-[#1A73E8] uppercase">
-              Entry Hiring Household
+            <div className="bg-blue-50/60 p-2.5 rounded-xl border border-blue-100 flex items-center justify-between text-[10px] font-bold">
+              <span className="text-[#1A73E8] uppercase">Subscribers:</span>
+              <span className="font-black text-blue-900 flex items-center gap-1">
+                <Users size={11} className="text-[#1A73E8]" />
+                {subscriberCounts.basic} Users ({calcPercentage(subscriberCounts.basic)}%)
+              </span>
             </div>
           </div>
 
-          {/* TIER 3: STANDARD / PREMIUM PLAN (RECOMMENDED) */}
+          {/* TIER 3: STANDARD PLAN (RECOMMENDED) */}
           <div className="bg-gradient-to-b from-indigo-50/40 via-white to-white p-5 rounded-2xl border-2 border-[#1A73E8] shadow-md flex flex-col justify-between space-y-4 relative">
             <div className="absolute -top-3 right-4 bg-[#1A73E8] text-white text-[8px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-sm">
               ★ Recommended
@@ -287,8 +385,12 @@ export default function PricingPage() {
               </div>
             </div>
 
-            <div className="bg-[#1A73E8] p-2.5 rounded-xl text-center text-[10px] font-black text-white uppercase shadow-sm">
-              Most Popular Option
+            <div className="bg-[#1A73E8] p-2.5 rounded-xl border border-blue-600 flex items-center justify-between text-[10px] font-bold text-white shadow-sm">
+              <span className="uppercase text-blue-100">Subscribers:</span>
+              <span className="font-black text-white flex items-center gap-1">
+                <Users size={11} className="text-white" />
+                {subscriberCounts.standard} Users ({calcPercentage(subscriberCounts.standard)}%)
+              </span>
             </div>
           </div>
 
@@ -344,105 +446,15 @@ export default function PricingPage() {
               </div>
             </div>
 
-            <div className="bg-purple-50 p-2.5 rounded-xl text-center text-[10px] font-black text-purple-700 uppercase">
-              VIP Unlimited Hiring
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 🟠 ADD-ON SERVICES & MICRO-TRANSACTIONS */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-        <div>
-          <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Additional Value Revenue Streams</h4>
-          <p className="text-[10px] text-slate-400 font-bold">Micro-transaction fees charged to employers for verification, boosts &amp; guarantees</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Add-on 1: Background Verification (FREE INCLUDED) */}
-          <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-200/60 space-y-2">
-            <div className="flex justify-between items-start">
-              <span className="text-xs font-black text-slate-800">Worker Verification Report</span>
-              <span className="bg-emerald-100 text-[#34A853] text-[8.5px] font-black uppercase px-2 py-0.5 rounded">100% Free Included</span>
-            </div>
-            <p className="text-[9.5px] text-slate-600 font-medium">Police record check &amp; Aadhaar identity audit included by default for all candidates.</p>
-            <div className="flex items-center gap-1.5 pt-2 border-t border-emerald-200/50">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Fee:</span>
-              <span className="text-xs font-black text-[#34A853]">₹0 (Free Included)</span>
+            <div className="bg-purple-50 p-2.5 rounded-xl border border-purple-100 flex items-center justify-between text-[10px] font-bold text-purple-900">
+              <span className="text-purple-700 uppercase">Subscribers:</span>
+              <span className="font-black text-purple-950 flex items-center gap-1">
+                <Users size={11} className="text-purple-700" />
+                {subscriberCounts.pro} Users ({calcPercentage(subscriberCounts.pro)}%)
+              </span>
             </div>
           </div>
 
-          {/* Add-on 2: Featured Job Boost */}
-          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-100 space-y-2">
-            <div className="flex justify-between items-start">
-              <span className="text-xs font-black text-slate-800">Featured Job Listing Boost</span>
-              <span className="bg-emerald-50 text-[#34A853] text-[8.5px] font-black uppercase px-2 py-0.5 rounded">Active</span>
-            </div>
-            <p className="text-[9.5px] text-slate-500 font-medium">Promote job post to top of candidate search list for 7 days.</p>
-            <div className="flex items-center gap-1.5 pt-2 border-t border-slate-200/50">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Fee: ₹</span>
-              <input
-                type="number"
-                value={featuredJobPrice}
-                onChange={(e) => setFeaturedJobPrice(e.target.value)}
-                className="w-20 py-1 px-2 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-900 focus:outline-none"
-              />
-              <span className="text-[9.5px] font-bold text-slate-400">/ boost</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 🧮 REVENUE PROJECTION CALCULATOR */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-50 pb-3">
-          <Calculator size={16} className="text-[#1A73E8]" />
-          <div>
-            <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Monthly Recurring Revenue (MRR) Projection</h4>
-            <p className="text-[10px] text-slate-400 font-bold">Estimate platform monthly income based on employer subscriber distribution</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold">
-          <div className="space-y-1">
-            <label className="text-[9.5px] text-slate-400 uppercase font-black">Basic Plan Employers (₹{basicPrice})</label>
-            <input
-              type="number"
-              value={estBasicSubscribers}
-              onChange={(e) => setEstBasicSubscribers(parseInt(e.target.value) || 0)}
-              className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[9.5px] text-slate-400 uppercase font-black">Standard Plan Employers (₹{premiumPrice})</label>
-            <input
-              type="number"
-              value={estPremiumSubscribers}
-              onChange={(e) => setEstPremiumSubscribers(parseInt(e.target.value) || 0)}
-              className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[9.5px] text-slate-400 uppercase font-black">Pro Plan Employers (₹{proPrice})</label>
-            <input
-              type="number"
-              value={estProSubscribers}
-              onChange={(e) => setEstProSubscribers(parseInt(e.target.value) || 0)}
-              className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
-            />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 rounded-xl flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-[9.5px] font-black uppercase text-slate-400 tracking-wider">Projected Employer Monthly Subscription MRR</span>
-            <p className="text-xs text-slate-300 font-semibold">Based on {estBasicSubscribers + estPremiumSubscribers + estProSubscribers} paying household subscribers</p>
-          </div>
-          <span className="text-2xl font-black text-[#34A853] font-mono">
-            ₹{calculatedMRR.toLocaleString('en-IN')} / mo
-          </span>
         </div>
       </div>
     </div>

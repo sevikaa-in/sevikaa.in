@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useEmployerDashboard } from '../layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { 
@@ -92,6 +93,24 @@ export default function EmployerAccountPage() {
   const [deletionReason, setDeletionReason] = useState('Already hired domestic worker');
   const [customReason, setCustomReason] = useState('');
 
+  // Profile completeness calculation
+  const isAadhaarDone = (aadhaarFrontUploaded && aadhaarBackUploaded) || employerProfile.status === 'live' || employerProfile.status === 'approved';
+  const isPhotoDone = !!profilePhoto || !!employerProfile.avatar_url;
+
+  const completionSteps = [
+    { key: 'name', label: t('stepFullName') || 'Employer Name', done: !!companyName.trim() },
+    { key: 'phone', label: t('stepMobileNumber') || 'Mobile Number', done: phone.length === 10 },
+    { key: 'email', label: 'Email Address', done: !!email.trim() },
+    { key: 'society', label: 'Gated Society', done: !!employerProfile.society_name },
+    { key: 'tower', label: 'Tower / Block', done: !!towerBlock.trim() },
+    { key: 'address', label: 'Flat Address', done: !!address.trim() },
+    { key: 'photo', label: t('stepProfilePhoto') || 'Profile Photo', done: isPhotoDone },
+    { key: 'aadhaar', label: t('stepAadhaarUploaded') || 'Aadhaar Uploaded', done: isAadhaarDone }
+  ];
+
+  const completedCount = completionSteps.filter(s => s.done).length;
+  const completionPercent = Math.round((completedCount / completionSteps.length) * 100);
+
   // Strict Input Handlers
   const handleNameChange = (val: string) => {
     const lettersOnly = val.replace(/[^a-zA-Z\s]/g, '');
@@ -140,35 +159,75 @@ export default function EmployerAccountPage() {
       <div>
         <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
           <User size={18} className="text-[#1A73E8]" />
-          <span>Household &amp; Employer Account Settings</span>
+          <span>{t('employerAccountTitle') || "Household & Employer Account Settings"}</span>
         </h2>
         <p className="text-xs text-slate-400 font-semibold mt-0.5">
-          Manage your residential address, contact details, subscription tier, and security preferences.
+          {t('employerAccountSub') || "Manage your residential address, contact details, subscription tier, and security preferences."}
         </p>
       </div>
 
-      {/* ✅ SUBSCRIPTION PLAN CARD */}
+      {/* 📊 EMPLOYER PROFILE COMPLETENESS PROGRESS */}
+      <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-3xl space-y-3 border border-slate-800 shadow-md">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-black">{t('profileCompletenessTitle') || "Employer Profile Completeness"}</h3>
+            <p className="text-[10.5px] text-slate-300 font-semibold mt-0.5">
+              {completedCount < completionSteps.length 
+                ? `${completionSteps.length - completedCount} ${t('stepsRemainingSub') || 'steps remaining to unlock 1-click job postings'}` 
+                : (t('profileCompleteSub') || '✓ Employer profile complete & Aadhaar verified!')}
+            </p>
+          </div>
+          <span className={`text-2xl font-black font-mono ${completionPercent === 100 ? 'text-emerald-400' : completionPercent >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+            {completionPercent}%
+          </span>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+          <div 
+            className={`h-full rounded-full transition-all duration-700 ${
+              completionPercent === 100 ? 'bg-emerald-400' : completionPercent >= 60 ? 'bg-amber-400' : 'bg-[#1A73E8]'
+            }`}
+            style={{ width: `${completionPercent}%` }}
+          />
+        </div>
+
+        {/* Step pills */}
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {completionSteps.map(step => (
+            <span key={step.key} className={`flex items-center gap-1 text-[9.5px] font-black px-2 py-0.5 rounded-full border ${
+              step.done 
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
+                : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+            }`}>
+              {step.done ? '✓' : '○'} {step.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* SUBSCRIPTION PLAN CARD */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 rounded-3xl shadow-md space-y-4 relative overflow-hidden border border-slate-800">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-              <CheckCircle2 size={10} /> Active Subscription
+              <CheckCircle2 size={10} /> {t('activeSubscriptionBadge') || "Active Subscription"}
             </span>
             <h3 className="text-base font-black text-white">{employerProfile.subscription_status || 'Standard Plan'}</h3>
-            <p className="text-[11px] text-slate-300 font-medium">One flat subscription — no credits, no unlock fees, no hidden charges.</p>
+            <p className="text-[11px] text-slate-300 font-medium">{t('subscriptionSub') || "One flat subscription — no credits, no unlock fees, no hidden charges."}</p>
           </div>
           <div className="text-right bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/10 shrink-0">
             <span className="text-[10px] text-slate-300 font-bold block uppercase">Status</span>
-            <span className="text-lg font-black text-emerald-400">Active ✓</span>
+            <span className="text-lg font-black text-emerald-400">{t('statusActiveText') || "Active ✓"}</span>
           </div>
         </div>
 
         <div className="pt-3 border-t border-white/10 grid grid-cols-2 gap-2">
           {[
-            { icon: '📞', label: 'Direct candidate calls — included' },
-            { icon: '🎥', label: 'Worker intro videos — included' },
-            { icon: '📋', label: 'Unlimited job postings — included' },
-            { icon: '🛡️', label: 'Aadhaar-verified workers only' },
+            { icon: '📞', label: t('subFeatureCalls') || "Direct candidate calls — included" },
+            { icon: '🎥', label: t('subFeatureVideos') || "Worker intro videos — included" },
+            { icon: '📋', label: t('subFeatureJobs') || "Unlimited job postings — included" },
+            { icon: '🛡️', label: t('subFeatureAadhaar') || "Aadhaar-verified workers only" },
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-2 text-[10.5px] text-slate-200 font-semibold">
               <span>{item.icon}</span>
@@ -176,22 +235,33 @@ export default function EmployerAccountPage() {
             </div>
           ))}
         </div>
+
+        <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3">
+          <span className="text-[11px] text-slate-300 font-medium">Need more job postings or candidate unlocks?</span>
+          <Link
+            href="/employer/pricing"
+            className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white text-xs font-black rounded-xl shadow-md cursor-pointer transition-all shrink-0 flex items-center gap-1.5"
+          >
+            <Zap size={13} />
+            <span>Upgrade / Change Plan</span>
+          </Link>
+        </div>
       </div>
 
-      {/* 📷 EMPLOYER PROFILE / HOUSEHOLD PHOTO */}
+      {/* EMPLOYER PROFILE / HOUSEHOLD PHOTO */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
             <User size={16} className="text-[#1A73E8]" />
-            <span>Employer / Household Photo</span>
+            <span>{t('employerPhotoTitle') || "Employer / Household Photo"}</span>
           </h3>
           {profilePhoto ? (
             <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-              <CheckCircle2 size={10} /> Uploaded
+              <CheckCircle2 size={10} /> {t('uploadedBadge') || "Uploaded"}
             </span>
           ) : (
             <span className="bg-slate-100 text-slate-500 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-slate-200">
-              Optional
+              {t('optionalBadge') || "Optional"}
             </span>
           )}
         </div>
@@ -207,27 +277,27 @@ export default function EmployerAccountPage() {
           </div>
           <div className="space-y-2 flex-1">
             <p className="text-xs font-medium text-slate-600 leading-relaxed">
-              Upload a photo for your household account. Workers see this avatar on your job postings when applying.
+              {t('employerPhotoDesc') || "Upload a photo for your household account. Workers see this avatar on your job postings when applying."}
             </p>
-            <p className="text-[10px] text-slate-400 font-semibold">JPG · PNG · Max 3MB</p>
+            <p className="text-[10px] text-slate-400 font-semibold">{t('photoSpecs') || "JPG · PNG · Max 3MB"}</p>
             <div className="flex gap-2">
               <label className="cursor-pointer">
                 <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handlePhotoChange} />
                 <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 shadow-sm cursor-pointer">
                   <Upload size={11} />
-                  <span>{profilePhoto ? 'Change Photo' : 'Upload Photo'}</span>
+                  <span>{profilePhoto ? (t('changePhotoBtn') || 'Change Photo') : (t('uploadPhotoBtn') || 'Upload Photo')}</span>
                 </div>
               </label>
               <label className="cursor-pointer">
                 <input type="file" accept="image/jpeg,image/png" capture="user" className="hidden" onChange={handlePhotoChange} />
                 <div className="py-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer">
                   <Camera size={11} />
-                  <span>Take Selfie</span>
+                  <span>{t('takeSelfieBtn') || "Take Selfie"}</span>
                 </div>
               </label>
               {profilePhoto && (
                 <button onClick={() => setProfilePhoto(null)} className="py-2 px-3 text-red-400 hover:text-red-600 text-[10.5px] font-bold cursor-pointer">
-                  Remove
+                  {t('removeBtn') || "Remove"}
                 </button>
               )}
             </div>
@@ -238,7 +308,7 @@ export default function EmployerAccountPage() {
       {/* Household Profile & Contact Details Card */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Household Profile &amp; Contact Information</h3>
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">{t('contactInfoTitle') || "Household Profile & Contact Information"}</h3>
           <span className="bg-blue-50 text-[#1A73E8] text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200/60">
             {employerProfile.subscription_status || 'Standard Plan'}
           </span>
@@ -249,8 +319,8 @@ export default function EmployerAccountPage() {
           {/* Full Name */}
           <div className="space-y-1">
             <label className="text-slate-500 text-[10px] uppercase flex justify-between">
-              <span>Employer Full Name</span>
-              <span className="text-[9px] text-slate-400 lowercase font-normal">(letters only)</span>
+              <span>{t('employerFullNameLabel') || "Employer Full Name"}</span>
+              <span className="text-[9px] text-slate-400 lowercase font-normal">{t('lettersOnlyLabel') || "(letters only)"}</span>
             </label>
             <input 
               type="text" 
@@ -264,9 +334,9 @@ export default function EmployerAccountPage() {
           {/* Primary Phone */}
           <div className="space-y-1">
             <label className="text-slate-500 text-[10px] uppercase flex justify-between">
-              <span>Primary 10-Digit Mobile</span>
+              <span>{t('primaryPhoneLabel') || "Primary 10-Digit Mobile"}</span>
               <span className={`text-[9px] font-bold ${phone.length === 10 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {phone.length === 10 ? '✓ 10 Digits Valid' : `${phone.length}/10 digits`}
+                {phone.length === 10 ? (t('digitsValidText') || '✓ 10 Digits Valid') : `${phone.length}/10 digits`}
               </span>
             </label>
             <div className="relative">
@@ -286,7 +356,7 @@ export default function EmployerAccountPage() {
 
           {/* Primary Email */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">Primary Email Address</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('primaryEmailLabel') || "Primary Email Address"}</label>
             <input 
               type="email" 
               value={email} 
@@ -298,7 +368,7 @@ export default function EmployerAccountPage() {
 
           {/* Secondary Alternate Phone */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">Alternate / Family Contact Phone (Optional)</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('altPhoneLabel') || "Alternate / Family Contact Phone (Optional)"}</label>
             <div className="relative">
               <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">+91</span>
               <input 
@@ -314,7 +384,7 @@ export default function EmployerAccountPage() {
 
           {/* Society Community */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">Gated Society Community</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('gatedSocietyLabel') || "Gated Society Community"}</label>
             <input 
               type="text" 
               value={employerProfile.society_name} 
@@ -325,7 +395,7 @@ export default function EmployerAccountPage() {
 
           {/* Tower / Block */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">Tower / Building Block</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('towerBlockLabel') || "Tower / Building Block"}</label>
             <input 
               type="text" 
               value={towerBlock} 
@@ -337,7 +407,7 @@ export default function EmployerAccountPage() {
 
           {/* Flat / Apartment Address */}
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-slate-500 text-[10px] uppercase">Flat / Apartment Door Number &amp; Address</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('flatAddressLabel') || "Flat / Apartment Door Number & Address"}</label>
             <input 
               type="text" 
               value={address} 
@@ -349,15 +419,15 @@ export default function EmployerAccountPage() {
 
           {/* Worker Verification Requirement Preference */}
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-slate-500 text-[10px] uppercase">Preferred Candidate Verification Requirement</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('preferredVerificationLabel') || "Preferred Candidate Verification Requirement"}</label>
             <select
               value={verificationPref}
               onChange={(e) => setVerificationPref(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
             >
-              <option value="Aadhaar + Police Audit (Default)">Aadhaar Card + Police Background Audit Required (Recommended)</option>
-              <option value="Aadhaar Verification Only">Aadhaar Card Photo ID Verification Only</option>
-              <option value="Self-Audited Hiring">Direct Self-Audited Hiring</option>
+              <option value="Aadhaar + Police Audit (Default)">{t('verifPrefDefault') || "Aadhaar Card + Police Background Audit Required (Recommended)"}</option>
+              <option value="Aadhaar Verification Only">{t('verifPrefAadhaarOnly') || "Aadhaar Card Photo ID Verification Only"}</option>
+              <option value="Self-Audited Hiring">{t('verifPrefSelfAudited') || "Direct Self-Audited Hiring"}</option>
             </select>
           </div>
         </div>
@@ -369,25 +439,25 @@ export default function EmployerAccountPage() {
             className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:cursor-not-allowed"
           >
             <Save size={14} />
-            <span>{saveLoading ? 'Saving...' : 'Save Account Settings'}</span>
+            <span>{saveLoading ? (t('savingText') || 'Saving...') : (t('saveSettingsBtn') || 'Save Account Settings')}</span>
           </button>
         </div>
       </div>
 
-      {/* 🪪 EMPLOYER ID VERIFICATION CARD */}
+      {/* EMPLOYER ID VERIFICATION CARD */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs space-y-5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
             <IdCard size={16} className="text-[#1A73E8]" />
-            <span>Employer Identity Verification</span>
+            <span>{t('employerIdVerificationTitle') || "Employer Identity Verification"}</span>
           </h3>
           {idVerified ? (
             <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-              <CheckCircle2 size={10} /> Verified
+              <CheckCircle2 size={10} /> {t('uploadedBadge') || "Verified"}
             </span>
           ) : (
             <span className="bg-amber-50 text-amber-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
-              <Lock size={10} /> Pending Verification
+              <Lock size={10} /> {t('pendingVerificationBadge') || "Pending Verification"}
             </span>
           )}
         </div>
@@ -396,13 +466,38 @@ export default function EmployerAccountPage() {
           <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-start gap-2.5 text-amber-900">
             <ShieldAlert size={16} className="text-amber-600 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
-              <p className="text-xs font-black">ID Verification Required to Post Jobs</p>
+              <p className="text-xs font-black">{t('idVerificationRequiredTitle') || "ID & Residency Verification Required"}</p>
               <p className="text-[11px] font-medium leading-relaxed">
-                To prevent fake job postings, all employers must verify their Aadhaar ID and upload a live selfie before publishing job requisitions. This protects domestic workers from fraudulent listings.
+                {t('idVerificationRequiredDesc') || "To prevent fake job postings, all employers must verify their society residency (via Gate Passcode or Maintenance Bill) before publishing job requisitions."}
               </p>
             </div>
           </div>
         )}
+
+        {/* 🏢 SOCIETY RESIDENCY PROOF UPLOAD (MAINTENANCE BILL / RENT RECEIPT) */}
+        <div className="bg-[#1A73E8]/5 border border-[#1A73E8]/20 p-4 rounded-2xl space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+              <Building size={15} className="text-[#1A73E8]" />
+              <span>{t('societyResidencyTitle') || "Society Residency Verification (Maintenance Bill / Rent Receipt)"}</span>
+            </span>
+            <span className="bg-blue-100 text-blue-800 text-[9px] font-black uppercase px-2 py-0.5 rounded-full">{t('requiredProofBadge') || "Required Proof"}</span>
+          </div>
+
+          <p className="text-[11px] text-slate-600 font-semibold leading-relaxed">
+            {t('societyResidencyDesc') || "Upload a recent Society Maintenance Bill, Electricity Receipt, or Rent Agreement showing your Flat & Tower number for instant Admin approval."}
+          </p>
+
+          <div className="flex items-center gap-3">
+            <label className="cursor-pointer flex-1">
+              <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
+              <div className="w-full py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-xs">
+                <Upload size={14} />
+                <span>{t('uploadMaintenanceBtn') || "Upload Maintenance Bill / Rent Agreement"}</span>
+              </div>
+            </label>
+          </div>
+        </div>
 
         <div className="space-y-2.5">
           {/* Aadhaar Front */}
@@ -411,20 +506,20 @@ export default function EmployerAccountPage() {
               <FileText size={16} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-slate-900">Aadhaar — Front</p>
-              <p className="text-[10px] text-slate-400 font-semibold">Name, photo & DOB · JPG · PNG · PDF · Max 5MB</p>
+              <p className="text-xs font-black text-slate-900">{t('aadhaarFrontLabel') || "Aadhaar — Front"}</p>
+              <p className="text-[10px] text-slate-400 font-semibold">{t('aadhaarFrontDesc') || "Name, photo & DOB · JPG · PNG · PDF · Max 5MB"}</p>
             </div>
             {aadhaarFrontUploaded ? (
               <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
                 <CheckCircle2 size={12} className="text-emerald-600" />
-                <span className="text-[10px] font-black text-emerald-800">Uploaded</span>
+                <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
                 <button onClick={() => setAadhaarFrontUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
               </div>
             ) : (
               <label className="cursor-pointer shrink-0">
                 <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
                 <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                  <Upload size={11} /><span>Upload Front</span>
+                  <Upload size={11} /><span>{t('uploadFrontBtn') || "Upload Front"}</span>
                 </div>
               </label>
             )}
@@ -436,20 +531,20 @@ export default function EmployerAccountPage() {
               <FileText size={16} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-slate-900">Aadhaar — Back</p>
-              <p className="text-[10px] text-slate-400 font-semibold">Aadhaar number & address · JPG · PNG · PDF · Max 5MB</p>
+              <p className="text-xs font-black text-slate-900">{t('aadhaarBackLabel') || "Aadhaar — Back"}</p>
+              <p className="text-[10px] text-slate-400 font-semibold">{t('aadhaarBackDesc') || "Aadhaar number & address · JPG · PNG · PDF · Max 5MB"}</p>
             </div>
             {aadhaarBackUploaded ? (
               <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
                 <CheckCircle2 size={12} className="text-emerald-600" />
-                <span className="text-[10px] font-black text-emerald-800">Uploaded</span>
+                <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
                 <button onClick={() => setAadhaarBackUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
               </div>
             ) : (
               <label className="cursor-pointer shrink-0">
                 <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
                 <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                  <Upload size={11} /><span>Upload Back</span>
+                  <Upload size={11} /><span>{t('uploadBackBtn') || "Upload Back"}</span>
                 </div>
               </label>
             )}
@@ -460,25 +555,25 @@ export default function EmployerAccountPage() {
           <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center gap-2.5 text-emerald-900">
             <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
             <div>
-              <p className="text-xs font-black">Identity Documents Submitted — Pending Admin Audit</p>
-              <p className="text-[10.5px] font-medium">Sevikaa Admin will verify your documents within 24 hours. You will be notified via SMS once approved to post jobs.</p>
+              <p className="text-xs font-black">{t('idPendingAdminAuditTitle') || "Identity Documents Submitted — Pending Admin Audit"}</p>
+              <p className="text-[10.5px] font-medium">{t('idPendingAdminAuditDesc') || "Sevikaa Admin will verify your documents within 24 hours. You will be notified via SMS once approved to post jobs."}</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* 🔔 COMMUNICATION & APPLICANT NOTIFICATION SETTINGS */}
+      {/* COMMUNICATION & APPLICANT NOTIFICATION SETTINGS */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs space-y-4">
         <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
           <Bell size={16} className="text-[#1A73E8]" />
-          <span>Candidate Applicant &amp; Society Alerts</span>
+          <span>{t('alertsTitle') || "Candidate Applicant & Society Alerts"}</span>
         </h3>
 
         <div className="space-y-3 text-xs">
           <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
             <div>
-              <h4 className="font-black text-slate-900">SMS Instant Notifications (Jio DLT)</h4>
-              <p className="text-[10.5px] text-slate-400 font-semibold">Receive DLT-approved SMS alerts when domestic workers apply to your jobs</p>
+              <h4 className="font-black text-slate-900">{t('smsAlertsTitle') || "SMS Instant Notifications (Jio DLT)"}</h4>
+              <p className="text-[10.5px] text-slate-400 font-semibold">{t('smsAlertsDesc') || "Receive DLT-approved SMS alerts when domestic workers apply to your jobs"}</p>
             </div>
             <button
               onClick={() => setSmsAlerts(!smsAlerts)}
@@ -490,8 +585,8 @@ export default function EmployerAccountPage() {
 
           <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
             <div>
-              <h4 className="font-black text-slate-900">Society Helper Digest Email</h4>
-              <p className="text-[10.5px] text-slate-400 font-semibold">Weekly digest of newly verified domestic helpers in your society</p>
+              <h4 className="font-black text-slate-900">{t('emailDigestTitle') || "Society Helper Digest Email"}</h4>
+              <p className="text-[10.5px] text-slate-400 font-semibold">{t('emailDigestDesc') || "Weekly digest of newly verified domestic helpers in your society"}</p>
             </div>
             <button
               onClick={() => setEmailDigest(!emailDigest)}
@@ -503,7 +598,7 @@ export default function EmployerAccountPage() {
         </div>
       </div>
 
-      {/* DISCRETE DANGER ZONE CARD (Bottom of Page) */}
+      {/* DISCRETE DANGER ZONE CARD */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden transition-all">
         <button
           onClick={() => setShowDangerZone(!showDangerZone)}
@@ -514,8 +609,8 @@ export default function EmployerAccountPage() {
               <ShieldAlert size={16} />
             </div>
             <div>
-              <h4 className="text-xs font-black text-slate-900">Account Management &amp; Danger Zone</h4>
-              <p className="text-[10px] text-slate-400 font-semibold">Self-service account deletion &amp; DPDP compliance</p>
+              <h4 className="text-xs font-black text-slate-900">{t('dangerZoneTitle') || "Account Management & Danger Zone"}</h4>
+              <p className="text-[10px] text-slate-400 font-semibold">{t('dangerZoneSub') || "Self-service account deletion & DPDP compliance"}</p>
             </div>
           </div>
           {showDangerZone ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
@@ -524,8 +619,7 @@ export default function EmployerAccountPage() {
         {showDangerZone && (
           <div className="p-5 border-t border-slate-100 bg-red-50/20 space-y-3">
             <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              Submitting an account deletion request will close your active job postings and initiate offboarding. 
-              A Sevikaa Admin will call your registered phone to confirm your request.
+              {t('dangerZoneDesc') || "Submitting an account deletion request will close your active job postings and initiate offboarding."}
             </p>
 
             <button
@@ -534,40 +628,39 @@ export default function EmployerAccountPage() {
               className="py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
             >
               <Trash2 size={14} />
-              <span>{deletionRequested ? 'Deletion Request Logged' : 'Request Account Deletion'}</span>
+              <span>{deletionRequested ? (t('deletionLoggedBtn') || 'Deletion Request Logged') : (t('requestDeletionBtn') || 'Request Account Deletion')}</span>
             </button>
           </div>
         )}
       </div>
 
-
       {/* DELETION CONFIRMATION MODAL */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-sm shadow-2xl space-y-4 animate-scale-up border border-slate-100 max-h-[85vh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={20} className="text-amber-600" />
-                <h3 className="text-sm font-black text-slate-900">Request Account Deletion</h3>
+                <h3 className="text-sm font-black text-slate-900">{t('requestDeletionModalTitle') || "Request Account Deletion"}</h3>
               </div>
               <button onClick={() => setShowDeleteModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
 
             <p className="text-xs text-slate-600 font-medium">
-              Please state your reason for deleting your household account. A Sevikaa Admin will call your phone <strong>+91 {phone}</strong> within 24 hours to confirm offboarding.
+              {t('requestDeletionModalSub') || "Please state your reason for deleting your household account."}
             </p>
 
             <div className="space-y-2 text-xs font-bold text-slate-700">
-              <label className="text-[10px] text-slate-400 uppercase">Reason for Offboarding</label>
+              <label className="text-[10px] text-slate-400 uppercase">{t('reasonLabel') || "Reason for Offboarding"}</label>
               <select 
                 value={deletionReason} 
                 onChange={(e) => setDeletionReason(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
               >
-                <option value="Already hired domestic worker">Already hired domestic worker</option>
-                <option value="Moving to a non-partner society">Moving to a non-partner society</option>
-                <option value="No longer requiring domestic help">No longer requiring domestic help</option>
-                <option value="Other">Other Reason</option>
+                <option value="Already hired domestic worker">{t('reasonHired') || "Already hired domestic worker"}</option>
+                <option value="Moving to a non-partner society">{t('reasonMoving') || "Moving to a non-partner society"}</option>
+                <option value="No longer requiring domestic help">{t('reasonNoLonger') || "No longer requiring domestic help"}</option>
+                <option value="Other">{t('reasonOther') || "Other Reason"}</option>
               </select>
 
               {deletionReason === 'Other' && (
@@ -585,13 +678,13 @@ export default function EmployerAccountPage() {
                 onClick={() => setShowDeleteModal(false)}
                 className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
               >
-                Cancel
+                {t('cancelBtn') || "Cancel"}
               </button>
               <button 
                 onClick={onSubmitDeletionRequest}
                 className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-md"
               >
-                Submit Deletion Request
+                {t('submitDeletionBtn') || "Submit Deletion Request"}
               </button>
             </div>
           </div>

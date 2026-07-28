@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, Check, Camera, FileText, Video, RotateCw, ZoomIn, ZoomOut, 
-  ShieldCheck, Calendar, MapPin, Phone, Mail, User, ShieldAlert, Award
+  ShieldCheck, Calendar, MapPin, Phone, Mail, User, ShieldAlert, Award, Globe
 } from 'lucide-react';
+import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
 
 interface WorkerDetailModalProps {
   isOpen: boolean;
@@ -56,6 +57,8 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
   const applyNoteTemplate = (tpl: string) => {
     setNotes(prev => prev ? `${prev}\n${tpl}` : tpl);
   };
+
+  const [isTranslated, setIsTranslated] = useState(false);
 
   return createPortal(
     <div 
@@ -216,6 +219,30 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                   {lang}
                 </span>
               ))}
+            </div>
+
+            {/* Candidate Bio / Statement with Translate Button */}
+            <div className="border-t border-slate-100 pt-3.5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Candidate Bio &amp; Profile Summary</span>
+                <button
+                  type="button"
+                  onClick={() => setIsTranslated(!isTranslated)}
+                  className={`text-[10px] font-black px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                    isTranslated 
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
+                      : 'bg-blue-50 text-[#1A73E8] border-blue-200 hover:bg-blue-100'
+                  }`}
+                >
+                  <Globe size={12} />
+                  <span>{isTranslated ? 'Show Original Text' : '🌐 Translate to English'}</span>
+                </button>
+              </div>
+              <p className="text-xs text-slate-700 leading-relaxed font-semibold bg-slate-50/80 p-3.5 rounded-xl border border-slate-100/60">
+                {isTranslated 
+                  ? translateToEnglish(worker.bio || worker.notes || 'Verified candidate profile.') 
+                  : (worker.bio || worker.notes || 'Verified candidate profile.')}
+              </p>
             </div>
           </div>
 

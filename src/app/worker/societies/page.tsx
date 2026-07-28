@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useWorkerDashboard } from '../layout';
+import { useLanguage } from '@/context/LanguageContext';
 import { supabase } from '@/lib/supabaseClient';
 import { 
   MapPin, Search, Building2, CheckCircle2, ShieldCheck, Plus, 
@@ -32,6 +33,7 @@ const SOCIETY_GEO_MAP: Record<string, { lat: number; lng: number }> = {
 
 export default function WorkerSocietiesPage() {
   const { societiesList, availableJobs, workerProfile, setWorkerProfile, showToast } = useWorkerDashboard();
+  const { t } = useLanguage();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'selected' | 'high_hiring'>('all');
@@ -266,15 +268,15 @@ export default function WorkerSocietiesPage() {
         <div className="flex items-center gap-2 mb-1">
           <span className="bg-blue-50 text-[#1A73E8] text-[9.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200/60 inline-flex items-center gap-1">
             <Compass size={11} />
-            Workplace Proximity Network
+            {t('workerSocietiesEyebrow') || "Workplace Proximity Network"}
           </span>
         </div>
         <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
           <MapPin size={18} className="text-[#1A73E8]" />
-          <span>Preferred Working Societies</span>
+          <span>{t('preferredSocietiesTitle') || "Preferred Working Societies"}</span>
         </h2>
         <p className="text-xs text-slate-500 font-semibold mt-0.5 leading-relaxed">
-          Select gated communities near you to receive instant job alerts and priority matching from resident employers.
+          {t('preferredSocietiesSub') || "Select gated communities near you to receive instant job alerts and priority matching from resident employers."}
         </p>
       </div>
 
@@ -283,12 +285,12 @@ export default function WorkerSocietiesPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
           <div className="space-y-1">
             <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-              <CheckCircle2 size={10} /> Active Workplace Coverage
+              <CheckCircle2 size={10} /> {t('activeCoverageBadge') || "Active Workplace Coverage"}
             </span>
             <h3 className="text-sm font-black text-white flex items-center gap-2">
               <span>{primarySocietyObj.name}</span>
               <span className="bg-blue-500/30 text-blue-200 text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full border border-blue-400/30">
-                Primary
+                {t('primaryBadge') || "Primary"}
               </span>
             </h3>
             <p className="text-[11px] text-slate-300 font-medium">
@@ -298,13 +300,13 @@ export default function WorkerSocietiesPage() {
 
           <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/15 shrink-0 flex items-center gap-4 text-center">
             <div>
-              <span className="text-[9px] text-slate-300 font-bold block uppercase">Selected</span>
-              <span className="text-base font-black text-emerald-400">{totalSelectedCount} Societies</span>
+              <span className="text-[9px] text-slate-300 font-bold block uppercase">{t('statSelectedCount') || "Selected"}</span>
+              <span className="text-base font-black text-emerald-400">{totalSelectedCount} {t('statSocietiesUnit') || "Societies"}</span>
             </div>
             <div className="w-px h-8 bg-white/15" />
             <div>
-              <span className="text-[9px] text-slate-300 font-bold block uppercase">Live Jobs</span>
-              <span className="text-base font-black text-amber-300">{primarySocietyObj.activeJobsCount} Openings</span>
+              <span className="text-[9px] text-slate-300 font-bold block uppercase">{t('statLiveJobs') || "Live Jobs"}</span>
+              <span className="text-base font-black text-amber-300">{primarySocietyObj.activeJobsCount} {t('statOpeningsUnit') || "Openings"}</span>
             </div>
           </div>
         </div>
@@ -312,7 +314,7 @@ export default function WorkerSocietiesPage() {
         <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[10.5px] text-slate-300 font-semibold relative z-10">
           <span className="flex items-center gap-1.5 text-blue-200">
             <Sparkles size={12} className="text-amber-400" />
-            <span>Selecting 2–3 nearby societies increases your job offers by 3×!</span>
+            <span>{t('selectProximityNotice') || "Selecting 2–3 nearby societies increases your job offers by 3×!"}</span>
           </span>
         </div>
       </div>
@@ -327,7 +329,7 @@ export default function WorkerSocietiesPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search society name, locality, or landmark (e.g. DLF, Begur, Akshayanagar)..."
+              placeholder={t('searchSocietyPlaceholder') || "Search society name, locality, or landmark..."}
               className="w-full p-2.5 pl-10 pr-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8] shadow-xs"
             />
             {searchQuery && (
@@ -348,7 +350,7 @@ export default function WorkerSocietiesPage() {
             }`}
           >
             <Compass size={14} className={isLocating ? 'animate-spin' : ''} />
-            <span>{isLocating ? 'Locating...' : userGeoLocation ? 'GPS Live Active' : '📍 Use Live Location'}</span>
+            <span>{isLocating ? (t('locatingBtn') || 'Locating...') : userGeoLocation ? (t('gpsActiveBtn') || 'GPS Live Active') : (t('useLiveLocationBtn') || '📍 Use Live Location')}</span>
           </button>
         </div>
 
@@ -361,7 +363,7 @@ export default function WorkerSocietiesPage() {
             }`}
           >
             <Building2 size={13} />
-            <span>All Partner Societies ({allSocieties.length})</span>
+            <span>{t('tabAllSocieties') || "All Partner Societies"} ({allSocieties.length})</span>
           </button>
 
           <button
@@ -371,7 +373,7 @@ export default function WorkerSocietiesPage() {
             }`}
           >
             <Star size={13} />
-            <span>Selected ({totalSelectedCount})</span>
+            <span>{t('tabSelected') || "Selected"} ({totalSelectedCount})</span>
           </button>
 
           <button
@@ -381,7 +383,7 @@ export default function WorkerSocietiesPage() {
             }`}
           >
             <Briefcase size={13} />
-            <span>High Hiring Volume 🔥</span>
+            <span>{t('tabHighHiring') || "High Hiring Volume 🔥"}</span>
           </button>
         </div>
       </div>
@@ -392,16 +394,16 @@ export default function WorkerSocietiesPage() {
           <div className="bg-white p-8 rounded-3xl border border-slate-100 text-center space-y-3 shadow-xs">
             <Building2 size={36} className="mx-auto text-slate-300" />
             <div>
-              <h4 className="text-xs font-black text-slate-800">No Societies Found</h4>
+              <h4 className="text-xs font-black text-slate-800">{t('noSocietiesFoundTitle') || "No Societies Found"}</h4>
               <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
-                No gated community matches "{searchQuery}". Try a different keyword or request an unlisted society.
+                {t('noSocietiesFoundSub') || 'No gated community matches your search. Try a different keyword or request an unlisted society.'}
               </p>
             </div>
             <button
               onClick={() => setShowRequestModal(true)}
               className="py-2 px-4 bg-[#1A73E8] text-white rounded-xl text-xs font-black shadow-md cursor-pointer hover:bg-blue-600 transition-all inline-flex items-center gap-1.5"
             >
-              <Plus size={14} /> Request New Society
+              <Plus size={14} /> {t('requestNewSocietyBtn') || "Request New Society"}
             </button>
           </div>
         ) : (
@@ -438,12 +440,12 @@ export default function WorkerSocietiesPage() {
                         <h4 className="text-xs font-black text-slate-900 leading-tight">{soc.name}</h4>
                         {isPrimary && (
                           <span className="bg-[#1A73E8] text-white text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <Star size={9} fill="currentColor" /> Primary Workplace
+                            <Star size={9} fill="currentColor" /> {t('primaryWorkplaceBadge') || "Primary Workplace"}
                           </span>
                         )}
                         {isSecondary && (
                           <span className="bg-emerald-100 text-emerald-800 text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-300 inline-flex items-center gap-1">
-                            <CheckCircle2 size={9} /> Secondary Workplace
+                            <CheckCircle2 size={9} /> {t('secondaryWorkplaceBadge') || "Secondary Workplace"}
                           </span>
                         )}
                       </div>
@@ -462,23 +464,23 @@ export default function WorkerSocietiesPage() {
                 {/* Metrics Badges */}
                 <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100 text-center">
                   <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">Live Jobs</span>
+                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{t('metricLiveJobs') || "Live Jobs"}</span>
                     <span className="text-xs font-black text-[#1A73E8] flex items-center justify-center gap-1 mt-0.5">
-                      <Briefcase size={11} /> {soc.activeJobsCount} Openings
+                      <Briefcase size={11} /> {soc.activeJobsCount} {t('metricOpenings') || "Openings"}
                     </span>
                   </div>
 
                   <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">Registered Helpers</span>
+                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{t('metricRegisteredHelpers') || "Registered Helpers"}</span>
                     <span className="text-xs font-black text-slate-800 flex items-center justify-center gap-1 mt-0.5">
-                      <Users size={11} className="text-slate-500" /> {soc.activeWorkersCount} Active
+                      <Users size={11} className="text-slate-500" /> {soc.activeWorkersCount} {t('metricActiveWorkers') || "Active"}
                     </span>
                   </div>
 
                   <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">Gate Security</span>
+                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{t('metricGateSecurity') || "Gate Security"}</span>
                     <span className="text-[10px] font-black text-emerald-700 truncate block mt-0.5">
-                      ✓ {soc.securityType.split(' ')[0]} Gate
+                      ✓ {soc.securityType.split(' ')[0]} {t('gateSuffix') || "Gate"}
                     </span>
                   </div>
                 </div>
@@ -487,10 +489,10 @@ export default function WorkerSocietiesPage() {
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                   <span className="text-[10px] text-slate-400 font-semibold">
                     {isPrimary 
-                      ? '⭐ Receiving priority hiring notifications' 
+                      ? (t('primaryNotifSub') || '⭐ Receiving priority hiring notifications') 
                       : isSecondary 
-                      ? '✓ Receiving secondary job alerts' 
-                      : 'Not selected in your workplace preferences'}
+                      ? (t('secondaryNotifSub') || '✓ Receiving secondary job alerts') 
+                      : (t('notSelectedSub') || 'Not selected in your workplace preferences')}
                   </span>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -499,7 +501,7 @@ export default function WorkerSocietiesPage() {
                         onClick={() => handleSetPrimary(soc)}
                         className="py-1.5 px-3 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1"
                       >
-                        <Star size={11} /> Make Primary
+                        <Star size={11} /> {t('makePrimaryBtn') || "Make Primary"}
                       </button>
                     )}
 
@@ -512,7 +514,7 @@ export default function WorkerSocietiesPage() {
                             : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                         }`}
                       >
-                        {isSecondary ? 'Remove' : '+ Add Secondary'}
+                        {isSecondary ? (t('removeBtn') || 'Remove') : (t('addSecondaryBtn') || '+ Add Secondary')}
                       </button>
                     )}
                   </div>
@@ -528,10 +530,10 @@ export default function WorkerSocietiesPage() {
         <div className="space-y-1">
           <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
             <Building2 size={15} className="text-[#1A73E8]" />
-            <span>Don't see your working society listed?</span>
+            <span>{t('dontSeeSocietyTitle') || "Don't see your working society listed?"}</span>
           </h4>
           <p className="text-[11px] text-slate-500 font-medium">
-            Request Sevikaa Admin to onboard your residential community. Verification takes less than 24 hours.
+            {t('dontSeeSocietySub') || "Request Sevikaa Admin to onboard your residential community. Verification takes less than 24 hours."}
           </p>
         </div>
 
@@ -539,7 +541,7 @@ export default function WorkerSocietiesPage() {
           onClick={() => setShowRequestModal(true)}
           className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-black shadow-md transition-all active:scale-95 shrink-0 whitespace-nowrap cursor-pointer flex items-center gap-1.5"
         >
-          <Plus size={14} /> Request New Society
+          <Plus size={14} /> {t('requestNewSocietyBtn') || "Request New Society"}
         </button>
       </div>
 
@@ -553,8 +555,8 @@ export default function WorkerSocietiesPage() {
                   <Building2 size={18} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">Request Society Onboarding</h3>
-                  <p className="text-[10px] text-slate-400 font-semibold">Sevikaa Admin directory request</p>
+                  <h3 className="text-sm font-black text-slate-900">{t('requestModalTitle') || "Request Society Onboarding"}</h3>
+                  <p className="text-[10px] text-slate-400 font-semibold">{t('requestModalSub') || "Sevikaa Admin directory request"}</p>
                 </div>
               </div>
               <button onClick={() => setShowRequestModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
@@ -564,35 +566,35 @@ export default function WorkerSocietiesPage() {
 
             <form onSubmit={handleRequestSocietySubmit} className="space-y-3 text-xs font-bold">
               <div className="space-y-1">
-                <label className="text-slate-500 text-[10px] uppercase block">Gated Society / Apartment Name</label>
+                <label className="text-slate-500 text-[10px] uppercase block">{t('societyNameLabel') || "Gated Society / Apartment Name"}</label>
                 <input 
                   type="text" 
                   required
                   value={newSocietyName}
                   onChange={(e) => setNewSocietyName(e.target.value)}
-                  placeholder="e.g. Sobha Royal Pavilion"
+                  placeholder={t('societyNamePlaceholder') || "e.g. Sobha Royal Pavilion"}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-slate-500 text-[10px] uppercase block">Locality / Area / Landmark</label>
+                <label className="text-slate-500 text-[10px] uppercase block">{t('localityLabel') || "Locality / Area / Landmark"}</label>
                 <input 
                   type="text" 
                   value={newSocietyLocality}
                   onChange={(e) => setNewSocietyLocality(e.target.value)}
-                  placeholder="e.g. Sarjapur Main Road, HSR Layout"
+                  placeholder={t('localityPlaceholder') || "e.g. Sarjapur Main Road, HSR Layout"}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-slate-500 text-[10px] uppercase block">Tower / Block or Gate Number (Optional)</label>
+                <label className="text-slate-500 text-[10px] uppercase block">{t('towerLabel') || "Tower / Block or Gate Number (Optional)"}</label>
                 <input 
                   type="text" 
                   value={newSocietyTower}
                   onChange={(e) => setNewSocietyTower(e.target.value)}
-                  placeholder="e.g. Tower 3 / Gate 2"
+                  placeholder={t('towerPlaceholder') || "e.g. Tower 3 / Gate 2"}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
                 />
               </div>
@@ -603,7 +605,7 @@ export default function WorkerSocietiesPage() {
                   onClick={() => setShowRequestModal(false)}
                   className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
                 >
-                  Cancel
+                  {t('cancelBtn') || "Cancel"}
                 </button>
                 <button
                   type="submit"
@@ -611,7 +613,7 @@ export default function WorkerSocietiesPage() {
                   className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <Send size={13} />
-                  <span>{isSubmittingRequest ? 'Submitting...' : 'Submit Request'}</span>
+                  <span>{isSubmittingRequest ? (t('submittingState') || 'Submitting...') : (t('submitRequestBtn') || 'Submit Request')}</span>
                 </button>
               </div>
             </form>
@@ -621,4 +623,3 @@ export default function WorkerSocietiesPage() {
     </div>
   );
 }
-

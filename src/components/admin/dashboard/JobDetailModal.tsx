@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, Briefcase, MapPin, Calendar, CreditCard, Mail, Phone, 
-  CheckCircle2, XCircle, AlertTriangle, Sparkles, Clock, Check
+  CheckCircle2, XCircle, AlertTriangle, Sparkles, Clock, Check, Globe
 } from 'lucide-react';
+import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
 
 interface JobDetailModalProps {
   isOpen: boolean;
@@ -67,6 +68,9 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
     onModerateJob(job.id, 'request_changes', feedbackNote.trim());
     onClose();
   };
+
+  const [isTranslated, setIsTranslated] = useState(false);
+  const hasRegionalText = isRegionalScript(job.title) || isRegionalScript(job.description);
 
   return createPortal(
     <div 
@@ -173,10 +177,26 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
               </div>
             </div>
 
-            <div className="border-t border-slate-100 pt-3.5 space-y-1">
-              <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Job Requisition Description</span>
+            <div className="border-t border-slate-100 pt-3.5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Job Requisition Description</span>
+                <button
+                  type="button"
+                  onClick={() => setIsTranslated(!isTranslated)}
+                  className={`text-[10px] font-black px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                    isTranslated 
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
+                      : 'bg-blue-50 text-[#1A73E8] border-blue-200 hover:bg-blue-100'
+                  }`}
+                >
+                  <Globe size={12} />
+                  <span>{isTranslated ? 'Show Original Text' : '🌐 Translate to English'}</span>
+                </button>
+              </div>
               <p className="text-xs text-slate-700 leading-relaxed font-semibold bg-slate-50/80 p-3.5 rounded-xl border border-slate-100/60">
-                {job.description || 'No detailed description provided.'}
+                {isTranslated 
+                  ? translateToEnglish(job.description || job.title) 
+                  : (job.description || 'No detailed description provided.')}
               </p>
             </div>
           </div>

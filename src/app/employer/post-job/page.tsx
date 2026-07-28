@@ -9,30 +9,30 @@ import {
 } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
-  { key: 'mon', label: 'Mon' },
-  { key: 'tue', label: 'Tue' },
-  { key: 'wed', label: 'Wed' },
-  { key: 'thu', label: 'Thu' },
-  { key: 'fri', label: 'Fri' },
-  { key: 'sat', label: 'Sat' },
-  { key: 'sun', label: 'Sun' }
+  { key: 'mon', labelKey: 'dayMon', fallback: 'Mon' },
+  { key: 'tue', labelKey: 'dayTue', fallback: 'Tue' },
+  { key: 'wed', labelKey: 'dayWed', fallback: 'Wed' },
+  { key: 'thu', labelKey: 'dayThu', fallback: 'Thu' },
+  { key: 'fri', labelKey: 'dayFri', fallback: 'Fri' },
+  { key: 'sat', labelKey: 'daySat', fallback: 'Sat' },
+  { key: 'sun', labelKey: 'daySun', fallback: 'Sun' }
 ];
 
 const SHIFT_TIMES = [
-  { key: 'early_morning', label: 'Early Morning (6 AM - 9 AM)' },
-  { key: 'morning', label: 'Morning (9 AM - 12 PM)' },
-  { key: 'afternoon', label: 'Afternoon (12 PM - 3 PM)' },
-  { key: 'evening', label: 'Evening (3 PM - 6 PM)' },
-  { key: 'night', label: 'Night (6 PM - 9 PM)' }
+  { key: 'early_morning', labelKey: 'shiftEarlyMorning', fallback: 'Early Morning (6 AM - 9 AM)' },
+  { key: 'morning', labelKey: 'shiftMorning', fallback: 'Morning (9 AM - 12 PM)' },
+  { key: 'afternoon', labelKey: 'shiftAfternoon', fallback: 'Afternoon (12 PM - 3 PM)' },
+  { key: 'evening', labelKey: 'shiftEvening', fallback: 'Evening (3 PM - 6 PM)' },
+  { key: 'night', labelKey: 'shiftNight', fallback: 'Night (6 PM - 9 PM)' }
 ];
 
 const CATEGORY_OPTIONS = [
-  { id: 'cook', label: 'Cook / Chef', icon: '🍳', subtitle: 'Meal Prep & Kitchen Care', defaultTitle: 'Experienced North & South Indian Cook' },
-  { id: 'maid', label: 'Maid / Housekeeper', icon: '🧹', subtitle: 'Cleaning & Housekeeping', defaultTitle: 'Housemaid for Daily Cleaning & Utensils' },
-  { id: 'nanny', label: 'Nanny / Childcare', icon: '👶', subtitle: 'Infant & Toddler Care', defaultTitle: 'Trained Nanny for Infant & Toddler' },
-  { id: 'driver', label: 'Private Driver', icon: '🚗', subtitle: 'Family & Executive Driving', defaultTitle: 'Private Driver for Personal & Family Car' },
-  { id: 'gardener', label: 'Gardener / Plants', icon: '🌿', subtitle: 'Lawn & Balcony Care', defaultTitle: 'Balcony & Garden Maintenance' },
-  { id: 'security', label: 'Security Guard', icon: '🛡️', subtitle: 'Gate & Household Safety', defaultTitle: 'Household Night / Day Security Guard' }
+  { id: 'cook', labelKey: 'categoryCook', icon: '🍳', subtitleKey: 'categoryCookSub', defaultTitleKey: 'defaultTitleCook' },
+  { id: 'maid', labelKey: 'categoryMaid', icon: '🧹', subtitleKey: 'categoryMaidSub', defaultTitleKey: 'defaultTitleMaid' },
+  { id: 'nanny', labelKey: 'categoryNanny', icon: '👶', subtitleKey: 'categoryNannySub', defaultTitleKey: 'defaultTitleNanny' },
+  { id: 'driver', labelKey: 'categoryDriver', icon: '🚗', subtitleKey: 'categoryDriverSub', defaultTitleKey: 'defaultTitleDriver' },
+  { id: 'gardener', labelKey: 'categoryGardener', icon: '🌿', subtitleKey: 'categoryGardenerSub', defaultTitleKey: 'defaultTitleGardener' },
+  { id: 'security', labelKey: 'categorySecurity', icon: '🛡️', subtitleKey: 'categorySecuritySub', defaultTitleKey: 'defaultTitleSecurity' }
 ];
 
 export default function EmployerPostJobPage() {
@@ -43,7 +43,7 @@ export default function EmployerPostJobPage() {
   const isEmployerVerified = employerProfile.status === 'live' || employerProfile.status === 'approved';
 
   const [category, setCategory] = useState<string>('cook');
-  const [title, setTitle] = useState('Experienced North & South Indian Cook');
+  const [title, setTitle] = useState('');
   const [salary, setSalary] = useState('15000');
   const [flatType, setFlatType] = useState('3BHK Apartment');
   const [familyMembers, setFamilyMembers] = useState('4 Members (2 Adults, 2 Kids)');
@@ -63,7 +63,7 @@ export default function EmployerPostJobPage() {
   const [leavePolicy, setLeavePolicy] = useState('4 Sundays Off + 1 Paid Leave');
   const [deductionPolicy, setDeductionPolicy] = useState('Pro-rata Daily Rate (Salary ÷ 30)');
   const [customDeduction, setCustomDeduction] = useState('500');
-  const [description, setDescription] = useState('Looking for a punctual, hygiene-focused cook to prepare breakfast, lunch & dinner for family of 4 in DLF Akshayanagar.');
+  const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Weekly Schedule Slots State (dayKey -> shiftKey[])
@@ -80,7 +80,7 @@ export default function EmployerPostJobPage() {
     setCategory(catId);
     const catObj = CATEGORY_OPTIONS.find(c => c.id === catId);
     if (catObj && !title) {
-      setTitle(catObj.defaultTitle);
+      setTitle(t(catObj.defaultTitleKey) || '');
     }
   };
 
@@ -127,10 +127,10 @@ export default function EmployerPostJobPage() {
       showToast("Employer verification required before posting jobs!", "warning");
       return;
     }
-    if (!title.trim()) return;
+    const finalTitle = title.trim() || t(activeCategoryObj.defaultTitleKey) || 'Domestic Help Required';
     setIsSubmitting(true);
     await handlePostJob({
-      title,
+      title: finalTitle,
       category,
       salary,
       flatType,
@@ -148,6 +148,7 @@ export default function EmployerPostJobPage() {
   };
 
   const activeCategoryObj = CATEGORY_OPTIONS.find(c => c.id === category) || CATEGORY_OPTIONS[0];
+  const displayTitle = title || t(activeCategoryObj.defaultTitleKey) || t('untitledJobRequirement') || 'Untitled Job Requirement';
 
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl mx-auto pb-20">
@@ -156,13 +157,13 @@ export default function EmployerPostJobPage() {
       <div className="space-y-1">
         <span className="bg-blue-50 text-[#1A73E8] text-[9.5px] font-black uppercase px-3 py-1 rounded-full border border-blue-200/60 inline-flex items-center gap-1">
           <Sparkles size={12} />
-          Household Employer Hiring Portal
+          {t('postJobEyebrow') || "Household Employer Hiring Portal"}
         </span>
         <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-          <span>Create Job Requisition</span>
+          <span>{t('createJobReqTitle') || "Create Job Requisition"}</span>
         </h2>
         <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-          Specify your household requirements and reach Aadhaar-verified domestic helpers in your society.
+          {t('createJobReqSub') || "Specify your household requirements and reach Aadhaar-verified domestic helpers in your society."}
         </p>
       </div>
 
@@ -171,25 +172,25 @@ export default function EmployerPostJobPage() {
         <div className="bg-amber-50 border border-amber-200 p-4 rounded-3xl flex items-start gap-3 text-amber-900">
           <ShieldAlert size={18} className="text-amber-600 shrink-0 mt-0.5" />
           <div className="space-y-1 flex-1">
-            <p className="text-xs font-black">Employer ID Verification Required</p>
+            <p className="text-xs font-black">{t('employerVerificationRequired') || "Employer ID Verification Required"}</p>
             <p className="text-[11px] font-medium leading-relaxed">
-              You must upload your Aadhaar Card and a live selfie in <strong>Account Settings → Identity Verification</strong> before posting job requisitions. This prevents fraudulent listings and protects domestic workers.
+              {t('employerVerificationBannerText') || "You must upload your Aadhaar Card and a live selfie in Account Settings → Identity Verification before posting job requisitions."}
             </p>
             <p className="text-[10.5px] text-amber-700 font-bold mt-1">
-              ✦ Verification is free and takes less than 2 minutes. Admin approves within 24 hours.
+              {t('employerVerificationFooterText') || "✦ Verification is free and takes less than 2 minutes. Admin approves within 24 hours."}
             </p>
           </div>
         </div>
       )}
 
-
+      {/* Live Worker Feed Preview */}
       <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white p-6 rounded-3xl shadow-2xl space-y-4 relative overflow-hidden border border-blue-500/20">
         <div className="flex items-center justify-between relative z-10">
           <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[9.5px] font-black uppercase px-3 py-1 rounded-full shadow-md flex items-center gap-1.5">
-            <Eye size={12} /> Live Worker Feed Preview
+            <Eye size={12} /> {t('liveWorkerFeedPreview') || "Live Worker Feed Preview"}
           </span>
           <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-3 py-1 rounded-full border border-amber-500/30 backdrop-blur-xs flex items-center gap-1">
-            <Clock size={10} /> Pending Admin Audit
+            <Clock size={10} /> {t('pendingAdminAudit') || "Pending Admin Audit"}
           </span>
         </div>
 
@@ -197,10 +198,10 @@ export default function EmployerPostJobPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-black text-white">{title || 'Untitled Job Requirement'}</h3>
+                <h3 className="text-sm font-black text-white">{displayTitle}</h3>
                 <span className="bg-blue-500/30 text-blue-200 text-[8.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-400/30 shrink-0 flex items-center gap-1">
                   <span>{activeCategoryObj.icon}</span>
-                  <span>{activeCategoryObj.label}</span>
+                  <span>{t(activeCategoryObj.labelKey)}</span>
                 </span>
               </div>
               <span className="text-[11px] text-slate-300 font-semibold flex items-center gap-1 mt-1">
@@ -217,22 +218,22 @@ export default function EmployerPostJobPage() {
           )}
 
           <div className="flex items-center justify-between text-[10.5px] text-slate-300 font-bold pt-2 border-t border-white/10">
-            <span>Leave: <strong>{leavePolicy}</strong></span>
-            <span className="text-emerald-300 font-mono">Deduction: {deductionPolicy.split(' ')[0]}</span>
+            <span>{t('leaveLabel') || "Leave:"} <strong>{leavePolicy}</strong></span>
+            <span className="text-emerald-300 font-mono">{t('deductionLabel') || "Deduction:"} {deductionPolicy.split(' ')[0]}</span>
           </div>
         </div>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-6">
         
-        {/* Step 1: Premium Visual Category Cards */}
+        {/* Step 1: Category Selection */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-[#1A73E8] text-white text-[10px] flex items-center justify-center font-black">1</span>
-              <span>Select Domestic Help Category</span>
+              <span>{t('selectCategoryStepTitle') || "Select Domestic Help Category"}</span>
             </h3>
-            <span className="text-[10px] text-slate-400 font-bold">Step 1 of 4</span>
+            <span className="text-[10px] text-slate-400 font-bold">{t('step1of4') || "Step 1 of 4"}</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -254,8 +255,8 @@ export default function EmployerPostJobPage() {
                     {isSelected && <CheckCircle2 size={18} className="text-[#1A73E8]" />}
                   </div>
                   <div>
-                    <h4 className="text-xs font-black leading-tight">{cat.label}</h4>
-                    <p className="text-[9.5px] text-slate-400 font-medium leading-tight mt-0.5">{cat.subtitle}</p>
+                    <h4 className="text-xs font-black leading-tight">{t(cat.labelKey)}</h4>
+                    <p className="text-[9.5px] text-slate-400 font-medium leading-tight mt-0.5">{t(cat.subtitleKey)}</p>
                   </div>
                 </button>
               );
@@ -268,25 +269,25 @@ export default function EmployerPostJobPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-[#1A73E8] text-white text-[10px] flex items-center justify-center font-black">2</span>
-              <span>Position Headline &amp; Monthly Compensation</span>
+              <span>{t('step2Title') || "Position Headline & Monthly Compensation"}</span>
             </h3>
-            <span className="text-[10px] text-slate-400 font-bold">Step 2 of 4</span>
+            <span className="text-[10px] text-slate-400 font-bold">{t('step2of4') || "Step 2 of 4"}</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold">
             <div className="space-y-1 sm:col-span-2">
-              <label className="text-slate-500 text-[10px] uppercase">Job Headline Title</label>
+              <label className="text-slate-500 text-[10px] uppercase">{t('jobTitleLabel') || "Job Headline Title"}</label>
               <input 
                 type="text" 
                 value={title} 
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Experienced North Indian Cook for Family of 4"
+                placeholder={t(activeCategoryObj.defaultTitleKey) || "e.g. Experienced North Indian Cook"}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-colors"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-slate-500 text-[10px] uppercase">Monthly Offered Salary (₹)</label>
+              <label className="text-slate-500 text-[10px] uppercase">{t('monthlySalaryLabel') || "Monthly Offered Salary (₹)"}</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-3 text-slate-400 font-black text-xs">₹</span>
                 <input 
@@ -300,85 +301,86 @@ export default function EmployerPostJobPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-slate-500 text-[10px] uppercase">Dietary &amp; Food Preference</label>
+              <label className="text-slate-500 text-[10px] uppercase">{t('dietaryPrefLabel') || "Dietary & Food Preference"}</label>
               <select 
                 value={dietaryPref} 
                 onChange={(e) => setDietaryPref(e.target.value)}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
               >
-                <option value="Both Veg & Non-Veg">Both Veg &amp; Non-Veg Allowed</option>
-                <option value="Pure Vegetarian Only">Pure Vegetarian Only</option>
-                <option value="Jain Food Prep Only">Jain Food Prep Only</option>
+                <option value="Both Veg & Non-Veg">{t('dietBothVegNonveg') || "Both Veg & Non-Veg Allowed"}</option>
+                <option value="Pure Vegetarian Only">{t('dietPureVeg') || "Pure Vegetarian Only"}</option>
+                <option value="Jain Food Prep Only">{t('dietJainFood') || "Jain Food Prep Only"}</option>
               </select>
             </div>
 
             {/* Flat / Residence Specification */}
             <div className="space-y-1">
-              <label className="text-slate-500 text-[10px] uppercase">Flat / Residence Type</label>
+              <label className="text-slate-500 text-[10px] uppercase">{t('flatTypeLabel') || "Flat / Residence Type"}</label>
               <select 
                 value={flatType} 
                 onChange={(e) => setFlatType(e.target.value)}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
               >
-                <option value="3BHK Apartment">3BHK Apartment</option>
-                <option value="2BHK Apartment">2BHK Apartment</option>
-                <option value="1BHK Apartment">1BHK Apartment</option>
-                <option value="4BHK / Penthouse">4BHK / Penthouse</option>
-                <option value="Independent House / Villa">Independent House / Villa</option>
+                <option value="3BHK Apartment">{t('flat3bhk') || "3BHK Apartment"}</option>
+                <option value="2BHK Apartment">{t('flat2bhk') || "2BHK Apartment"}</option>
+                <option value="1BHK Apartment">{t('flat1bhk') || "1BHK Apartment"}</option>
+                <option value="4BHK / Penthouse">{t('flat4bhk') || "4BHK / Penthouse"}</option>
+                <option value="Independent House / Villa">{t('flatVilla') || "Independent House / Villa"}</option>
               </select>
             </div>
 
             {/* Household Family Size */}
             <div className="space-y-1">
-              <label className="text-slate-500 text-[10px] uppercase">Total Family Members</label>
+              <label className="text-slate-500 text-[10px] uppercase">{t('totalFamilyMembersLabel') || "Total Family Members"}</label>
               <select 
                 value={familyMembers} 
                 onChange={(e) => setFamilyMembers(e.target.value)}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
               >
-                <option value="4 Members (2 Adults, 2 Kids)">4 Members (2 Adults, 2 Kids)</option>
-                <option value="2 Adults (Couple / Working)">2 Adults (Couple / Working)</option>
-                <option value="3 Members (2 Adults, 1 Child)">3 Members (2 Adults, 1 Child)</option>
-                <option value="5+ Members (Joint Family)">5+ Members (Joint Family)</option>
+                <option value="4 Members (2 Adults, 2 Kids)">{t('family4Members') || "4 Members (2 Adults, 2 Kids)"}</option>
+                <option value="2 Adults (Couple / Working)">{t('family2Adults') || "2 Adults (Couple / Working)"}</option>
+                <option value="3 Members (2 Adults, 1 Child)">{t('family3Members') || "3 Members (2 Adults, 1 Child)"}</option>
+                <option value="5+ Members (Joint Family)">{t('family5Plus') || "5+ Members (Joint Family)"}</option>
               </select>
             </div>
 
             {/* Infant / Elderly Care Needs */}
             <div className="space-y-1 sm:col-span-2">
-              <label className="text-slate-500 text-[10px] uppercase">Infant / Elderly Special Care Needs</label>
+              <label className="text-slate-500 text-[10px] uppercase">{t('careNeedsLabel') || "Infant / Elderly Special Care Needs"}</label>
               <select 
                 value={careNeeds} 
                 onChange={(e) => setCareNeeds(e.target.value)}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
               >
-                <option value="No Special Senior/Infant Care">No Special Senior / Infant Care Required</option>
-                <option value="Infant / Baby Care (Under 2 Yrs)">Infant / Baby Care Needed (Under 2 Yrs)</option>
-                <option value="Toddler Care (2-5 Yrs)">Toddler Care Needed (2–5 Yrs)</option>
-                <option value="Senior Citizen Care (Mobility Support)">Elderly / Senior Care (Mobility Assistance Needed)</option>
+                <option value="No Special Senior/Infant Care">{t('careNone') || "No Special Senior / Infant Care Required"}</option>
+                <option value="Infant / Baby Care (Under 2 Yrs)">{t('careInfant') || "Infant / Baby Care Needed (Under 2 Yrs)"}</option>
+                <option value="Toddler Care (2-5 Yrs)">{t('careToddler') || "Toddler Care Needed (2–5 Yrs)"}</option>
+                <option value="Senior Citizen Care (Mobility Support)">{t('careSenior') || "Elderly / Senior Care (Mobility Assistance Needed)"}</option>
               </select>
             </div>
 
             {/* Offered Perks & Allowances */}
             <div className="space-y-2 sm:col-span-2">
-              <label className="text-slate-500 text-[10px] uppercase block">Perks &amp; Allowances Offered</label>
+              <label className="text-slate-500 text-[10px] uppercase block">{t('perksOfferedLabel') || "Perks & Allowances Offered"}</label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  'Meals Included on Duty',
-                  'Tea & Morning Snacks',
-                  'Sunday Off',
-                  'Diwali Bonus',
-                  'Festival Bonus',
-                  'Uniform Allowance Provided',
-                  'Overtime Pay Allowance'
-                ].map((perk) => {
-                  const isSelected = selectedPerks.includes(perk);
+                  { key: 'perkMealsOnDuty', label: 'Meals Included on Duty' },
+                  { key: 'perkTeaSnacks', label: 'Tea & Morning Snacks' },
+                  { key: 'perkSundayOff', label: 'Sunday Off' },
+                  { key: 'perkDiwaliBonus', label: 'Diwali Bonus' },
+                  { key: 'perkFestivalBonus', label: 'Festival Bonus' },
+                  { key: 'perkUniform', label: 'Uniform Allowance Provided' },
+                  { key: 'perkOvertimePay', label: 'Overtime Pay Allowance' }
+                ].map((perkObj) => {
+                  const perkLabel = t(perkObj.key) || perkObj.label;
+                  const isSelected = selectedPerks.includes(perkObj.label) || selectedPerks.includes(perkLabel);
                   return (
                     <button
-                      key={perk}
+                      key={perkObj.key}
                       type="button"
                       onClick={() => {
                         setSelectedPerks(prev => 
-                          prev.includes(perk) ? prev.filter(p => p !== perk) : [...prev, perk]
+                          prev.includes(perkLabel) ? prev.filter(p => p !== perkLabel) : [...prev, perkLabel]
                         );
                       }}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
@@ -388,7 +390,7 @@ export default function EmployerPostJobPage() {
                       }`}
                     >
                       {isSelected && <Check size={12} strokeWidth={3} className="text-emerald-600" />}
-                      <span>{perk}</span>
+                      <span>{perkLabel}</span>
                     </button>
                   );
                 })}
@@ -397,23 +399,24 @@ export default function EmployerPostJobPage() {
 
             {/* Candidate Prerequisites & Verification */}
             <div className="space-y-2 sm:col-span-2">
-              <label className="text-slate-500 text-[10px] uppercase block">Candidate Prerequisites &amp; Verification Requirements</label>
+              <label className="text-slate-500 text-[10px] uppercase block">{t('prerequisitesLabel') || "Candidate Prerequisites & Verification Requirements"}</label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  'Aadhaar Verification Mandatory',
-                  '2+ Years Experience in Gated Societies',
-                  'Local Reference & Police Clearance',
-                  'Non-Smoker & Hygienic Work Habits',
-                  'Punctual & Honest'
-                ].map((req) => {
-                  const isSelected = selectedRequirements.includes(req);
+                  { key: 'reqAadhaar', label: 'Aadhaar Verification Mandatory' },
+                  { key: 'reqExperience', label: '2+ Years Experience in Gated Societies' },
+                  { key: 'reqPoliceClearance', label: 'Local Reference & Police Clearance' },
+                  { key: 'reqNonSmoker', label: 'Non-Smoker & Hygienic Work Habits' },
+                  { key: 'reqPunctual', label: 'Punctual & Honest' }
+                ].map((reqObj) => {
+                  const reqLabel = t(reqObj.key) || reqObj.label;
+                  const isSelected = selectedRequirements.includes(reqObj.label) || selectedRequirements.includes(reqLabel);
                   return (
                     <button
-                      key={req}
+                      key={reqObj.key}
                       type="button"
                       onClick={() => {
                         setSelectedRequirements(prev => 
-                          prev.includes(req) ? prev.filter(r => r !== req) : [...prev, req]
+                          prev.includes(reqLabel) ? prev.filter(r => r !== reqLabel) : [...prev, reqLabel]
                         );
                       }}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
@@ -423,7 +426,7 @@ export default function EmployerPostJobPage() {
                       }`}
                     >
                       {isSelected && <Check size={12} strokeWidth={3} className="text-[#1A73E8]" />}
-                      <span>{req}</span>
+                      <span>{reqLabel}</span>
                     </button>
                   );
                 })}
@@ -431,7 +434,7 @@ export default function EmployerPostJobPage() {
             </div>
 
             <div className="space-y-1 sm:col-span-2">
-              <label className="text-slate-500 text-[10px] uppercase">Detailed Scope of Work &amp; Instructions</label>
+              <label className="text-slate-500 text-[10px] uppercase">{t('scopeOfWorkLabel') || "Detailed Scope of Work & Instructions"}</label>
               <textarea 
                 rows={3}
                 value={description}
@@ -448,44 +451,44 @@ export default function EmployerPostJobPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-[#1A73E8] text-white text-[10px] flex items-center justify-center font-black">3</span>
-              <span>Leave Entitlements &amp; Daily Deduction Terms</span>
+              <span>{t('step3Title') || "Leave Entitlements & Daily Deduction Terms"}</span>
             </h3>
-            <span className="text-[10px] text-slate-400 font-bold">Step 3 of 4</span>
+            <span className="text-[10px] text-slate-400 font-bold">{t('step3of4') || "Step 3 of 4"}</span>
           </div>
 
           <div className="grid grid-cols-1 gap-4 text-xs font-bold">
             {/* Leave Entitlement */}
             <div className="space-y-1">
-              <label className="text-slate-500 text-[10px] uppercase block">Monthly Leave Entitlement</label>
+              <label className="text-slate-500 text-[10px] uppercase block">{t('monthlyLeaveLabel') || "Monthly Leave Entitlement"}</label>
               <select 
                 value={leavePolicy} 
                 onChange={(e) => setLeavePolicy(e.target.value)}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer truncate pr-8"
               >
-                <option value="4 Sundays Off + 1 Paid Leave">4 Sundays Off + 1 Paid Leave (Recommended)</option>
-                <option value="4 Sundays Off Only">4 Sundays Off Only</option>
-                <option value="Alternate Sundays Off">Alternate Sundays Off (2 Offs / Month)</option>
-                <option value="No Fixed Off (Paid Overtime)">No Fixed Off (Paid Overtime Compensation)</option>
+                <option value="4 Sundays Off + 1 Paid Leave">{t('leave4Sun1Paid') || "4 Sundays Off + 1 Paid Leave (Recommended)"}</option>
+                <option value="4 Sundays Off Only">{t('leave4SunOnly') || "4 Sundays Off Only"}</option>
+                <option value="Alternate Sundays Off">{t('leaveAltSun') || "Alternate Sundays Off (2 Offs / Month)"}</option>
+                <option value="No Fixed Off (Paid Overtime)">{t('leaveNoFixedOff') || "No Fixed Off (Paid Overtime Compensation)"}</option>
               </select>
             </div>
 
             {/* Absence Deduction Policy */}
             <div className="space-y-1">
-              <label className="text-slate-500 text-[10px] uppercase block">Unannounced Absence Deduction Policy</label>
+              <label className="text-slate-500 text-[10px] uppercase block">{t('deductionPolicyLabel') || "Unannounced Absence Deduction Policy"}</label>
               <select 
                 value={deductionPolicy} 
                 onChange={(e) => setDeductionPolicy(e.target.value)}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer truncate pr-8"
               >
-                <option value="Pro-rata Daily Rate (Salary ÷ 30)">Pro-rata Daily Rate (Salary ÷ 30)</option>
-                <option value="No Deduction (Mutual Adjustment)">No Deduction (Mutual Time Adjustment)</option>
-                <option value="Custom Amount">Custom Fixed Daily Deduction</option>
+                <option value="Pro-rata Daily Rate (Salary ÷ 30)">{t('deductionProrata') || "Pro-rata Daily Rate (Salary ÷ 30)"}</option>
+                <option value="No Deduction (Mutual Time Adjustment)">{t('deductionNoDeduction') || "No Deduction (Mutual Time Adjustment)"}</option>
+                <option value="Custom Amount">{t('deductionCustom') || "Custom Fixed Daily Deduction"}</option>
               </select>
             </div>
 
             {deductionPolicy === 'Custom Amount' && (
               <div className="space-y-1">
-                <label className="text-slate-500 text-[10px] uppercase block">Custom Daily Deduction Amount (₹)</label>
+                <label className="text-slate-500 text-[10px] uppercase block">{t('customDeductionLabel') || "Custom Daily Deduction Amount (₹)"}</label>
                 <input 
                   type="text" 
                   value={customDeduction}
@@ -504,9 +507,9 @@ export default function EmployerPostJobPage() {
             <div>
               <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-[#1A73E8] text-white text-[10px] flex items-center justify-center font-black">4</span>
-                <span>Weekly Work Schedule Slots</span>
+                <span>{t('step4Title') || "Weekly Work Schedule Slots"}</span>
               </h3>
-              <p className="text-[11px] text-slate-400 font-semibold mt-0.5">Select preferred working hours for each day of the week</p>
+              <p className="text-[11px] text-slate-400 font-semibold mt-0.5">{t('scheduleSub') || "Select preferred working hours for each day of the week"}</p>
             </div>
 
             {/* Quick Presets */}
@@ -516,21 +519,21 @@ export default function EmployerPostJobPage() {
                 onClick={applyMorningPreset}
                 className="py-1 px-3 bg-blue-50 hover:bg-blue-100 text-[#1A73E8] rounded-xl text-[10px] font-black transition-all cursor-pointer shadow-xs active:scale-95"
               >
-                ⚡ Morning Shift
+                {t('presetMorningShift') || "⚡ Morning Shift"}
               </button>
               <button 
                 type="button" 
                 onClick={applyFullDayPreset}
                 className="py-1 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black transition-all cursor-pointer shadow-xs active:scale-95"
               >
-                ⚡ Full Day Shift
+                {t('presetFullDayShift') || "⚡ Full Day Shift"}
               </button>
               <button 
                 type="button" 
                 onClick={applyLiveInPreset}
                 className="py-1 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-[10px] font-black transition-all cursor-pointer shadow-xs active:scale-95"
               >
-                ⚡ 24x7 Live-In
+                {t('presetLiveInShift') || "⚡ 24x7 Live-In"}
               </button>
             </div>
           </div>
@@ -539,9 +542,9 @@ export default function EmployerPostJobPage() {
           <div className="overflow-x-auto pt-2">
             <div className="min-w-[500px] border border-slate-200/80 rounded-2xl overflow-hidden text-xs">
               <div className="grid grid-cols-6 bg-slate-100 font-black text-slate-700 p-2.5 text-[10.5px] uppercase border-b border-slate-200">
-                <span>Day</span>
+                <span>{t('dayMon')?.slice(0, 3) || "Day"}</span>
                 {SHIFT_TIMES.map(shift => (
-                  <span key={shift.key} className="text-center">{shift.label.split(' ')[0]}</span>
+                  <span key={shift.key} className="text-center">{t(shift.labelKey)?.split(' ')[0] || shift.fallback.split(' ')[0]}</span>
                 ))}
               </div>
 
@@ -549,7 +552,7 @@ export default function EmployerPostJobPage() {
                 const daySlots = weeklyGrid[day.key] || [];
                 return (
                   <div key={day.key} className="grid grid-cols-6 items-center p-2.5 border-b border-slate-100 last:border-b-0 text-slate-800 font-bold hover:bg-slate-50/50 transition-colors">
-                    <span className="font-black text-slate-900">{day.label}</span>
+                    <span className="font-black text-slate-900">{t(day.labelKey) || day.fallback}</span>
                     {SHIFT_TIMES.map(shift => {
                       const isChecked = daySlots.includes(shift.key);
                       return (
@@ -579,11 +582,11 @@ export default function EmployerPostJobPage() {
         <div className="pt-2">
           <button
             type="submit"
-            disabled={!title.trim() || isSubmitting || !isEmployerVerified}
+            disabled={isSubmitting || !isEmployerVerified}
             className="w-full py-4 px-8 bg-gradient-to-r from-[#1A73E8] to-blue-700 hover:from-blue-600 hover:to-indigo-600 text-white font-black rounded-2xl text-xs shadow-xl shadow-blue-500/25 transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save size={18} />
-            <span>{isSubmitting ? 'Publishing Requisition...' : 'Publish Job Requisition for Admin Audit'}</span>
+            <span>{isSubmitting ? (t('publishingReq') || 'Publishing Requisition...') : (t('publishReqBtn') || 'Publish Job Requisition for Admin Audit')}</span>
           </button>
         </div>
       </form>

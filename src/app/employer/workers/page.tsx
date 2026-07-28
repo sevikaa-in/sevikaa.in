@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useEmployerDashboard } from '../layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { supabase } from '@/lib/supabaseClient';
+import { VerifiedReviewModal } from '@/components/reviews/VerifiedReviewModal';
 import { 
   Search, MapPin, Phone, Lock, CheckCircle2, Star, ShieldCheck, Heart, 
   Eye, LayoutGrid, List, Filter, X, Calendar, UserCheck, Award, ChevronRight, 
@@ -36,7 +37,7 @@ interface Candidate {
 
 export default function EmployerWorkersPage() {
   const { 
-    bookmarkedContacts, postedJobs,
+    employerProfile, bookmarkedContacts, postedJobs,
     handleToggleBookmark, showToast 
   } = useEmployerDashboard();
   const { t } = useLanguage();
@@ -141,6 +142,8 @@ export default function EmployerWorkersPage() {
   const [interviewNote, setInterviewNote] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
 
+  const [selectedCandidateForReview, setSelectedCandidateForReview] = useState<any | null>(null);
+
   // Body scroll lock when detail modal or interview modal is active
   useEffect(() => {
     if (selectedCandidate || selectedCandidateForInterview) {
@@ -174,7 +177,7 @@ export default function EmployerWorkersPage() {
           .eq('worker_id', selectedCandidateForInterview.id);
       }
 
-      showToast(`Interview scheduled with ${selectedCandidateForInterview.name} for ${interviewSlot}! SMS notification sent to candidate.`, 'success');
+      showToast(`Interview scheduled with ${selectedCandidateForInterview.name}! SMS notification sent.`, 'success');
     } catch (err: any) {
       console.error(err);
       showToast(`Failed to schedule interview: ${err.message}`, 'error');
@@ -204,10 +207,10 @@ export default function EmployerWorkersPage() {
       <div>
         <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
           <Inbox size={18} className="text-[#1A73E8]" />
-          <span>Job Applicants</span>
+          <span>{t('jobApplicantsTitle') || "Job Applicants"}</span>
         </h2>
         <p className="text-xs text-slate-400 font-semibold mt-0.5">
-          Workers who have applied to your posted jobs. Only verified, Aadhaar-approved candidates appear here.
+          {t('jobApplicantsSub') || "Workers who have applied to your posted jobs. Only verified, Aadhaar-approved candidates appear here."}
         </p>
       </div>
 
@@ -221,7 +224,7 @@ export default function EmployerWorkersPage() {
               : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
           }`}
         >
-          All Jobs ({applicantsCount})
+          {t('allJobsFilter') || "All Jobs"} ({applicantsCount})
         </button>
         {postedJobs.map(job => {
           const count = applicants.filter(a => a.appliedForJob === job.title).length;
@@ -249,7 +252,7 @@ export default function EmployerWorkersPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by worker name, email, role, or society..."
+            placeholder={t('searchApplicantsPlaceholder') || "Search by worker name, email, role, or society..."}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
           />
         </div>
@@ -257,12 +260,12 @@ export default function EmployerWorkersPage() {
         {/* Category Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
           {[
-            { id: 'all', label: 'All Roles' },
-            { id: 'cook', label: '🍳 Cooks' },
-            { id: 'maid', label: '🧹 Maids' },
-            { id: 'nanny', label: '👶 Nannies' },
-            { id: 'driver', label: '🚗 Drivers' },
-            { id: 'caregiver', label: '👵 Caregivers' },
+            { id: 'all', label: t('allRolesFilter') || 'All Roles' },
+            { id: 'cook', label: t('roleCooks') || '🍳 Cooks' },
+            { id: 'maid', label: t('roleMaids') || '🧹 Maids' },
+            { id: 'nanny', label: t('roleNannies') || '👶 Nannies' },
+            { id: 'driver', label: t('roleDrivers') || '🚗 Drivers' },
+            { id: 'caregiver', label: t('roleCaregivers') || '👵 Caregivers' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -279,11 +282,11 @@ export default function EmployerWorkersPage() {
         </div>
       </div>
 
-      {/* Mobile Card List View - Clean Spacious Vertical Cards */}
+      {/* Mobile Card List View */}
       <div className="space-y-4">
         {filteredCandidates.length === 0 ? (
           <div className="bg-white p-8 rounded-3xl border border-slate-100 text-center space-y-2">
-            <p className="text-xs font-black text-slate-400">No candidate applications found matching this filter.</p>
+            <p className="text-xs font-black text-slate-400">{t('noApplicantsFound') || "No candidate applications found matching this filter."}</p>
           </div>
         ) : (
           filteredCandidates.map((cand) => {
@@ -305,7 +308,7 @@ export default function EmployerWorkersPage() {
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h3 className="text-sm font-black text-slate-900">{cand.name}</h3>
                         <span className="px-2 py-0.5 bg-emerald-50 text-[#34A853] text-[8.5px] font-black uppercase rounded-full border border-emerald-200/80 flex items-center gap-0.5">
-                          <ShieldCheck size={10} /> Verified
+                          <ShieldCheck size={10} /> {t('verifiedBadgeText') || "Verified"}
                         </span>
                       </div>
                       <p className="text-xs font-bold text-slate-600 mt-0.5">{cand.role}</p>
@@ -325,10 +328,10 @@ export default function EmployerWorkersPage() {
                   </button>
                 </div>
 
-                {/* Applied Notice Banner (If Inbound Applicant) */}
+                {/* Applied Notice Banner - Explicit Application & Contact Unlock */}
                 {cand.isApplicant && cand.appliedForJob && (
                   <div className="bg-blue-50/70 p-2.5 rounded-2xl border border-blue-100 text-xs font-bold text-[#1A73E8] flex items-center justify-between">
-                    <span>📩 Applied for: <strong>{cand.appliedForJob}</strong></span>
+                    <span>📩 {t('appliedForLabel') || "Applied for:"} <strong>{cand.appliedForJob}</strong> &bull; Direct Phone Unlocked ✓</span>
                     <span className="text-[10px] text-blue-500 font-semibold">{cand.appliedTime}</span>
                   </div>
                 )}
@@ -342,7 +345,7 @@ export default function EmployerWorkersPage() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between font-bold pt-1 border-t border-slate-200/60">
-                    <span className="text-slate-500">Experience: {cand.experience}</span>
+                    <span className="text-slate-500">{t('experienceLabel') || "Experience:"} {cand.experience}</span>
                     <span className="text-[#34A853] font-mono font-black text-xs">₹{cand.salary}/mo</span>
                   </div>
                 </div>
@@ -354,7 +357,7 @@ export default function EmployerWorkersPage() {
                     className="py-2 px-2 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-[11px] font-black flex items-center justify-center gap-1 shadow-xs cursor-pointer"
                   >
                     <Eye size={13} />
-                    <span>Profile</span>
+                    <span>{t('profileBtn') || "Profile"}</span>
                   </button>
 
                   <button
@@ -362,7 +365,7 @@ export default function EmployerWorkersPage() {
                     className="py-2 px-2 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-[11px] font-black flex items-center justify-center gap-1 shadow-xs cursor-pointer"
                   >
                     <Calendar size={13} />
-                    <span>Schedule</span>
+                    <span>{t('scheduleBtn') || "Schedule"}</span>
                   </button>
 
                   <a
@@ -370,7 +373,7 @@ export default function EmployerWorkersPage() {
                     className="py-2 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[11px] font-black flex items-center justify-center gap-1 shadow-xs cursor-pointer text-center"
                   >
                     <Phone size={13} />
-                    <span>Call</span>
+                    <span>{t('callBtn') || "Call"}</span>
                   </a>
                 </div>
               </div>
@@ -402,7 +405,7 @@ export default function EmployerWorkersPage() {
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-black text-slate-900">{selectedCandidate.name}</h3>
                   <span className="px-2 py-0.5 bg-emerald-50 text-[#34A853] text-[9px] font-black uppercase rounded-full border border-emerald-200">
-                    Aadhaar Verified
+                    {t('aadhaarVerifiedBadgeText') || "Aadhaar Verified"}
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 font-bold">{selectedCandidate.role}</p>
@@ -421,13 +424,13 @@ export default function EmployerWorkersPage() {
               </div>
               <div className="flex items-center gap-2 text-xs font-bold text-amber-600 pt-1 border-t border-slate-200/60">
                 <Star size={14} className="fill-amber-400 text-amber-400" />
-                <span>{selectedCandidate.rating} Rating ({selectedCandidate.reviewsCount} Household Feedbacks)</span>
+                <span>{selectedCandidate.rating} Rating ({selectedCandidate.reviewsCount} {t('householdFeedbacksText') || "Household Feedbacks"})</span>
               </div>
             </div>
 
             {/* Biography & Work Profile */}
             <div className="space-y-2">
-              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Candidate Bio &amp; Expertise</h4>
+              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">{t('bioExpertiseTitle') || "Candidate Bio & Expertise"}</h4>
               <p className="text-xs text-slate-600 font-medium leading-relaxed bg-blue-50/40 p-3 rounded-2xl border border-blue-100/60">
                 "{selectedCandidate.bio}"
               </p>
@@ -435,7 +438,7 @@ export default function EmployerWorkersPage() {
 
             {/* Specialties & Skills */}
             <div className="space-y-2">
-              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Specialties &amp; Skills</h4>
+              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">{t('specialtiesSkillsTitle') || "Specialties & Skills"}</h4>
               <div className="flex flex-wrap gap-1.5">
                 {selectedCandidate.specialties.map((spec, i) => (
                   <span key={i} className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200/60">
@@ -448,11 +451,11 @@ export default function EmployerWorkersPage() {
             {/* Languages & Shift Slots */}
             <div className="grid grid-cols-2 gap-3 text-xs font-bold">
               <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-black block">Languages</span>
+                <span className="text-[10px] text-slate-400 uppercase font-black block">{t('languagesLabel') || "Languages"}</span>
                 <span className="text-slate-800">{selectedCandidate.languages.join(', ')}</span>
               </div>
               <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-black block">Preferred Shift</span>
+                <span className="text-[10px] text-slate-400 uppercase font-black block">{t('preferredShiftLabel') || "Preferred Shift"}</span>
                 <span className="text-slate-800">{selectedCandidate.availableSlots}</span>
               </div>
             </div>
@@ -463,12 +466,25 @@ export default function EmployerWorkersPage() {
                 onClick={() => {
                   const cand = selectedCandidate;
                   setSelectedCandidate(null);
+                  setSelectedCandidateForReview(cand);
+                }}
+                className="py-3 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-2xl text-xs font-black flex items-center justify-center gap-1.5 shadow-xs cursor-pointer shrink-0 transition-all"
+                title="Write Verified Review"
+              >
+                <Star size={16} className="fill-amber-400 text-amber-400" />
+                <span>Rate</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const cand = selectedCandidate;
+                  setSelectedCandidate(null);
                   setSelectedCandidateForInterview(cand);
                 }}
                 className="flex-1 py-3 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md cursor-pointer"
               >
                 <Calendar size={16} />
-                <span>Schedule Interview</span>
+                <span>{t('scheduleInterviewBtn') || "Schedule Interview"}</span>
               </button>
 
               <a
@@ -476,11 +492,29 @@ export default function EmployerWorkersPage() {
                 className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-md cursor-pointer text-center"
               >
                 <Phone size={16} />
-                <span>Call Candidate</span>
+                <span>{t('callCandidateBtn') || "Call Candidate"}</span>
               </a>
             </div>
           </div>
         </div>
+      )}
+
+      {/* 🌟 VERIFIED REVIEW MODAL */}
+      {selectedCandidateForReview && (
+        <VerifiedReviewModal
+          isOpen={Boolean(selectedCandidateForReview)}
+          onClose={() => setSelectedCandidateForReview(null)}
+          reviewerId={employerProfile.id || 'emp-current'}
+          reviewerName={employerProfile.company_name || 'Household Employer'}
+          reviewerRole="employer"
+          targetId={selectedCandidateForReview.id}
+          targetName={selectedCandidateForReview.name}
+          targetRole="worker"
+          interactionType={selectedCandidateForReview.isApplicant ? 'interacted' : 'interviewed'}
+          onSubmitSuccess={(newRev) => {
+            showToast(t('reviewSubmittedPendingAdminNotice') || "Review submitted! It will appear on the profile once approved by Sevikaa Admin.", "success");
+          }}
+        />
       )}
 
       {/* 📅 SCHEDULE INTERVIEW MODAL */}
@@ -493,7 +527,7 @@ export default function EmployerWorkersPage() {
                   <Calendar size={20} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">Schedule Interview</h3>
+                  <h3 className="text-sm font-black text-slate-900">{t('scheduleInterviewTitle') || "Schedule Interview"}</h3>
                   <p className="text-[10.5px] text-slate-500 font-bold">{selectedCandidateForInterview.name} ({selectedCandidateForInterview.role})</p>
                 </div>
               </div>
@@ -508,7 +542,7 @@ export default function EmployerWorkersPage() {
             <form onSubmit={handleConfirmScheduleInterview} className="space-y-4 text-xs font-bold">
               {/* Mode */}
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-400 uppercase font-black">Interview Format</label>
+                <label className="text-[10px] text-slate-400 uppercase font-black">{t('interviewFormatLabel') || "Interview Format"}</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -520,7 +554,7 @@ export default function EmployerWorkersPage() {
                     }`}
                   >
                     <Phone size={14} />
-                    <span>📞 Phone Call</span>
+                    <span>{t('phoneCallFormat') || "📞 Phone Call"}</span>
                   </button>
 
                   <button
@@ -533,35 +567,35 @@ export default function EmployerWorkersPage() {
                     }`}
                   >
                     <MapPin size={14} />
-                    <span>🏠 Gate Meeting</span>
+                    <span>{t('gateMeetingFormat') || "🏠 Gate Meeting"}</span>
                   </button>
                 </div>
               </div>
 
               {/* Slot */}
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-400 uppercase font-black">Select Interview Slot</label>
+                <label className="text-[10px] text-slate-400 uppercase font-black">{t('selectInterviewSlotLabel') || "Select Interview Slot"}</label>
                 <select
                   value={interviewSlot}
                   onChange={(e) => setInterviewSlot(e.target.value)}
                   className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
                 >
-                  <option value="Today at 4:30 PM">Today at 4:30 PM</option>
-                  <option value="Tomorrow Morning at 10:30 AM">Tomorrow Morning at 10:30 AM</option>
-                  <option value="Tomorrow Afternoon at 2:00 PM">Tomorrow Afternoon at 2:00 PM</option>
-                  <option value="Tomorrow Evening at 5:00 PM">Tomorrow Evening at 5:00 PM</option>
-                  <option value="Saturday Morning at 11:00 AM">Saturday Morning at 11:00 AM</option>
+                  <option value="Today at 4:30 PM">{t('slotToday430') || "Today at 4:30 PM"}</option>
+                  <option value="Tomorrow Morning at 10:30 AM">{t('slotTomorrow1030') || "Tomorrow Morning at 10:30 AM"}</option>
+                  <option value="Tomorrow Afternoon at 2:00 PM">{t('slotTomorrow200') || "Tomorrow Afternoon at 2:00 PM"}</option>
+                  <option value="Tomorrow Evening at 5:00 PM">{t('slotTomorrow500') || "Tomorrow Evening at 5:00 PM"}</option>
+                  <option value="Saturday Morning at 11:00 AM">{t('slotSaturday1100') || "Saturday Morning at 11:00 AM"}</option>
                 </select>
               </div>
 
               {/* Note */}
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-400 uppercase font-black">Message / Instructions for Worker (Optional)</label>
+                <label className="text-[10px] text-slate-400 uppercase font-black">{t('messageInstructionsLabel') || "Message / Instructions for Worker (Optional)"}</label>
                 <textarea
                   rows={2}
                   value={interviewNote}
                   onChange={(e) => setInterviewNote(e.target.value)}
-                  placeholder="e.g. Please meet at DLF Westend Heights Gate 1 desk or stay available for phone call."
+                  placeholder={t('messageInstructionsPlaceholder') || "e.g. Please meet at DLF Westend Heights Gate 1 desk or stay available for phone call."}
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
                 />
               </div>
@@ -572,7 +606,7 @@ export default function EmployerWorkersPage() {
                   onClick={() => setSelectedCandidateForInterview(null)}
                   className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold cursor-pointer"
                 >
-                  Cancel
+                  {t('cancelBtn') || "Cancel"}
                 </button>
 
                 <button
@@ -581,7 +615,7 @@ export default function EmployerWorkersPage() {
                   className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 text-white rounded-2xl text-xs font-black shadow-md cursor-pointer flex items-center gap-1.5"
                 >
                   <Send size={14} />
-                  <span>{isScheduling ? 'Scheduling...' : 'Confirm & Schedule'}</span>
+                  <span>{isScheduling ? (t('schedulingState') || 'Scheduling...') : (t('confirmScheduleBtn') || 'Confirm & Schedule')}</span>
                 </button>
               </div>
             </form>

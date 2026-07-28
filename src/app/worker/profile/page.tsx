@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useWorkerDashboard } from '../layout';
+import { useLanguage } from '@/context/LanguageContext';
 import { 
   User, CheckCircle2, ShieldAlert, AlertTriangle, ChevronDown, ChevronUp, 
   Trash2, Save, Phone, IndianRupee, Briefcase, Languages, Clock,
@@ -9,27 +10,27 @@ import {
 } from 'lucide-react';
 
 const SKILL_CATEGORIES = [
-  { id: 'cook', label: 'Cook / Chef', icon: '🍳' },
-  { id: 'maid', label: 'Housekeeping', icon: '🧹' },
-  { id: 'nanny', label: 'Nanny / Childcare', icon: '👶' },
-  { id: 'driver', label: 'Driver', icon: '🚗' },
-  { id: 'gardener', label: 'Gardener', icon: '🌿' },
-  { id: 'security', label: 'Security Guard', icon: '🛡️' },
-  { id: 'laundry', label: 'Laundry / Ironing', icon: '👕' },
-  { id: 'eldercare', label: 'Elder Care', icon: '🤝' }
+  { id: 'cook', key: 'skillCook', defaultLabel: 'Cook / Chef', icon: '🍳' },
+  { id: 'maid', key: 'skillMaid', defaultLabel: 'Housekeeping', icon: '🧹' },
+  { id: 'nanny', key: 'skillNanny', defaultLabel: 'Nanny / Childcare', icon: '👶' },
+  { id: 'driver', key: 'skillDriver', defaultLabel: 'Driver', icon: '🚗' },
+  { id: 'gardener', key: 'skillGardener', defaultLabel: 'Gardener', icon: '🌿' },
+  { id: 'security', key: 'skillSecurity', defaultLabel: 'Security Guard', icon: '🛡️' },
+  { id: 'laundry', key: 'skillLaundry', defaultLabel: 'Laundry / Ironing', icon: '👕' },
+  { id: 'eldercare', key: 'skillEldercare', defaultLabel: 'Elder Care', icon: '🤝' }
 ];
 
 const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati', 'Punjabi', 'Odia'];
 
 const SHIFT_SLOT_OPTIONS = [
-  { label: 'Full Day (8–12 Hours)', icon: '🕒', sub: 'Standard daily shifts (8 AM – 7 PM)' },
-  { label: 'Early Morning (6 AM – 9 AM)', icon: '☀️', sub: 'Breakfast & morning cleaning' },
-  { label: 'Morning Shift (9 AM – 12 PM)', icon: '🌅', sub: 'Mid-morning household chores' },
-  { label: 'Afternoon Shift (12 PM – 3 PM)', icon: '🌤️', sub: 'Lunch prep & afternoon help' },
-  { label: 'Evening Shift (3 PM – 6 PM)', icon: '🌆', sub: 'Evening snacks & dinner prep' },
-  { label: 'Night Shift (6 PM – 9 PM)', icon: '🌙', sub: 'Dinner serving & night security' },
-  { label: 'Live-In (24x7 Residence)', icon: '🏠', sub: 'Full residence with room & meals' },
-  { label: 'Part-Time Flexible Hours', icon: '⚡', sub: 'Hourly or multi-client visits' },
+  { key: 'shiftFullDay', subKey: 'shiftFullDaySub', label: 'Full Day (8–12 Hours)', icon: '🕒', sub: 'Standard daily shifts (8 AM – 7 PM)' },
+  { key: 'shiftEarlyMorning', subKey: 'shiftEarlyMorningSub', label: 'Early Morning (6 AM – 9 AM)', icon: '☀️', sub: 'Breakfast & morning cleaning' },
+  { key: 'shiftMorning', subKey: 'shiftMorningSub', label: 'Morning Shift (9 AM – 12 PM)', icon: '🌅', sub: 'Mid-morning household chores' },
+  { key: 'shiftAfternoon', subKey: 'shiftAfternoonSub', label: 'Afternoon Shift (12 PM – 3 PM)', icon: '🌤️', sub: 'Lunch prep & afternoon help' },
+  { key: 'shiftEvening', subKey: 'shiftEveningSub', label: 'Evening Shift (3 PM – 6 PM)', icon: '🌆', sub: 'Evening snacks & dinner prep' },
+  { key: 'shiftNight', subKey: 'shiftNightSub', label: 'Night Shift (6 PM – 9 PM)', icon: '🌙', sub: 'Dinner serving & night security' },
+  { key: 'shiftLiveIn', subKey: 'shiftLiveInSub', label: 'Live-In (24x7 Residence)', icon: '🏠', sub: 'Full residence with room & meals' },
+  { key: 'shiftPartTime', subKey: 'shiftPartTimeSub', label: 'Part-Time Flexible Hours', icon: '⚡', sub: 'Hourly or multi-client visits' },
 ];
 
 export default function WorkerProfilePage() {
@@ -37,6 +38,7 @@ export default function WorkerProfilePage() {
     workerProfile, setWorkerProfile, badges, saveLoading, deletionRequested, 
     handleSaveProfile, handleRequestAccountDeletion, showToast
   } = useWorkerDashboard();
+  const { t } = useLanguage();
 
   const [name, setName] = useState(workerProfile.name || '');
   const [expectedSalary, setExpectedSalary] = useState(workerProfile.expectedSalary || '');
@@ -52,7 +54,7 @@ export default function WorkerProfilePage() {
   const [languages, setLanguages] = useState<string[]>(workerProfile.languages || []);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(
     workerProfile.category?.map((c: string) => 
-      SKILL_CATEGORIES.find(s => c.includes(s.label.split(' ')[0]))?.id || c
+      SKILL_CATEGORIES.find(s => c.includes(s.defaultLabel.split(' ')[0]))?.id || c
     ) || []
   );
   
@@ -90,15 +92,15 @@ export default function WorkerProfilePage() {
   const isPhotoDone = !!profilePhoto || !!workerProfile.avatar_url || !!workerProfile.profile_picture_url;
 
   const completionSteps = [
-    { key: 'name', label: 'Full Name', done: !!name.trim() },
-    { key: 'phone', label: 'Mobile Number', done: cleanPhone.length === 10 },
-    { key: 'gender', label: 'Gender & Age', done: !!gender && !!age },
-    { key: 'skills', label: 'Skills Selected', done: selectedSkills.length > 0 },
-    { key: 'salary', label: 'Expected Salary', done: !!String(expectedSalary).trim() && String(expectedSalary) !== '0' },
-    { key: 'experience', label: 'Experience', done: !!String(experience).trim() },
-    { key: 'languages', label: 'Languages', done: languages.length > 0 },
-    { key: 'photo', label: 'Profile Photo', done: isPhotoDone },
-    { key: 'aadhaar', label: 'Aadhaar Uploaded', done: isAadhaarDone },
+    { key: 'name', label: t('stepFullName') || 'Full Name', done: !!name.trim() },
+    { key: 'phone', label: t('stepMobileNumber') || 'Mobile Number', done: cleanPhone.length === 10 },
+    { key: 'gender', label: t('stepGenderAge') || 'Gender & Age', done: !!gender && !!age },
+    { key: 'skills', label: t('stepSkillsSelected') || 'Skills Selected', done: selectedSkills.length > 0 },
+    { key: 'salary', label: t('stepExpectedSalary') || 'Expected Salary', done: !!String(expectedSalary).trim() && String(expectedSalary) !== '0' },
+    { key: 'experience', label: t('stepExperience') || 'Experience', done: !!String(experience).trim() },
+    { key: 'languages', label: t('stepLanguages') || 'Languages', done: languages.length > 0 },
+    { key: 'photo', label: t('stepProfilePhoto') || 'Profile Photo', done: isPhotoDone },
+    { key: 'aadhaar', label: t('stepAadhaarUploaded') || 'Aadhaar Uploaded', done: isAadhaarDone },
   ];
   const completedCount = completionSteps.filter(s => s.done).length;
   const completionPercent = Math.round((completedCount / completionSteps.length) * 100);
@@ -170,13 +172,6 @@ export default function WorkerProfilePage() {
     setAadhaarBackUploaded(true);
   };
 
-  const handleSelfieChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!validateFile(file, ALLOWED_SELFIE_TYPES, SELFIE_MAX_MB, 'Selfie')) return;
-    setPhotoSelfieUploaded(true);
-  };
-
   const onSave = async () => {
     if (phone.length !== 10) return;
     await handleSaveProfile({
@@ -190,7 +185,7 @@ export default function WorkerProfilePage() {
       emergencyContact: emergencyContact ? `+91 ${emergencyContact}` : '',
       bio,
       languages,
-      category: selectedSkills.map(id => SKILL_CATEGORIES.find(s => s.id === id)?.label || id)
+      category: selectedSkills.map(id => SKILL_CATEGORIES.find(s => s.id === id)?.defaultLabel || id)
     });
   };
 
@@ -207,10 +202,10 @@ export default function WorkerProfilePage() {
       <div>
         <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
           <User size={18} className="text-[#1A73E8]" />
-          <span>Profile, Skills &amp; Verification</span>
+          <span>{t('workerProfileTitle') || "Profile, Skills & Verification"}</span>
         </h2>
         <p className="text-xs text-slate-400 font-semibold mt-0.5">
-          Complete your profile to start applying to verified household jobs.
+          {t('workerProfileSub') || "Complete your profile to start applying to verified household jobs."}
         </p>
       </div>
 
@@ -218,11 +213,11 @@ export default function WorkerProfilePage() {
       <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-3xl space-y-3 border border-slate-800 shadow-md">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-black">Profile Completeness</h3>
+            <h3 className="text-sm font-black">{t('profileCompletenessTitle') || "Profile Completeness"}</h3>
             <p className="text-[10.5px] text-slate-300 font-semibold mt-0.5">
               {completedCount < completionSteps.length 
-                ? `${completionSteps.length - completedCount} steps remaining to activate job applications` 
-                : '✓ Profile complete — you can apply to jobs!'}
+                ? `${completionSteps.length - completedCount} ${t('stepsRemainingSub') || 'steps remaining to activate job applications'}` 
+                : (t('profileCompleteSub') || '✓ Profile complete — you can apply to jobs!')}
             </p>
           </div>
           <span className={`text-2xl font-black font-mono ${completionPercent === 100 ? 'text-emerald-400' : completionPercent >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
@@ -259,11 +254,11 @@ export default function WorkerProfilePage() {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
             <Image size={15} className="text-[#1A73E8]" />
-            <span>Profile Photo</span>
+            <span>{t('profilePhotoTitle') || "Profile Photo"}</span>
           </h3>
           {profilePhoto 
-            ? <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1"><CheckCircle2 size={10} /> Uploaded</span>
-            : <span className="bg-amber-50 text-amber-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-200">Required</span>
+            ? <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1"><CheckCircle2 size={10} /> {t('uploadedBadge') || 'Uploaded'}</span>
+            : <span className="bg-amber-50 text-amber-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-200">{t('requiredBadge') || 'Required'}</span>
           }
         </div>
 
@@ -277,27 +272,27 @@ export default function WorkerProfilePage() {
           </div>
           <div className="space-y-2 flex-1">
             <p className="text-xs font-medium text-slate-600 leading-relaxed">
-              Upload a clear front-facing photo. This is shown to employers on your application <strong>and</strong> used as your face match for Aadhaar verification — so one photo does both.
+              {t('profilePhotoDesc') || "Upload a clear front-facing photo. This is shown to employers on your application and used as your face match for Aadhaar verification."}
             </p>
-            <p className="text-[10px] text-slate-400 font-semibold">JPG · PNG · Max 3MB</p>
+            <p className="text-[10px] text-slate-400 font-semibold">{t('photoSpecs') || "JPG · PNG · Max 3MB"}</p>
             <div className="flex gap-2">
               <label className="cursor-pointer">
                 <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handlePhotoChange} />
                 <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 shadow-sm cursor-pointer">
                   <Upload size={11} />
-                  <span>{profilePhoto ? 'Change Photo' : 'Upload Photo'}</span>
+                  <span>{profilePhoto ? (t('changePhotoBtn') || 'Change Photo') : (t('uploadPhotoBtn') || 'Upload Photo')}</span>
                 </div>
               </label>
               <label className="cursor-pointer">
                 <input type="file" accept="image/jpeg,image/png" capture="user" className="hidden" onChange={handlePhotoChange} />
                 <div className="py-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer">
                   <Camera size={11} />
-                  <span>Take Selfie</span>
+                  <span>{t('takeSelfieBtn') || "Take Selfie"}</span>
                 </div>
               </label>
               {profilePhoto && (
                 <button onClick={() => setProfilePhoto(null)} className="py-2 px-3 text-red-400 hover:text-red-600 text-[10.5px] font-bold cursor-pointer">
-                  Remove
+                  {t('removeBtn') || "Remove"}
                 </button>
               )}
             </div>
@@ -307,14 +302,14 @@ export default function WorkerProfilePage() {
 
       {/* Candidate Details Card */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-3">Candidate Details</h3>
+        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-3">{t('candidateDetailsTitle') || "Candidate Details"}</h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold">
           {/* Full Name */}
           <div className="space-y-1">
             <label className="text-slate-500 text-[10px] uppercase flex justify-between">
-              <span>Full Name</span>
-              <span className="text-[9px] text-slate-400 lowercase font-normal">(letters only)</span>
+              <span>{t('fullNameLabel') || "Full Name"}</span>
+              <span className="text-[9px] text-slate-400 lowercase font-normal">{t('lettersOnlyLabel') || "(letters only)"}</span>
             </label>
             <input 
               type="text" 
@@ -328,9 +323,9 @@ export default function WorkerProfilePage() {
           {/* Primary Mobile */}
           <div className="space-y-1">
             <label className="text-slate-500 text-[10px] uppercase flex justify-between">
-              <span>Fixed 10-Digit Mobile Number</span>
+              <span>{t('mobileNumberLabel') || "Fixed 10-Digit Mobile Number"}</span>
               <span className={`text-[9px] font-bold ${phone.length === 10 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {phone.length === 10 ? '✓ Valid' : `${phone.length}/10`}
+                {phone.length === 10 ? (t('validDigitBadge') || '✓ Valid') : `${phone.length}/10`}
               </span>
             </label>
             <div className="relative">
@@ -350,21 +345,21 @@ export default function WorkerProfilePage() {
 
           {/* Gender */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">Gender</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('genderLabel') || "Gender"}</label>
             <select
               value={gender}
               onChange={(e) => setGender(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
             >
-              <option value="female">Female</option>
-              <option value="male">Male</option>
-              <option value="other">Other</option>
+              <option value="female">{t('genderFemale') || "Female"}</option>
+              <option value="male">{t('genderMale') || "Male"}</option>
+              <option value="other">{t('genderOther') || "Other"}</option>
             </select>
           </div>
 
           {/* Age */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">Age (Years)</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('ageLabel') || "Age (Years)"}</label>
             <input 
               type="number" 
               value={age} 
@@ -378,7 +373,7 @@ export default function WorkerProfilePage() {
 
           {/* Expected Salary */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">Expected Monthly Salary (₹)</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('expectedSalaryLabel') || "Expected Monthly Salary (₹)"}</label>
             <div className="relative">
               <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-black">₹</span>
               <input 
@@ -393,25 +388,25 @@ export default function WorkerProfilePage() {
 
           {/* Years of Experience */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">Years of Experience</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('experienceLabel') || "Years of Experience"}</label>
             <select 
               value={experience} 
               onChange={(e) => setExperience(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
             >
-              <option value="">Select experience...</option>
-              <option value="Less than 1 Year">Less than 1 Year</option>
-              <option value="1-2 Years">1-2 Years</option>
-              <option value="2-4 Years">2-4 Years</option>
-              <option value="4-6 Years">4-6 Years</option>
-              <option value="6-10 Years">6-10 Years</option>
-              <option value="10+ Years">10+ Years</option>
+              <option value="">{t('selectExperiencePlaceholder') || "Select experience..."}</option>
+              <option value="Less than 1 Year">{t('expLessThan1') || "Less than 1 Year"}</option>
+              <option value="1-2 Years">{t('exp1to2') || "1-2 Years"}</option>
+              <option value="2-4 Years">{t('exp2to4') || "2-4 Years"}</option>
+              <option value="4-6 Years">{t('exp4to6') || "4-6 Years"}</option>
+              <option value="6-10 Years">{t('exp6to10') || "6-10 Years"}</option>
+              <option value="10+ Years">{t('expMoreThan10') || "10+ Years"}</option>
             </select>
           </div>
 
           {/* Preferred Work Shift / Hours - Custom Theme Dropdown */}
           <div className="space-y-1 relative">
-            <label className="text-slate-500 text-[10px] uppercase block">Preferred Work Shift / Availability</label>
+            <label className="text-slate-500 text-[10px] uppercase block">{t('preferredShiftLabel') || "Preferred Work Shift / Availability"}</label>
             
             <button
               type="button"
@@ -422,7 +417,7 @@ export default function WorkerProfilePage() {
                 <span className="text-sm shrink-0">
                   {SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift)?.icon || '🕒'}
                 </span>
-                <span className="truncate">{preferredShift}</span>
+                <span className="truncate">{t(SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift)?.key || '') || preferredShift}</span>
               </div>
               {isShiftDropdownOpen ? <ChevronUp size={15} className="text-[#1A73E8] shrink-0 ml-1" /> : <ChevronDown size={15} className="text-slate-400 shrink-0 ml-1" />}
             </button>
@@ -453,8 +448,8 @@ export default function WorkerProfilePage() {
                         <div className="flex items-start gap-2.5">
                           <span className="text-lg shrink-0 mt-0.5">{slot.icon}</span>
                           <div>
-                            <p className="text-xs font-black text-slate-900 leading-tight whitespace-normal">{slot.label}</p>
-                            <p className="text-[10px] text-slate-400 font-semibold leading-normal mt-0.5 whitespace-normal">{slot.sub}</p>
+                            <p className="text-xs font-black text-slate-900 leading-tight whitespace-normal">{t(slot.key) || slot.label}</p>
+                            <p className="text-[10px] text-slate-400 font-semibold leading-normal mt-0.5 whitespace-normal">{t(slot.subKey) || slot.sub}</p>
                           </div>
                         </div>
                         {isSelected && <CheckCircle2 size={16} className="text-[#1A73E8] shrink-0 ml-2 mt-0.5" />}
@@ -468,7 +463,7 @@ export default function WorkerProfilePage() {
 
           {/* Emergency Backup Contact */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">Emergency Backup Mobile (Optional)</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('emergencyContactLabel') || "Emergency Backup Mobile (Optional)"}</label>
             <div className="relative">
               <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">+91</span>
               <input 
@@ -484,12 +479,12 @@ export default function WorkerProfilePage() {
 
           {/* Self Bio / Work Summary */}
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-slate-500 text-[10px] uppercase">Short Self Introduction &amp; Specializations</label>
+            <label className="text-slate-500 text-[10px] uppercase">{t('shortBioLabel') || "Short Self Introduction & Specializations"}</label>
             <textarea 
               rows={3}
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              placeholder="e.g. Hardworking cook with 5+ years experience in North & South Indian cooking. Clean, punctual, non-smoker, and comfortable with vegetarian/non-vegetarian households."
+              placeholder={t('bioPlaceholder') || "e.g. Hardworking cook with 5+ years experience in North & South Indian cooking..."}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none leading-relaxed"
             />
           </div>
@@ -502,7 +497,7 @@ export default function WorkerProfilePage() {
             className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:cursor-not-allowed"
           >
             <Save size={14} />
-            <span>{saveLoading ? 'Saving...' : 'Save Profile Details'}</span>
+            <span>{saveLoading ? (t('savingText') || 'Saving...') : (t('saveProfileDetailsBtn') || 'Save Profile Details')}</span>
           </button>
         </div>
       </div>
@@ -512,12 +507,12 @@ export default function WorkerProfilePage() {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
             <Briefcase size={15} className="text-[#1A73E8]" />
-            <span>Skills &amp; Service Categories</span>
+            <span>{t('skillsCategoriesTitle') || "Skills & Service Categories"}</span>
           </h3>
           <span className="text-[10px] text-slate-400 font-bold">{selectedSkills.length} selected</span>
         </div>
         <p className="text-[11px] text-slate-500 font-medium -mt-2">
-          Select all services you can provide. Employers filter by these categories.
+          {t('skillsCategoriesSub') || "Select all services you can provide. Employers filter by these categories."}
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -538,7 +533,7 @@ export default function WorkerProfilePage() {
                   <CheckCircle2 size={13} className="absolute top-2 right-2 text-[#1A73E8]" />
                 )}
                 <span className="text-xl">{skill.icon}</span>
-                <p className="text-[10.5px] font-black mt-1.5 leading-tight">{skill.label}</p>
+                <p className="text-[10.5px] font-black mt-1.5 leading-tight">{t(skill.key) || skill.defaultLabel}</p>
               </button>
             );
           })}
@@ -550,7 +545,7 @@ export default function WorkerProfilePage() {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
             <Languages size={15} className="text-[#1A73E8]" />
-            <span>Languages Spoken</span>
+            <span>{t('languagesSpokenTitle') || "Languages Spoken"}</span>
           </h3>
           <span className="text-[10px] text-slate-400 font-bold">{languages.length} selected</span>
         </div>
@@ -581,11 +576,11 @@ export default function WorkerProfilePage() {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
             <FileText size={15} className="text-[#1A73E8]" />
-            <span>Aadhaar ID Verification</span>
+            <span>{t('aadhaarVerificationTitle') || "Aadhaar ID Verification"}</span>
           </h3>
           {aadhaarFrontUploaded && aadhaarBackUploaded
-            ? <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1"><CheckCircle2 size={10} /> Submitted</span>
-            : <span className="bg-amber-50 text-amber-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1"><Lock size={10} /> Required to Apply</span>
+            ? <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1"><CheckCircle2 size={10} /> {t('uploadedBadge') || 'Submitted'}</span>
+            : <span className="bg-amber-50 text-amber-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1"><Lock size={10} /> {t('requiredToApplyBadge') || 'Required to Apply'}</span>
           }
         </div>
 
@@ -593,7 +588,7 @@ export default function WorkerProfilePage() {
           <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-start gap-2.5 text-amber-900">
             <ShieldAlert size={15} className="text-amber-600 shrink-0 mt-0.5" />
             <p className="text-[11px] font-medium leading-relaxed">
-              Upload both sides of your Aadhaar card. This is used only for identity verification and is never shared with employers.
+              {t('aadhaarNoticeDesc') || "Upload both sides of your Aadhaar card. This is used only for identity verification and is never shared with employers."}
             </p>
           </div>
         ) : null}
@@ -605,20 +600,20 @@ export default function WorkerProfilePage() {
               <FileText size={16} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-slate-900">Aadhaar — Front</p>
-              <p className="text-[10px] text-slate-400 font-semibold">Name, photo & DOB · JPG · PNG · PDF · Max 5MB</p>
+              <p className="text-xs font-black text-slate-900">{t('aadhaarFrontLabel') || "Aadhaar — Front"}</p>
+              <p className="text-[10px] text-slate-400 font-semibold">{t('aadhaarFrontDesc') || "Name, photo & DOB · JPG · PNG · PDF · Max 5MB"}</p>
             </div>
             {aadhaarFrontUploaded ? (
               <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
                 <CheckCircle2 size={12} className="text-emerald-600" />
-                <span className="text-[10px] font-black text-emerald-800">Uploaded</span>
+                <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
                 <button onClick={() => setAadhaarFrontUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
               </div>
             ) : (
               <label className="cursor-pointer shrink-0">
                 <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
                 <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                  <Upload size={11} /><span>Upload Front</span>
+                  <Upload size={11} /><span>{t('uploadFrontBtn') || "Upload Front"}</span>
                 </div>
               </label>
             )}
@@ -630,20 +625,20 @@ export default function WorkerProfilePage() {
               <FileText size={16} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-slate-900">Aadhaar — Back</p>
-              <p className="text-[10px] text-slate-400 font-semibold">Aadhaar number & address · JPG · PNG · PDF · Max 5MB</p>
+              <p className="text-xs font-black text-slate-900">{t('aadhaarBackLabel') || "Aadhaar — Back"}</p>
+              <p className="text-[10px] text-slate-400 font-semibold">{t('aadhaarBackDesc') || "Aadhaar number & address · JPG · PNG · PDF · Max 5MB"}</p>
             </div>
             {aadhaarBackUploaded ? (
               <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
                 <CheckCircle2 size={12} className="text-emerald-600" />
-                <span className="text-[10px] font-black text-emerald-800">Uploaded</span>
+                <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
                 <button onClick={() => setAadhaarBackUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
               </div>
             ) : (
               <label className="cursor-pointer shrink-0">
                 <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
                 <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                  <Upload size={11} /><span>Upload Back</span>
+                  <Upload size={11} /><span>{t('uploadBackBtn') || "Upload Back"}</span>
                 </div>
               </label>
             )}
@@ -654,8 +649,8 @@ export default function WorkerProfilePage() {
           <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center gap-2.5 text-emerald-900">
             <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
             <div>
-              <p className="text-xs font-black">All Documents Submitted — Pending Admin Review</p>
-              <p className="text-[10.5px] font-medium">Sevikaa Admin will verify your Aadhaar within 24–48 hours. You'll receive an SMS once you're cleared to apply.</p>
+              <p className="text-xs font-black">{t('allDocsSubmittedTitle') || "All Documents Submitted — Pending Admin Review"}</p>
+              <p className="text-[10.5px] font-medium">{t('allDocsSubmittedDesc') || "Sevikaa Admin will verify your Aadhaar within 24–48 hours. You'll receive an SMS once you're cleared to apply."}</p>
             </div>
           </div>
         )}
@@ -666,21 +661,21 @@ export default function WorkerProfilePage() {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
             <Video size={15} className="text-[#1A73E8]" />
-            <span>60-Second Video Intro (Optional)</span>
+            <span>{t('videoIntroTitle') || "60-Second Video Intro (Optional)"}</span>
           </h3>
           {videoUploaded ? (
             <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-              <CheckCircle2 size={10} /> Uploaded
+              <CheckCircle2 size={10} /> {t('uploadedBadge') || "Uploaded"}
             </span>
           ) : (
             <span className="bg-blue-50 text-[#1A73E8] text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200">
-              Boosts Applications +80%
+              {t('videoBoostBadge') || "Boosts Applications +80%"}
             </span>
           )}
         </div>
 
         <p className="text-[11px] text-slate-500 font-medium">
-          Upload a 30–60 second introduction video introducing your work experience and cooking/cleaning skills. Subscribed society employers love watching intro videos!
+          {t('videoIntroDesc') || "Upload a 30–60 second introduction video introducing your work experience and cooking/cleaning skills."}
         </p>
 
         <div className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between gap-3 ${videoUploaded ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
@@ -689,22 +684,22 @@ export default function WorkerProfilePage() {
               <Video size={16} />
             </div>
             <div>
-              <p className="text-xs font-black text-slate-900">Worker Intro Video</p>
-              <p className="text-[10px] text-slate-400 font-semibold">MP4 · WebM · Max 50MB</p>
+              <p className="text-xs font-black text-slate-900">{t('videoIntroTitle') || "Worker Intro Video"}</p>
+              <p className="text-[10px] text-slate-400 font-semibold">{t('videoSpecs') || "MP4 · WebM · Max 50MB"}</p>
             </div>
           </div>
 
           {videoUploaded ? (
             <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
               <CheckCircle2 size={12} className="text-emerald-600" />
-              <span className="text-[10px] font-black text-emerald-800">Uploaded</span>
+              <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
               <button onClick={() => setVideoUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
             </div>
           ) : (
             <label className="cursor-pointer shrink-0">
               <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleVideoChange} />
               <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                <Upload size={11} /><span>Upload Video</span>
+                <Upload size={11} /><span>{t('uploadVideoBtn') || "Upload Video"}</span>
               </div>
             </label>
           )}
@@ -722,8 +717,8 @@ export default function WorkerProfilePage() {
               <ShieldAlert size={16} />
             </div>
             <div>
-              <h4 className="text-xs font-black text-slate-900">Account Privacy &amp; Danger Zone</h4>
-              <p className="text-[10px] text-slate-400 font-semibold">Self-service account deletion &amp; DPDP compliance</p>
+              <h4 className="text-xs font-black text-slate-900">{t('accountPrivacyTitle') || "Account Privacy & Danger Zone"}</h4>
+              <p className="text-[10px] text-slate-400 font-semibold">{t('accountPrivacySub') || "Self-service account deletion & DPDP compliance"}</p>
             </div>
           </div>
           {showDangerZone ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
@@ -732,8 +727,7 @@ export default function WorkerProfilePage() {
         {showDangerZone && (
           <div className="p-5 border-t border-slate-100 bg-red-50/20 space-y-3">
             <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              If you wish to remove your candidate profile from Sevikaa's active society hiring feeds, you can submit a deletion request. 
-              A Sevikaa Admin will call your registered phone to confirm offboarding.
+              {t('dangerZoneDesc') || "If you wish to remove your candidate profile from Sevikaa's active society hiring feeds, you can submit a deletion request."}
             </p>
 
             <button
@@ -742,7 +736,7 @@ export default function WorkerProfilePage() {
               className="py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
             >
               <Trash2 size={14} />
-              <span>{deletionRequested ? 'Deletion Request Logged' : 'Request Account Deletion'}</span>
+              <span>{deletionRequested ? (t('deletionLoggedBtn') || 'Deletion Request Logged') : (t('requestDeletionBtn') || 'Request Account Deletion')}</span>
             </button>
           </div>
         )}
@@ -755,26 +749,26 @@ export default function WorkerProfilePage() {
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={20} className="text-amber-600" />
-                <h3 className="text-sm font-black text-slate-900">Request Account Deletion</h3>
+                <h3 className="text-sm font-black text-slate-900">{t('requestDeletionModalTitle') || "Request Account Deletion"}</h3>
               </div>
               <button onClick={() => setShowDeleteModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
             </div>
 
             <p className="text-xs text-slate-600 font-medium">
-              Please tell us why you are leaving Sevikaa. A Sevikaa Admin will call your registered phone <strong>+91 {phone}</strong> within 24 hours to confirm.
+              {t('requestDeletionModalSub') || "Please state your reason for deleting your account."}
             </p>
 
             <div className="space-y-2 text-xs font-bold text-slate-700">
-              <label className="text-[10px] text-slate-400 uppercase">Reason for Leaving</label>
+              <label className="text-[10px] text-slate-400 uppercase">{t('reasonLabel') || "Reason for Leaving"}</label>
               <select 
                 value={deletionReason} 
                 onChange={(e) => setDeletionReason(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
               >
-                <option value="Moving to another city">Moving to another city</option>
-                <option value="Hired full-time elsewhere">Hired full-time elsewhere</option>
-                <option value="Taking a break from work">Taking a break from work</option>
-                <option value="Other">Other Reason</option>
+                <option value="Moving to another city">{t('reasonMoving') || "Moving to another city"}</option>
+                <option value="Hired full-time elsewhere">{t('reasonHiredFullTime') || "Hired full-time elsewhere"}</option>
+                <option value="Taking a break from work">{t('reasonTakingBreak') || "Taking a break from work"}</option>
+                <option value="Other">{t('reasonOther') || "Other Reason"}</option>
               </select>
 
               {deletionReason === 'Other' && (
@@ -792,14 +786,14 @@ export default function WorkerProfilePage() {
                 onClick={() => setShowDeleteModal(false)}
                 className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
               >
-                Cancel
+                {t('cancelBtn') || "Cancel"}
               </button>
               <button 
                 onClick={onSubmitDeletionRequest}
                 disabled={saveLoading}
                 className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-md cursor-pointer"
               >
-                Submit Deletion Request
+                {t('submitDeletionBtn') || "Submit Deletion Request"}
               </button>
             </div>
           </div>

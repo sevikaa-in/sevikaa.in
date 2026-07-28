@@ -417,7 +417,6 @@ export default function Home() {
               ))}
             </nav>
             
-            <GlobalLanguageSelector />
           </div>
         </div>
       </header>

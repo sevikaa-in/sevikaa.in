@@ -259,7 +259,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
   const navItems = [
     { id: 'overview', label: t('navOverview') || 'Home', href: '/employer', icon: <Home size={20} /> },
     { id: 'post-job', label: t('navPostJob') || 'Post Job', href: '/employer/post-job', icon: <PlusCircle size={20} /> },
-    { id: 'my-jobs', label: t('activeJobs') || 'My Jobs', href: '/employer/jobs', icon: <Briefcase size={20} /> },
+    { id: 'my-jobs', label: t('navMyJobs') || 'My Jobs', href: '/employer/jobs', icon: <Briefcase size={20} /> },
     { id: 'workers', label: t('navCandidates') || 'Applicants', href: '/employer/workers', icon: <Users size={20} /> },
     { id: 'account', label: t('navAccount') || 'Account', href: '/employer/account', icon: <User size={20} /> },
   ];

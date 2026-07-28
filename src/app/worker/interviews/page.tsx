@@ -3,7 +3,9 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useWorkerDashboard } from '../layout';
+import { useLanguage } from '@/context/LanguageContext';
 import { supabase } from '@/lib/supabaseClient';
+import { VerifiedReviewModal } from '@/components/reviews/VerifiedReviewModal';
 import { 
   Calendar, MapPin, PhoneCall, Clock, CheckCircle2, MessageSquare, 
   Compass, Briefcase, Building2, Sparkles, UserCheck, X, Send, 
@@ -12,12 +14,15 @@ import {
 
 export default function WorkerInterviewsPage() {
   const { applications, availableJobs, showToast } = useWorkerDashboard();
+  const { t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState<'upcoming' | 'applied' | 'history'>('upcoming');
   const [selectedAppForReschedule, setSelectedAppForReschedule] = useState<any>(null);
   const [rescheduleTime, setRescheduleTime] = useState('Tomorrow Afternoon (2:00 PM)');
   const [rescheduleNote, setRescheduleNote] = useState('');
   const [isSubmittingReschedule, setIsSubmittingReschedule] = useState(false);
+
+  const [selectedEmployerForReview, setSelectedEmployerForReview] = useState<any | null>(null);
 
   // Group applications by status
   const upcomingInterviews = useMemo(() => {
@@ -88,15 +93,15 @@ export default function WorkerInterviewsPage() {
         <div className="flex items-center gap-2 mb-1">
           <span className="bg-blue-50 text-[#1A73E8] text-[9.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200/60 inline-flex items-center gap-1">
             <Calendar size={11} />
-            Interview Scheduler &amp; Status Tracker
+            {t('workerInterviewsEyebrow') || "Interview Scheduler & Status Tracker"}
           </span>
         </div>
         <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
           <Calendar size={18} className="text-[#1A73E8]" />
-          <span>Scheduled Interviews</span>
+          <span>{t('scheduledInterviewsTitle') || "Scheduled Interviews"}</span>
         </h2>
         <p className="text-xs text-slate-500 font-semibold mt-0.5 leading-relaxed">
-          Manage upcoming household employer calls, society gate meetings, and track your job application progress.
+          {t('scheduledInterviewsSub') || "Manage upcoming household employer calls, society gate meetings, and track your job application progress."}
         </p>
       </div>
 
@@ -105,31 +110,31 @@ export default function WorkerInterviewsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1">
             <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-              <CheckCircle2 size={10} /> Live Application Pipeline
+              <CheckCircle2 size={10} /> {t('livePipelineBadge') || "Live Application Pipeline"}
             </span>
             <h3 className="text-sm font-black text-white">
               {upcomingInterviews.length > 0 
-                ? `${upcomingInterviews.length} Upcoming Household Interview${upcomingInterviews.length > 1 ? 's' : ''}` 
-                : 'No Upcoming Interviews Today'}
+                ? `${upcomingInterviews.length} ${upcomingInterviews.length > 1 ? (t('upcomingCountTitlePlural') || 'Upcoming Household Interviews') : (t('upcomingCountTitle') || 'Upcoming Household Interview')}` 
+                : (t('noUpcomingInterviewsToday') || 'No Upcoming Interviews Today')}
             </h3>
             <p className="text-[11px] text-slate-300 font-medium">
-              Keep your phone reachable and Aadhaar ready for gate desk entry.
+              {t('phoneReachableNotice') || "Keep your phone reachable and Aadhaar ready for gate desk entry."}
             </p>
           </div>
 
           <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/15 shrink-0 flex items-center gap-3 text-center">
             <div>
-              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">Interviews</span>
+              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">{t('statInterviews') || "Interviews"}</span>
               <span className="text-base font-black text-amber-300">{upcomingInterviews.length}</span>
             </div>
             <div className="w-px h-7 bg-white/15" />
             <div>
-              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">Review</span>
+              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">{t('statReview') || "Review"}</span>
               <span className="text-base font-black text-blue-300">{appliedJobs.length}</span>
             </div>
             <div className="w-px h-7 bg-white/15" />
             <div>
-              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">Hired</span>
+              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">{t('statHired') || "Hired"}</span>
               <span className="text-base font-black text-emerald-400">{historyInterviews.filter(h => h.status === 'hired').length}</span>
             </div>
           </div>
@@ -138,7 +143,7 @@ export default function WorkerInterviewsPage() {
         <div className="pt-2.5 border-t border-white/10 flex items-center justify-between text-[10.5px] text-slate-300 font-semibold relative z-10">
           <span className="flex items-center gap-1.5 text-blue-200">
             <Sparkles size={12} className="text-amber-400" />
-            <span>Always confirm attendance at least 1 hour before scheduled time.</span>
+            <span>{t('attendanceNotice') || "Always confirm attendance at least 1 hour before scheduled time."}</span>
           </span>
         </div>
       </div>
@@ -152,7 +157,7 @@ export default function WorkerInterviewsPage() {
           }`}
         >
           <Calendar size={13} />
-          <span>Upcoming ({upcomingInterviews.length})</span>
+          <span>{t('tabUpcoming') || "Upcoming"} ({upcomingInterviews.length})</span>
         </button>
 
         <button
@@ -162,7 +167,7 @@ export default function WorkerInterviewsPage() {
           }`}
         >
           <Clock size={13} />
-          <span>Applied ({appliedJobs.length})</span>
+          <span>{t('tabApplied') || "Applied"} ({appliedJobs.length})</span>
         </button>
 
         <button
@@ -172,7 +177,7 @@ export default function WorkerInterviewsPage() {
           }`}
         >
           <CheckCircle2 size={13} />
-          <span>Hired &amp; History ({historyInterviews.length})</span>
+          <span>{t('tabHiredHistory') || "Hired & History"} ({historyInterviews.length})</span>
         </button>
       </div>
 
@@ -184,22 +189,22 @@ export default function WorkerInterviewsPage() {
             <div>
               <h4 className="text-xs font-black text-slate-800">
                 {activeTab === 'upcoming' 
-                  ? 'No Upcoming Interviews' 
+                  ? (t('emptyUpcomingTitle') || 'No Upcoming Interviews') 
                   : activeTab === 'applied' 
-                  ? 'No Active Job Applications' 
-                  : 'No Completed Interview History'}
+                  ? (t('emptyAppliedTitle') || 'No Active Job Applications') 
+                  : (t('emptyHistoryTitle') || 'No Completed Interview History')}
               </h4>
               <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
                 {activeTab === 'upcoming'
-                  ? 'When employers schedule a phone call or gate meeting with you, it will appear here.'
-                  : 'Browse verified society jobs to send applications directly to hiring households.'}
+                  ? (t('emptyUpcomingSub') || 'When employers schedule a phone call or gate meeting with you, it will appear here.')
+                  : (t('emptyAppliedSub') || 'Browse verified society jobs to send applications directly to hiring households.')}
               </p>
             </div>
             <Link
               href="/worker/dashboard/jobs"
               className="py-2.5 px-5 bg-[#1A73E8] text-white rounded-xl text-xs font-black shadow-md cursor-pointer hover:bg-blue-600 transition-all inline-flex items-center gap-1.5"
             >
-              <Briefcase size={14} /> Explore Live Jobs ({availableJobs.length})
+              <Briefcase size={14} /> {t('exploreJobsBtn') || "Explore Live Jobs"} ({availableJobs.length})
             </Link>
           </div>
         ) : (
@@ -251,11 +256,11 @@ export default function WorkerInterviewsPage() {
                       : 'bg-amber-50 text-amber-700 border-amber-200'
                   }`}>
                     {isHired ? (
-                      <><CheckCircle2 size={10} /> Hired</>
+                      <><CheckCircle2 size={10} /> {t('badgeHired') || "Hired"}</>
                     ) : isUpcoming ? (
-                      <><Clock size={10} /> Interview Scheduled</>
+                      <><Clock size={10} /> {t('badgeInterviewScheduled') || "Interview Scheduled"}</>
                     ) : (
-                      <><Clock size={10} /> Under Review</>
+                      <><Clock size={10} /> {t('badgeUnderReview') || "Under Review"}</>
                     )}
                   </span>
                 </div>
@@ -263,23 +268,23 @@ export default function WorkerInterviewsPage() {
                 {/* Job Specs Row */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-bold text-slate-700">
                   <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">Offered Salary</span>
+                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{t('offeredSalaryLabel') || "Offered Salary"}</span>
                     <span className="text-xs font-black text-emerald-700 mt-0.5 block">
                       ₹{app.salary} / month
                     </span>
                   </div>
 
                   <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">Work Shift</span>
+                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{t('workShiftLabel') || "Work Shift"}</span>
                     <span className="text-[10.5px] font-black text-slate-800 mt-0.5 block truncate">
                       {app.shift || 'Full Day (8-12 Hrs)'}
                     </span>
                   </div>
 
                   <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 col-span-2 sm:col-span-1">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">Interview Mode</span>
+                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{t('interviewModeLabel') || "Interview Mode"}</span>
                     <span className="text-[10.5px] font-black text-[#1A73E8] mt-0.5 block truncate flex items-center gap-1">
-                      {isPhoneCall ? '📞 Phone Call' : '🏠 Gate Desk In-Person'}
+                      {isPhoneCall ? (t('modePhoneCall') || '📞 Phone Call') : (t('modeGateDesk') || '🏠 Gate Desk In-Person')}
                     </span>
                   </div>
                 </div>
@@ -302,7 +307,7 @@ export default function WorkerInterviewsPage() {
                           onClick={() => handleConfirmAttendance(app)}
                           className="text-[10px] font-black text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 rounded-xl transition-all cursor-pointer inline-flex items-center gap-1"
                         >
-                          <CheckCircle2 size={11} /> Confirm Attendance
+                          <CheckCircle2 size={11} /> {t('confirmAttendanceBtn') || "Confirm Attendance"}
                         </button>
                       )}
                       {isUpcoming && (
@@ -310,7 +315,7 @@ export default function WorkerInterviewsPage() {
                           onClick={() => setSelectedAppForReschedule(app)}
                           className="text-[10px] font-black text-[#1A73E8] hover:underline cursor-pointer"
                         >
-                          Request Reschedule
+                          {t('requestRescheduleBtn') || "Request Reschedule"}
                         </button>
                       )}
                     </div>
@@ -326,7 +331,7 @@ export default function WorkerInterviewsPage() {
                       className="flex-1 sm:flex-initial py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs font-black transition-all cursor-pointer shadow-md shadow-[#1A73E8]/20 flex items-center justify-center gap-2 active:scale-95"
                     >
                       <PhoneCall size={14} />
-                      <span>Call {app.employerName || 'Employer'}</span>
+                      <span>{t('callEmployerBtn') || "Call"} {app.employerName || 'Employer'}</span>
                     </a>
 
                     {/* WhatsApp Quick Chat */}
@@ -337,8 +342,18 @@ export default function WorkerInterviewsPage() {
                       className="flex-1 sm:flex-initial py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black transition-all cursor-pointer shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 active:scale-95"
                     >
                       <MessageSquare size={14} />
-                      <span>WhatsApp Chat</span>
+                      <span>{t('whatsappChatBtn') || "WhatsApp Chat"}</span>
                     </a>
+
+                    {/* Rate Household Employer */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEmployerForReview(app)}
+                      className="py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                    >
+                      <Sparkles size={14} className="text-amber-500" />
+                      <span>{t('writeVerifiedReviewTitle') || 'Rate Household'}</span>
+                    </button>
 
                     {/* Gate Directions */}
                     {!isPhoneCall && (
@@ -349,13 +364,13 @@ export default function WorkerInterviewsPage() {
                         className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         <MapPin size={14} className="text-slate-500" />
-                        <span>Gate Directions</span>
+                        <span>{t('gateDirectionsBtn') || "Gate Directions"}</span>
                       </a>
                     )}
                   </div>
 
                   <span className="text-[10px] text-slate-400 font-semibold ml-auto">
-                    Applied {app.date}
+                    {t('appliedOnDate') || "Applied"} {app.date}
                   </span>
                 </div>
               </div>
@@ -374,7 +389,7 @@ export default function WorkerInterviewsPage() {
                   <Calendar size={18} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">Request Interview Reschedule</h3>
+                  <h3 className="text-sm font-black text-slate-900">{t('rescheduleModalTitle') || "Request Interview Reschedule"}</h3>
                   <p className="text-[10px] text-slate-400 font-semibold">{selectedAppForReschedule.jobTitle}</p>
                 </div>
               </div>
@@ -385,7 +400,7 @@ export default function WorkerInterviewsPage() {
 
             <form onSubmit={handleRescheduleSubmit} className="space-y-3 text-xs font-bold">
               <div className="space-y-1">
-                <label className="text-slate-500 text-[10px] uppercase block">Preferred New Date &amp; Time Slot</label>
+                <label className="text-slate-500 text-[10px] uppercase block">{t('preferredNewSlotLabel') || "Preferred New Date & Time Slot"}</label>
                 <select
                   value={rescheduleTime}
                   onChange={(e) => setRescheduleTime(e.target.value)}
@@ -400,12 +415,12 @@ export default function WorkerInterviewsPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-slate-500 text-[10px] uppercase block">Reason / Note for Employer (Optional)</label>
+                <label className="text-slate-500 text-[10px] uppercase block">{t('reasonForEmployerLabel') || "Reason / Note for Employer (Optional)"}</label>
                 <textarea
                   rows={2}
                   value={rescheduleNote}
                   onChange={(e) => setRescheduleNote(e.target.value)}
-                  placeholder="e.g. Current work shift conflicts with this time. Kindly request afternoon slot."
+                  placeholder={t('reasonPlaceholder') || "e.g. Current work shift conflicts with this time. Kindly request afternoon slot."}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:bg-white focus:border-[#1A73E8] focus:outline-none"
                 />
               </div>
@@ -416,7 +431,7 @@ export default function WorkerInterviewsPage() {
                   onClick={() => setSelectedAppForReschedule(null)}
                   className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
                 >
-                  Cancel
+                  {t('cancelBtn') || "Cancel"}
                 </button>
                 <button
                   type="submit"
@@ -424,7 +439,7 @@ export default function WorkerInterviewsPage() {
                   className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <Send size={13} />
-                  <span>{isSubmittingReschedule ? 'Sending...' : 'Send Request'}</span>
+                  <span>{isSubmittingReschedule ? (t('sendingState') || 'Sending...') : (t('sendRequestBtn') || 'Send Request')}</span>
                 </button>
               </div>
             </form>
@@ -434,4 +449,3 @@ export default function WorkerInterviewsPage() {
     </div>
   );
 }
-

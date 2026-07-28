@@ -5,7 +5,7 @@ import { useEmployerDashboard } from './layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { 
   Home, PlusCircle, Search, User, CreditCard, Phone, 
-  CheckCircle2, MapPin, IndianRupee, Sparkles, ArrowRight, ShieldCheck, Clock, Briefcase, Users, Eye, X, AlertTriangle, Edit, RefreshCw, ChevronRight, UserCheck, Star, Calendar
+  CheckCircle2, MapPin, IndianRupee, Sparkles, ArrowRight, ShieldCheck, Clock, Briefcase, Users, Eye, X, AlertTriangle, Edit, RefreshCw, ChevronRight, UserCheck, Star, Calendar, ShieldAlert
 } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
@@ -53,6 +53,21 @@ export default function EmployerOverviewPage() {
   const pendingJobsCount = postedJobs.filter(j => j.status === 'pending' || j.status === 'changes_requested').length;
   const totalApplicantsCount = postedJobs.reduce((sum, j) => sum + (j.applicationsCount || 0), 0);
 
+  // Profile completion calculation for widget
+  const cleanPhone = (employerProfile.phone || '').replace(/\D/g, '').slice(-10);
+  const completionSteps = [
+    { label: t('stepFullName') || 'Employer Name', done: !!employerProfile.company_name?.trim() },
+    { label: t('stepMobileNumber') || 'Mobile Number', done: cleanPhone.length === 10 },
+    { label: 'Email Address', done: !!employerProfile.email?.trim() },
+    { label: 'Gated Society', done: !!employerProfile.society_name },
+    { label: 'Tower / Block', done: !!employerProfile.tower?.trim() },
+    { label: 'Flat Address', done: !!employerProfile.address?.trim() },
+    { label: t('stepProfilePhoto') || 'Profile Photo', done: !!employerProfile.avatar_url },
+    { label: t('stepAadhaarUploaded') || 'Aadhaar Uploaded', done: employerProfile.status === 'live' || employerProfile.status === 'approved' }
+  ];
+  const completedCount = completionSteps.filter(s => s.done).length;
+  const completionPercent = Math.round((completedCount / completionSteps.length) * 100);
+
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto pb-20">
       
@@ -84,6 +99,43 @@ export default function EmployerOverviewPage() {
         </div>
       </div>
 
+      {/* 📊 EMPLOYER PROFILE COMPLETENESS DASHBOARD WIDGET */}
+      {completionPercent < 100 && (
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50/50 to-white p-4 rounded-3xl border border-blue-200/80 shadow-xs space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 bg-[#1A73E8] text-white rounded-xl shrink-0">
+                <UserCheck size={16} />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-black text-slate-900 leading-tight flex items-center gap-2">
+                  <span>{t('profileCompletenessTitle') || "Employer Profile Completeness"}</span>
+                  <span className="text-xs font-black text-[#1A73E8] font-mono">({completionPercent}%)</span>
+                </h4>
+                <p className="text-[10.5px] text-slate-500 font-semibold truncate mt-0.5">
+                  {completionSteps.length - completedCount} {t('stepsRemainingSub') || "steps remaining to unlock 1-click job postings"}
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/employer/account"
+              className="py-1.5 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white text-[11px] font-black rounded-xl shadow-xs shrink-0 whitespace-nowrap cursor-pointer transition-all flex items-center gap-1"
+            >
+              <span>Complete Profile</span>
+              <ChevronRight size={13} />
+            </Link>
+          </div>
+
+          <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-[#1A73E8] rounded-full transition-all duration-700" 
+              style={{ width: `${completionPercent}%` }} 
+            />
+          </div>
+        </div>
+      )}
+
       {/* 📊 HIRING CONTROL METRICS GRID */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-800">
         <Link
@@ -99,183 +151,166 @@ export default function EmployerOverviewPage() {
         </Link>
 
         <Link
-          href="/employer/workers"
+          href="/employer/jobs"
           className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group"
         >
           <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between">
-            <span>{t('inboundApplicantsTitle')}</span>
+            <span>{t('totalApplicantsTitle')}</span>
             <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8]" />
           </span>
           <span className="text-xl font-black text-[#1A73E8] block">{totalApplicantsCount}</span>
-          <span className="text-[10px] text-slate-500 font-semibold block">{t('verifiedWorkersSub')}</span>
+          <span className="text-[10px] text-slate-500 font-bold block">{t('viewCandidatesSub')}</span>
         </Link>
 
-        <Link
-          href="/employer/workers"
-          className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group"
-        >
-          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between">
-            <span>{t('interviewsTitle')}</span>
-            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8]" />
-          </span>
-          <span className="text-xl font-black text-amber-600 block">2</span>
-          <span className="text-[10px] text-amber-700 font-semibold block">{t('scheduledCallsSub')}</span>
-        </Link>
+        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs space-y-1 text-left">
+          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider">{t('societyHelpersTitle')}</span>
+          <span className="text-xl font-black text-slate-900 block">52</span>
+          <span className="text-[10px] text-emerald-600 font-bold block">{t('societyCoverageSub')}</span>
+        </div>
 
         <Link
           href="/employer/account"
           className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group"
         >
           <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between">
-            <span>{t('identityStatusTitle')}</span>
+            <span>{t('accountStatusTitle')}</span>
             <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8]" />
           </span>
-          <span className="text-xs font-black text-emerald-700 block mt-1 flex items-center gap-1">
-            <CheckCircle2 size={13} /> {t('aadhaarVerifiedBadge')}
-          </span>
-          <span className="text-[10px] text-slate-400 font-semibold block">{t('verifiedEmployer')}</span>
+          <span className="text-sm font-black text-emerald-600 block mt-1">{employerProfile.subscription_status || 'Standard Plan'}</span>
+          <span className="text-[10px] text-slate-400 font-bold block">{t('unlimitedHiringSub')}</span>
         </Link>
       </div>
 
-      {/* 💼 ACTIVE REQUISITIONS QUICK OVERVIEW */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-              <Briefcase size={16} className="text-[#1A73E8]" />
-              <span>{t('activeHouseholdReqsTitle')}</span>
-            </h3>
-            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
-              {t('quickViewSub')}
-            </p>
+      {/* 🚀 QUICK ACTIONS BANNER */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50/60 border border-blue-200/80 p-4 rounded-3xl flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-[#1A73E8] text-white rounded-2xl shrink-0 shadow-md">
+            <Sparkles size={18} />
           </div>
+          <div>
+            <h4 className="text-xs font-black text-slate-900">{t('hireFastTitle')}</h4>
+            <p className="text-[11px] text-slate-500 font-medium">{t('hireFastSub')}</p>
+          </div>
+        </div>
 
-          <Link
-            href="/employer/jobs"
-            className="text-xs font-black text-[#1A73E8] hover:underline flex items-center gap-1"
-          >
-            <span>{t('manageAllJobsBtn')} ({postedJobs.length})</span>
-            <ArrowRight size={13} />
+        <Link
+          href="/employer/workers"
+          className="py-2 px-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shrink-0 whitespace-nowrap cursor-pointer transition-all flex items-center gap-1 shadow-xs"
+        >
+          <span>{t('browseHelpersBtn')}</span>
+          <ArrowRight size={13} />
+        </Link>
+      </div>
+
+      {/* 📋 RECENT POSTED REQUISITIONS */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+            <Briefcase size={15} className="text-[#1A73E8]" />
+            <span>{t('yourActiveRequisitionsTitle')}</span>
+          </h3>
+          <Link href="/employer/jobs" className="text-[11px] font-black text-[#1A73E8] hover:underline flex items-center gap-1">
+            <span>{t('viewAllBtn')}</span>
+            <ChevronRight size={12} />
           </Link>
         </div>
 
         {postedJobs.length === 0 ? (
-          <div className="bg-slate-50 p-6 rounded-2xl text-center space-y-2 border border-slate-100">
-            <Briefcase size={28} className="mx-auto text-slate-300" />
-            <p className="text-xs font-bold text-slate-700">{t('noJobReqsPostedYet')}</p>
+          <div className="text-center py-6 space-y-2">
+            <Briefcase size={32} className="mx-auto text-slate-300" />
+            <p className="text-xs font-bold text-slate-600">{t('noJobsPostedYet')}</p>
             <Link
               href="/employer/post-job"
-              className="py-2 px-4 bg-[#1A73E8] text-white rounded-xl text-xs font-black inline-flex items-center gap-1 cursor-pointer"
+              className="py-2 px-4 bg-[#1A73E8] text-white rounded-xl text-xs font-black shadow-md inline-flex items-center gap-1 cursor-pointer"
             >
-              <PlusCircle size={13} /> {t('postFirstJob')}
+              <PlusCircle size={13} />
+              <span>{t('postFirstJobBtn')}</span>
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {postedJobs.slice(0, 2).map((job) => {
-              const isActive = job.status === 'active' || job.status === 'approved';
-              const isChangesRequested = job.status === 'changes_requested';
-
-              return (
-                <div 
-                  key={job.id}
-                  className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-3 flex flex-col justify-between"
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <h4 className="text-xs font-black text-slate-900 truncate">{job.title}</h4>
-                      <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase shrink-0 ${
-                        isActive ? 'bg-emerald-100 text-emerald-800' : isChangesRequested ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {isActive ? 'Active' : isChangesRequested ? 'Action Needed' : 'Pending Audit'}
-                      </span>
-                    </div>
-
-                    <p className="text-[10.5px] text-slate-500 font-bold flex items-center justify-between">
-                      <span>Offered: <strong className="text-emerald-700 font-mono">₹{job.salary}/mo</strong></span>
-                      <span>{job.applicationsCount || 0} Applicants</span>
-                    </p>
+          <div className="space-y-3">
+            {postedJobs.slice(0, 3).map((job) => (
+              <div key={job.id} className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200/70 flex items-center justify-between gap-3 hover:bg-slate-50 transition-all">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-xs font-black text-slate-900">{job.title}</h4>
+                    <span className={`text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full ${
+                      job.status === 'active' || job.status === 'approved'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-amber-100 text-amber-800 border border-amber-300'
+                    }`}>
+                      {job.status === 'active' || job.status === 'approved' ? t('activeBadge') : t('pendingBadge')}
+                    </span>
                   </div>
+                  <p className="text-[10.5px] text-slate-500 font-semibold flex items-center gap-2">
+                    <span>₹{Number(job.salary || 15000).toLocaleString('en-IN')}/mo</span>
+                    <span>&bull;</span>
+                    <span>{job.workType || 'Full Day'}</span>
+                  </p>
+                </div>
 
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="bg-blue-50 text-[#1A73E8] text-[10px] font-black px-2.5 py-1 rounded-xl border border-blue-200">
+                    {job.applicationsCount || 0} {t('applicantsUnit')}
+                  </span>
                   <Link
-                    href="/employer/jobs"
-                    className="w-full py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold text-center cursor-pointer block"
+                    href={`/employer/jobs?id=${job.id}`}
+                    className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-xl border border-slate-200 text-xs font-bold"
                   >
-                    View Details &amp; Applicants
+                    <ChevronRight size={14} />
                   </Link>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* 🌟 FEATURED VERIFIED DOMESTIC HELPERS NEARBY */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-              <UserCheck size={16} className="text-[#1A73E8]" />
-              <span>Available Verified Domestic Helpers in {employerProfile.society_name?.split('-')[0] || 'Your Society'}</span>
-            </h3>
-            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
-              Browse top-rated, Aadhaar-verified domestic candidates actively looking for work.
-            </p>
-          </div>
-
-          <Link
-            href="/employer/workers"
-            className="text-xs font-black text-[#1A73E8] hover:underline flex items-center gap-1 shrink-0"
-          >
-            <span>View All Candidates</span>
-            <ArrowRight size={13} />
+      {/* 🌟 FEATURED VERIFIED WORKERS IN YOUR SOCIETY */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+            <Users size={15} className="text-[#1A73E8]" />
+            <span>{t('nearbySocietyHelpersTitle')}</span>
+          </h3>
+          <Link href="/employer/workers" className="text-[11px] font-black text-[#1A73E8] hover:underline flex items-center gap-1">
+            <span>{t('viewAllBtn')}</span>
+            <ChevronRight size={12} />
           </Link>
         </div>
 
-        <div className="flex flex-col space-y-3">
-          {nearbyWorkers.map((worker) => (
-            <div 
-              key={worker.id}
-              className="bg-white p-4.5 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-blue-200"
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 text-[#1A73E8] font-black text-base flex items-center justify-center shrink-0 border border-blue-200 shadow-xs">
-                  {worker.photo}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {nearbyWorkers.map((w) => (
+            <div key={w.id} className="p-3.5 bg-slate-50/70 rounded-2xl border border-slate-200/60 space-y-2.5 hover:bg-white hover:shadow-xs transition-all">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 bg-[#1A73E8] text-white font-black rounded-xl flex items-center justify-center text-xs shadow-xs shrink-0">
+                  {w.photo}
                 </div>
-                <div className="min-w-0 space-y-0.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="text-sm font-black text-slate-900 truncate">{worker.name}</h4>
-                    <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-200/50">
-                      {worker.badge}
-                    </span>
-                  </div>
-                  <p className="text-xs font-bold text-slate-500 truncate">{worker.categoryLabel} &bull; {worker.experience}</p>
-                  <div className="flex items-center gap-3 text-[11px] font-bold text-slate-600 pt-0.5">
-                    <span className="flex items-center gap-1 text-amber-600 font-extrabold">
-                      <Star size={11} className="fill-amber-500 text-amber-500" /> {worker.rating} ({worker.reviews} reviews)
-                    </span>
-                    <span>&bull;</span>
-                    <span className="text-slate-500 font-semibold">{worker.society}</span>
-                  </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-black text-slate-900 truncate">{w.name}</h4>
+                  <p className="text-[10px] text-slate-500 font-bold truncate">{w.categoryLabel}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                <div className="text-right">
-                  <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Salary</span>
-                  <span className="text-sm font-black text-slate-900 font-mono">{worker.salary}</span>
-                </div>
-                <Link
-                  href="/employer/workers"
-                  className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs font-black text-center cursor-pointer block shadow-sm transition-all shrink-0"
-                >
-                  {t('hireCandidate')}
-                </Link>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold border-t border-slate-200/50 pt-2">
+                <span className="flex items-center gap-1 text-amber-600 font-black">
+                  <Star size={11} fill="currentColor" /> {w.rating} ({w.reviews})
+                </span>
+                <span className="text-emerald-700 font-black">{w.salary}</span>
               </div>
+
+              <Link
+                href={`/employer/workers?id=${w.id}`}
+                className="w-full py-1.5 bg-white hover:bg-blue-50 text-[#1A73E8] border border-blue-200 rounded-xl text-[10.5px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer block text-center"
+              >
+                <span>{t('viewProfileBtn')}</span>
+                <ChevronRight size={12} />
+              </Link>
             </div>
           ))}
         </div>
       </div>
+
     </div>
   );
 }
