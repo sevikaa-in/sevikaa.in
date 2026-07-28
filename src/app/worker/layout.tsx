@@ -149,28 +149,58 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           .from('profiles')
           .select('*, worker_profiles(*)')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
-        if (profile) {
-          if (profile.status === 'deletion_requested') {
+        let wProf = profile?.worker_profiles 
+          ? (Array.isArray(profile.worker_profiles) ? profile.worker_profiles[0] : profile.worker_profiles)
+          : null;
+
+        if (!wProf) {
+          const { data: directWProf } = await supabase
+            .from('worker_profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          if (directWProf) wProf = directWProf;
+        }
+
+        if (profile?.role && profile.role !== 'worker') {
+          if (profile.role === 'employer') router.push('/employer');
+          else if (profile.role === 'super-admin') router.push('/super-admin/dashboard');
+          else if (profile.role === 'admin') router.push('/admin/dashboard');
+          return;
+        }
+
+        if (typeof window !== 'undefined') {
+          document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
+        }
+
+        if (profile || wProf) {
+          const profStatus = profile?.status || wProf?.status || 'pending_verification';
+          const isApproved = profStatus === 'live' || profStatus === 'approved';
+
+          if (profile?.status === 'deletion_requested') {
             setDeletionRequested(true);
           }
-          if (profile.worker_profiles) {
-            const wProf = profile.worker_profiles;
-            const isApproved = profile.status === 'live' || profile.status === 'approved';
 
+          if (wProf) {
             setWorkerProfile({
-              name: wProf.full_name || 'Worker',
-              category: wProf.skills || [],
-              expectedSalary: wProf.expected_salary || '15000',
+              name: wProf.full_name || wProf.name || profile?.full_name || 'Worker',
+              category: Array.isArray(wProf.skills) ? wProf.skills : (wProf.skills ? [wProf.skills] : []),
+              expectedSalary: String(wProf.expected_salary || '15000'),
               experience: wProf.experience_years ? `${wProf.experience_years} Years` : '0 Years',
-              society: wProf.preferred_society_name || '',
+              society: wProf.preferred_society_name || wProf.society || '',
               society_id: wProf.preferred_society_id || '',
-              phone: profile.phone || '',
+              phone: profile?.phone || wProf.phone || '',
               languages: wProf.languages_spoken || [],
               gender: wProf.gender || 'female',
-              age: wProf.age || 30,
-              status: profile.status
+              age: wProf.age || 28,
+              status: profStatus,
+              profile_picture_url: wProf.profile_picture_url || wProf.avatar_url || profile?.avatar_url || '',
+              aadhaar_front_url: wProf.aadhaar_front_url || '',
+              aadhaar_back_url: wProf.aadhaar_back_url || '',
+              video_url: wProf.video_url || '',
+              is_aadhaar_verified: wProf.is_aadhaar_verified || isApproved
             });
 
             setBadges([
@@ -232,7 +262,20 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           .from('worker_profiles')
           .update({
             full_name: updatedData.name,
-            expected_salary: parseInt(updatedData.expectedSalary) || 15000
+            expected_salary: parseInt(updatedData.expectedSalary) || 15000,
+            experience_years: parseInt(updatedData.experience) || 0,
+            gender: updatedData.gender,
+            age: updatedData.age,
+            preferred_shift: updatedData.preferredShift,
+            emergency_contact: updatedData.emergencyContact,
+            bio: updatedData.bio,
+            languages_spoken: updatedData.languages,
+            skills: updatedData.category,
+            profile_picture_url: updatedData.profilePicUrl || updatedData.profile_picture_url || null,
+            aadhaar_front_url: updatedData.aadhaarFrontUrl || updatedData.aadhaar_front_url || null,
+            aadhaar_back_url: updatedData.aadhaarBackUrl || updatedData.aadhaar_back_url || null,
+            video_url: updatedData.introVideoUrl || updatedData.video_url || null,
+            is_aadhaar_verified: (!!updatedData.aadhaarFrontUrl && !!updatedData.aadhaarBackUrl) || workerProfile.is_aadhaar_verified
           })
           .eq('user_id', user.id);
       }

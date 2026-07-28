@@ -140,44 +140,44 @@ export default function EmployerOverviewPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-800">
         <Link
           href="/employer/jobs"
-          className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group"
+          className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group min-w-0 overflow-hidden"
         >
-          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between">
-            <span>{t('postedReqsTitle')}</span>
-            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8]" />
+          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between gap-1 min-w-0">
+            <span className="truncate">{t('postedReqsTitle') || "Posted Requisitions"}</span>
+            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8] shrink-0" />
           </span>
-          <span className="text-xl font-black text-slate-900 block">{postedJobs.length}</span>
-          <span className="text-[10px] text-emerald-600 font-bold block">{activeJobsCount} {t('active')} &bull; {pendingJobsCount} {t('pending')}</span>
+          <span className="text-xl font-black text-slate-900 block truncate">{postedJobs.length}</span>
+          <span className="text-[10px] text-emerald-600 font-bold block truncate">{activeJobsCount} {t('active') || "Active"} &bull; {pendingJobsCount} {t('pending') || "Pending"}</span>
         </Link>
 
         <Link
           href="/employer/jobs"
-          className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group"
+          className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group min-w-0 overflow-hidden"
         >
-          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between">
-            <span>{t('totalApplicantsTitle')}</span>
-            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8]" />
+          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between gap-1 min-w-0">
+            <span className="truncate">{t('totalApplicantsTitle') || "Total Applicants"}</span>
+            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8] shrink-0" />
           </span>
-          <span className="text-xl font-black text-[#1A73E8] block">{totalApplicantsCount}</span>
-          <span className="text-[10px] text-slate-500 font-bold block">{t('viewCandidatesSub')}</span>
+          <span className="text-xl font-black text-[#1A73E8] block truncate">{totalApplicantsCount}</span>
+          <span className="text-[10px] text-slate-500 font-bold block truncate">{t('viewCandidatesSub') || "View Applicants"}</span>
         </Link>
 
-        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs space-y-1 text-left">
-          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider">{t('societyHelpersTitle')}</span>
-          <span className="text-xl font-black text-slate-900 block">52</span>
-          <span className="text-[10px] text-emerald-600 font-bold block">{t('societyCoverageSub')}</span>
+        <div className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-xs space-y-1 text-left min-w-0 overflow-hidden">
+          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider truncate">{t('societyHelpersTitle') || "Helpers in Society"}</span>
+          <span className="text-xl font-black text-slate-900 block truncate">52</span>
+          <span className="text-[10px] text-emerald-600 font-bold block truncate">{t('societyCoverageSub') || "Verified in Society"}</span>
         </div>
 
         <Link
           href="/employer/account"
-          className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group"
+          className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group min-w-0 overflow-hidden"
         >
-          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between">
-            <span>{t('accountStatusTitle')}</span>
-            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8]" />
+          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between gap-1 min-w-0">
+            <span className="truncate">{t('accountStatusTitle') || "Account Plan"}</span>
+            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8] shrink-0" />
           </span>
-          <span className="text-sm font-black text-emerald-600 block mt-1">{employerProfile.subscription_status || 'Standard Plan'}</span>
-          <span className="text-[10px] text-slate-400 font-bold block">{t('unlimitedHiringSub')}</span>
+          <span className="text-sm font-black text-emerald-600 block mt-1 truncate">{employerProfile.subscription_status || 'Standard Plan'}</span>
+          <span className="text-[10px] text-slate-400 font-bold block truncate">{t('unlimitedHiringSub') || "Unlimited Direct Contact"}</span>
         </Link>
       </div>
 
@@ -188,8 +188,8 @@ export default function EmployerOverviewPage() {
             <Sparkles size={18} />
           </div>
           <div>
-            <h4 className="text-xs font-black text-slate-900">{t('hireFastTitle')}</h4>
-            <p className="text-[11px] text-slate-500 font-medium">{t('hireFastSub')}</p>
+            <h4 className="text-xs font-black text-slate-900">{t('hireFastTitle') || "Need Domestic Help Fast?"}</h4>
+            <p className="text-[11px] text-slate-500 font-medium">{t('hireFastSub') || "Browse 100+ verified maids, cooks & nannies near you"}</p>
           </div>
         </div>
 
@@ -197,7 +197,7 @@ export default function EmployerOverviewPage() {
           href="/employer/workers"
           className="py-2 px-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shrink-0 whitespace-nowrap cursor-pointer transition-all flex items-center gap-1 shadow-xs"
         >
-          <span>{t('browseHelpersBtn')}</span>
+          <span>{t('browseHelpersBtn') || "Browse Helpers"}</span>
           <ArrowRight size={13} />
         </Link>
       </div>
@@ -207,10 +207,10 @@ export default function EmployerOverviewPage() {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
             <Briefcase size={15} className="text-[#1A73E8]" />
-            <span>{t('yourActiveRequisitionsTitle')}</span>
+            <span>{t('yourActiveRequisitionsTitle') || "Your Active Requisitions"}</span>
           </h3>
           <Link href="/employer/jobs" className="text-[11px] font-black text-[#1A73E8] hover:underline flex items-center gap-1">
-            <span>{t('viewAllBtn')}</span>
+            <span>{t('viewAllBtn') || "View All"}</span>
             <ChevronRight size={12} />
           </Link>
         </div>
@@ -218,13 +218,13 @@ export default function EmployerOverviewPage() {
         {postedJobs.length === 0 ? (
           <div className="text-center py-6 space-y-2">
             <Briefcase size={32} className="mx-auto text-slate-300" />
-            <p className="text-xs font-bold text-slate-600">{t('noJobsPostedYet')}</p>
+            <p className="text-xs font-bold text-slate-600">{t('noJobsPostedYet') || "No Job Requisitions Posted Yet"}</p>
             <Link
               href="/employer/post-job"
               className="py-2 px-4 bg-[#1A73E8] text-white rounded-xl text-xs font-black shadow-md inline-flex items-center gap-1 cursor-pointer"
             >
               <PlusCircle size={13} />
-              <span>{t('postFirstJobBtn')}</span>
+              <span>{t('postFirstJobBtn') || "Post First Job"}</span>
             </Link>
           </div>
         ) : (
@@ -239,7 +239,7 @@ export default function EmployerOverviewPage() {
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                         : 'bg-amber-100 text-amber-800 border border-amber-300'
                     }`}>
-                      {job.status === 'active' || job.status === 'approved' ? t('activeBadge') : t('pendingBadge')}
+                      {job.status === 'active' || job.status === 'approved' ? (t('activeBadge') || 'Active') : (t('pendingBadge') || 'Pending Audit')}
                     </span>
                   </div>
                   <p className="text-[10.5px] text-slate-500 font-semibold flex items-center gap-2">
@@ -251,7 +251,7 @@ export default function EmployerOverviewPage() {
 
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="bg-blue-50 text-[#1A73E8] text-[10px] font-black px-2.5 py-1 rounded-xl border border-blue-200">
-                    {job.applicationsCount || 0} {t('applicantsUnit')}
+                    {job.applicationsCount || 0} {t('applicantsUnit') || "Applicants"}
                   </span>
                   <Link
                     href={`/employer/jobs?id=${job.id}`}
@@ -271,10 +271,10 @@ export default function EmployerOverviewPage() {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
             <Users size={15} className="text-[#1A73E8]" />
-            <span>{t('nearbySocietyHelpersTitle')}</span>
+            <span>{t('nearbySocietyHelpersTitle') || "Verified Helpers in Your Society"}</span>
           </h3>
           <Link href="/employer/workers" className="text-[11px] font-black text-[#1A73E8] hover:underline flex items-center gap-1">
-            <span>{t('viewAllBtn')}</span>
+            <span>{t('viewAllBtn') || "View All"}</span>
             <ChevronRight size={12} />
           </Link>
         </div>

@@ -169,26 +169,9 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
                 )}
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onApproveEmployer(emp.id);
-                    }}
-                    className="py-1 px-3.5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-[10px] font-black uppercase active:scale-95 transition-all cursor-pointer shadow-sm shadow-[#34A853]/20"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRejectEmployer(emp.id);
-                    }}
-                    className="py-1 px-3.5 bg-slate-100 hover:bg-red-50 hover:text-[#EA4335] rounded-xl text-[10px] font-bold text-slate-500 active:scale-95 transition-all cursor-pointer border border-slate-200/50"
-                  >
-                    Reject
-                  </button>
+                  <span className="text-[10px] font-bold text-[#1A73E8] group-hover:underline flex items-center gap-0.5">
+                    View Details & Verify &rarr;
+                  </span>
                 </div>
               </div>
             </div>

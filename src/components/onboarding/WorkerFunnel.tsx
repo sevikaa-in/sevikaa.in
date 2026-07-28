@@ -225,6 +225,23 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
     setSelfiePreview(null);
   };
 
+  // Sync step navigation with browser history for mobile hardware back button support
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.history.replaceState({ step }, '', `?role=worker&step=${step}`);
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && typeof e.state.step === 'number') {
+        setStep(e.state.step);
+      } else {
+        setStep(1);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // Form Validations per step
   const validateStep = () => {
     setError('');
@@ -241,9 +258,12 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
     if (step === 3) {
       if (skills.length === 0) return setError('Please select at least one job category'), false;
       if (!experience || parseInt(experience) < 0) return setError('Please enter your experience in years'), false;
-      // Availability check
-      const hasSlot = Object.values(availability).some(slots => slots.length > 0) || fullDay || liveIn;
-      if (!hasSlot) return setError('Please designate at least one availability slot or choose live-in/full-day'), false;
+      
+      // Strict Availability check: must have selected at least 1 cell in calendar grid OR checked Full Day OR Live-In
+      const hasGridSlot = Object.values(availability).some(slots => Array.isArray(slots) && slots.length > 0);
+      if (!hasGridSlot && !fullDay && !liveIn) {
+        return setError('Please select your available days/time slots in the weekly calendar grid or check Full Day / Live-in'), false;
+      }
     }
     if (step === 4) {
       if (!expectedSalary || parseInt(expectedSalary) <= 0) return setError('Please specify expected salary'), false;
@@ -254,13 +274,25 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
 
   const handleNext = () => {
     if (validateStep()) {
-      setStep(prev => prev + 1);
+      const nextStep = step + 1;
+      setStep(nextStep);
+      if (typeof window !== 'undefined') {
+        window.history.pushState({ step: nextStep }, '', `?role=worker&step=${nextStep}`);
+      }
     }
   };
 
   const handleBack = () => {
     setError('');
-    setStep(prev => prev - 1);
+    if (step > 1) {
+      if (typeof window !== 'undefined' && window.history.state?.step > 1) {
+        window.history.back();
+      } else {
+        setStep(prev => prev - 1);
+      }
+    } else {
+      if (onCancel) onCancel();
+    }
   };
 
   const handleSubmit = async () => {
@@ -325,10 +357,10 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
         videoUrl = vidData.path;
       }
 
-      // 3. Insert into worker_profiles
+      // 3. Upsert into worker_profiles
       const { error: workerErr } = await supabase
         .from('worker_profiles')
-        .insert({
+        .upsert({
           user_id: userId,
           full_name: fullName,
           gender,
@@ -498,8 +530,13 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('age')}</label>
               <input
                 type="number"
+                min="18"
+                max="80"
                 value={age}
-                onChange={(e) => setAge(e.target.value)}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/\D/g, '').slice(0, 2);
+                  setAge(cleaned);
+                }}
                 placeholder="Enter age (18 - 80)"
                 className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200"
               />

@@ -28,6 +28,7 @@ interface EmployerDashboardContextProps {
   handleToggleBookmark: (workerId: string) => void;
   handlePostJob: (jobData: any) => Promise<void>;
   handleUpdateJob: (jobId: string, updatedData: any) => Promise<void>;
+  handleSaveEmployerProfile: (updatedData: any) => Promise<void>;
   handleRequestAccountDeletion: (reason: string) => Promise<void>;
   handleLogout: () => Promise<void>;
 }
@@ -97,22 +98,44 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           .from('profiles')
           .select('*, employer_profiles(*)')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
-        if (profile) {
-          if (profile.status === 'deletion_requested') {
+        let empProf = profile?.employer_profiles 
+          ? (Array.isArray(profile.employer_profiles) ? profile.employer_profiles[0] : profile.employer_profiles)
+          : null;
+
+        if (!empProf) {
+          const { data: directEmpProf } = await supabase
+            .from('employer_profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          if (directEmpProf) empProf = directEmpProf;
+        }
+
+        if (profile?.role && profile.role !== 'employer') {
+          if (profile.role === 'worker') router.push('/worker');
+          else if (profile.role === 'super-admin') router.push('/super-admin/dashboard');
+          else if (profile.role === 'admin') router.push('/admin/dashboard');
+          return;
+        }
+
+        if (typeof window !== 'undefined') {
+          document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
+        }
+
+        if (profile || empProf) {
+          if (profile?.status === 'deletion_requested') {
             setDeletionRequested(true);
           }
-          if (profile.employer_profiles) {
-            setEmployerProfile({
-              company_name: profile.employer_profiles.name || profile.employer_profiles.company_name || 'Lakhan Lal Sah',
-              email: profile.email || session.user.email || 'lakhan.sah@gmail.com',
-              society_name: profile.employer_profiles.billing_address || 'DLF Westend Heights - Akshayanagar',
-              phone: profile.phone || '+91 98765 43210',
-              subscription_status: profile.employer_profiles.subscription_status || 'Standard Plan',
-              address: profile.employer_profiles.billing_address || 'Tower 4, Apt 802'
-            });
-          }
+          setEmployerProfile({
+            company_name: empProf?.company_name || empProf?.name || profile?.full_name || 'Employer Profile',
+            email: profile?.email || session.user.email || empProf?.email || '',
+            society_name: empProf?.society_name || empProf?.billing_address || 'DLF Westend Heights - Akshayanagar',
+            phone: profile?.phone || empProf?.phone || '',
+            subscription_status: empProf?.subscription_status || 'Standard Plan',
+            address: empProf?.billing_address || empProf?.address || 'Tower 4, Apt 802'
+          });
         }
       }
 
@@ -123,7 +146,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
         .order('created_at', { ascending: false });
 
       if (activeUserId) {
-        jobsQuery = jobsQuery.eq('employer_id', activeUserId);
+        jobsQuery = jobsQuery.or(`employer_id.eq.${activeUserId},user_id.eq.${activeUserId}`);
       } else {
         // Fallback filter for demo employer name if not logged into auth
         jobsQuery = jobsQuery.or(`employer_name.eq."Lakhan Lal Sah",employer_id.eq."emp_demo"`);
@@ -136,6 +159,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           id: j.id,
           title: j.title || 'Job Requisition',
           category: j.category || 'general',
+          society_name: j.society_name || j.societyName || employerProfile.society_name || 'DLF Westend Heights',
           salary: j.salary_offered || j.salary || '15000',
           status: j.status || 'active',
           adminNote: j.admin_note || j.adminNote || undefined,
@@ -168,10 +192,12 @@ export default function EmployerDashboardLayout({ children }: { children: React.
   };
 
   const handlePostJob = async (jobData: any) => {
+    const targetSociety = jobData.societyName || employerProfile.society_name || 'DLF Westend Heights';
     const newJob = {
       id: `job_${Date.now()}`,
       title: jobData.title,
       category: jobData.category,
+      society_name: targetSociety,
       salary: jobData.salary,
       salary_offered: jobData.salary,
       status: 'pending',
@@ -194,7 +220,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           status: 'pending',
           description: jobData.description,
           employer_name: employerProfile.company_name,
-          society_name: employerProfile.society_name
+          society_name: targetSociety
         }]);
       }
     } catch (err) {
@@ -213,6 +239,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
         salary_offered: updatedData.salary,
         description: updatedData.description,
         category: updatedData.category,
+        society_name: updatedData.society_name || updatedData.societyName,
         status: 'pending' // Resubmit for review
       }).eq('id', jobId);
     } catch (err) {
@@ -224,6 +251,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
         return {
           ...job,
           ...updatedData,
+          society_name: updatedData.society_name || updatedData.societyName || job.society_name,
           status: 'pending',
           adminNote: undefined
         };
@@ -231,6 +259,28 @@ export default function EmployerDashboardLayout({ children }: { children: React.
       return job;
     }));
     showToast('Job requisition updated and resubmitted for Admin review!', 'success');
+  };
+
+  const handleSaveEmployerProfile = async (updatedData: any) => {
+    setEmployerProfile((prev: any) => ({ ...prev, ...updatedData }));
+    try {
+      if (user?.id) {
+        await supabase
+          .from('employer_profiles')
+          .update({
+            company_name: updatedData.company_name,
+            phone: updatedData.phone,
+            email: updatedData.email,
+            billing_address: updatedData.address ? `${updatedData.tower || ''}, ${updatedData.address}` : updatedData.billing_address,
+            avatar_url: updatedData.avatar_url || updatedData.profilePhoto,
+            aadhaar_front_url: updatedData.aadhaar_front_url || updatedData.aadhaarFrontUrl,
+            aadhaar_back_url: updatedData.aadhaar_back_url || updatedData.aadhaarBackUrl
+          })
+          .eq('user_id', user.id);
+      }
+    } catch (err) {
+      console.error("Error updating employer profile in DB:", err);
+    }
   };
 
   const handleRequestAccountDeletion = async (reason: string) => {
@@ -280,7 +330,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
       user, loading, employerProfile, setEmployerProfile, isPremium,
       bookmarkedContacts, postedJobs, societiesList, deletionRequested,
       showToast, handleToggleBookmark, handlePostJob,
-      handleUpdateJob, handleRequestAccountDeletion, handleLogout
+      handleUpdateJob, handleSaveEmployerProfile, handleRequestAccountDeletion, handleLogout
     }}>
       <div className="bg-slate-100 min-h-screen flex justify-center items-start font-sans antialiased">
         <ToastContainer toasts={toasts} onDismiss={removeToast} />
@@ -372,7 +422,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           )}
 
           {/* Main Scrollable Screen Area */}
-          <main className="flex-1 p-4 space-y-4 pb-6">
+          <main className="flex-1 p-4 space-y-5 pb-24 pt-4">
             {children}
           </main>
 

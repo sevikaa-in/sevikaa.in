@@ -81,11 +81,11 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-slate-900/25 backdrop-blur-[2px] z-50 flex justify-end animate-fade-in"
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 sm:p-6 animate-fade-in"
       onClick={onClose}
     >
       <div 
-        className="w-full sm:w-[680px] md:w-[760px] lg:w-[840px] h-full bg-white shadow-2xl flex flex-col border-l border-slate-200/80 animate-slide-left overflow-hidden"
+        className="w-full max-w-3xl max-h-[85vh] bg-white shadow-2xl rounded-3xl flex flex-col border border-slate-100 animate-scale-up overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         

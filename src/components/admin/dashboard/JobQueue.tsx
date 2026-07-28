@@ -40,11 +40,16 @@ export const JobQueue: React.FC<JobQueueProps> = ({
     );
   }
 
-  const filtered = jobs.filter(j => 
-    (j.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (j.employer || j.employer_profile_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (j.society_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (j.category || '').toLowerCase().includes(searchTerm.toLowerCase())
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const effectiveSearch = searchTerm.trim();
+
+  const filtered = safeJobs.filter(j => 
+    !effectiveSearch ||
+    (j.title || '').toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+    (j.employer || j.employer_profile_name || j.employer_name || '').toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+    (j.society_name || '').toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+    (j.category || '').toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+    (j.description || '').toLowerCase().includes(effectiveSearch.toLowerCase())
   );
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);

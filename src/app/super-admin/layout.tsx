@@ -593,6 +593,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
       const { data: pendingJobs, count: pendingJobsCount } = await supabase
         .from('jobs')
         .select('*')
+        .or('status.eq.pending,status.eq.pending_review,status.is.null')
         .order('created_at', { ascending: false });
 
       if (pendingJobs && pendingJobs.length > 0) {
@@ -600,14 +601,14 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
           id: j.id,
           title: j.title || 'General Job Requirement',
           category: j.category || 'General',
-          salary_offered: j.salary_offered || j.salary || 15000,
-          salary: j.salary_offered || j.salary || 15000,
-          society_name: j.society_name || 'DLF Westend Heights - Akshayanagar',
-          employer: j.employer_name || 'Lakhan Lal Sah',
-          employer_phone: j.employer_phone || '+91 98765 43210',
-          employer_email: j.employer_email || 'lakhan.sah@gmail.com',
-          phone: j.employer_phone || '+91 98765 43210',
-          email: j.employer_email || 'lakhan.sah@gmail.com',
+          salary_offered: j.salary_offered || j.salary || 0,
+          salary: j.salary_offered || j.salary || 0,
+          society_name: j.society_name || 'General Locality',
+          employer: j.employer_name || 'Employer Household',
+          employer_phone: j.employer_phone || '',
+          employer_email: j.employer_email || '',
+          phone: j.employer_phone || '',
+          email: j.employer_email || '',
           description: j.description || 'Job requisition awaiting admin moderation.',
           status: j.status || 'pending',
           admin_note: j.admin_note || j.adminNote || undefined,
@@ -627,16 +628,37 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         .limit(10);
 
       if (profilesList) {
-        setWorkersList(profilesList.map((p: any) => ({
-          id: p.id,
-          full_name: p.worker_profiles?.full_name || 'N/A',
-          skills: p.worker_profiles?.skills || [],
-          languages_spoken: p.worker_profiles?.languages_spoken || [],
-          status: p.status,
-          age: p.worker_profiles?.age || 0,
-          gender: p.worker_profiles?.gender || 'N/A',
-          availability_slots: p.worker_profiles?.availability_slots || {}
-        })));
+        setWorkersList(profilesList.map((p: any) => {
+          const wp = Array.isArray(p.worker_profiles) ? p.worker_profiles[0] : p.worker_profiles;
+          return {
+            id: p.id,
+            name: wp?.full_name || wp?.name || p.full_name || 'N/A',
+            full_name: wp?.full_name || wp?.name || p.full_name || 'N/A',
+            email: p.email || wp?.email || '',
+            phone: p.phone || wp?.phone || '',
+            skills: wp?.skills || [],
+            languages_spoken: wp?.languages_spoken || [],
+            status: p.status || wp?.status || 'pending_review',
+            age: wp?.age || 0,
+            gender: wp?.gender || 'N/A',
+            profile_picture_url: wp?.profile_picture_url || '',
+            video_url: wp?.video_url || '',
+            aadhaar_front_url: wp?.aadhaar_front_url || '',
+            aadhaar_back_url: wp?.aadhaar_back_url || '',
+            experience_years: wp?.experience_years || 0,
+            expected_salary: wp?.expected_salary || 0,
+            emergency_contact: wp?.emergency_contact || '',
+            availability_slots: wp?.availability_slots || {},
+            badges: {
+              mobile: p.phone ? 'Verified' : 'Pending',
+              aadhaar: wp?.aadhaar_front_url ? 'Verified' : 'Pending',
+              police: 'Pending',
+              interview: p.status === 'live' ? 'Verified' : 'Pending',
+              video: wp?.video_url ? 'Verified' : 'Pending',
+              profile: wp?.profile_picture_url ? 'Verified' : 'Pending'
+            }
+          };
+        }));
 
         let earlyMorning = 0, morning = 0, afternoon = 0, evening = 0, night = 0, fullDay = 0, liveIn = 0;
         profilesList.forEach((p: any) => {
@@ -945,10 +967,39 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     router.push('/');
   };
 
+  const q = searchQuery.toLowerCase().trim();
+
+  const filteredWorkers = workersList.filter(w => !q ||
+    (w.name || '').toLowerCase().includes(q) ||
+    (w.phone || '').toLowerCase().includes(q) ||
+    (w.email || '').toLowerCase().includes(q) ||
+    (w.society || '').toLowerCase().includes(q)
+  );
+
+  const filteredEmployers = employersList.filter(e => !q ||
+    (e.company_name || e.name || '').toLowerCase().includes(q) ||
+    (e.phone || '').toLowerCase().includes(q) ||
+    (e.email || '').toLowerCase().includes(q) ||
+    (e.billing_address || e.address || '').toLowerCase().includes(q)
+  );
+
+  const filteredJobs = pendingJobsList.filter(j => !q ||
+    (j.title || '').toLowerCase().includes(q) ||
+    (j.employer || j.employer_name || '').toLowerCase().includes(q) ||
+    (j.society_name || '').toLowerCase().includes(q) ||
+    (j.category || '').toLowerCase().includes(q)
+  );
+
+  const filteredReviews = pendingReviewsList.filter(r => !q ||
+    (r.reviewerName || r.reviewer_name || '').toLowerCase().includes(q) ||
+    (r.workerName || r.target_name || '').toLowerCase().includes(q) ||
+    (r.comment || '').toLowerCase().includes(q)
+  );
+
   return (
     <SuperAdminDashboardContext.Provider value={{
-      loading, error, user, dbStats, workersList, employersList, setEmployersList, pendingJobsList,
-      pendingReviewsList, societiesList, setSocietiesList, admins, newAdminEmail, setNewAdminEmail,
+      loading, error, user, dbStats, workersList: filteredWorkers, employersList: filteredEmployers, setEmployersList, pendingJobsList: filteredJobs,
+      pendingReviewsList: filteredReviews, societiesList, setSocietiesList, admins, newAdminEmail, setNewAdminEmail,
       selectedWorker, setSelectedWorker,
       pricing, setPricing, availabilityMetrics, societyAnalytics, activities,
       smsTemplates, smsLogs, smsLoading, previewTemplate, setPreviewTemplate,

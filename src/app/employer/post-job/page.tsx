@@ -44,6 +44,7 @@ export default function EmployerPostJobPage() {
 
   const [category, setCategory] = useState<string>('cook');
   const [title, setTitle] = useState('');
+  const [societyName, setSocietyName] = useState(employerProfile.society_name || 'DLF Westend Heights');
   const [salary, setSalary] = useState('15000');
   const [flatType, setFlatType] = useState('3BHK Apartment');
   const [familyMembers, setFamilyMembers] = useState('4 Members (2 Adults, 2 Kids)');
@@ -133,6 +134,7 @@ export default function EmployerPostJobPage() {
       title: finalTitle,
       category,
       salary,
+      societyName,
       flatType,
       familyMembers,
       careNeeds,
@@ -205,7 +207,7 @@ export default function EmployerPostJobPage() {
                 </span>
               </div>
               <span className="text-[11px] text-slate-300 font-semibold flex items-center gap-1 mt-1">
-                <MapPin size={11} className="text-blue-400" /> {employerProfile.society_name || 'DLF Westend Heights'}
+                <MapPin size={11} className="text-blue-400" /> {societyName || employerProfile.society_name || 'DLF Westend Heights'}
               </span>
             </div>
             <span className="text-sm font-black text-emerald-400 font-mono shrink-0">₹{salary || '0'}/mo</span>
@@ -282,6 +284,17 @@ export default function EmployerPostJobPage() {
                 value={title} 
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={t(activeCategoryObj.defaultTitleKey) || "e.g. Experienced North Indian Cook"}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-colors"
+              />
+            </div>
+
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-slate-500 text-[10px] uppercase">{t('societyNameLabel') || "Gated Society / Location Name"}</label>
+              <input 
+                type="text" 
+                value={societyName} 
+                onChange={(e) => setSocietyName(e.target.value)}
+                placeholder={t('societyNamePlaceholder') || "e.g. DLF Westend Heights - Akshayanagar"}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-colors"
               />
             </div>

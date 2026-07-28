@@ -132,6 +132,26 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   // Fetch real statistics from Supabase tables
   const fetchDashboardData = async () => {
     setError('');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      setUser(session.user);
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (userProfile?.role && userProfile.role !== 'admin' && userProfile.role !== 'super-admin') {
+        if (userProfile.role === 'worker') router.push('/worker');
+        else if (userProfile.role === 'employer') router.push('/employer');
+        else router.push('/');
+        return;
+      }
+      if (userProfile?.role) {
+        document.cookie = `sevikaa_user_role=${userProfile.role}; path=/; max-age=86400`;
+      }
+    }
+
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -411,14 +431,15 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       const { data: pendingJobs } = await supabase
         .from('jobs')
         .select('*, employer:profiles(*, employer_profiles(*))')
+        .or('status.eq.pending,status.eq.pending_review,status.is.null')
         .order('created_at', { ascending: false });
 
       if (pendingJobs && pendingJobs.length > 0) {
         setPendingJobsList(pendingJobs.map((j: any) => {
-          const empName = j.employer_name || j.employer?.employer_profiles?.[0]?.name || j.employer?.employer_profiles?.[0]?.company_name || 'Lakhan Lal Sah';
-          const empPhone = j.employer_phone || j.employer?.phone || '+91 98765 43210';
-          const empEmail = j.employer_email || j.employer?.email || 'lakhan.sah@gmail.com';
-          const salaryVal = j.salary_offered || j.salary || j.salary_range_min || 15000;
+          const empName = j.employer_name || j.employer?.employer_profiles?.[0]?.name || j.employer?.employer_profiles?.[0]?.company_name || 'Employer Household';
+          const empPhone = j.employer_phone || j.employer?.phone || '';
+          const empEmail = j.employer_email || j.employer?.email || '';
+          const salaryVal = j.salary_offered || j.salary || j.salary_range_min || 0;
 
           return {
             id: j.id,
@@ -426,7 +447,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             category: j.category || 'General',
             salary_offered: salaryVal,
             salary: salaryVal,
-            society_name: j.society_name || 'DLF Westend Heights - Akshayanagar',
+            society_name: j.society_name || 'General Locality',
             employer: empName,
             employer_email: empEmail,
             employer_phone: empPhone,
@@ -709,11 +730,40 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     router.push('/');
   };
 
+  const q = searchQuery.toLowerCase().trim();
+
+  const filteredWorkers = workersList.filter(w => !q ||
+    (w.name || '').toLowerCase().includes(q) ||
+    (w.phone || '').toLowerCase().includes(q) ||
+    (w.email || '').toLowerCase().includes(q) ||
+    (w.society || '').toLowerCase().includes(q)
+  );
+
+  const filteredEmployers = employersList.filter(e => !q ||
+    (e.company_name || e.name || '').toLowerCase().includes(q) ||
+    (e.phone || '').toLowerCase().includes(q) ||
+    (e.email || '').toLowerCase().includes(q) ||
+    (e.billing_address || e.address || '').toLowerCase().includes(q)
+  );
+
+  const filteredJobs = pendingJobsList.filter(j => !q ||
+    (j.title || '').toLowerCase().includes(q) ||
+    (j.employer || j.employer_name || '').toLowerCase().includes(q) ||
+    (j.society_name || '').toLowerCase().includes(q) ||
+    (j.category || '').toLowerCase().includes(q)
+  );
+
+  const filteredReviews = pendingReviewsList.filter(r => !q ||
+    (r.reviewerName || r.reviewer_name || '').toLowerCase().includes(q) ||
+    (r.workerName || r.target_name || '').toLowerCase().includes(q) ||
+    (r.comment || '').toLowerCase().includes(q)
+  );
+
   return (
     <AdminDashboardContext.Provider value={{
-      loading, error, user, counts, workersList, employersList, pendingJobsList,
-      pendingReviewsList, interviewsList, disputesList, selectedWorker,
-      setSelectedWorker, setWorkersList, setEmployersList, setPendingJobsList,
+      loading, error, user, counts, workersList: filteredWorkers, employersList: filteredEmployers,
+      pendingJobsList: filteredJobs, pendingReviewsList: filteredReviews, interviewsList, disputesList,
+      selectedWorker, setSelectedWorker, setWorkersList, setEmployersList, setPendingJobsList,
       setPendingReviewsList, setInterviewsList, setDisputesList, setCounts,
       dateRange, setDateRange, searchQuery, setSearchQuery, fetchDashboardData,
       handleUpdateBadge, handleUpdateWorkerStatus, handleModerateJob, handleModerateReview,

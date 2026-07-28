@@ -13,7 +13,7 @@ import { translateText } from '../utils/translator';
 interface LanguageContextType {
   language: LanguageCode;
   setLanguage: (code: LanguageCode) => void;
-  t: (key: string) => string;
+  t: (key: string, fallback?: string) => string;
   translateDynamic: (text: string) => Promise<string>;
   supportedLanguages: LanguageInfo[];
 }
@@ -66,9 +66,19 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const t = (key: string): string => {
+  const t = (key: string, fallback?: string): string => {
+    if (!key) return fallback || '';
     const langTranslations = translations[language] || translations['en'];
-    return langTranslations[key] || translations['en'][key] || key;
+    const val = langTranslations?.[key] || translations['en']?.[key];
+    if (val) return val;
+    if (fallback) return fallback;
+    
+    // Smart fallback formatting for missing keys (e.g. "societyHelpersTitle" -> "Society Helpers")
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .replace(/\s(Title|Sub|Btn|Label|Badge)$/i, '')
+      .trim();
   };
 
   // Prevent flash of untranslated content by delaying render until initialized

@@ -19,6 +19,7 @@ export default function EmployerMyJobsPage() {
   const [editingJob, setEditingJob] = useState<any>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editCategory, setEditCategory] = useState('cook');
+  const [editSocietyName, setEditSocietyName] = useState('');
   const [editSalary, setEditSalary] = useState('');
   const [editFamilyMembers, setEditFamilyMembers] = useState('');
   const [editFlatType, setEditFlatType] = useState('');
@@ -44,6 +45,7 @@ export default function EmployerMyJobsPage() {
     setEditingJob(job);
     setEditTitle(job.title || '');
     setEditCategory(job.category || 'cook');
+    setEditSocietyName(job.society_name || job.societyName || employerProfile?.society_name || 'DLF Westend Heights');
     setEditSalary(job.salary || '15000');
     setEditFamilyMembers(job.family_members || '4 Members (2 Adults, 2 Kids)');
     setEditFlatType(job.flat_type || '3BHK Apartment');
@@ -60,6 +62,8 @@ export default function EmployerMyJobsPage() {
     await handleUpdateJob(editingJob.id, {
       title: editTitle.trim(),
       category: editCategory,
+      society_name: editSocietyName.trim(),
+      societyName: editSocietyName.trim(),
       salary: editSalary.trim(),
       family_members: editFamilyMembers.trim(),
       flat_type: editFlatType.trim(),
@@ -215,7 +219,7 @@ export default function EmployerMyJobsPage() {
 
                     <p className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
                       <MapPin size={11} className="text-[#1A73E8]" />
-                      <span>{employerProfile.society_name || 'Society Location'}</span>
+                      <span>{job.society_name || job.societyName || employerProfile.society_name || 'Society Location'}</span>
                     </p>
                   </div>
 
@@ -339,7 +343,7 @@ export default function EmployerMyJobsPage() {
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-4 text-xs font-bold">
-              {/* Category & Title */}
+              {/* Category, Title & Society */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1 sm:col-span-2">
                   <label className="text-slate-500 text-[10px] uppercase block">Job Headline Title</label>
@@ -347,6 +351,17 @@ export default function EmployerMyJobsPage() {
                     type="text"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-slate-500 text-[10px] uppercase block">Gated Society / Location Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. DLF Westend Heights - Akshayanagar"
+                    value={editSocietyName}
+                    onChange={(e) => setEditSocietyName(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
                   />
                 </div>

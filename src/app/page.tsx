@@ -104,7 +104,7 @@ export default function Home() {
               const { data: workerProfile } = await supabase
                 .from('worker_profiles')
                 .select('id')
-                .eq('user_id', session.user.id)
+                .or(`user_id.eq.${session.user.id},id.eq.${session.user.id}`)
                 .maybeSingle();
 
               if (workerProfile) {
@@ -117,7 +117,7 @@ export default function Home() {
               const { data: employerProfile } = await supabase
                 .from('employer_profiles')
                 .select('id')
-                .eq('user_id', session.user.id)
+                .or(`user_id.eq.${session.user.id},id.eq.${session.user.id}`)
                 .maybeSingle();
 
               if (employerProfile) {
@@ -135,6 +135,29 @@ export default function Home() {
               checkUrlParams();
             }
           } else {
+            // Direct fallback check if user exists in worker_profiles or employer_profiles
+            const { data: directWorkerProf } = await supabase
+              .from('worker_profiles')
+              .select('id')
+              .or(`user_id.eq.${session.user.id},id.eq.${session.user.id}`)
+              .maybeSingle();
+
+            if (directWorkerProf) {
+              router.push('/worker');
+              return;
+            }
+
+            const { data: directEmpProf } = await supabase
+              .from('employer_profiles')
+              .select('id')
+              .or(`user_id.eq.${session.user.id},id.eq.${session.user.id}`)
+              .maybeSingle();
+
+            if (directEmpProf) {
+              router.push('/employer');
+              return;
+            }
+
             setView('landing');
             checkUrlParams();
           }
@@ -222,7 +245,7 @@ export default function Home() {
           const { data: workerProfile } = await supabase
             .from('worker_profiles')
             .select('id')
-            .eq('user_id', sessionUser.id)
+            .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
             .maybeSingle();
 
           if (workerProfile) {
@@ -235,11 +258,11 @@ export default function Home() {
           const { data: employerProfile } = await supabase
             .from('employer_profiles')
             .select('id')
-            .eq('user_id', sessionUser.id)
+            .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
             .maybeSingle();
 
           if (employerProfile) {
-            router.push('/employer/dashboard');
+            router.push('/employer');
           } else {
             setTargetRole('employer');
             setView('employer-funnel');
@@ -252,6 +275,29 @@ export default function Home() {
           setView(targetRole === 'worker' ? 'worker-funnel' : 'employer-funnel');
         }
       } else {
+        // Fallback check worker_profiles directly
+        const { data: directWorkerProf } = await supabase
+          .from('worker_profiles')
+          .select('id')
+          .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
+          .maybeSingle();
+
+        if (directWorkerProf) {
+          router.push('/worker');
+          return;
+        }
+
+        const { data: directEmpProf } = await supabase
+          .from('employer_profiles')
+          .select('id')
+          .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
+          .maybeSingle();
+
+        if (directEmpProf) {
+          router.push('/employer');
+          return;
+        }
+
         setView(targetRole === 'worker' ? 'worker-funnel' : 'employer-funnel');
       }
     } catch (err) {
@@ -263,13 +309,11 @@ export default function Home() {
   };
 
   const onWorkerOnboardingComplete = () => {
-    alert("Worker onboarding completed! Redirecting to dashboard.");
-    router.push('/worker/dashboard');
+    router.push('/worker');
   };
 
   const onEmployerOnboardingComplete = () => {
-    alert("Employer Profile setup completed! Redirecting to dashboard.");
-    router.push('/employer/dashboard');
+    router.push('/employer');
   };
 
   const handleReset = async () => {

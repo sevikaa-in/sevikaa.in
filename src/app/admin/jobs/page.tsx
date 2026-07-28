@@ -6,12 +6,11 @@ import { JobQueue } from '@/components/admin/dashboard/JobQueue';
 import { JobDetailModal } from '@/components/admin/dashboard/JobDetailModal';
 
 export default function JobsPage() {
-  const {
-    loading,
-    error,
-    pendingJobsList,
-    handleModerateJob
-  } = useAdminDashboard();
+  const adminCtx = useAdminDashboard();
+  const loading = adminCtx?.loading || false;
+  const error = adminCtx?.error || '';
+  const pendingJobsList = adminCtx?.pendingJobsList || [];
+  const handleModerateJob = adminCtx?.handleModerateJob || (async () => {});
 
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

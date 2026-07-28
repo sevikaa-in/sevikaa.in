@@ -6,6 +6,7 @@ import {
   MessageSquare, UserCheck, ShieldAlert, Sparkles, Building, ArrowLeft, Trash2
 } from 'lucide-react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabaseClient';
 
 interface ReviewItem {
   id: string;
@@ -79,22 +80,75 @@ export default function SuperAdminReviewsPage() {
     }
   ]);
 
-  const handleApprove = (id: string) => {
+  React.useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const { data } = await supabase
+          .from('reviews')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (data && data.length > 0) {
+          const mapped: ReviewItem[] = data.map((r: any) => ({
+            id: r.id,
+            reviewer_name: r.reviewer_name || r.author_name || 'Verified User',
+            reviewer_role: r.reviewer_role || 'employer',
+            target_name: r.target_name || r.worker_name || 'Platform User',
+            target_role: r.target_role || 'worker',
+            interaction_type: r.interaction_type || 'worked',
+            rating: r.rating || 5,
+            punctuality_rating: r.punctuality_rating || 5,
+            hygiene_behavior_rating: r.hygiene_behavior_rating || 5,
+            work_quality_respect_rating: r.work_quality_respect_rating || 5,
+            comment: r.comment || r.feedback || '',
+            status: r.status || 'pending_approval',
+            created_at: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+            society_name: r.society_name || 'DLF Westend Heights'
+          }));
+          setReviewsList(mapped);
+        }
+      } catch (err) {
+        console.error("Error fetching reviews:", err);
+      }
+    };
+
+    fetchReviews();
+  }, []);
+
+  const handleApprove = async (id: string) => {
     setReviewsList(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r));
     setToastMessage('Review approved & published across platform ✓');
     setTimeout(() => setToastMessage(null), 3000);
+
+    try {
+      await supabase.from('reviews').update({ status: 'approved' }).eq('id', id);
+    } catch (err) {
+      console.error("Error approving review in DB:", err);
+    }
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
     setReviewsList(prev => prev.map(r => r.id === id ? { ...r, status: 'rejected' } : r));
     setToastMessage('Review rejected and archived.');
     setTimeout(() => setToastMessage(null), 3000);
+
+    try {
+      await supabase.from('reviews').update({ status: 'rejected' }).eq('id', id);
+    } catch (err) {
+      console.error("Error rejecting review in DB:", err);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     setReviewsList(prev => prev.filter(r => r.id !== id));
     setToastMessage('Review permanently purged from platform ledger.');
     setTimeout(() => setToastMessage(null), 3000);
+
+    try {
+      await supabase.from('reviews').delete().eq('id', id);
+    } catch (err) {
+      console.error("Error deleting review from DB:", err);
+    }
   };
 
   const filteredReviews = reviewsList.filter(r => filterStatus === 'all' || r.status === filterStatus);

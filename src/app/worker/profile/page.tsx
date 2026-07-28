@@ -10,14 +10,14 @@ import {
 } from 'lucide-react';
 
 const SKILL_CATEGORIES = [
-  { id: 'cook', key: 'skillCook', defaultLabel: 'Cook / Chef', icon: '🍳' },
-  { id: 'maid', key: 'skillMaid', defaultLabel: 'Housekeeping', icon: '🧹' },
-  { id: 'nanny', key: 'skillNanny', defaultLabel: 'Nanny / Childcare', icon: '👶' },
-  { id: 'driver', key: 'skillDriver', defaultLabel: 'Driver', icon: '🚗' },
-  { id: 'gardener', key: 'skillGardener', defaultLabel: 'Gardener', icon: '🌿' },
-  { id: 'security', key: 'skillSecurity', defaultLabel: 'Security Guard', icon: '🛡️' },
-  { id: 'laundry', key: 'skillLaundry', defaultLabel: 'Laundry / Ironing', icon: '👕' },
-  { id: 'eldercare', key: 'skillEldercare', defaultLabel: 'Elder Care', icon: '🤝' }
+  { id: 'cook', key: 'cook', label: 'Cook / Chef', defaultLabel: 'Cook / Chef', icon: '🍳' },
+  { id: 'maid', key: 'maid', label: 'Housekeeping', defaultLabel: 'Housekeeping', icon: '🧹' },
+  { id: 'nanny', key: 'nanny', label: 'Childcare / Nanny', defaultLabel: 'Childcare / Nanny', icon: '👶' },
+  { id: 'driver', key: 'driver', label: 'Family Driver', defaultLabel: 'Family Driver', icon: '🚗' },
+  { id: 'gardener', key: 'gardener', label: 'Gardener', defaultLabel: 'Gardener', icon: '🌿' },
+  { id: 'security', key: 'security', label: 'Security Guard', defaultLabel: 'Security Guard', icon: '🛡️' },
+  { id: 'laundry', key: 'laundry', label: 'Laundry & Ironing', defaultLabel: 'Laundry & Ironing', icon: '👕' },
+  { id: 'eldercare', key: 'eldercare', label: 'Elder Care', defaultLabel: 'Elder Care', icon: '🤝' }
 ];
 
 const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati', 'Punjabi', 'Odia'];
@@ -59,11 +59,65 @@ export default function WorkerProfilePage() {
   );
   
   // Profile photo, ID doc & intro video states
-  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
-  const [aadhaarFrontUploaded, setAadhaarFrontUploaded] = useState(false);
-  const [aadhaarBackUploaded, setAadhaarBackUploaded] = useState(false);
-  const [photoSelfieUploaded, setPhotoSelfieUploaded] = useState(false);
-  const [videoUploaded, setVideoUploaded] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(workerProfile.profile_picture_url || workerProfile.avatar_url || null);
+  const [aadhaarFrontUrl, setAadhaarFrontUrl] = useState<string | null>(workerProfile.aadhaar_front_url || null);
+  const [aadhaarBackUrl, setAadhaarBackUrl] = useState<string | null>(workerProfile.aadhaar_back_url || null);
+  const [introVideoUrl, setIntroVideoUrl] = useState<string | null>(workerProfile.video_url || null);
+
+  const [aadhaarFrontUploaded, setAadhaarFrontUploaded] = useState(!!workerProfile.aadhaar_front_url);
+  const [aadhaarBackUploaded, setAadhaarBackUploaded] = useState(!!workerProfile.aadhaar_back_url);
+  const [photoSelfieUploaded, setPhotoSelfieUploaded] = useState(!!workerProfile.profile_picture_url);
+  const [videoUploaded, setVideoUploaded] = useState(!!workerProfile.video_url);
+
+  React.useEffect(() => {
+    if (workerProfile.name) setName(workerProfile.name);
+    if (workerProfile.phone) {
+      const cleanP = workerProfile.phone.replace(/\D/g, '').slice(-10);
+      if (cleanP) setPhone(cleanP);
+    }
+    if (workerProfile.expectedSalary) setExpectedSalary(workerProfile.expectedSalary);
+    if (workerProfile.experience) setExperience(workerProfile.experience);
+    if (workerProfile.gender) setGender(workerProfile.gender);
+    if (workerProfile.age) setAge(String(workerProfile.age));
+    if (workerProfile.bio) setBio(workerProfile.bio);
+    if (workerProfile.emergencyContact) {
+      const cleanE = workerProfile.emergencyContact.replace(/\D/g, '').slice(-10);
+      if (cleanE) setEmergencyContact(cleanE);
+    }
+    if (workerProfile.languages && workerProfile.languages.length > 0) setLanguages(workerProfile.languages);
+    if (workerProfile.category && workerProfile.category.length > 0) {
+      setSelectedSkills(
+        workerProfile.category.map((c: string) => 
+          SKILL_CATEGORIES.find(s => c.includes(s.defaultLabel.split(' ')[0]))?.id || c
+        )
+      );
+    }
+
+    if (typeof window === 'undefined') return;
+    const pPhoto = workerProfile.profile_picture_url || workerProfile.avatar_url || localStorage.getItem('sevikaa_worker_photo');
+    if (pPhoto) {
+      setProfilePhoto(pPhoto);
+      setPhotoSelfieUploaded(true);
+    }
+
+    const aFront = workerProfile.aadhaar_front_url || localStorage.getItem('sevikaa_worker_aadhaar_front');
+    if (aFront) {
+      setAadhaarFrontUrl(aFront);
+      setAadhaarFrontUploaded(true);
+    }
+
+    const aBack = workerProfile.aadhaar_back_url || localStorage.getItem('sevikaa_worker_aadhaar_back');
+    if (aBack) {
+      setAadhaarBackUrl(aBack);
+      setAadhaarBackUploaded(true);
+    }
+
+    const video = workerProfile.video_url || localStorage.getItem('sevikaa_worker_video');
+    if (video) {
+      setIntroVideoUrl(video);
+      setVideoUploaded(true);
+    }
+  }, [workerProfile]);
 
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -76,8 +130,17 @@ export default function WorkerProfilePage() {
       showToast(`Intro Video size must be under 50MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    setVideoUploaded(true);
-    showToast('60-second intro video uploaded successfully!', 'success');
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const result = evt.target?.result as string;
+      if (result) {
+        setIntroVideoUrl(result);
+        setVideoUploaded(true);
+        if (typeof window !== 'undefined') localStorage.setItem('sevikaa_worker_video', result);
+        showToast('60-second intro video uploaded successfully!', 'success');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // Discrete Danger Zone State
@@ -154,22 +217,47 @@ export default function WorkerProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!validateFile(file, ALLOWED_SELFIE_TYPES, SELFIE_MAX_MB, 'Profile photo')) return;
-    const url = URL.createObjectURL(file);
-    setProfilePhoto(url);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const result = evt.target?.result as string;
+      if (result) {
+        setProfilePhoto(result);
+        if (typeof window !== 'undefined') localStorage.setItem('sevikaa_worker_photo', result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAadhaarFrontChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!validateFile(file, ALLOWED_AADHAAR_TYPES, AADHAAR_MAX_MB, 'Aadhaar front')) return;
-    setAadhaarFrontUploaded(true);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const result = evt.target?.result as string;
+      if (result) {
+        setAadhaarFrontUrl(result);
+        setAadhaarFrontUploaded(true);
+        if (typeof window !== 'undefined') localStorage.setItem('sevikaa_worker_aadhaar_front', result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAadhaarBackChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!validateFile(file, ALLOWED_AADHAAR_TYPES, AADHAAR_MAX_MB, 'Aadhaar back')) return;
-    setAadhaarBackUploaded(true);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const result = evt.target?.result as string;
+      if (result) {
+        setAadhaarBackUrl(result);
+        setAadhaarBackUploaded(true);
+        if (typeof window !== 'undefined') localStorage.setItem('sevikaa_worker_aadhaar_back', result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const onSave = async () => {
@@ -185,7 +273,11 @@ export default function WorkerProfilePage() {
       emergencyContact: emergencyContact ? `+91 ${emergencyContact}` : '',
       bio,
       languages,
-      category: selectedSkills.map(id => SKILL_CATEGORIES.find(s => s.id === id)?.defaultLabel || id)
+      category: selectedSkills.map(id => SKILL_CATEGORIES.find(s => s.id === id)?.defaultLabel || id),
+      profilePicUrl: profilePhoto,
+      aadhaarFrontUrl,
+      aadhaarBackUrl,
+      introVideoUrl
     });
   };
 
