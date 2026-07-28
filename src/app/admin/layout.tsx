@@ -225,40 +225,12 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           salary_offered: 12000, 
           salary_range_min: 12000,
           salary_range_max: 15000,
-          society_name: 'DLF Westend Heights - Akshayanagar', 
-          employer: 'Lakhan Lal Sah', 
-          employer_email: 'lakhan.sah@gmail.com',
-          employer_phone: '+91 98765 43210',
-          description: 'Need reliable maid for daily sweeping, mopping, utensil cleaning, and clothes ironing for family of 4.',
+          society_name: 'General Locality', 
+          employer: 'Household Employer', 
+          employer_email: '',
+          employer_phone: '',
+          description: 'Need reliable maid for daily sweeping, mopping, utensil cleaning, and clothes ironing.',
           created_at: '2026-07-27T08:00:00Z'
-        },
-        { 
-          id: 'job_103', 
-          title: 'Nanny for Infant & Toddler', 
-          category: 'nanny', 
-          salary_offered: 18000, 
-          salary_range_min: 18000,
-          salary_range_max: 20000,
-          society_name: 'Prestige Song of the South - Gate 1', 
-          employer: 'Vikram Sharma', 
-          employer_email: 'vikram.sharma@gmail.com',
-          employer_phone: '+91 98123 45678',
-          description: 'Looking for experienced nanny to take care of 8 month old baby boy.',
-          created_at: '2026-07-27T09:30:00Z'
-        },
-        { 
-          id: 'job_101', 
-          title: 'Full Time North Indian Cook Needed', 
-          category: 'cook', 
-          salary_offered: 15000, 
-          salary_range_min: 15000,
-          salary_range_max: 18000,
-          society_name: 'DLF Westend Heights - Akshayanagar', 
-          employer: 'Lakhan Lal Sah', 
-          employer_email: 'lakhan.sah@gmail.com',
-          employer_phone: '+91 98765 43210',
-          description: 'Looking for experienced cook to prepare breakfast, lunch and dinner for family of 4 in Akshayanagar.',
-          created_at: '2026-07-25T08:00:00Z'
         }
       ]);
 

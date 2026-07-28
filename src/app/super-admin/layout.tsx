@@ -475,33 +475,11 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
           title: 'Housemaid for Deep Cleaning & Ironing', 
           category: 'maid',
           salary_offered: 12000, 
-          society_name: 'DLF Westend Heights - Akshayanagar', 
-          employer: 'Lakhan Lal Sah',
-          employer_phone: '+91 98765 43210',
+          society_name: 'General Locality', 
+          employer: 'Household Employer',
+          employer_phone: '',
           description: 'Need reliable maid for daily sweeping, mopping, utensil cleaning, and clothes ironing.', 
           created_at: '2026-07-27' 
-        },
-        { 
-          id: 'job_103', 
-          title: 'Nanny for Infant & Toddler', 
-          category: 'nanny',
-          salary_offered: 18000, 
-          society_name: 'Prestige Song of the South - Gate 1', 
-          employer: 'Vikram Sharma',
-          employer_phone: '+91 98123 45678',
-          description: 'Looking for experienced nanny to take care of 8 month old baby boy.', 
-          created_at: '2026-07-27' 
-        },
-        { 
-          id: 'job_101', 
-          title: 'Full Time North Indian Cook Needed', 
-          category: 'cook',
-          salary_offered: 15000, 
-          society_name: 'DLF Westend Heights - Akshayanagar', 
-          employer: 'Lakhan Lal Sah',
-          employer_phone: '+91 98765 43210',
-          description: 'Looking for experienced cook to prepare breakfast, lunch and dinner for family of 4.', 
-          created_at: '2026-07-25' 
         }
       ]);
 

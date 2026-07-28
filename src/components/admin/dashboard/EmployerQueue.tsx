@@ -131,14 +131,19 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
                   <span className="block text-[9.5px] text-slate-500 font-semibold flex items-center gap-1"><MapPin size={9} className="text-[#1A73E8]" /> Society / Locality: {emp.society_name || emp.billing_address || 'Bangalore'}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-1 ${
-                    emp.subscription_status === 'premium'
-                      ? 'bg-indigo-50 text-[#1A73E8]'
-                      : 'bg-slate-100 text-gray-400'
-                  }`}>
-                    <CreditCard size={10} />
-                    {emp.subscription_status}
-                  </span>
+                  {(() => {
+                    const isPremium = (emp.subscription_status || '').toLowerCase() === 'premium';
+                    return (
+                      <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-1 ${
+                        isPremium
+                          ? 'bg-blue-50 text-[#1A73E8] border border-blue-200/50'
+                          : 'bg-slate-100 text-gray-500 font-bold'
+                      }`}>
+                        <CreditCard size={10} />
+                        {isPremium ? 'PREMIUM' : 'FREE'}
+                      </span>
+                    );
+                  })()}
                   <ChevronRight size={16} className="text-gray-400 group-hover:text-[#1A73E8] group-hover:translate-x-0.5 transition-all" />
                 </div>
               </div>

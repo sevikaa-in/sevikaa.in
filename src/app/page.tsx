@@ -241,6 +241,10 @@ export default function Home() {
           }
         }
 
+        if (typeof window !== 'undefined') {
+          document.cookie = `sevikaa_user_role=${activeRole}; path=/; max-age=86400`;
+        }
+
         if (activeRole === 'worker') {
           const { data: workerProfile } = await supabase
             .from('worker_profiles')
