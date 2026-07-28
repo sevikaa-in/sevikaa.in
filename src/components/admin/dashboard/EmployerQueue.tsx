@@ -53,9 +53,18 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
     return matchesSearch && matchesStatus;
   });
 
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  // Sort pending approval employers to top of queue
+  const sortedEmployers = [...filtered].sort((a, b) => {
+    const isAPending = a.status === 'pending' || a.status === 'pending_review' || a.status === 'pending_verification';
+    const isBPending = b.status === 'pending' || b.status === 'pending_review' || b.status === 'pending_verification';
+    if (isAPending && !isBPending) return -1;
+    if (!isAPending && isBPending) return 1;
+    return 0;
+  });
+
+  const totalPages = Math.ceil(sortedEmployers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginated = filtered.slice(startIndex, startIndex + itemsPerPage);
+  const paginated = sortedEmployers.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="bg-white border border-slate-100 p-5 rounded-[20px] shadow-sm space-y-4">
@@ -117,15 +126,21 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-black text-slate-800 group-hover:text-[#1A73E8] transition-colors">{emp.name}</span>
-                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
-                      emp.status === 'live' || emp.status === 'approved' 
-                        ? 'bg-[#34A853]/10 text-[#34A853]' 
-                        : emp.status === 'suspended' || emp.status === 'rejected'
-                        ? 'bg-[#EA4335]/10 text-[#EA4335]'
-                        : 'bg-[#FBBC05]/10 text-amber-600'
-                    }`}>
-                      {emp.status?.replace('_', ' ')}
-                    </span>
+                    {(emp.status === 'pending' || emp.status === 'pending_review' || emp.status === 'pending_verification') ? (
+                      <span className="px-2 py-0.5 rounded text-[8.5px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200/80 animate-pulse">
+                        ⏳ Pending Approval
+                      </span>
+                    ) : (
+                      <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                        emp.status === 'live' || emp.status === 'approved' 
+                          ? 'bg-[#34A853]/10 text-[#34A853]' 
+                          : emp.status === 'suspended' || emp.status === 'rejected'
+                          ? 'bg-[#EA4335]/10 text-[#EA4335]'
+                          : 'bg-[#FBBC05]/10 text-amber-600'
+                      }`}>
+                        {emp.status?.replace('_', ' ')}
+                      </span>
+                    )}
                   </div>
                   <span className="block text-[9.5px] text-slate-500 font-bold">Household / Entity: {emp.company_name || 'Individual Household'}</span>
                   <span className="block text-[9.5px] text-slate-500 font-semibold flex items-center gap-1"><MapPin size={9} className="text-[#1A73E8]" /> Society / Locality: {emp.society_name || emp.billing_address || 'Bangalore'}</span>

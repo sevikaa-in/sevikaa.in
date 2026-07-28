@@ -13,7 +13,7 @@ import { GlobalLanguageSelector } from '../components/GlobalLanguageSelector';
 import { supabase } from '../lib/supabaseClient';
 import { 
   Check, Shield, ChevronDown, HelpCircle, Star, Phone, Mail, 
-  MapPin, UserPlus, Search, PhoneCall, Sparkles, CreditCard, Lock
+  MapPin, UserPlus, Search, PhoneCall, Sparkles, CreditCard, Lock, Building2
 } from 'lucide-react';
 
 type ViewState = 
@@ -448,6 +448,7 @@ export default function Home() {
             <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
               {[
                 { label: 'About Us', href: '/about' },
+                { label: 'Societies', href: '/societies' },
                 { label: 'How It Works', href: '/how-it-works' },
                 { label: 'Pricing', href: '/pricing' },
                 { label: 'Safety', href: '/safety' },
@@ -512,6 +513,27 @@ export default function Home() {
                 <span className="inline-block mt-2 text-xs font-bold text-[#34A853] group-hover:underline">Find Workers &rarr;</span>
               </div>
             </button>
+          </div>
+
+          {/* 🏘️ PUBLIC PARTNER SOCIETIES BANNER */}
+          <div className="max-w-xl mx-auto mt-6 bg-gradient-to-r from-[#1A73E8] via-blue-600 to-indigo-700 p-5 rounded-3xl text-white shadow-xl shadow-blue-500/20 text-left flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-blue-400/30">
+            <div className="space-y-1 min-w-0">
+              <span className="bg-white/20 text-white text-[9.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-white/30 inline-flex items-center gap-1">
+                <Building2 size={11} /> 500+ Partner Gated Communities
+              </span>
+              <h3 className="text-sm sm:text-base font-black text-white leading-snug">
+                Explore Partner Societies or Request Your Community Onboarding
+              </h3>
+              <p className="text-[11px] text-blue-100 font-medium">
+                Browse live jobs, verified helpers &amp; onboard your apartment complex.
+              </p>
+            </div>
+            <Link
+              href="/societies"
+              className="py-2.5 px-4 bg-white text-[#1A73E8] hover:bg-blue-50 rounded-2xl text-xs font-black transition-all shadow-md shrink-0 whitespace-nowrap active:scale-95 flex items-center gap-1.5"
+            >
+              <span>Explore Directory →</span>
+            </Link>
           </div>
         </div>
       </section>

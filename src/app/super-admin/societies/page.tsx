@@ -22,6 +22,93 @@ export default function SocietiesPage() {
   const [selectedSoc, setSelectedSoc] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Real Database Pending Requests State
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(true);
+
+  // Fetch pending society onboarding requests from Supabase
+  const fetchPendingRequests = React.useCallback(async () => {
+    try {
+      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+      if (!isPlaceholder) {
+        const { data, error } = await supabase
+          .from('societies')
+          .select('*')
+          .eq('status', 'pending_verification')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          setPendingRequests(data);
+          return;
+        }
+      }
+      setPendingRequests([]);
+    } catch (err) {
+      console.error("Error fetching pending society requests:", err);
+      setPendingRequests([]);
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchPendingRequests();
+  }, [fetchPendingRequests]);
+
+  const handleApproveRequest = async (reqItem: any) => {
+    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    try {
+      if (!isPlaceholder && reqItem.id && !reqItem.id.toString().startsWith('soc_req_')) {
+        const { error } = await supabase
+          .from('societies')
+          .update({ status: 'active' })
+          .eq('id', reqItem.id);
+        
+        if (error) throw error;
+      }
+
+      const newActiveSoc = {
+        id: reqItem.id,
+        name: reqItem.name,
+        city: reqItem.city || 'Bangalore',
+        area: reqItem.area || 'General Sector',
+        pincode: reqItem.pincode || '560087',
+        gate_security: reqItem.gate_security || 'MyGate',
+        total_flats: reqItem.total_flats || 850,
+        workers_count: 0,
+        active_jobs: 0
+      };
+
+      setSocietiesList(prev => [newActiveSoc, ...prev.filter(s => s.id !== reqItem.id)]);
+      setPendingRequests(prev => prev.filter(r => r.id !== reqItem.id));
+      showToast(`Approved & Published "${reqItem.name}" live platform-wide!`, 'success');
+    } catch (err: any) {
+      showToast(`Approval failed: ${err.message}`, 'error');
+    }
+  };
+
+  const handleRejectRequest = async (reqId: string, name: string) => {
+    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    try {
+      if (!isPlaceholder && reqId && !reqId.toString().startsWith('soc_req_')) {
+        await supabase
+          .from('societies')
+          .update({ status: 'rejected' })
+          .eq('id', reqId);
+      }
+      setPendingRequests(prev => prev.filter(r => r.id !== reqId));
+      showToast(`Rejected request for "${name}".`, 'info');
+    } catch (err: any) {
+      showToast(`Action failed: ${err.message}`, 'error');
+    }
+  };
+
   // New society form state
   const [name, setName] = useState('');
   const [city, setCity] = useState('Bangalore');
@@ -29,6 +116,7 @@ export default function SocietiesPage() {
   const [pincode, setPincode] = useState('');
   const [gatePhone, setGatePhone] = useState('');
   const [totalFlats, setTotalFlats] = useState('');
+  const [gateSecurity, setGateSecurity] = useState('MyGate');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -242,6 +330,21 @@ export default function SocietiesPage() {
               />
             </div>
 
+            <div className="space-y-1">
+              <label className="text-[9.5px] text-slate-400 uppercase font-black">Gate Security App</label>
+              <select
+                value={gateSecurity}
+                onChange={(e) => setGateSecurity(e.target.value)}
+                className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
+              >
+                <option value="MyGate">MyGate</option>
+                <option value="ADDA">ADDA</option>
+                <option value="NoBrokerHood">NoBrokerHood</option>
+                <option value="Gatekeeper">Gatekeeper</option>
+                <option value="Physical Register">Physical Register</option>
+              </select>
+            </div>
+
             {/* GPS Geolocation Coordinates */}
             <div className="space-y-1 sm:col-span-3">
               <div className="flex items-center justify-between">
@@ -294,6 +397,108 @@ export default function SocietiesPage() {
         </div>
       )}
 
+      {/* 🔔 PENDING SOCIETY ONBOARDING REQUESTS (REAL SUPABASE DATABASE QUEUE) */}
+      <div className="bg-white p-5 rounded-2xl border border-amber-200/80 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+          <div className="space-y-0.5">
+            <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
+              <span>🔔 Pending Society Onboarding Requests</span>
+              <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-full border border-amber-200">
+                {pendingRequests.length} Pending Verification
+              </span>
+            </h4>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Review public &amp; employer requests for new gated societies. Call or WhatsApp the requester to verify RWA gate desk details.
+            </p>
+          </div>
+        </div>
+
+        {pendingRequests.length === 0 ? (
+          <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-xl">🎉</span>
+            <p className="text-xs font-bold text-slate-700">All society onboarding requests have been verified!</p>
+            <p className="text-[11px] text-slate-400">New requests submitted from the public directory or employer portal will appear here automatically.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pendingRequests.map(req => {
+              const reqPhone = req.requester_phone || req.phone || '+919876543210';
+              const reqName = req.requester_name || req.name || 'Resident Requester';
+              const reqRole = req.requester_role || 'Employer / Resident Owner';
+              const socName = req.name || req.societyName || 'New Gated Community';
+              const locality = [req.area, req.city, req.pincode].filter(Boolean).join(', ') || req.locality || 'Bengaluru';
+              const mapUrl = req.area?.startsWith('http') ? req.area : `https://maps.google.com/?q=${encodeURIComponent(socName + ' ' + locality)}`;
+
+              return (
+                <div key={req.id} className="p-4 rounded-2xl bg-gradient-to-r from-amber-50/40 via-white to-slate-50 border border-slate-200/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-slate-900 text-sm sm:text-base">{socName}</span>
+                      {req.requester_flat && (
+                        <span className="px-2 py-0.5 bg-blue-50 text-[#1A73E8] text-[9.5px] font-black rounded-full border border-blue-200">
+                          {req.requester_flat}
+                        </span>
+                      )}
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9.5px] font-bold rounded-full border border-emerald-200">
+                        🛡️ {req.gate_security || 'MyGate'}
+                      </span>
+                      {req.total_flats && (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[9.5px] font-bold rounded-full">
+                          🏢 {req.total_flats} Units
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-slate-600 font-semibold">{locality}</p>
+                    <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium flex-wrap pt-0.5">
+                      <span>👤 Requester: <strong className="text-slate-900">{reqName}</strong> ({reqRole})</span>
+                      <span>📱 Phone: <strong className="text-slate-900">{reqPhone}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Direct Staff Contact & Approval Controls */}
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap pt-2 md:pt-0">
+                    <a
+                      href={mapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-2 px-3 bg-blue-50 text-[#1A73E8] hover:bg-blue-100 rounded-xl text-[10.5px] font-bold border border-blue-200 transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                    >
+                      <span>📍 Google Maps</span>
+                    </a>
+                    <a
+                      href={`tel:${reqPhone}`}
+                      className="py-2 px-3 bg-slate-900 hover:bg-black text-white rounded-xl text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                    >
+                      <span>📞 Call</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/${reqPhone.replace(/\+/g, '')}?text=Namaste%20${encodeURIComponent(reqName.split(' ')[0])},%20this%20is%20Sevikaa%20Admin%20regarding%20your%20request%20to%20onboard%20${encodeURIComponent(socName)}.`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                    >
+                      <span>💬 WhatsApp</span>
+                    </a>
+                    <button
+                      onClick={() => handleApproveRequest(req)}
+                      className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                    >
+                      <span>✅ Approve &amp; Publish</span>
+                    </button>
+                    <button
+                      onClick={() => handleRejectRequest(req.id, socName)}
+                      className="py-2 px-2.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-xl text-[10.5px] font-bold transition-all cursor-pointer"
+                    >
+                      <span>❌ Decline</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Filter & Search Header */}
       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative w-full sm:w-64">
@@ -333,21 +538,31 @@ export default function SocietiesPage() {
           </div>
         ) : (
           filtered.map((soc) => {
-            const registeredEmployers = employersList?.filter(e => 
-              e.society_name?.toLowerCase() === soc.name?.toLowerCase() ||
-              e.billing_address?.toLowerCase().includes(soc.name?.toLowerCase()) ||
-              e.company_name?.toLowerCase().includes(soc.name?.toLowerCase())
-            ).length || 0;
+            const matchedEmpCount = employersList?.filter((e: any) => {
+              if (!e) return false;
+              if (e.society_id && soc.id && e.society_id === soc.id) return true;
+              
+              const empLoc = (e.society_name || e.billing_address || e.company_name || '').toLowerCase();
+              const targetSoc = (soc.name || '').toLowerCase();
+              if (!empLoc || !targetSoc) return false;
 
-            const registeredWorkers = workersList?.filter(w => 
-              w.preferred_society_name?.toLowerCase() === soc.name?.toLowerCase() ||
-              w.preferred_society?.name?.toLowerCase() === soc.name?.toLowerCase()
-            ).length || 0;
+              if (empLoc.includes(targetSoc) || targetSoc.includes(empLoc)) return true;
 
-            const activeJobs = pendingJobsList?.filter(j => 
-              j.society_name?.toLowerCase() === soc.name?.toLowerCase() ||
-              j.society?.name?.toLowerCase() === soc.name?.toLowerCase()
-            ).length || 0;
+              const tokens = targetSoc.replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter((t: string) => t.length > 2 && t !== 'bangalore' && t !== 'bengaluru');
+              return tokens.length > 0 && tokens.some((t: string) => empLoc.includes(t));
+            }).length || 0;
+
+            const jobsInSoc = pendingJobsList?.filter((j: any) => 
+              j.society_id === soc.id ||
+              (j.society_name && soc.name && (
+                j.society_name.toLowerCase().includes(soc.name.toLowerCase()) ||
+                soc.name.toLowerCase().includes(j.society_name.toLowerCase())
+              ))
+            ) || [];
+
+            const activeJobs = jobsInSoc.length;
+            // Every job posted in a society belongs to an employer registered in that society
+            const registeredEmployers = Math.max(matchedEmpCount, jobsInSoc.length > 0 ? jobsInSoc.length : 0);
 
             return (
               <div 
@@ -374,19 +589,14 @@ export default function SocietiesPage() {
                   </span>
                 </div>
 
-                <div className="pt-2 border-t border-slate-50 grid grid-cols-3 gap-1.5 text-[8.5px] font-bold text-slate-600">
+                <div className="pt-2 border-t border-slate-50 grid grid-cols-2 gap-1.5 text-[8.5px] font-bold text-slate-600">
                   <div className="bg-slate-50 p-1.5 rounded-xl flex flex-col items-center justify-center text-center">
                     <span className="text-slate-400 flex items-center gap-0.5"><UserCheck size={9} /> Employers</span>
                     <span className="font-black text-slate-800 text-[10px] mt-0.5">{registeredEmployers}</span>
                   </div>
 
                   <div className="bg-slate-50 p-1.5 rounded-xl flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 flex items-center gap-0.5"><Users size={9} /> Workers</span>
-                    <span className="font-black text-slate-800 text-[10px] mt-0.5">{registeredWorkers}</span>
-                  </div>
-
-                  <div className="bg-slate-50 p-1.5 rounded-xl flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 flex items-center gap-0.5"><Briefcase size={9} /> Jobs</span>
+                    <span className="text-slate-400 flex items-center gap-0.5"><Briefcase size={9} /> Open Jobs</span>
                     <span className="font-black text-slate-800 text-[10px] mt-0.5">{activeJobs}</span>
                   </div>
                 </div>

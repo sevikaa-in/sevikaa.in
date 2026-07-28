@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { 
   ArrowLeft, Briefcase, MapPin, IndianRupee, Clock, CheckCircle2, 
   Building2, Send, Lock, ShieldCheck, Users, Home, Utensils, 
-  PhoneCall, MessageSquare, Sparkles, Award, Check
+  PhoneCall, MessageSquare, Sparkles, Award, Check, Compass
 } from 'lucide-react';
 
 export default function WorkerJobDetailsPage() {
@@ -451,13 +451,24 @@ export default function WorkerJobDetailsPage() {
         </div>
 
         {/* 📍 Society Address & Locality */}
-        <div className="bg-gradient-to-r from-blue-50/60 via-indigo-50/40 to-slate-50 p-4.5 rounded-2xl border border-blue-100/80 space-y-1 shadow-xs">
-          <span className="text-[10px] text-blue-600 uppercase font-black flex items-center gap-1 tracking-wider">
-            <MapPin size={13} className="text-[#1A73E8]" /> Society Gate &amp; Locality Address
-          </span>
-          <p className="text-xs sm:text-sm text-slate-900 font-black leading-relaxed">
-            {job.society_name} &bull; {job.locality || 'Bangalore'}
-          </p>
+        <div className="bg-gradient-to-r from-blue-50/60 via-indigo-50/40 to-slate-50 p-4.5 rounded-2xl border border-blue-100/80 space-y-3 shadow-xs flex flex-col">
+          <div className="space-y-1">
+            <span className="text-[10px] text-blue-600 uppercase font-black flex items-center gap-1 tracking-wider">
+              <MapPin size={13} className="text-[#1A73E8]" /> Society Gate &amp; Locality Address
+            </span>
+            <p className="text-xs sm:text-sm text-slate-900 font-black leading-relaxed mt-0.5">
+              {job.society_name} &bull; {job.locality || 'Bangalore'}
+            </p>
+          </div>
+          <a
+            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.society_name || job.locality || 'Bangalore')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2.5 px-4 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-95 mt-1"
+          >
+            <Compass size={14} className="text-blue-400" />
+            <span>Navigate on Google Maps</span>
+          </a>
         </div>
 
         {/* Work Overview */}

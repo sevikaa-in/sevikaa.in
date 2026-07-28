@@ -593,5 +593,15 @@
   "workQualityRatingLabel": "कार्य की गुणवत्ता और व्यवहार:",
   "fairPayRatingLabel": "उचित वेतन और सम्मान:",
   "submitReviewBtn": "व्यवस्थापक अनुमोदन के लिए सत्यापित समीक्षा सबमिट करें",
-  "reviewCommentLabel": "लिखित प्रतिक्रिया / अनुभव नोट्स"
+  "reviewCommentLabel": "लिखित प्रतिक्रिया / अनुभव नोट्स",
+  "primarySocietyBadge": "प्राथमिक सोसाइटी",
+  "secondarySocietyBadge": "सहायक कार्यस्थल",
+  "matchingMySkillsBtn": "मेरी कुशलता के अनुसार",
+  "allCategoriesBtn": "सभी श्रेणियां",
+  "primarySocietyBtn": "प्राथमिक सोसाइटी",
+  "secondarySocietiesBtn": "सहायक सोसाइटी",
+  "nearby2kmBtn": "पास की सोसाइटी (< 2 किमी)",
+  "within5kmBtn": "5 किमी के भीतर",
+  "allCitiesBtn": "सभी शहर",
+  "allMyWorkplacesBtn": "मेरे सभी कार्यस्थल (प्राथमिक और सहायक)"
 }

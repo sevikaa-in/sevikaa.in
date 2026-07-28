@@ -132,14 +132,31 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         setSocietiesList(dbSocieties);
       }
 
-      // Fetch live jobs unconditionally
+      // Fetch live jobs unconditionally and join with societies table
       const { data: liveJobs } = await supabase
         .from('jobs')
-        .select('*')
+        .select('*, societies(id, name, locality, city)')
         .order('created_at', { ascending: false });
 
       if (liveJobs) {
-        setAvailableJobs(liveJobs);
+        const mappedJobs = liveJobs.map((j: any) => {
+          let resolvedSociety = j.society_name && j.society_name !== 'Residential Society' ? j.society_name : null;
+          if (!resolvedSociety && j.societies?.name) {
+            resolvedSociety = j.societies.name;
+          }
+          if (!resolvedSociety && j.society_id && dbSocieties) {
+            const found = dbSocieties.find((s: any) => s.id === j.society_id);
+            if (found) resolvedSociety = found.name;
+          }
+          if (!resolvedSociety && dbSocieties && dbSocieties.length > 0) {
+            resolvedSociety = dbSocieties[0].name;
+          }
+          return {
+            ...j,
+            society_name: resolvedSociety || 'DLF Westend Heights - Akshayanagar'
+          };
+        });
+        setAvailableJobs(mappedJobs);
       }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -186,11 +203,13 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           if (wProf) {
             setWorkerProfile({
               name: wProf.full_name || wProf.name || profile?.full_name || 'Worker',
-              category: Array.isArray(wProf.skills) ? wProf.skills : (wProf.skills ? [wProf.skills] : []),
+              category: Array.isArray(wProf.skills) ? wProf.skills : (wProf.skills ? [wProf.skills] : ['maid']),
+              skills: Array.isArray(wProf.skills) ? wProf.skills : (wProf.skills ? [wProf.skills] : ['maid']),
               expectedSalary: String(wProf.expected_salary || '15000'),
               experience: wProf.experience_years ? `${wProf.experience_years} Years` : '0 Years',
-              society: wProf.preferred_society_name || wProf.society || '',
+              society: wProf.preferred_society_name || wProf.society || 'DLF Westend Heights',
               society_id: wProf.preferred_society_id || '',
+              secondary_societies: Array.isArray(wProf.secondary_society_names) ? wProf.secondary_society_names : (wProf.secondary_society_names ? [wProf.secondary_society_names] : ['Prestige Song of the South', 'SNN Raj Serenity']),
               phone: profile?.phone || wProf.phone || '',
               languages: wProf.languages_spoken || [],
               gender: wProf.gender || 'female',
@@ -252,36 +271,65 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
   const handleSaveProfile = async (updatedData: any) => {
     setSaveLoading(true);
     try {
-      setWorkerProfile((prev: any) => ({ ...prev, ...updatedData }));
+      const isChangesRequested = workerProfile.status === 'changes_requested' || !!workerProfile.admin_note;
+      const nextStatus = isChangesRequested ? 'pending_review' : workerProfile.status;
+
+      setWorkerProfile((prev: any) => ({
+        ...prev,
+        ...updatedData,
+        status: nextStatus,
+        admin_note: isChangesRequested ? undefined : prev.admin_note,
+        adminNote: isChangesRequested ? undefined : prev.adminNote
+      }));
       
       const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
       
       if (!isPlaceholder && user?.id) {
+        const updatePayload: any = {
+          full_name: updatedData.name,
+          expected_salary: parseInt(updatedData.expectedSalary) || 15000,
+          experience_years: parseInt(updatedData.experience) || 0,
+          gender: updatedData.gender,
+          age: updatedData.age,
+          preferred_shift: updatedData.preferredShift,
+          emergency_contact: updatedData.emergencyContact,
+          bio: updatedData.bio,
+          languages_spoken: updatedData.languages,
+          skills: updatedData.category,
+          profile_picture_url: updatedData.profilePicUrl || updatedData.profile_picture_url || null,
+          aadhaar_front_url: updatedData.aadhaarFrontUrl || updatedData.aadhaar_front_url || null,
+          aadhaar_back_url: updatedData.aadhaarBackUrl || updatedData.aadhaar_back_url || null,
+          video_url: updatedData.introVideoUrl || updatedData.video_url || null,
+          is_aadhaar_verified: (!!updatedData.aadhaarFrontUrl && !!updatedData.aadhaarBackUrl) || workerProfile.is_aadhaar_verified
+        };
+
+        if (isChangesRequested) {
+          updatePayload.status = 'pending_review';
+          updatePayload.admin_note = null;
+        }
+
         await supabase
           .from('worker_profiles')
-          .update({
-            full_name: updatedData.name,
-            expected_salary: parseInt(updatedData.expectedSalary) || 15000,
-            experience_years: parseInt(updatedData.experience) || 0,
-            gender: updatedData.gender,
-            age: updatedData.age,
-            preferred_shift: updatedData.preferredShift,
-            emergency_contact: updatedData.emergencyContact,
-            bio: updatedData.bio,
-            languages_spoken: updatedData.languages,
-            skills: updatedData.category,
-            profile_picture_url: updatedData.profilePicUrl || updatedData.profile_picture_url || null,
-            aadhaar_front_url: updatedData.aadhaarFrontUrl || updatedData.aadhaar_front_url || null,
-            aadhaar_back_url: updatedData.aadhaarBackUrl || updatedData.aadhaar_back_url || null,
-            video_url: updatedData.introVideoUrl || updatedData.video_url || null,
-            is_aadhaar_verified: (!!updatedData.aadhaarFrontUrl && !!updatedData.aadhaarBackUrl) || workerProfile.is_aadhaar_verified
-          })
+          .update(updatePayload)
           .eq('user_id', user.id);
+
+        if (isChangesRequested) {
+          await supabase
+            .from('profiles')
+            .update({ status: 'pending_review', admin_note: null })
+            .eq('id', user.id);
+        }
       }
-      showToast('Profile updated successfully!', 'success');
+
+      showToast(
+        isChangesRequested 
+          ? 'Profile updated and resubmitted to Admin for review!' 
+          : 'Profile details saved successfully!', 
+        'success'
+      );
     } catch (err: any) {
-      showToast(`Save failed: ${err.message}`, 'error');
+      showToast(`Error saving profile: ${err.message}`, 'error');
     } finally {
       setSaveLoading(false);
     }
@@ -439,6 +487,27 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
               <span>
                 <strong>Account Deletion Pending:</strong> Sevikaa Admin will call <strong>{workerProfile.phone}</strong> to confirm offboarding.
               </span>
+            </div>
+          )}
+
+          {/* Admin Requested Profile Updates Banner Notice */}
+          {(workerProfile?.status === 'changes_requested' || workerProfile?.admin_note) && (
+            <div className="bg-amber-600 text-white px-4 py-3 text-xs font-bold flex items-center justify-between gap-3 shadow-md animate-fade-in">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShieldAlert size={18} className="shrink-0 text-amber-200" />
+                <div className="min-w-0">
+                  <span className="block font-black uppercase text-[10px] tracking-wider text-amber-200">⚠️ Admin Requested Profile Updates</span>
+                  <p className="truncate text-xs text-white">
+                    "{workerProfile.admin_note || 'Please review and update your profile details for verification.'}"
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/worker/profile"
+                className="py-1.5 px-3 bg-white text-amber-900 hover:bg-amber-50 rounded-xl text-[11px] font-black shrink-0 shadow-sm transition-all"
+              >
+                Update Profile →
+              </Link>
             </div>
           )}
 

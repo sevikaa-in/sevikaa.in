@@ -34,6 +34,8 @@ export const SocietyDetailModal: React.FC<SocietyDetailModalProps> = ({
   const [editCity, setEditCity] = useState('');
   const [editArea, setEditArea] = useState('');
   const [editPincode, setEditPincode] = useState('');
+  const [editGateSecurity, setEditGateSecurity] = useState('MyGate');
+  const [editTotalFlats, setEditTotalFlats] = useState('850');
   const [editLatitude, setEditLatitude] = useState('');
   const [editLongitude, setEditLongitude] = useState('');
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -49,6 +51,8 @@ export const SocietyDetailModal: React.FC<SocietyDetailModalProps> = ({
       setEditCity(society.city || 'Bangalore');
       setEditArea(society.area || '');
       setEditPincode(society.pincode || '');
+      setEditGateSecurity(society.gate_security || 'MyGate');
+      setEditTotalFlats(society.total_flats ? String(society.total_flats) : '850');
       setEditLatitude(society.latitude ? String(society.latitude) : '');
       setEditLongitude(society.longitude ? String(society.longitude) : '');
       setIsEditing(false);
@@ -98,6 +102,8 @@ export const SocietyDetailModal: React.FC<SocietyDetailModalProps> = ({
       city: editCity.trim(),
       area: editArea.trim(),
       pincode: editPincode.trim(),
+      gate_security: editGateSecurity,
+      total_flats: parseInt(editTotalFlats) || 850,
       latitude: editLatitude ? parseFloat(editLatitude) : null,
       longitude: editLongitude ? parseFloat(editLongitude) : null
     };
@@ -217,6 +223,31 @@ export const SocietyDetailModal: React.FC<SocietyDetailModalProps> = ({
                     value={editPincode}
                     onChange={(e) => setEditPincode(e.target.value)}
                     className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9.5px] text-slate-400 uppercase font-black">Gate Security App</label>
+                  <select
+                    value={editGateSecurity}
+                    onChange={(e) => setEditGateSecurity(e.target.value)}
+                    className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
+                  >
+                    <option value="MyGate">MyGate</option>
+                    <option value="ADDA">ADDA</option>
+                    <option value="NoBrokerHood">NoBrokerHood</option>
+                    <option value="Gatekeeper">Gatekeeper</option>
+                    <option value="Physical Register">Physical Register</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9.5px] text-slate-400 uppercase font-black">Est Total Units</label>
+                  <input
+                    type="number"
+                    value={editTotalFlats}
+                    onChange={(e) => setEditTotalFlats(e.target.value)}
+                    className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
                   />
                 </div>
 

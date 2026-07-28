@@ -262,22 +262,53 @@ export default function EmployerDashboardLayout({ children }: { children: React.
   };
 
   const handleSaveEmployerProfile = async (updatedData: any) => {
-    setEmployerProfile((prev: any) => ({ ...prev, ...updatedData }));
+    const isChangesRequested = employerProfile.status === 'changes_requested' || !!employerProfile.admin_note;
+    const nextStatus = isChangesRequested ? 'pending_review' : employerProfile.status;
+
+    setEmployerProfile((prev: any) => ({
+      ...prev,
+      ...updatedData,
+      status: nextStatus,
+      admin_note: isChangesRequested ? undefined : prev.admin_note,
+      adminNote: isChangesRequested ? undefined : prev.adminNote
+    }));
+
     try {
       if (user?.id) {
+        const updatePayload: any = {
+          company_name: updatedData.company_name,
+          phone: updatedData.phone,
+          email: updatedData.email,
+          billing_address: updatedData.address ? `${updatedData.tower || ''}, ${updatedData.address}` : updatedData.billing_address,
+          avatar_url: updatedData.avatar_url || updatedData.profilePhoto,
+          aadhaar_front_url: updatedData.aadhaar_front_url || updatedData.aadhaarFrontUrl,
+          aadhaar_back_url: updatedData.aadhaar_back_url || updatedData.aadhaarBackUrl
+        };
+
+        if (isChangesRequested) {
+          updatePayload.status = 'pending_review';
+          updatePayload.admin_note = null;
+        }
+
         await supabase
           .from('employer_profiles')
-          .update({
-            company_name: updatedData.company_name,
-            phone: updatedData.phone,
-            email: updatedData.email,
-            billing_address: updatedData.address ? `${updatedData.tower || ''}, ${updatedData.address}` : updatedData.billing_address,
-            avatar_url: updatedData.avatar_url || updatedData.profilePhoto,
-            aadhaar_front_url: updatedData.aadhaar_front_url || updatedData.aadhaarFrontUrl,
-            aadhaar_back_url: updatedData.aadhaar_back_url || updatedData.aadhaarBackUrl
-          })
+          .update(updatePayload)
           .eq('user_id', user.id);
+
+        if (isChangesRequested) {
+          await supabase
+            .from('profiles')
+            .update({ status: 'pending_review', admin_note: null })
+            .eq('id', user.id);
+        }
       }
+
+      showToast(
+        isChangesRequested 
+          ? 'Household account details updated and resubmitted to Admin for review!' 
+          : 'Household account details saved successfully!', 
+        'success'
+      );
     } catch (err) {
       console.error("Error updating employer profile in DB:", err);
     }
@@ -418,6 +449,27 @@ export default function EmployerDashboardLayout({ children }: { children: React.
               <span>
                 <strong>Account Deletion Pending:</strong> Sevikaa Admin will call <strong>{employerProfile.phone}</strong> to confirm offboarding.
               </span>
+            </div>
+          )}
+
+          {/* Admin Requested Profile Updates Banner Notice */}
+          {(employerProfile?.status === 'changes_requested' || employerProfile?.admin_note) && (
+            <div className="bg-amber-600 text-white px-4 py-3 text-xs font-bold flex items-center justify-between gap-3 shadow-md animate-fade-in">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShieldAlert size={18} className="shrink-0 text-amber-200" />
+                <div className="min-w-0">
+                  <span className="block font-black uppercase text-[10px] tracking-wider text-amber-200">⚠️ Admin Requested Profile Updates</span>
+                  <p className="truncate text-xs text-white">
+                    "{employerProfile.admin_note || 'Please review and update your profile details for verification.'}"
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/employer/profile"
+                className="py-1.5 px-3 bg-white text-amber-900 hover:bg-amber-50 rounded-xl text-[11px] font-black shrink-0 shadow-sm transition-all"
+              >
+                Update Profile →
+              </Link>
             </div>
           )}
 

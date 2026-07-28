@@ -7,15 +7,17 @@ import { useLanguage } from '@/context/LanguageContext';
 import { 
   User, ShieldAlert, ChevronDown, ChevronUp, Trash2, 
   Save, Phone, CreditCard, Home, MapPin, AlertTriangle, Mail, Building, ShieldCheck, Sparkles, Bell, Check, Zap, History, X,
-  Upload, Camera, FileText, Lock, CheckCircle2, IdCard
+  Upload, Camera, FileText, Lock, CheckCircle2, IdCard, Eye
 } from 'lucide-react';
 
 export default function EmployerAccountPage() {
   const { 
     employerProfile, setEmployerProfile, deletionRequested, 
-    handleRequestAccountDeletion, showToast 
+    handleSaveEmployerProfile, handleRequestAccountDeletion, showToast 
   } = useEmployerDashboard();
   const { t } = useLanguage();
+
+  const [activeInlinePreview, setActiveInlinePreview] = useState<'residency' | 'front' | 'back' | null>(null);
 
   const [companyName, setCompanyName] = useState(employerProfile.company_name || employerProfile.name || '');
   const [phone, setPhone] = useState(employerProfile.phone?.replace(/\D/g, '').slice(-10) || '');
@@ -27,9 +29,13 @@ export default function EmployerAccountPage() {
   const [saveLoading, setSaveLoading] = useState(false);
 
   // ID Verification upload state
+  const [residencyProofUploaded, setResidencyProofUploaded] = useState(false);
+  const [residencyProofUrl, setResidencyProofUrl] = useState<string | null>(employerProfile.residency_proof_url || null);
   const [aadhaarFrontUploaded, setAadhaarFrontUploaded] = useState(false);
   const [aadhaarBackUploaded, setAadhaarBackUploaded] = useState(false);
-  const idVerified = aadhaarFrontUploaded && aadhaarBackUploaded;
+  const [aadhaarFrontUrl, setAadhaarFrontUrl] = useState<string | null>(employerProfile.aadhaar_front_url || null);
+  const [aadhaarBackUrl, setAadhaarBackUrl] = useState<string | null>(employerProfile.aadhaar_back_url || null);
+  const idVerified = (residencyProofUploaded || residencyProofUrl || aadhaarFrontUploaded || aadhaarFrontUrl) && (aadhaarBackUploaded || aadhaarBackUrl);
 
   // Profile Photo State
   const [profilePhoto, setProfilePhoto] = useState<string | null>(employerProfile.avatar_url || null);
@@ -53,6 +59,26 @@ export default function EmployerAccountPage() {
     reader.readAsDataURL(file);
   };
 
+  const handleResidencyProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
+      showToast('Residency Proof: Only JPG, PNG, or PDF files allowed.', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(`File size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setResidencyProofUrl(reader.result as string);
+      setResidencyProofUploaded(true);
+      showToast('Society Maintenance / Rent Agreement uploaded successfully!', 'success');
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleAadhaarFrontChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -64,8 +90,13 @@ export default function EmployerAccountPage() {
       showToast(`Aadhaar Front file size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    setAadhaarFrontUploaded(true);
-    showToast('Aadhaar Front card uploaded successfully!', 'success');
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAadhaarFrontUrl(reader.result as string);
+      setAadhaarFrontUploaded(true);
+      showToast('Aadhaar Front card uploaded successfully!', 'success');
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAadhaarBackChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,8 +110,13 @@ export default function EmployerAccountPage() {
       showToast(`Aadhaar Back file size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    setAadhaarBackUploaded(true);
-    showToast('Aadhaar Back card uploaded successfully!', 'success');
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAadhaarBackUrl(reader.result as string);
+      setAadhaarBackUploaded(true);
+      showToast('Aadhaar Back card uploaded successfully!', 'success');
+    };
+    reader.readAsDataURL(file);
   };
 
   // Communication & Notification Toggles
@@ -127,23 +163,71 @@ export default function EmployerAccountPage() {
     setAltPhone(digitsOnly);
   };
 
-  const onSave = () => {
-    if (phone.length !== 10) return;
+  const onSave = async () => {
+    if (phone.length !== 10) {
+      showToast("Please enter a valid 10-digit mobile number.", "error");
+      return;
+    }
     setSaveLoading(true);
-    setTimeout(() => {
-      setEmployerProfile((prev: any) => ({
-        ...prev,
-        company_name: companyName,
-        phone: `+91 ${phone}`,
-        email,
-        tower: towerBlock,
-        address,
-        alt_phone: altPhone,
-        verification_pref: verificationPref
-      }));
+    try {
+      if (typeof handleSaveEmployerProfile === 'function') {
+        await handleSaveEmployerProfile({
+          company_name: companyName,
+          name: companyName,
+          phone: `+91 ${phone}`,
+          email,
+          tower: towerBlock,
+          address,
+          alt_phone: altPhone,
+          verification_pref: verificationPref,
+          avatar_url: profilePhoto || employerProfile.avatar_url
+        });
+      } else {
+        setEmployerProfile((prev: any) => ({
+          ...prev,
+          company_name: companyName,
+          phone: `+91 ${phone}`,
+          email,
+          tower: towerBlock,
+          address,
+          alt_phone: altPhone,
+          verification_pref: verificationPref
+        }));
+        showToast("Household account & verification details updated!", "success");
+      }
+    } catch (err: any) {
+      showToast(`Error saving profile: ${err.message}`, 'error');
+    } finally {
       setSaveLoading(false);
-      showToast("Household account & verification details updated!", "success");
-    }, 500);
+    }
+  };
+
+  const [saveDocsLoading, setSaveDocsLoading] = useState(false);
+
+  const onSaveDocuments = async () => {
+    setSaveDocsLoading(true);
+    try {
+      if (typeof handleSaveEmployerProfile === 'function') {
+        await handleSaveEmployerProfile({
+          ...employerProfile,
+          residency_proof_url: residencyProofUrl || employerProfile.residency_proof_url,
+          aadhaar_front_url: aadhaarFrontUrl || employerProfile.aadhaar_front_url,
+          aadhaar_back_url: aadhaarBackUrl || employerProfile.aadhaar_back_url,
+        });
+      } else {
+        setEmployerProfile((prev: any) => ({
+          ...prev,
+          residency_proof_url: residencyProofUrl || prev.residency_proof_url,
+          aadhaar_front_url: aadhaarFrontUrl || prev.aadhaar_front_url,
+          aadhaar_back_url: aadhaarBackUrl || prev.aadhaar_back_url,
+        }));
+      }
+      showToast("Identity & verification document proofs saved successfully!", "success");
+    } catch (err: any) {
+      showToast(`Error saving documents: ${err.message}`, 'error');
+    } finally {
+      setSaveDocsLoading(false);
+    }
   };
 
   const onSubmitDeletionRequest = async () => {
@@ -153,98 +237,138 @@ export default function EmployerAccountPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-3xl pb-16">
+    <div className="space-y-6 animate-fade-in max-w-4xl pb-24 mx-auto">
       
-      {/* Page Header */}
-      <div>
-        <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-          <User size={18} className="text-[#1A73E8]" />
-          <span>{t('employerAccountTitle') || "Household & Employer Account Settings"}</span>
-        </h2>
-        <p className="text-xs text-slate-400 font-semibold mt-0.5">
-          {t('employerAccountSub') || "Manage your residential address, contact details, subscription tier, and security preferences."}
-        </p>
-      </div>
+      {/* 👑 PAGE HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
+            <User size={22} className="text-[#1A73E8]" />
+            <span>{t('employerAccountTitle') || "Household & Employer Account"}</span>
+          </h2>
+          <p className="text-xs text-slate-500 font-semibold mt-1">
+            {t('employerAccountSub') || "Manage your residential address, contact details, subscription tier, and security preferences."}
+          </p>
+        </div>
 
-      {/* 📊 EMPLOYER PROFILE COMPLETENESS PROGRESS */}
-      <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-3xl space-y-3 border border-slate-800 shadow-md">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-black">{t('profileCompletenessTitle') || "Employer Profile Completeness"}</h3>
-            <p className="text-[10.5px] text-slate-300 font-semibold mt-0.5">
-              {completedCount < completionSteps.length 
-                ? `${completionSteps.length - completedCount} ${t('stepsRemainingSub') || 'steps remaining to unlock 1-click job postings'}` 
-                : (t('profileCompleteSub') || '✓ Employer profile complete & Aadhaar verified!')}
-            </p>
-          </div>
-          <span className={`text-2xl font-black font-mono ${completionPercent === 100 ? 'text-emerald-400' : completionPercent >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
-            {completionPercent}%
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase flex items-center gap-1.5 border shadow-2xs ${
+            employerProfile.status === 'live' || employerProfile.status === 'approved'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : employerProfile.status === 'changes_requested'
+              ? 'bg-amber-50 text-amber-800 border-amber-200 animate-pulse'
+              : 'bg-blue-50 text-[#1A73E8] border-blue-200'
+          }`}>
+            <ShieldCheck size={14} />
+            <span>{employerProfile.status === 'changes_requested' ? '⚠️ Revision Requested' : employerProfile.status === 'live' ? '🟢 Account Active' : '⏳ Pending Audit'}</span>
           </span>
         </div>
-
-        {/* Progress Bar */}
-        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-          <div 
-            className={`h-full rounded-full transition-all duration-700 ${
-              completionPercent === 100 ? 'bg-emerald-400' : completionPercent >= 60 ? 'bg-amber-400' : 'bg-[#1A73E8]'
-            }`}
-            style={{ width: `${completionPercent}%` }}
-          />
-        </div>
-
-        {/* Step pills */}
-        <div className="flex flex-wrap gap-1.5 pt-1">
-          {completionSteps.map(step => (
-            <span key={step.key} className={`flex items-center gap-1 text-[9.5px] font-black px-2 py-0.5 rounded-full border ${
-              step.done 
-                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
-                : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-            }`}>
-              {step.done ? '✓' : '○'} {step.label}
-            </span>
-          ))}
-        </div>
       </div>
 
-      {/* SUBSCRIPTION PLAN CARD */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 rounded-3xl shadow-md space-y-4 relative overflow-hidden border border-slate-800">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-              <CheckCircle2 size={10} /> {t('activeSubscriptionBadge') || "Active Subscription"}
-            </span>
-            <h3 className="text-base font-black text-white">{employerProfile.subscription_status || 'Standard Plan'}</h3>
-            <p className="text-[11px] text-slate-300 font-medium">{t('subscriptionSub') || "One flat subscription — no credits, no unlock fees, no hidden charges."}</p>
-          </div>
-          <div className="text-right bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/10 shrink-0">
-            <span className="text-[10px] text-slate-300 font-bold block uppercase">Status</span>
-            <span className="text-lg font-black text-emerald-400">{t('statusActiveText') || "Active ✓"}</span>
-          </div>
-        </div>
-
-        <div className="pt-3 border-t border-white/10 grid grid-cols-2 gap-2">
-          {[
-            { icon: '📞', label: t('subFeatureCalls') || "Direct candidate calls — included" },
-            { icon: '🎥', label: t('subFeatureVideos') || "Worker intro videos — included" },
-            { icon: '📋', label: t('subFeatureJobs') || "Unlimited job postings — included" },
-            { icon: '🛡️', label: t('subFeatureAadhaar') || "Aadhaar-verified workers only" },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-2 text-[10.5px] text-slate-200 font-semibold">
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
+      {/* ⚠️ ADMIN REVISION DIRECTIONS CALLOUT CARD */}
+      {(employerProfile?.admin_note || employerProfile?.adminNote || employerProfile?.status === 'changes_requested') && (
+        <div className="bg-amber-50 border-2 border-amber-300 p-5 rounded-3xl space-y-3 shadow-md animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-amber-500 text-white shrink-0 shadow-sm">
+              <ShieldAlert size={22} />
             </div>
-          ))}
+            <div>
+              <h3 className="text-sm font-black text-amber-950">⚠️ Admin Audit Feedback & Required Account Updates</h3>
+              <p className="text-[11px] text-amber-800 font-semibold mt-0.5">Please review the specific directions below and update your account details accordingly before resubmitting.</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-amber-200 text-xs font-semibold text-slate-800 whitespace-pre-line leading-relaxed shadow-xs">
+            {employerProfile.admin_note || employerProfile.adminNote || 'Please review your account details and residence proof documents to ensure accuracy.'}
+          </div>
+        </div>
+      )}
+
+      {/* 🏡 HERO HOUSEHOLD PROFILE & COMPLETENESS CARD */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 sm:p-7 rounded-3xl space-y-6 shadow-xl border border-slate-800 relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+          <Building size={240} className="text-white" />
         </div>
 
-        <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3">
-          <span className="text-[11px] text-slate-300 font-medium">Need more job postings or candidate unlocks?</span>
-          <Link
-            href="/employer/pricing"
-            className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white text-xs font-black rounded-xl shadow-md cursor-pointer transition-all shrink-0 flex items-center gap-1.5"
-          >
-            <Zap size={13} />
-            <span>Upgrade / Change Plan</span>
-          </Link>
+        <div className="flex flex-col sm:flex-row items-center gap-5 relative z-10">
+          {/* Profile Photo Uploader */}
+          <div className="relative group shrink-0">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-slate-700 border-4 border-white/20 shadow-lg flex items-center justify-center text-slate-300 font-black text-2xl">
+              {profilePhoto ? (
+                <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                companyName ? companyName[0].toUpperCase() : 'H'
+              )}
+            </div>
+            <label className="absolute bottom-0 right-0 p-2 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95 border-2 border-slate-900">
+              <Camera size={14} />
+              <input type="file" accept="image/jpeg,image/png" onChange={handlePhotoChange} className="hidden" />
+            </label>
+          </div>
+
+          {/* Profile Details */}
+          <div className="text-center sm:text-left space-y-1.5 min-w-0 flex-1">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <h3 className="text-lg sm:text-xl font-black tracking-tight">{companyName || 'Household Employer'}</h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center gap-1">
+                <CreditCard size={11} />
+                {(employerProfile.subscription_status || 'free').toUpperCase()} PLAN
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-300 font-medium flex items-center justify-center sm:justify-start gap-1">
+              <MapPin size={12} className="text-blue-400" />
+              <span className="truncate">{employerProfile.society_name || 'DLF Westend Heights'}, Bengaluru</span>
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1 text-[11px] font-semibold text-slate-300">
+              <span className="flex items-center gap-1"><Phone size={11} className="text-emerald-400" /> +91 {phone}</span>
+              {email && <span className="flex items-center gap-1"><Mail size={11} className="text-amber-400" /> {email}</span>}
+            </div>
+          </div>
+
+          {/* Completeness Badge */}
+          <div className="text-center bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 shrink-0 min-w-[120px]">
+            <span className="block text-[10px] font-black uppercase text-slate-300 tracking-wider">Completeness</span>
+            <span className={`text-2xl font-black font-mono mt-0.5 block ${
+              completionPercent === 100 ? 'text-emerald-400' : completionPercent >= 60 ? 'text-amber-400' : 'text-blue-400'
+            }`}>
+              {completionPercent}%
+            </span>
+          </div>
+        </div>
+
+        {/* Animated Progress Bar */}
+        <div className="space-y-2 relative z-10 pt-2 border-t border-white/10">
+          <div className="flex justify-between items-center text-xs font-bold text-slate-300">
+            <span>{t('profileCompletenessTitle') || "Account Readiness"}</span>
+            <span>{completedCount} of {completionSteps.length} steps completed</span>
+          </div>
+          <div className="h-2.5 bg-white/10 rounded-full overflow-hidden p-0.5">
+            <div 
+              className={`h-full rounded-full transition-all duration-700 ${
+                completionPercent === 100 ? 'bg-gradient-to-r from-emerald-400 to-teal-300' : 'bg-gradient-to-r from-blue-500 to-indigo-400'
+              }`}
+              style={{ width: `${completionPercent}%` }}
+            />
+          </div>
+
+          {/* Step Badges */}
+          <div className="flex flex-wrap gap-1.5 pt-2">
+            {completionSteps.map((step) => (
+              <span 
+                key={step.key} 
+                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
+                  step.done 
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                    : 'bg-white/5 text-slate-400 border border-white/10'
+                }`}
+              >
+                {step.done ? <Check size={11} className="text-emerald-400" /> : <Lock size={11} />}
+                <span>{step.label}</span>
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -488,67 +612,196 @@ export default function EmployerAccountPage() {
             {t('societyResidencyDesc') || "Upload a recent Society Maintenance Bill, Electricity Receipt, or Rent Agreement showing your Flat & Tower number for instant Admin approval."}
           </p>
 
-          <div className="flex items-center gap-3">
-            <label className="cursor-pointer flex-1">
-              <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
-              <div className="w-full py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-xs">
-                <Upload size={14} />
-                <span>{t('uploadMaintenanceBtn') || "Upload Maintenance Bill / Rent Agreement"}</span>
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center gap-3">
+              <label className="cursor-pointer flex-1">
+                <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleResidencyProofChange} />
+                <div className="w-full py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-xs">
+                  <Upload size={14} />
+                  <span>{(residencyProofUploaded || residencyProofUrl || employerProfile.residency_proof_url) ? (t('changeMaintenanceBtn') || "Change Maintenance Bill / Rent Agreement") : (t('uploadMaintenanceBtn') || "Upload Maintenance Bill / Rent Agreement")}</span>
+                </div>
+              </label>
+
+              {(residencyProofUploaded || residencyProofUrl || employerProfile.residency_proof_url) && (
+                <button
+                  type="button"
+                  onClick={() => setActiveInlinePreview(activeInlinePreview === 'residency' ? null : 'residency')}
+                  className="py-2.5 px-4 bg-blue-100 hover:bg-blue-200 text-[#1A73E8] rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs shrink-0"
+                >
+                  <Eye size={14} />
+                  <span>{activeInlinePreview === 'residency' ? 'Hide Preview' : 'View Proof'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Inline Residency Proof Preview Drawer */}
+            {activeInlinePreview === 'residency' && (
+              <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 animate-fade-in border border-slate-800 shadow-md mt-2">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs font-black text-blue-400 flex items-center gap-1.5">
+                    <Building size={14} /> Society Residency Verification Proof
+                  </span>
+                  <button onClick={() => setActiveInlinePreview(null)} className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer">
+                    Close Preview ✕
+                  </button>
+                </div>
+                <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
+                  {(residencyProofUrl || employerProfile.residency_proof_url) ? (
+                    <img src={residencyProofUrl || employerProfile.residency_proof_url || ''} alt="Residency Proof" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
+                      <Building size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
+                      <p>Residency Verification Proof Uploaded &amp; Stored</p>
+                      <p className="text-[10px] text-slate-500 font-normal">Active society residency proof linked to employer account</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </label>
+            )}
           </div>
         </div>
 
         <div className="space-y-2.5">
           {/* Aadhaar Front */}
-          <div className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${aadhaarFrontUploaded ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
-            <div className={`p-2.5 rounded-xl shrink-0 ${aadhaarFrontUploaded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-              <FileText size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-slate-900">{t('aadhaarFrontLabel') || "Aadhaar — Front"}</p>
-              <p className="text-[10px] text-slate-400 font-semibold">{t('aadhaarFrontDesc') || "Name, photo & DOB · JPG · PNG · PDF · Max 5MB"}</p>
-            </div>
-            {aadhaarFrontUploaded ? (
-              <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
-                <CheckCircle2 size={12} className="text-emerald-600" />
-                <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
-                <button onClick={() => setAadhaarFrontUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
+          <div className="space-y-2">
+            <div className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${(aadhaarFrontUploaded || employerProfile.aadhaar_front_url) ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
+              <div className={`p-2.5 rounded-xl shrink-0 ${(aadhaarFrontUploaded || employerProfile.aadhaar_front_url) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                <FileText size={16} />
               </div>
-            ) : (
-              <label className="cursor-pointer shrink-0">
-                <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
-                <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                  <Upload size={11} /><span>{t('uploadFrontBtn') || "Upload Front"}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-slate-900">{t('aadhaarFrontLabel') || "Aadhaar — Front"}</p>
+                <p className="text-[10px] text-slate-400 font-semibold truncate">{t('aadhaarFrontDesc') || "Name, photo & DOB · JPG · PNG · PDF · Max 5MB"}</p>
+              </div>
+              {(aadhaarFrontUploaded || employerProfile.aadhaar_front_url) ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveInlinePreview(activeInlinePreview === 'front' ? null : 'front')}
+                    className="py-1.5 px-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Eye size={12} className="text-emerald-700" />
+                    <span>{activeInlinePreview === 'front' ? 'Hide Preview' : 'View'}</span>
+                  </button>
+                  <label className="cursor-pointer">
+                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
+                    <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
+                      <Upload size={11} />
+                      <span>Change</span>
+                    </div>
+                  </label>
+                  <button onClick={() => { setAadhaarFrontUploaded(false); if (activeInlinePreview === 'front') setActiveInlinePreview(null); }} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer">✕</button>
                 </div>
-              </label>
+              ) : (
+                <label className="cursor-pointer shrink-0">
+                  <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
+                  <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
+                    <Upload size={11} /><span>{t('uploadFrontBtn') || "Upload Front"}</span>
+                  </div>
+                </label>
+              )}
+            </div>
+
+            {/* Inline Front Preview Drawer */}
+            {activeInlinePreview === 'front' && (
+              <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 animate-fade-in border border-slate-800 shadow-md">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs font-black text-blue-400 flex items-center gap-1.5">
+                    <FileText size={14} /> Aadhaar Front Side Uploaded Document
+                  </span>
+                  <button onClick={() => setActiveInlinePreview(null)} className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer">
+                    Close Preview ✕
+                  </button>
+                </div>
+                <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
+                  {(aadhaarFrontUrl || employerProfile.aadhaar_front_url) ? (
+                    <img src={aadhaarFrontUrl || employerProfile.aadhaar_front_url || ''} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
+                      <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
+                      <p>Employer Aadhaar Front Verified &amp; Stored</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
           {/* Aadhaar Back */}
-          <div className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${aadhaarBackUploaded ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
-            <div className={`p-2.5 rounded-xl shrink-0 ${aadhaarBackUploaded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-              <FileText size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-slate-900">{t('aadhaarBackLabel') || "Aadhaar — Back"}</p>
-              <p className="text-[10px] text-slate-400 font-semibold">{t('aadhaarBackDesc') || "Aadhaar number & address · JPG · PNG · PDF · Max 5MB"}</p>
-            </div>
-            {aadhaarBackUploaded ? (
-              <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
-                <CheckCircle2 size={12} className="text-emerald-600" />
-                <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
-                <button onClick={() => setAadhaarBackUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
+          <div className="space-y-2">
+            <div className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${(aadhaarBackUploaded || employerProfile.aadhaar_back_url) ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
+              <div className={`p-2.5 rounded-xl shrink-0 ${(aadhaarBackUploaded || employerProfile.aadhaar_back_url) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                <FileText size={16} />
               </div>
-            ) : (
-              <label className="cursor-pointer shrink-0">
-                <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
-                <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                  <Upload size={11} /><span>{t('uploadBackBtn') || "Upload Back"}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-slate-900">{t('aadhaarBackLabel') || "Aadhaar — Back"}</p>
+                <p className="text-[10px] text-slate-400 font-semibold truncate">{t('aadhaarBackDesc') || "Aadhaar number & address · JPG · PNG · PDF · Max 5MB"}</p>
+              </div>
+              {(aadhaarBackUploaded || employerProfile.aadhaar_back_url) ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveInlinePreview(activeInlinePreview === 'back' ? null : 'back')}
+                    className="py-1.5 px-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Eye size={12} className="text-emerald-700" />
+                    <span>{activeInlinePreview === 'back' ? 'Hide Preview' : 'View'}</span>
+                  </button>
+                  <label className="cursor-pointer">
+                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
+                    <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
+                      <Upload size={11} />
+                      <span>Change</span>
+                    </div>
+                  </label>
+                  <button onClick={() => { setAadhaarBackUploaded(false); if (activeInlinePreview === 'back') setActiveInlinePreview(null); }} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer">✕</button>
                 </div>
-              </label>
+              ) : (
+                <label className="cursor-pointer shrink-0">
+                  <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
+                  <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
+                    <Upload size={11} /><span>{t('uploadBackBtn') || "Upload Back"}</span>
+                  </div>
+                </label>
+              )}
+            </div>
+
+            {/* Inline Back Preview Drawer */}
+            {activeInlinePreview === 'back' && (
+              <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 animate-fade-in border border-slate-800 shadow-md">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs font-black text-blue-400 flex items-center gap-1.5">
+                    <FileText size={14} /> Aadhaar Back Side Uploaded Document
+                  </span>
+                  <button onClick={() => setActiveInlinePreview(null)} className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer">
+                    Close Preview ✕
+                  </button>
+                </div>
+                <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
+                  {(aadhaarBackUrl || employerProfile.aadhaar_back_url) ? (
+                    <img src={aadhaarBackUrl || employerProfile.aadhaar_back_url || ''} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
+                      <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
+                      <p>Employer Aadhaar Back Verified &amp; Stored</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
+        </div>
+
+        {/* 💾 IN-CARD SAVE BUTTON FOR DOCUMENTS */}
+        <div className="pt-2 border-t border-slate-100 flex justify-end">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saveLoading}
+            className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            <Save size={14} />
+            <span>{saveLoading ? (t('savingText') || 'Saving...') : (t('saveDocumentsBtn') || 'Save Document Proofs')}</span>
+          </button>
         </div>
 
         {idVerified && (

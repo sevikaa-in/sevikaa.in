@@ -98,6 +98,84 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      {/* 🏢 PENDING SOCIETY ONBOARDING REQUESTS QUEUE (STAFF VERIFICATION PANEL) */}
+      <div className="bg-white border border-slate-100 p-5 rounded-[20px] shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <h4 className="text-xs font-black text-slate-800 flex items-center gap-2">
+              <span>🏢 Pending Society Onboarding Requests</span>
+              <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-full border border-amber-200">
+                Requires RWA Verification
+              </span>
+            </h4>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Employers requesting new gated communities. Call or WhatsApp the employer to confirm RWA gate details before publishing.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {[
+            {
+              id: 'soc-req-1',
+              societyName: 'Sobha Royal Pavilion',
+              locality: 'Sarjapur Main Road, HSR Layout, Bengaluru',
+              tower: 'Tower 3, Flat 402',
+              requestedBy: 'Vikram Sharma (Employer)',
+              phone: '+919876543210',
+              submittedTime: '2 hours ago'
+            },
+            {
+              id: 'soc-req-2',
+              societyName: 'Prestige Willow Tree',
+              locality: 'Vidyaranyapura, Yelahanka, Bengaluru',
+              tower: 'Block B, Flat 108',
+              requestedBy: 'Ananya Roy (Employer)',
+              phone: '+919812345678',
+              submittedTime: '5 hours ago'
+            }
+          ].map((req) => (
+            <div key={req.id} className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-slate-900 text-sm">{req.societyName}</span>
+                  <span className="px-2 py-0.5 bg-blue-50 text-[#1A73E8] text-[9.5px] font-black rounded-full border border-blue-200">
+                    {req.tower}
+                  </span>
+                </div>
+                <p className="text-slate-600 font-semibold">{req.locality}</p>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Requested by: <strong className="text-slate-800">{req.requestedBy}</strong> ({req.phone}) &bull; <span className="text-slate-400">{req.submittedTime}</span>
+                </p>
+              </div>
+
+              {/* Staff Action Buttons */}
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <a
+                  href={`tel:${req.phone}`}
+                  className="py-2 px-3 bg-slate-900 hover:bg-black text-white rounded-xl text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                >
+                  <span>📞 Call Employer</span>
+                </a>
+                <a
+                  href={`https://wa.me/${req.phone.replace(/\+/g, '')}?text=Namaste%20${encodeURIComponent(req.requestedBy.split(' ')[0])},%20this%20is%20Sevikaa%20Admin%20regarding%20your%20request%20to%20onboard%20${encodeURIComponent(req.societyName)}.`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                >
+                  <span>💬 WhatsApp</span>
+                </a>
+                <button
+                  onClick={() => alert(`Society ${req.societyName} approved and published live for all Employers & Workers!`)}
+                  className="py-2 px-3 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                >
+                  <span>✅ Approve & Publish</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

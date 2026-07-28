@@ -1,46 +1,51 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabaseClient';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-
-export interface AuditLogEntry {
-  userId: string;
-  role: string;
+export interface AuditLogPayload {
+  adminId?: string;
+  adminEmail?: string;
   action: string;
-  resource: string;
-  ipAddress?: string;
-  userAgent?: string;
-  status: 'SUCCESS' | 'FAILED' | 'DENIED';
-  details?: Record<string, any>;
+  targetType?: 'job' | 'worker' | 'employer' | 'society' | 'system' | string;
+  targetId?: string;
+  details?: string | Record<string, any>;
+  severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string;
+  [key: string]: any;
 }
 
-/**
- * Enterprise Audit Logger for Recording Sensitive Security & Moderation Operations
- */
-export async function logSecurityAudit(entry: AuditLogEntry): Promise<void> {
-  const timestamp = new Date().toISOString();
-
-  // Print structured audit log output for server monitoring
-  console.log(`[AUDIT_LOG] [${timestamp}] [${entry.status}] User: ${entry.userId} (${entry.role}) | Action: ${entry.action} | Resource: ${entry.resource} | IP: ${entry.ipAddress || 'N/A'}`);
-
-  if (supabaseUrl.includes('placeholder')) {
-    return; // Sandbox mode fallback
-  }
+export async function logSecurityAudit(
+  actionOrPayload: string | Record<string, any>, 
+  details?: any, 
+  severity = 'LOW'
+) {
+  const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                        !process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (isPlaceholder) return;
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    await supabase.from('audit_logs').insert({
-      user_id: entry.userId,
-      role: entry.role,
-      action: entry.action,
-      resource: entry.resource,
-      ip_address: entry.ipAddress || null,
-      user_agent: entry.userAgent || null,
-      status: entry.status,
-      details: entry.details ? JSON.stringify(entry.details) : null,
-      created_at: timestamp
-    });
-  } catch (err: any) {
-    console.error("[Audit Logger Error] Failed to persist audit entry:", err?.message || err);
+    const actionStr = typeof actionOrPayload === 'string' 
+      ? actionOrPayload 
+      : (actionOrPayload?.action || 'SECURITY_AUDIT_EVENT');
+    
+    const detailsVal = typeof actionOrPayload === 'object' 
+      ? JSON.stringify(actionOrPayload) 
+      : typeof details === 'object' 
+        ? JSON.stringify(details) 
+        : String(details || '');
+
+    const sevVal = (typeof actionOrPayload === 'object' && actionOrPayload?.severity) 
+      ? actionOrPayload.severity 
+      : severity;
+
+    await supabase.from('audit_logs').insert([{
+      action: actionStr,
+      details: detailsVal,
+      severity: sevVal,
+      created_at: new Date().toISOString()
+    }]);
+  } catch (err) {
+    console.error("Security audit log error:", err);
   }
+}
+
+export async function logAdminAuditAction(payload: AuditLogPayload) {
+  return logSecurityAudit(payload);
 }

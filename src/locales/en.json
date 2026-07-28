@@ -488,8 +488,8 @@
   "dontSeeSocietySub": "Request Sevikaa Admin to onboard your residential community. Verification takes less than 24 hours.",
   "requestModalTitle": "Request Society Onboarding",
   "requestModalSub": "Sevikaa Admin directory request",
-  "societyNameLabel": "Gated Society / Apartment Name",
-  "societyNamePlaceholder": "e.g. Sobha Royal Pavilion",
+  "onboardSocietyNameLabel": "Gated Society / Apartment Name",
+  "onboardSocietyNamePlaceholder": "e.g. Sobha Royal Pavilion",
   "localityLabel": "Locality / Area / Landmark",
   "localityPlaceholder": "e.g. Sarjapur Main Road, HSR Layout",
   "towerLabel": "Tower / Block or Gate Number (Optional)",
@@ -607,5 +607,15 @@
   "workQualityRatingLabel": "Work Quality & Behavior:",
   "fairPayRatingLabel": "Fair Pay & Respect:",
   "submitReviewBtn": "Submit Verified Review for Admin Approval",
-  "reviewCommentLabel": "Written Feedback / Experience Notes"
+  "reviewCommentLabel": "Written Feedback / Experience Notes",
+  "primarySocietyBadge": "Primary Society",
+  "secondarySocietyBadge": "Secondary Workplace",
+  "matchingMySkillsBtn": "Matching My Skills",
+  "allCategoriesBtn": "All Categories",
+  "primarySocietyBtn": "Primary Society",
+  "secondarySocietiesBtn": "Secondary Societies",
+  "nearby2kmBtn": "Nearby (< 2 km)",
+  "within5kmBtn": "Within 5 km",
+  "allCitiesBtn": "All Cities",
+  "allMyWorkplacesBtn": "All My Workplaces (Primary & Secondary)"
 }

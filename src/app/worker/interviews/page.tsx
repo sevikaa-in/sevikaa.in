@@ -105,79 +105,82 @@ export default function WorkerInterviewsPage() {
         </p>
       </div>
 
-      {/* 🌟 HERO INTERVIEW STATUS BANNER */}
-      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white p-5 rounded-3xl shadow-xl space-y-4 relative overflow-hidden border border-blue-500/20">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-          <div className="space-y-1">
-            <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-              <CheckCircle2 size={10} /> {t('livePipelineBadge') || "Live Application Pipeline"}
-            </span>
-            <h3 className="text-sm font-black text-white">
+      {/* 🌟 COMPACT PERFECT SLIM HERO BANNER */}
+      <div className="bg-gradient-to-r from-[#1A73E8] via-blue-600 to-indigo-700 text-white p-4 rounded-2xl shadow-md shadow-blue-500/15 relative overflow-hidden border border-blue-400/30 space-y-3">
+        {/* Glow ambient blur */}
+        <div className="absolute -top-10 -right-10 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 whitespace-nowrap">
+                {t('livePipelineBadge') || "Live Application Pipeline"}
+              </span>
+            </div>
+            <h3 className="text-sm font-black text-white leading-snug">
               {upcomingInterviews.length > 0 
                 ? `${upcomingInterviews.length} ${upcomingInterviews.length > 1 ? (t('upcomingCountTitlePlural') || 'Upcoming Household Interviews') : (t('upcomingCountTitle') || 'Upcoming Household Interview')}` 
                 : (t('noUpcomingInterviewsToday') || 'No Upcoming Interviews Today')}
             </h3>
-            <p className="text-[11px] text-slate-300 font-medium">
-              {t('phoneReachableNotice') || "Keep your phone reachable and Aadhaar ready for gate desk entry."}
-            </p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/15 shrink-0 flex items-center gap-3 text-center">
-            <div>
-              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">{t('statInterviews') || "Interviews"}</span>
-              <span className="text-base font-black text-amber-300">{upcomingInterviews.length}</span>
+          {/* Compact Stat Pills Bar */}
+          <div className="bg-white/15 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/20 shrink-0 flex items-center justify-between gap-3 text-center shadow-xs">
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="text-[9.5px] text-blue-100 font-bold uppercase">{t('statInterviews') || "Interviews"}:</span>
+              <span className="text-xs font-black text-amber-300">{upcomingInterviews.length}</span>
             </div>
-            <div className="w-px h-7 bg-white/15" />
-            <div>
-              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">{t('statReview') || "Review"}</span>
-              <span className="text-base font-black text-blue-300">{appliedJobs.length}</span>
+            <div className="w-px h-3.5 bg-white/25" />
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="text-[9.5px] text-blue-100 font-bold uppercase">{t('statReview') || "Review"}:</span>
+              <span className="text-xs font-black text-white">{appliedJobs.length}</span>
             </div>
-            <div className="w-px h-7 bg-white/15" />
-            <div>
-              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">{t('statHired') || "Hired"}</span>
-              <span className="text-base font-black text-emerald-400">{historyInterviews.filter(h => h.status === 'hired').length}</span>
+            <div className="w-px h-3.5 bg-white/25" />
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="text-[9.5px] text-blue-100 font-bold uppercase">{t('statHired') || "Hired"}:</span>
+              <span className="text-xs font-black text-emerald-300">{historyInterviews.filter(h => h.status === 'hired').length}</span>
             </div>
           </div>
-        </div>
-
-        <div className="pt-2.5 border-t border-white/10 flex items-center justify-between text-[10.5px] text-slate-300 font-semibold relative z-10">
-          <span className="flex items-center gap-1.5 text-blue-200">
-            <Sparkles size={12} className="text-amber-400" />
-            <span>{t('attendanceNotice') || "Always confirm attendance at least 1 hour before scheduled time."}</span>
-          </span>
         </div>
       </div>
 
-      {/* 📊 TAB FILTER CONTROLS */}
-      <div className="flex bg-slate-200/70 p-1 rounded-2xl text-xs font-bold text-slate-600 gap-1">
+      {/* 📊 CLEAN FULL-WIDTH TAB FILTER CONTROLS */}
+      <div className="bg-slate-100 p-1.5 rounded-2xl text-xs font-bold text-slate-600 flex items-center gap-1.5 border border-slate-200/60 shadow-xs">
         <button
           onClick={() => setActiveTab('upcoming')}
-          className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTab === 'upcoming' ? 'bg-white text-[#1A73E8] font-black shadow-xs' : 'hover:text-slate-900'
+          className={`flex-1 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'upcoming' 
+              ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
-          <Calendar size={13} />
-          <span>{t('tabUpcoming') || "Upcoming"} ({upcomingInterviews.length})</span>
+          <Calendar size={13} className={activeTab === 'upcoming' ? 'text-white' : 'text-slate-400'} />
+          <span className="whitespace-nowrap">{t('tabUpcoming') || "Upcoming"} ({upcomingInterviews.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('applied')}
-          className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTab === 'applied' ? 'bg-white text-[#1A73E8] font-black shadow-xs' : 'hover:text-slate-900'
+          className={`flex-1 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'applied' 
+              ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
-          <Clock size={13} />
-          <span>{t('tabApplied') || "Applied"} ({appliedJobs.length})</span>
+          <Clock size={13} className={activeTab === 'applied' ? 'text-white' : 'text-slate-400'} />
+          <span className="whitespace-nowrap">{t('tabApplied') || "Applied"} ({appliedJobs.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTab === 'history' ? 'bg-white text-[#1A73E8] font-black shadow-xs' : 'hover:text-slate-900'
+          className={`flex-1 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'history' 
+              ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
-          <CheckCircle2 size={13} />
-          <span>{t('tabHiredHistory') || "Hired & History"} ({historyInterviews.length})</span>
+          <CheckCircle2 size={13} className={activeTab === 'history' ? 'text-white' : 'text-slate-400'} />
+          <span className="whitespace-nowrap">{t('tabHiredHistory') || "Hired & History"} ({historyInterviews.length})</span>
         </button>
       </div>
 
@@ -355,18 +358,17 @@ export default function WorkerInterviewsPage() {
                       <span>{t('writeVerifiedReviewTitle') || 'Rate Household'}</span>
                     </button>
 
-                    {/* Gate Directions */}
-                    {!isPhoneCall && (
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(app.society)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <MapPin size={14} className="text-slate-500" />
-                        <span>{t('gateDirectionsBtn') || "Gate Directions"}</span>
-                      </a>
-                    )}
+                    {/* Google Maps Turn-by-Turn Navigation */}
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(app.society || app.jobTitle || 'Bangalore')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-2.5 px-3.5 bg-slate-900 hover:bg-black text-white rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                      title="Open Google Maps Turn-by-Turn Navigation to employer building or gate"
+                    >
+                      <Compass size={14} className="text-blue-400" />
+                      <span>{t('navigateGoogleMapsBtn') || "📍 Navigate to Gate"}</span>
+                    </a>
                   </div>
 
                   <span className="text-[10px] text-slate-400 font-semibold ml-auto">

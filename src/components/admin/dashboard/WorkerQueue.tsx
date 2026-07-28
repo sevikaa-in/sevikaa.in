@@ -54,10 +54,19 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
     return matchesSearch && matchesStatus;
   });
 
+  // Sort pending approval workers to top of the queue
+  const sortedWorkers = [...filtered].sort((a, b) => {
+    const isAPending = a.status === 'pending' || a.status === 'pending_review' || a.status === 'pending_verification';
+    const isBPending = b.status === 'pending' || b.status === 'pending_review' || b.status === 'pending_verification';
+    if (isAPending && !isBPending) return -1;
+    if (!isAPending && isBPending) return 1;
+    return 0;
+  });
+
   // Pagination logic
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const totalPages = Math.ceil(sortedWorkers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginated = filtered.slice(startIndex, startIndex + itemsPerPage);
+  const paginated = sortedWorkers.slice(startIndex, startIndex + itemsPerPage);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -154,9 +163,15 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-black text-slate-800">{worker.name || worker.full_name}</span>
-                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${getStatusColor(worker.status)}`}>
-                      {worker.status?.replace('_', ' ')}
-                    </span>
+                    { (worker.status === 'pending' || worker.status === 'pending_review' || worker.status === 'pending_verification') ? (
+                      <span className="px-2 py-0.5 rounded text-[8.5px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200/80 animate-pulse">
+                        ⏳ Pending Approval
+                      </span>
+                    ) : (
+                      <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${getStatusColor(worker.status)}`}>
+                        {worker.status?.replace('_', ' ')}
+                      </span>
+                    )}
                   </div>
 
                   {/* Visual Progress Timeline (PRD Lifecycle) */}

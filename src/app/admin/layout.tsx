@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+import { enforceSingleAdminSession } from '@/lib/singleSessionEnforcer';
 import { ToastContainer, ToastItem } from '@/components/admin/dashboard/Toast';
 import { 
   Users, Briefcase, FileText, CheckCircle2, XCircle, Clock, Video, 
@@ -53,7 +54,7 @@ interface AdminContextProps {
   fetchDashboardData: () => Promise<void>;
   handleUpdateBadge: (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => Promise<void>;
   handleUpdateWorkerStatus: (workerId: string, newStatus: string) => Promise<void>;
-  handleModerateJob: (jobId: string, action: 'approve' | 'reject' | 'request_changes' | boolean, adminNote?: string) => Promise<void>;
+  handleModerateJob: (jobId: string, action: 'approve' | 'reject' | 'request_changes' | 'unapprove' | 'revert' | boolean, adminNote?: string) => Promise<void>;
   handleModerateReview: (reviewId: string, action: 'approved' | 'rejected' | 'hidden') => Promise<void>;
   handleResolveDispute: (disputeId: string) => void;
   handleLogInterviewResult: (id: string, result: 'Pass' | 'Fail' | 'Re-interview', resultNotes: string) => void;
@@ -403,24 +404,26 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       const { data: pendingJobs } = await supabase
         .from('jobs')
         .select('*, employer:profiles(*, employer_profiles(*))')
-        .or('status.eq.pending,status.eq.pending_review,status.is.null')
         .order('created_at', { ascending: false });
 
       if (pendingJobs && pendingJobs.length > 0) {
         setPendingJobsList(pendingJobs.map((j: any) => {
-          const empName = j.employer_name || j.employer?.employer_profiles?.[0]?.name || j.employer?.employer_profiles?.[0]?.company_name || 'Employer Household';
-          const empPhone = j.employer_phone || j.employer?.phone || '';
-          const empEmail = j.employer_email || j.employer?.email || '';
+          const empProfile = Array.isArray(j.employer?.employer_profiles) ? j.employer?.employer_profiles[0] : j.employer?.employer_profiles;
+          const empName = j.employer_name || empProfile?.name || empProfile?.company_name || j.employer?.email?.split('@')[0] || 'Employer Household';
+          const empPhone = j.employer_phone || j.employer?.phone || empProfile?.phone || '+91 98765 43210';
+          const empEmail = j.employer_email || j.employer?.email || 'employer@sevikaa.com';
           const salaryVal = j.salary_offered || j.salary || j.salary_range_min || 0;
 
           return {
             id: j.id,
+            user_id: j.user_id,
             title: j.title || 'General Job Requirement',
             category: j.category || 'General',
             salary_offered: salaryVal,
             salary: salaryVal,
             society_name: j.society_name || 'General Locality',
             employer: empName,
+            employer_name: empName,
             employer_email: empEmail,
             employer_phone: empPhone,
             phone: empPhone,
@@ -428,6 +431,15 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             description: j.description || 'Job requisition awaiting admin moderation.',
             status: j.status || 'pending',
             admin_note: j.admin_note || j.adminNote || undefined,
+            shift_hours: j.shift_hours || j.shift || 'Full Day (8 AM - 4 PM)',
+            weekly_off: j.weekly_off || 'Sundays Off',
+            family_members: j.family_members || '4 Members',
+            flat_type: j.flat_type || '3BHK Apartment',
+            dietary_pref: j.dietary_pref || 'Vegetarian',
+            payment_terms: j.payment_terms || 'Monthly via UPI / Bank',
+            responsibilities: j.responsibilities || [],
+            qualifications: j.qualifications || [],
+            perks: j.perks || [],
             created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
           };
         }));
@@ -480,7 +492,10 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       setCounts({
         pendingWorkers: profilesList?.filter((p: any) => p.status === 'pending_review' || p.status === 'admin_interview' || p.status === 'deletion_requested').length || 7,
         pendingEmployers: mappedEmployers.filter((e: any) => e.status === 'pending_review' || e.status === 'deletion_requested').length || 0,
-        pendingJobs: pendingJobs?.length || 0,
+        pendingJobs: pendingJobs?.filter((j: any) => {
+          const s = (j.status || 'pending').toLowerCase();
+          return s === 'pending' || s === 'pending_review';
+        }).length || 0,
         pendingReviews: pendingReviews?.length || 0,
         interviewsToday: profilesList?.filter((p: any) => p.status === 'admin_interview').length || 1,
         activeDisputes: 0
@@ -495,6 +510,8 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   };
 
   useEffect(() => {
+    let cleanupFn: (() => void) | null = null;
+
     const checkAdmin = async () => {
       const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -512,6 +529,13 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         }
         setUser(session.user);
         fetchDashboardData();
+
+        // Enforce Single Active Session for Admin
+        cleanupFn = await enforceSingleAdminSession(session.user.id, (reason) => {
+          showToast(reason, 'error');
+          supabase.auth.signOut();
+          router.push('/');
+        });
       } catch (err) {
         console.error("Admin check error:", err);
         setLoading(false);
@@ -519,7 +543,31 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     };
 
     checkAdmin();
+
+    return () => {
+      if (cleanupFn) cleanupFn();
+    };
   }, [router]);
+
+  useEffect(() => {
+    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (isPlaceholder) return;
+
+    const channel = supabase
+      .channel('admin_live_updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => {
+        fetchDashboardData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const handleUpdateBadge = async (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => {
     if (selectedWorker) {
@@ -561,37 +609,48 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     }
   };
 
-  const handleUpdateWorkerStatus = async (workerId: string, newStatus: string) => {
+  const handleUpdateWorkerStatus = async (workerId: string, newStatus: string, adminNote?: string) => {
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
     try {
       if (!isPlaceholder) {
+        const payload: any = { status: newStatus };
+        if (adminNote) payload.admin_note = adminNote;
+
         const { error: updateErr } = await supabase
           .from('profiles')
-          .update({ status: newStatus })
+          .update(payload)
           .eq('id', workerId);
         if (updateErr) throw updateErr;
+
+        if (adminNote) {
+          await supabase
+            .from('worker_profiles')
+            .update({ admin_note: adminNote })
+            .or(`user_id.eq.${workerId},id.eq.${workerId}`);
+        }
       }
 
-      setWorkersList(prev => prev.map(w => w.id === workerId ? { ...w, status: newStatus } : w));
+      setWorkersList(prev => prev.map(w => w.id === workerId ? { ...w, status: newStatus, admin_note: adminNote || w.admin_note } : w));
       if (selectedWorker?.id === workerId) {
-        setSelectedWorker((prev: any) => ({ ...prev, status: newStatus }));
+        setSelectedWorker((prev: any) => ({ ...prev, status: newStatus, admin_note: adminNote || prev.admin_note }));
       }
-      showToast(`Worker status updated to: ${newStatus}`);
+      showToast(`Worker status updated to: ${newStatus.replace('_', ' ')}`);
       fetchDashboardData();
     } catch (err: any) {
       showToast(`Update failed: ${err.message}`, 'error');
     }
   };
 
-  const handleModerateJob = async (jobId: string, action: 'approve' | 'reject' | 'request_changes' | boolean, adminNote?: string) => {
+  const handleModerateJob = async (jobId: string, action: 'approve' | 'reject' | 'request_changes' | 'unapprove' | 'revert' | boolean, adminNote?: string) => {
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
     const targetJob = pendingJobsList.find(j => j.id === jobId);
     const isApprove = action === true || action === 'approve';
     const isChanges = action === 'request_changes';
-    const newStatus = isApprove ? 'approved' : isChanges ? 'changes_requested' : 'rejected';
+    const isRevert = action === 'unapprove' || action === 'revert';
+    const newStatus = isApprove ? 'approved' : isChanges ? 'changes_requested' : isRevert ? 'pending_review' : 'rejected';
     const noteText = adminNote || (isChanges ? 'Admin Audit Feedback: Please clarify if ironing duties are included and update morning shift start time.' : undefined);
 
     try {

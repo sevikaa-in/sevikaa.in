@@ -12,7 +12,7 @@ interface WorkerDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   worker: any;
-  onUpdateStatus: (id: string, status: string) => void;
+  onUpdateStatus: (id: string, status: string, note?: string) => void;
   onUpdateBadge: (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => void;
 }
 
@@ -43,6 +43,9 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [requestReason, setRequestReason] = useState('');
 
   if (!isOpen || !worker || !mounted) return null;
 
@@ -431,46 +434,121 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
         </div>
 
         {/* Sticky Drawer Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white shrink-0 shadow-lg">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              onClick={() => {
-                onUpdateStatus(worker.id, 'suspended');
-                onClose();
-              }}
-              className="flex-1 sm:flex-initial py-2.5 px-4 bg-red-50 hover:bg-red-100 text-[#EA4335] rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer border border-red-200/50"
-            >
-              Suspend / Reject
-            </button>
-            <button
-              onClick={() => {
-                onUpdateStatus(worker.id, 'admin_interview');
-                onClose();
-              }}
-              className="flex-1 sm:flex-initial py-2.5 px-4 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer border border-amber-200/50"
-            >
-              Move to Interview
-            </button>
-          </div>
+        <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0 shadow-lg space-y-3">
+          {showRequestForm ? (
+            <div className="w-full bg-amber-50/80 border border-amber-200 p-4 rounded-2xl space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                  <ShieldAlert size={14} className="text-amber-700" />
+                  Suggest Profile Updates / Revision Directions
+                </span>
+                <button 
+                  onClick={() => setShowRequestForm(false)}
+                  className="text-xs text-amber-700 hover:text-amber-900 font-bold"
+                >
+                  Cancel
+                </button>
+              </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <button
-              onClick={onClose}
-              className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
-            >
-              Close Drawer
-            </button>
-            <button
-              onClick={() => {
-                onUpdateStatus(worker.id, 'live');
-                onClose();
-              }}
-              className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#34A853]/20 flex items-center gap-1.5"
-            >
-              <Check size={15} strokeWidth={3} />
-              Approve Live Profile
-            </button>
-          </div>
+              <textarea
+                rows={2}
+                value={requestReason}
+                onChange={(e) => setRequestReason(e.target.value)}
+                placeholder="Enter specific directions for worker (e.g. Please re-upload clearer selfie photo or select primary society)..."
+                className="w-full p-2.5 bg-white border border-amber-300/80 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+              />
+
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  "Selfie photo is blurry, please re-upload",
+                  "Aadhaar document image cut off",
+                  "Please select primary society workplace",
+                  "Please fill past work experience details"
+                ].map((template) => {
+                  const isSelected = requestReason.includes(template);
+                  return (
+                    <button
+                      key={template}
+                      type="button"
+                      onClick={() => {
+                        setRequestReason(prev => {
+                          if (!prev || !prev.trim()) return `- ${template}`;
+                          if (prev.includes(template)) {
+                            // Toggle off
+                            const lines = prev.split('\n').filter(line => !line.includes(template));
+                            return lines.join('\n');
+                          }
+                          return `${prev}\n- ${template}`;
+                        });
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[9.5px] font-bold transition-all cursor-pointer border ${
+                        isSelected 
+                          ? 'bg-amber-700 text-white border-amber-800 shadow-xs' 
+                          : 'bg-amber-100/70 hover:bg-amber-200 text-amber-900 border-amber-200/60'
+                      }`}
+                    >
+                      {isSelected ? '✓ ' : '+ '}{template}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    if (!requestReason.trim()) return;
+                    onUpdateStatus(worker.id, 'changes_requested', requestReason.trim());
+                    setShowRequestForm(false);
+                    onClose();
+                  }}
+                  disabled={!requestReason.trim()}
+                  className="py-2.5 px-5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition-all disabled:opacity-50 shadow-sm"
+                >
+                  Send Profile Revision Directions
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => {
+                    onUpdateStatus(worker.id, 'suspended');
+                    onClose();
+                  }}
+                  className="flex-1 sm:flex-initial py-2.5 px-4 bg-red-50 hover:bg-red-100 text-[#EA4335] rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer border border-red-200/50"
+                >
+                  Suspend / Reject
+                </button>
+                <button
+                  onClick={() => setShowRequestForm(true)}
+                  className="flex-1 sm:flex-initial py-2.5 px-4 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer border border-amber-200/50 flex items-center gap-1"
+                >
+                  <ShieldAlert size={14} />
+                  Request Profile Updates
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  onClick={onClose}
+                  className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                >
+                  Close Drawer
+                </button>
+                <button
+                  onClick={() => {
+                    onUpdateStatus(worker.id, 'live');
+                    onClose();
+                  }}
+                  className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#34A853]/20 flex items-center gap-1.5"
+                >
+                  <Check size={15} strokeWidth={3} />
+                  Approve Live Profile
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>

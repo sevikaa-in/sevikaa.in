@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+import { enforceSingleAdminSession } from '@/lib/singleSessionEnforcer';
 import { ToastContainer, ToastItem } from '@/components/admin/dashboard/Toast';
 import { 
   TrendingUp, MapPin, IndianRupee, Database, PlusCircle, LogOut, 
@@ -75,7 +76,7 @@ interface SuperAdminContextProps {
   showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   handleUpdateWorkerStatus: (workerId: string, newStatus: string) => Promise<void>;
   handleUpdateBadge: (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => Promise<void>;
-  handleModerateJob: (jobId: string, action: 'approve' | 'reject' | 'request_changes' | boolean, adminNote?: string) => Promise<void>;
+  handleModerateJob: (jobId: string, action: 'approve' | 'reject' | 'request_changes' | 'unapprove' | 'revert' | boolean, adminNote?: string) => Promise<void>;
   handleModerateReview: (reviewId: string, action: 'approved' | 'rejected' | 'hidden') => Promise<void>;
   handleAddAdmin: (e: React.FormEvent) => Promise<void>;
   handleSavePricing: (e: React.FormEvent) => void;
@@ -570,28 +571,45 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
 
       const { data: pendingJobs, count: pendingJobsCount } = await supabase
         .from('jobs')
-        .select('*')
-        .or('status.eq.pending,status.eq.pending_review,status.is.null')
+        .select('*, employer:profiles(*, employer_profiles(*))')
         .order('created_at', { ascending: false });
 
       if (pendingJobs && pendingJobs.length > 0) {
-        setPendingJobsList(pendingJobs.map((j: any) => ({
-          id: j.id,
-          title: j.title || 'General Job Requirement',
-          category: j.category || 'General',
-          salary_offered: j.salary_offered || j.salary || 0,
-          salary: j.salary_offered || j.salary || 0,
-          society_name: j.society_name || 'General Locality',
-          employer: j.employer_name || 'Employer Household',
-          employer_phone: j.employer_phone || '',
-          employer_email: j.employer_email || '',
-          phone: j.employer_phone || '',
-          email: j.employer_email || '',
-          description: j.description || 'Job requisition awaiting admin moderation.',
-          status: j.status || 'pending',
-          admin_note: j.admin_note || j.adminNote || undefined,
-          created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
-        })));
+        setPendingJobsList(pendingJobs.map((j: any) => {
+          const empProfile = Array.isArray(j.employer?.employer_profiles) ? j.employer?.employer_profiles[0] : j.employer?.employer_profiles;
+          const empName = j.employer_name || empProfile?.name || empProfile?.company_name || j.employer?.email?.split('@')[0] || 'Employer Household';
+          const empPhone = j.employer_phone || j.employer?.phone || empProfile?.phone || '+91 98765 43210';
+          const empEmail = j.employer_email || j.employer?.email || 'employer@sevikaa.com';
+
+          return {
+            id: j.id,
+            user_id: j.user_id,
+            title: j.title || 'General Job Requirement',
+            category: j.category || 'General',
+            salary_offered: j.salary_offered || j.salary || 0,
+            salary: j.salary_offered || j.salary || 0,
+            society_name: j.society_name || 'General Locality',
+            employer: empName,
+            employer_name: empName,
+            employer_phone: empPhone,
+            employer_email: empEmail,
+            phone: empPhone,
+            email: empEmail,
+            description: j.description || 'Job requisition awaiting admin moderation.',
+            status: j.status || 'pending',
+            admin_note: j.admin_note || j.adminNote || undefined,
+            shift_hours: j.shift_hours || j.shift || 'Full Day (8 AM - 4 PM)',
+            weekly_off: j.weekly_off || 'Sundays Off',
+            family_members: j.family_members || '4 Members',
+            flat_type: j.flat_type || '3BHK Apartment',
+            dietary_pref: j.dietary_pref || 'Vegetarian',
+            payment_terms: j.payment_terms || 'Monthly via UPI / Bank',
+            responsibilities: j.responsibilities || [],
+            qualifications: j.qualifications || [],
+            perks: j.perks || [],
+            created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
+          };
+        }));
       }
 
       const { data: pendingReviews, count: pendingReviewsCount } = await supabase
@@ -719,7 +737,10 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         totalEmployers: employerCount || 0,
         activeEmployers: activePremiumCount || 0,
         totalSocieties: societiesCount || societies?.length || 0,
-        pendingJobs: pendingJobsCount || pendingJobs?.length || 0,
+        pendingJobs: pendingJobs?.filter((j: any) => {
+          const s = (j.status || 'pending').toLowerCase();
+          return s === 'pending' || s === 'pending_review';
+        }).length || 0,
         pendingReviews: pendingReviewsCount || pendingReviews?.length || 0,
       });
 
@@ -747,6 +768,8 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
   };
 
   useEffect(() => {
+    let cleanupFn: (() => void) | null = null;
+
     const checkSuperAdmin = async () => {
       const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -764,6 +787,13 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         }
         setUser(session.user);
         fetchDashboardData();
+
+        // Enforce Single Active Session for Super Admin
+        cleanupFn = await enforceSingleAdminSession(session.user.id, (reason) => {
+          showToast(reason, 'error');
+          supabase.auth.signOut();
+          router.push('/');
+        });
       } catch (err) {
         console.error("Super Admin check error:", err);
         setLoading(false);
@@ -771,6 +801,10 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     };
 
     checkSuperAdmin();
+
+    return () => {
+      if (cleanupFn) cleanupFn();
+    };
   }, [router]);
 
   useEffect(() => {
@@ -826,14 +860,15 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     }
   };
 
-  const handleModerateJob = async (jobId: string, action: 'approve' | 'reject' | 'request_changes' | boolean, adminNote?: string) => {
+  const handleModerateJob = async (jobId: string, action: 'approve' | 'reject' | 'request_changes' | 'unapprove' | 'revert' | boolean, adminNote?: string) => {
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
     const targetJob = pendingJobsList.find(j => j.id === jobId);
     const isApprove = action === true || action === 'approve';
     const isChanges = action === 'request_changes';
-    const newStatus = isApprove ? 'approved' : isChanges ? 'changes_requested' : 'rejected';
+    const isRevert = action === 'unapprove' || action === 'revert';
+    const newStatus = isApprove ? 'approved' : isChanges ? 'changes_requested' : isRevert ? 'pending_review' : 'rejected';
     const noteText = adminNote || (isChanges ? 'Admin Audit Feedback: Please clarify duty details and update morning shift start time.' : undefined);
 
     try {

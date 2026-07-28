@@ -6,7 +6,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { 
   User, CheckCircle2, ShieldAlert, AlertTriangle, ChevronDown, ChevronUp, 
   Trash2, Save, Phone, IndianRupee, Briefcase, Languages, Clock,
-  Upload, Camera, FileText, Image, Star, ChevronRight, Lock, X, Video
+  Upload, Camera, FileText, Image, Star, ChevronRight, Lock, X, Video, ShieldCheck, MapPin, Eye, Play
 } from 'lucide-react';
 
 const SKILL_CATEGORIES = [
@@ -20,7 +20,7 @@ const SKILL_CATEGORIES = [
   { id: 'eldercare', key: 'eldercare', label: 'Elder Care', defaultLabel: 'Elder Care', icon: '🤝' }
 ];
 
-const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati', 'Punjabi', 'Odia'];
+const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Hinglish', 'Kannada', 'Tamil', 'Telugu', 'Assamese', 'Nepali', 'Bengali', 'Marathi', 'Malayalam', 'Odia', 'Gujarati', 'Punjabi'];
 
 const SHIFT_SLOT_OPTIONS = [
   { key: 'shiftFullDay', subKey: 'shiftFullDaySub', label: 'Full Day (8–12 Hours)', icon: '🕒', sub: 'Standard daily shifts (8 AM – 7 PM)' },
@@ -52,9 +52,15 @@ export default function WorkerProfilePage() {
   const [bio, setBio] = useState(workerProfile.bio || '');
 
   const [languages, setLanguages] = useState<string[]>(workerProfile.languages || []);
+  const rawSkills = Array.isArray(workerProfile.skills) 
+    ? workerProfile.skills 
+    : (Array.isArray(workerProfile.category) 
+        ? workerProfile.category 
+        : [workerProfile.category || 'maid']);
+
   const [selectedSkills, setSelectedSkills] = useState<string[]>(
-    workerProfile.category?.map((c: string) => 
-      SKILL_CATEGORIES.find(s => c.includes(s.defaultLabel.split(' ')[0]))?.id || c
+    rawSkills.map((c: string) => 
+      SKILL_CATEGORIES.find(s => typeof c === 'string' && c.includes(s.defaultLabel.split(' ')[0]))?.id || c
     ) || []
   );
   
@@ -148,6 +154,7 @@ export default function WorkerProfilePage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletionReason, setDeletionReason] = useState('Moving to another city');
   const [customReason, setCustomReason] = useState('');
+  const [activeInlinePreview, setActiveInlinePreview] = useState<'front' | 'back' | 'video' | null>(null);
 
   // Profile completeness check
   const cleanPhone = phone.replace(/\D/g, '').slice(-10);
@@ -260,6 +267,25 @@ export default function WorkerProfilePage() {
     reader.readAsDataURL(file);
   };
 
+  const [saveDocsLoading, setSaveDocsLoading] = useState(false);
+
+  const onSaveDocuments = async () => {
+    setSaveDocsLoading(true);
+    try {
+      await handleSaveProfile({
+        ...workerProfile,
+        aadhaarFrontUrl: aadhaarFrontUrl || workerProfile.aadhaar_front_url,
+        aadhaarBackUrl: aadhaarBackUrl || workerProfile.aadhaar_back_url,
+        introVideoUrl: introVideoUrl || workerProfile.video_url
+      });
+      showToast('Identity & verification document proofs saved successfully!', 'success');
+    } catch (err: any) {
+      showToast(`Error saving documents: ${err.message}`, 'error');
+    } finally {
+      setSaveDocsLoading(false);
+    }
+  };
+
   const onSave = async () => {
     if (phone.length !== 10) return;
     await handleSaveProfile({
@@ -288,547 +314,630 @@ export default function WorkerProfilePage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-3xl pb-12">
+    <div className="space-y-6 animate-fade-in max-w-4xl pb-24 mx-auto">
       
-      {/* Header */}
-      <div>
-        <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-          <User size={18} className="text-[#1A73E8]" />
-          <span>{t('workerProfileTitle') || "Profile, Skills & Verification"}</span>
-        </h2>
-        <p className="text-xs text-slate-400 font-semibold mt-0.5">
-          {t('workerProfileSub') || "Complete your profile to start applying to verified household jobs."}
-        </p>
+      {/* 👑 PAGE HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
+            <User size={22} className="text-[#1A73E8]" />
+            <span>{t('workerProfileTitle') || "Worker Profile, Skills & Verification"}</span>
+          </h2>
+          <p className="text-xs text-slate-500 font-semibold mt-1">
+            {t('workerProfileSub') || "Complete your profile details, skills, and documents to start applying for verified household jobs."}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase flex items-center gap-1.5 border shadow-2xs ${
+            workerProfile.status === 'live' || workerProfile.status === 'approved'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : workerProfile.status === 'changes_requested'
+              ? 'bg-amber-50 text-amber-800 border-amber-200 animate-pulse'
+              : 'bg-blue-50 text-[#1A73E8] border-blue-200'
+          }`}>
+            <ShieldCheck size={14} />
+            <span>{workerProfile.status === 'changes_requested' ? '⚠️ Revision Requested' : workerProfile.status === 'live' ? '🟢 Verified Worker' : '⏳ Pending Audit'}</span>
+          </span>
+        </div>
       </div>
 
-      {/* 📊 PROFILE COMPLETION PROGRESS */}
-      <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-3xl space-y-3 border border-slate-800 shadow-md">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-black">{t('profileCompletenessTitle') || "Profile Completeness"}</h3>
-            <p className="text-[10.5px] text-slate-300 font-semibold mt-0.5">
-              {completedCount < completionSteps.length 
-                ? `${completionSteps.length - completedCount} ${t('stepsRemainingSub') || 'steps remaining to activate job applications'}` 
-                : (t('profileCompleteSub') || '✓ Profile complete — you can apply to jobs!')}
-            </p>
+      {/* ⚠️ ADMIN REVISION DIRECTIONS CALLOUT CARD */}
+      {(workerProfile?.admin_note || workerProfile?.adminNote || workerProfile?.status === 'changes_requested') && (
+        <div className="bg-amber-50 border-2 border-amber-300 p-5 rounded-3xl space-y-3 shadow-md animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-amber-500 text-white shrink-0 shadow-sm">
+              <ShieldAlert size={22} />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-amber-950">⚠️ Admin Audit Feedback & Required Profile Updates</h3>
+              <p className="text-[11px] text-amber-800 font-semibold mt-0.5">Please review the specific directions below and update your profile accordingly before resubmitting.</p>
+            </div>
           </div>
-          <span className={`text-2xl font-black font-mono ${completionPercent === 100 ? 'text-emerald-400' : completionPercent >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
-            {completionPercent}%
+
+          <div className="bg-white p-4 rounded-2xl border border-amber-200 text-xs font-semibold text-slate-800 whitespace-pre-line leading-relaxed shadow-xs">
+            {workerProfile.admin_note || workerProfile.adminNote || 'Please review your uploaded documents and profile information to ensure accuracy.'}
+          </div>
+        </div>
+      )}
+
+      {/* 🏡 HERO WORKER PROFILE & COMPLETENESS CARD */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 sm:p-7 rounded-3xl space-y-6 shadow-xl border border-slate-800 relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+          <Briefcase size={240} className="text-white" />
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-5 relative z-10">
+          {/* Profile Photo Uploader */}
+          <div className="relative group shrink-0">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-slate-700 border-4 border-white/20 shadow-lg flex items-center justify-center text-slate-300 font-black text-2xl">
+              {profilePhoto ? (
+                <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                name ? name[0].toUpperCase() : 'W'
+              )}
+            </div>
+            <label className="absolute bottom-0 right-0 p-2 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95 border-2 border-slate-900">
+              <Camera size={14} />
+              <input type="file" accept="image/jpeg,image/png" onChange={handlePhotoChange} className="hidden" />
+            </label>
+          </div>
+
+          {/* Profile Details */}
+          <div className="text-center sm:text-left space-y-1.5 min-w-0 flex-1">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <h3 className="text-lg sm:text-xl font-black tracking-tight">{name || 'Domestic Worker'}</h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
+                <IndianRupee size={11} />
+                ₹{expectedSalary || '15000'}/mo
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-300 font-medium flex items-center justify-center sm:justify-start gap-1">
+              <MapPin size={12} className="text-blue-400" />
+              <span className="truncate">{workerProfile.society || 'DLF Westend Heights'}, Bengaluru</span>
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1 text-[11px] font-semibold text-slate-300">
+              <span className="flex items-center gap-1"><Phone size={11} className="text-emerald-400" /> +91 {phone}</span>
+              <span className="flex items-center gap-1"><Briefcase size={11} className="text-amber-400" /> {experience || '3+ Years Exp'}</span>
+              <span className="flex items-center gap-1"><Clock size={11} className="text-indigo-400" /> {preferredShift}</span>
+            </div>
+          </div>
+
+          {/* Completeness Badge */}
+          <div className="text-center bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 shrink-0 min-w-[120px]">
+            <span className="block text-[10px] font-black uppercase text-slate-300 tracking-wider">Completeness</span>
+            <span className={`text-2xl font-black font-mono mt-0.5 block ${
+              completionPercent === 100 ? 'text-emerald-400' : completionPercent >= 60 ? 'text-amber-400' : 'text-blue-400'
+            }`}>
+              {completionPercent}%
+            </span>
+          </div>
+        </div>
+
+        {/* Animated Progress Bar */}
+        <div className="space-y-2 relative z-10 pt-2 border-t border-white/10">
+          <div className="flex justify-between items-center text-xs font-bold text-slate-300">
+            <span>{t('profileCompletenessTitle') || "Profile Readiness"}</span>
+            <span>{completedCount} of {completionSteps.length} steps completed</span>
+          </div>
+          <div className="h-2.5 bg-white/10 rounded-full overflow-hidden p-0.5">
+            <div 
+              className={`h-full rounded-full transition-all duration-700 ${
+                completionPercent === 100 ? 'bg-gradient-to-r from-emerald-400 to-teal-300' : 'bg-gradient-to-r from-blue-500 to-indigo-400'
+              }`}
+              style={{ width: `${completionPercent}%` }}
+            />
+          </div>
+
+          {/* Step Badges */}
+          <div className="flex flex-wrap gap-1.5 pt-2">
+            {completionSteps.map((step) => (
+              <span 
+                key={step.key} 
+                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
+                  step.done 
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                    : 'bg-white/5 text-slate-400 border border-white/10'
+                }`}
+              >
+                {step.done ? <CheckCircle2 size={11} className="text-emerald-400" /> : <Lock size={11} />}
+                <span>{step.label}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 🏢 STACKED FORM CARDS */}
+      <div className="space-y-6">
+
+        {/* 👤 SECTION A: PERSONAL & WORK DETAILS */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+            <div className="p-2 rounded-xl bg-blue-50 text-[#1A73E8]">
+              <User size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-slate-900">Personal &amp; Salary Details</h3>
+              <p className="text-[10.5px] text-slate-400 font-semibold">Your basic profile &amp; salary expectations</p>
+            </div>
+          </div>
+
+          <div className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-black text-slate-700 mb-1">Full Name</label>
+              <input 
+                type="text" 
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="Enter full name"
+                className="w-full p-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 focus:outline-none transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-slate-700 mb-1">Primary Mobile Number (OTP Verified)</label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-3 text-xs font-black text-slate-400">+91</span>
+                <input 
+                  type="text" 
+                  value={phone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  maxLength={10}
+                  placeholder="9876543210"
+                  className="w-full pl-12 pr-3 py-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-black text-slate-900 focus:outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1">Gender</label>
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8] cursor-pointer"
+                >
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1">Age (Years)</label>
+                <input 
+                  type="number" 
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  placeholder="e.g. 28"
+                  className="w-full p-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 focus:outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1">Expected Salary (₹/month)</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-xs font-black text-slate-400">₹</span>
+                  <input 
+                    type="number" 
+                    value={expectedSalary}
+                    onChange={(e) => setExpectedSalary(e.target.value)}
+                    placeholder="15000"
+                    className="w-full pl-8 pr-3 py-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-black text-emerald-700 focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1">Total Experience</label>
+                <input 
+                  type="text" 
+                  value={experience}
+                  onChange={(e) => setExperience(e.target.value)}
+                  placeholder="e.g. 4 Years"
+                  className="w-full p-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 focus:outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-slate-700 mb-1">Preferred Shift Slot</label>
+              <select
+                value={preferredShift}
+                onChange={(e) => setPreferredShift(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8] cursor-pointer"
+              >
+                {SHIFT_SLOT_OPTIONS.map(slot => (
+                  <option key={slot.key} value={slot.label}>
+                    {slot.icon} {slot.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-slate-700 mb-1">About Me / Bio</label>
+              <textarea 
+                rows={3}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Write a brief introduction about your experience, punctuality, and work ethic..."
+                className="w-full p-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-medium text-slate-800 focus:outline-none transition-colors"
+              />
+            </div>
+
+            {/* 💾 IN-CARD SAVE BUTTON FOR PERSONAL DETAILS */}
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={saveLoading || cleanPhone.length !== 10}
+                className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Save size={14} />
+                <span>{saveLoading ? 'Saving Profile...' : 'Save Profile Details'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 🍳 SECTION B: SKILLS & LANGUAGES */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+                <Briefcase size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Skills &amp; Languages Spoken</h3>
+                <p className="text-[10.5px] text-slate-400 font-semibold">Select your core services &amp; languages</p>
+              </div>
+            </div>
+
+            {/* Skills Multi-Select Flex Wrap */}
+            <div className="space-y-2">
+              <label className="block text-xs font-black text-slate-700">Work Services (Select All That Apply)</label>
+              <div className="flex flex-wrap gap-2.5">
+                {SKILL_CATEGORIES.map(skill => {
+                  const isSelected = selectedSkills.includes(skill.id);
+                  return (
+                    <button
+                      type="button"
+                      key={skill.id}
+                      onClick={() => toggleSkill(skill.id)}
+                      className={`px-4 py-3 rounded-2xl border transition-all flex items-center gap-2.5 cursor-pointer whitespace-nowrap ${
+                        isSelected 
+                          ? 'bg-blue-50/90 border-[#1A73E8] text-[#1A73E8] shadow-xs font-black ring-1 ring-[#1A73E8]' 
+                          : 'bg-slate-50 border-slate-200/80 text-slate-700 hover:bg-slate-100/80 font-bold'
+                      }`}
+                    >
+                      <span className="text-base shrink-0">{skill.icon}</span>
+                      <span className="text-xs">{skill.defaultLabel}</span>
+                      {isSelected && <CheckCircle2 size={14} className="text-[#1A73E8] ml-1 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Languages Multi-Select */}
+            <div className="space-y-2 pt-3 border-t border-slate-100">
+              <label className="block text-xs font-black text-slate-700 flex items-center gap-1">
+                <Languages size={14} className="text-[#1A73E8]" /> Spoken Languages
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {LANGUAGE_OPTIONS.map(lang => {
+                  const isSelected = languages.includes(lang);
+                  return (
+                    <button
+                      type="button"
+                      key={lang}
+                      onClick={() => toggleLanguage(lang)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
+                        isSelected 
+                          ? 'bg-[#1A73E8] text-white font-black shadow-xs' 
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold'
+                      }`}
+                    >
+                      {isSelected ? `✓ ${lang}` : `+ ${lang}`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* 🛡️ SECTION C: ID & VIDEO INTRO PROOF VERIFICATION */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+              <ShieldAlert size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-slate-900">Aadhaar Card &amp; Video Intro Verification</h3>
+              <p className="text-[10.5px] text-slate-400 font-semibold">Government ID proof &amp; 60-second video introduction</p>
+            </div>
+          </div>
+
+          <span className={`px-2.5 py-0.5 rounded-full text-[9.5px] font-black uppercase border ${
+            isAadhaarDone 
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+              : 'bg-amber-50 text-amber-800 border-amber-200'
+          }`}>
+            {isAadhaarDone ? '✓ Verified Identity' : '⏳ Action Required'}
           </span>
         </div>
 
-        {/* Progress Bar */}
-        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-          <div 
-            className={`h-full rounded-full transition-all duration-700 ${
-              completionPercent === 100 ? 'bg-emerald-400' : completionPercent >= 60 ? 'bg-amber-400' : 'bg-[#1A73E8]'
-            }`}
-            style={{ width: `${completionPercent}%` }}
-          />
-        </div>
-
-        {/* Step pills */}
-        <div className="flex flex-wrap gap-1.5 pt-1">
-          {completionSteps.map(step => (
-            <span key={step.key} className={`flex items-center gap-1 text-[9.5px] font-black px-2 py-0.5 rounded-full border ${
-              step.done 
-                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
-                : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-            }`}>
-              {step.done ? '✓' : '○'} {step.label}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* 📷 PROFILE PHOTO — also used as Aadhaar face match */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-            <Image size={15} className="text-[#1A73E8]" />
-            <span>{t('profilePhotoTitle') || "Profile Photo"}</span>
-          </h3>
-          {profilePhoto 
-            ? <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1"><CheckCircle2 size={10} /> {t('uploadedBadge') || 'Uploaded'}</span>
-            : <span className="bg-amber-50 text-amber-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-200">{t('requiredBadge') || 'Required'}</span>
-          }
-        </div>
-
-        <div className="flex items-center gap-5">
-          {/* Avatar preview */}
-          <div className="w-20 h-20 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 overflow-hidden shrink-0 flex items-center justify-center">
-            {profilePhoto 
-              ? <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-              : <User size={28} className="text-slate-300" />
-            }
-          </div>
-          <div className="space-y-2 flex-1">
-            <p className="text-xs font-medium text-slate-600 leading-relaxed">
-              {t('profilePhotoDesc') || "Upload a clear front-facing photo. This is shown to employers on your application and used as your face match for Aadhaar verification."}
-            </p>
-            <p className="text-[10px] text-slate-400 font-semibold">{t('photoSpecs') || "JPG · PNG · Max 3MB"}</p>
-            <div className="flex gap-2">
-              <label className="cursor-pointer">
-                <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handlePhotoChange} />
-                <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 shadow-sm cursor-pointer">
-                  <Upload size={11} />
-                  <span>{profilePhoto ? (t('changePhotoBtn') || 'Change Photo') : (t('uploadPhotoBtn') || 'Upload Photo')}</span>
+        {/* COMPACT LIST CARDS MATCHING EMPLOYER DESIGN */}
+        <div className="space-y-2.5">
+          
+          {/* Aadhaar Front */}
+          <div className="space-y-2">
+            <div className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${(aadhaarFrontUploaded || workerProfile.aadhaar_front_url) ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
+              <div className={`p-2.5 rounded-xl shrink-0 ${(aadhaarFrontUploaded || workerProfile.aadhaar_front_url) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                <FileText size={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-slate-900">Aadhaar — Front</p>
+                <p className="text-[10px] text-slate-400 font-semibold truncate">Name, photo &amp; DOB &bull; JPG &bull; PNG &bull; PDF &bull; Max 5MB</p>
+              </div>
+              {(aadhaarFrontUploaded || workerProfile.aadhaar_front_url) ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveInlinePreview(activeInlinePreview === 'front' ? null : 'front')}
+                    className="py-1.5 px-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Eye size={12} className="text-emerald-700" />
+                    <span>{activeInlinePreview === 'front' ? 'Hide Preview' : 'View'}</span>
+                  </button>
+                  <label className="cursor-pointer">
+                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
+                    <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
+                      <Upload size={11} />
+                      <span>Change</span>
+                    </div>
+                  </label>
+                  <button 
+                    type="button"
+                    onClick={() => { setAadhaarFrontUploaded(false); setAadhaarFrontUrl(null); if (activeInlinePreview === 'front') setActiveInlinePreview(null); }} 
+                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer transition-colors"
+                    title="Remove"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
-              </label>
-              <label className="cursor-pointer">
-                <input type="file" accept="image/jpeg,image/png" capture="user" className="hidden" onChange={handlePhotoChange} />
-                <div className="py-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer">
-                  <Camera size={11} />
-                  <span>{t('takeSelfieBtn') || "Take Selfie"}</span>
-                </div>
-              </label>
-              {profilePhoto && (
-                <button onClick={() => setProfilePhoto(null)} className="py-2 px-3 text-red-400 hover:text-red-600 text-[10.5px] font-bold cursor-pointer">
-                  {t('removeBtn') || "Remove"}
-                </button>
+              ) : (
+                <label className="cursor-pointer shrink-0">
+                  <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
+                  <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
+                    <Upload size={11} /><span>Upload Front</span>
+                  </div>
+                </label>
               )}
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Candidate Details Card */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-3">{t('candidateDetailsTitle') || "Candidate Details"}</h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold">
-          {/* Full Name */}
-          <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase flex justify-between">
-              <span>{t('fullNameLabel') || "Full Name"}</span>
-              <span className="text-[9px] text-slate-400 lowercase font-normal">{t('lettersOnlyLabel') || "(letters only)"}</span>
-            </label>
-            <input 
-              type="text" 
-              value={name} 
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="e.g. Sunita Sharma"
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
-            />
-          </div>
-
-          {/* Primary Mobile */}
-          <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase flex justify-between">
-              <span>{t('mobileNumberLabel') || "Fixed 10-Digit Mobile Number"}</span>
-              <span className={`text-[9px] font-bold ${phone.length === 10 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {phone.length === 10 ? (t('validDigitBadge') || '✓ Valid') : `${phone.length}/10`}
-              </span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">+91</span>
-              <input 
-                type="text" 
-                maxLength={10}
-                value={phone} 
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                placeholder="9876543210"
-                className={`w-full p-2.5 pl-12 bg-slate-50 border rounded-xl text-slate-800 font-bold focus:bg-white focus:outline-none font-mono ${
-                  phone.length === 10 ? 'border-emerald-300 focus:border-emerald-500' : 'border-amber-300 focus:border-amber-500'
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Gender */}
-          <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">{t('genderLabel') || "Gender"}</label>
-            <select
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
-            >
-              <option value="female">{t('genderFemale') || "Female"}</option>
-              <option value="male">{t('genderMale') || "Male"}</option>
-              <option value="other">{t('genderOther') || "Other"}</option>
-            </select>
-          </div>
-
-          {/* Age */}
-          <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">{t('ageLabel') || "Age (Years)"}</label>
-            <input 
-              type="number" 
-              value={age} 
-              onChange={(e) => setAge(e.target.value)}
-              placeholder="e.g. 28"
-              min={18}
-              max={65}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
-            />
-          </div>
-
-          {/* Expected Salary */}
-          <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">{t('expectedSalaryLabel') || "Expected Monthly Salary (₹)"}</label>
-            <div className="relative">
-              <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-black">₹</span>
-              <input 
-                type="text" 
-                value={expectedSalary} 
-                onChange={(e) => setExpectedSalary(e.target.value)}
-                placeholder="e.g. 18000"
-                className="w-full p-2.5 pl-7 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
-              />
-            </div>
-          </div>
-
-          {/* Years of Experience */}
-          <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">{t('experienceLabel') || "Years of Experience"}</label>
-            <select 
-              value={experience} 
-              onChange={(e) => setExperience(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
-            >
-              <option value="">{t('selectExperiencePlaceholder') || "Select experience..."}</option>
-              <option value="Less than 1 Year">{t('expLessThan1') || "Less than 1 Year"}</option>
-              <option value="1-2 Years">{t('exp1to2') || "1-2 Years"}</option>
-              <option value="2-4 Years">{t('exp2to4') || "2-4 Years"}</option>
-              <option value="4-6 Years">{t('exp4to6') || "4-6 Years"}</option>
-              <option value="6-10 Years">{t('exp6to10') || "6-10 Years"}</option>
-              <option value="10+ Years">{t('expMoreThan10') || "10+ Years"}</option>
-            </select>
-          </div>
-
-          {/* Preferred Work Shift / Hours - Custom Theme Dropdown */}
-          <div className="space-y-1 relative">
-            <label className="text-slate-500 text-[10px] uppercase block">{t('preferredShiftLabel') || "Preferred Work Shift / Availability"}</label>
-            
-            <button
-              type="button"
-              onClick={() => setIsShiftDropdownOpen(!isShiftDropdownOpen)}
-              className="w-full p-2.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl text-slate-800 font-bold flex items-center justify-between text-left transition-all cursor-pointer shadow-xs"
-            >
-              <div className="flex items-center gap-2 truncate">
-                <span className="text-sm shrink-0">
-                  {SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift)?.icon || '🕒'}
-                </span>
-                <span className="truncate">{t(SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift)?.key || '') || preferredShift}</span>
-              </div>
-              {isShiftDropdownOpen ? <ChevronUp size={15} className="text-[#1A73E8] shrink-0 ml-1" /> : <ChevronDown size={15} className="text-slate-400 shrink-0 ml-1" />}
-            </button>
-
-            {isShiftDropdownOpen && (
-              <>
-                {/* Backdrop overlay */}
-                <div className="fixed inset-0 z-20" onClick={() => setIsShiftDropdownOpen(false)} />
-
-                {/* Custom Sevikaa Theme Popover Menu - Expanded Width & Full Details */}
-                <div className="absolute top-full left-0 mt-1 w-full min-w-[290px] sm:min-w-[320px] bg-white border border-slate-200 rounded-2xl shadow-2xl p-2 z-50 space-y-1 max-h-72 overflow-y-auto animate-scale-up">
-                  {SHIFT_SLOT_OPTIONS.map((slot) => {
-                    const isSelected = preferredShift === slot.label;
-                    return (
-                      <button
-                        key={slot.label}
-                        type="button"
-                        onClick={() => {
-                          setPreferredShift(slot.label);
-                          setIsShiftDropdownOpen(false);
-                        }}
-                        className={`w-full p-2.5 rounded-xl text-left transition-all flex items-center justify-between cursor-pointer ${
-                          isSelected 
-                            ? 'bg-blue-50/90 text-[#1A73E8] font-black border border-blue-200/60 shadow-xs' 
-                            : 'hover:bg-slate-50 text-slate-700 font-semibold'
-                        }`}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          <span className="text-lg shrink-0 mt-0.5">{slot.icon}</span>
-                          <div>
-                            <p className="text-xs font-black text-slate-900 leading-tight whitespace-normal">{t(slot.key) || slot.label}</p>
-                            <p className="text-[10px] text-slate-400 font-semibold leading-normal mt-0.5 whitespace-normal">{t(slot.subKey) || slot.sub}</p>
-                          </div>
-                        </div>
-                        {isSelected && <CheckCircle2 size={16} className="text-[#1A73E8] shrink-0 ml-2 mt-0.5" />}
-                      </button>
-                    );
-                  })}
+            {/* Inline Front Preview Drawer */}
+            {activeInlinePreview === 'front' && (
+              <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 animate-fade-in border border-slate-800 shadow-md">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs font-black text-blue-400 flex items-center gap-1.5">
+                    <FileText size={14} /> Aadhaar Front Side Uploaded Document
+                  </span>
+                  <button onClick={() => setActiveInlinePreview(null)} className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer">
+                    Close Preview ✕
+                  </button>
                 </div>
-              </>
-            )}
-          </div>
-
-          {/* Emergency Backup Contact */}
-          <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">{t('emergencyContactLabel') || "Emergency Backup Mobile (Optional)"}</label>
-            <div className="relative">
-              <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">+91</span>
-              <input 
-                type="text" 
-                maxLength={10}
-                value={emergencyContact} 
-                onChange={(e) => setEmergencyContact(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="Backup family contact"
-                className="w-full p-2.5 pl-12 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
-              />
-            </div>
-          </div>
-
-          {/* Self Bio / Work Summary */}
-          <div className="space-y-1 sm:col-span-2">
-            <label className="text-slate-500 text-[10px] uppercase">{t('shortBioLabel') || "Short Self Introduction & Specializations"}</label>
-            <textarea 
-              rows={3}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder={t('bioPlaceholder') || "e.g. Hardworking cook with 5+ years experience in North & South Indian cooking..."}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none leading-relaxed"
-            />
-          </div>
-        </div>
-
-        <div className="pt-3 border-t border-slate-50 flex justify-end">
-          <button
-            onClick={onSave}
-            disabled={saveLoading || phone.length !== 10 || !name.trim()}
-            className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:cursor-not-allowed"
-          >
-            <Save size={14} />
-            <span>{saveLoading ? (t('savingText') || 'Saving...') : (t('saveProfileDetailsBtn') || 'Save Profile Details')}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 🎯 SKILLS / CATEGORY SELECTION */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-            <Briefcase size={15} className="text-[#1A73E8]" />
-            <span>{t('skillsCategoriesTitle') || "Skills & Service Categories"}</span>
-          </h3>
-          <span className="text-[10px] text-slate-400 font-bold">{selectedSkills.length} selected</span>
-        </div>
-        <p className="text-[11px] text-slate-500 font-medium -mt-2">
-          {t('skillsCategoriesSub') || "Select all services you can provide. Employers filter by these categories."}
-        </p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          {SKILL_CATEGORIES.map(skill => {
-            const isSelected = selectedSkills.includes(skill.id);
-            return (
-              <button
-                key={skill.id}
-                type="button"
-                onClick={() => toggleSkill(skill.id)}
-                className={`p-3 rounded-2xl border text-left transition-all duration-150 cursor-pointer relative ${
-                  isSelected 
-                    ? 'bg-blue-50 border-[#1A73E8] text-[#1A73E8] ring-1 ring-[#1A73E8]/30 scale-[1.02]' 
-                    : 'bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-600'
-                }`}
-              >
-                {isSelected && (
-                  <CheckCircle2 size={13} className="absolute top-2 right-2 text-[#1A73E8]" />
-                )}
-                <span className="text-xl">{skill.icon}</span>
-                <p className="text-[10.5px] font-black mt-1.5 leading-tight">{t(skill.key) || skill.defaultLabel}</p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 🌐 LANGUAGE SKILLS */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-            <Languages size={15} className="text-[#1A73E8]" />
-            <span>{t('languagesSpokenTitle') || "Languages Spoken"}</span>
-          </h3>
-          <span className="text-[10px] text-slate-400 font-bold">{languages.length} selected</span>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {LANGUAGE_OPTIONS.map(lang => {
-            const isSelected = languages.includes(lang);
-            return (
-              <button
-                key={lang}
-                type="button"
-                onClick={() => toggleLanguage(lang)}
-                className={`py-1.5 px-3.5 rounded-full text-[10.5px] font-black border transition-all cursor-pointer active:scale-95 ${
-                  isSelected 
-                    ? 'bg-[#1A73E8] border-[#1A73E8] text-white shadow-sm' 
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
-                }`}
-              >
-                {isSelected && '✓ '}{lang}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 🪪 AADHAAR ID VERIFICATION */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-            <FileText size={15} className="text-[#1A73E8]" />
-            <span>{t('aadhaarVerificationTitle') || "Aadhaar ID Verification"}</span>
-          </h3>
-          {aadhaarFrontUploaded && aadhaarBackUploaded
-            ? <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1"><CheckCircle2 size={10} /> {t('uploadedBadge') || 'Submitted'}</span>
-            : <span className="bg-amber-50 text-amber-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1"><Lock size={10} /> {t('requiredToApplyBadge') || 'Required to Apply'}</span>
-          }
-        </div>
-
-        {!aadhaarFrontUploaded || !aadhaarBackUploaded ? (
-          <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-start gap-2.5 text-amber-900">
-            <ShieldAlert size={15} className="text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-[11px] font-medium leading-relaxed">
-              {t('aadhaarNoticeDesc') || "Upload both sides of your Aadhaar card. This is used only for identity verification and is never shared with employers."}
-            </p>
-          </div>
-        ) : null}
-
-        <div className="space-y-2.5">
-          {/* Aadhaar Front */}
-          <div className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${aadhaarFrontUploaded ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
-            <div className={`p-2.5 rounded-xl shrink-0 ${aadhaarFrontUploaded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-              <FileText size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-slate-900">{t('aadhaarFrontLabel') || "Aadhaar — Front"}</p>
-              <p className="text-[10px] text-slate-400 font-semibold">{t('aadhaarFrontDesc') || "Name, photo & DOB · JPG · PNG · PDF · Max 5MB"}</p>
-            </div>
-            {aadhaarFrontUploaded ? (
-              <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
-                <CheckCircle2 size={12} className="text-emerald-600" />
-                <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
-                <button onClick={() => setAadhaarFrontUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
-              </div>
-            ) : (
-              <label className="cursor-pointer shrink-0">
-                <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
-                <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                  <Upload size={11} /><span>{t('uploadFrontBtn') || "Upload Front"}</span>
+                <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
+                  {(aadhaarFrontUrl || workerProfile.aadhaar_front_url) ? (
+                    <img src={aadhaarFrontUrl || workerProfile.aadhaar_front_url || ''} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
+                      <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
+                      <p>Aadhaar Front Document Verified &amp; Stored</p>
+                      <p className="text-[10px] text-slate-500 font-normal">Active document proof linked to worker profile</p>
+                    </div>
+                  )}
                 </div>
-              </label>
+              </div>
             )}
           </div>
 
           {/* Aadhaar Back */}
-          <div className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${aadhaarBackUploaded ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
-            <div className={`p-2.5 rounded-xl shrink-0 ${aadhaarBackUploaded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-              <FileText size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-slate-900">{t('aadhaarBackLabel') || "Aadhaar — Back"}</p>
-              <p className="text-[10px] text-slate-400 font-semibold">{t('aadhaarBackDesc') || "Aadhaar number & address · JPG · PNG · PDF · Max 5MB"}</p>
-            </div>
-            {aadhaarBackUploaded ? (
-              <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
-                <CheckCircle2 size={12} className="text-emerald-600" />
-                <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
-                <button onClick={() => setAadhaarBackUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
+          <div className="space-y-2">
+            <div className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${(aadhaarBackUploaded || workerProfile.aadhaar_back_url) ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
+              <div className={`p-2.5 rounded-xl shrink-0 ${(aadhaarBackUploaded || workerProfile.aadhaar_back_url) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                <FileText size={16} />
               </div>
-            ) : (
-              <label className="cursor-pointer shrink-0">
-                <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
-                <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                  <Upload size={11} /><span>{t('uploadBackBtn') || "Upload Back"}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-slate-900">Aadhaar — Back</p>
+                <p className="text-[10px] text-slate-400 font-semibold truncate">Aadhaar number &amp; address &bull; JPG &bull; PNG &bull; PDF &bull; Max 5MB</p>
+              </div>
+              {(aadhaarBackUploaded || workerProfile.aadhaar_back_url) ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveInlinePreview(activeInlinePreview === 'back' ? null : 'back')}
+                    className="py-1.5 px-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Eye size={12} className="text-emerald-700" />
+                    <span>{activeInlinePreview === 'back' ? 'Hide Preview' : 'View'}</span>
+                  </button>
+                  <label className="cursor-pointer">
+                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
+                    <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
+                      <Upload size={11} />
+                      <span>Change</span>
+                    </div>
+                  </label>
+                  <button 
+                    type="button"
+                    onClick={() => { setAadhaarBackUploaded(false); setAadhaarBackUrl(null); if (activeInlinePreview === 'back') setActiveInlinePreview(null); }} 
+                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer transition-colors"
+                    title="Remove"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
-              </label>
+              ) : (
+                <label className="cursor-pointer shrink-0">
+                  <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
+                  <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
+                    <Upload size={11} /><span>Upload Back</span>
+                  </div>
+                </label>
+              )}
+            </div>
+
+            {/* Inline Back Preview Drawer */}
+            {activeInlinePreview === 'back' && (
+              <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 animate-fade-in border border-slate-800 shadow-md">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs font-black text-blue-400 flex items-center gap-1.5">
+                    <FileText size={14} /> Aadhaar Back Side Uploaded Document
+                  </span>
+                  <button onClick={() => setActiveInlinePreview(null)} className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer">
+                    Close Preview ✕
+                  </button>
+                </div>
+                <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
+                  {(aadhaarBackUrl || workerProfile.aadhaar_back_url) ? (
+                    <img src={aadhaarBackUrl || workerProfile.aadhaar_back_url || ''} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
+                      <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
+                      <p>Aadhaar Back Document Verified &amp; Stored</p>
+                      <p className="text-[10px] text-slate-500 font-normal">Active address proof linked to worker profile</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
-        </div>
 
-        {aadhaarFrontUploaded && aadhaarBackUploaded && profilePhoto && (
-          <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center gap-2.5 text-emerald-900">
-            <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
-            <div>
-              <p className="text-xs font-black">{t('allDocsSubmittedTitle') || "All Documents Submitted — Pending Admin Review"}</p>
-              <p className="text-[10.5px] font-medium">{t('allDocsSubmittedDesc') || "Sevikaa Admin will verify your Aadhaar within 24–48 hours. You'll receive an SMS once you're cleared to apply."}</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 🎥 60-SECOND INTRO VIDEO (OPTIONAL) */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-            <Video size={15} className="text-[#1A73E8]" />
-            <span>{t('videoIntroTitle') || "60-Second Video Intro (Optional)"}</span>
-          </h3>
-          {videoUploaded ? (
-            <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-              <CheckCircle2 size={10} /> {t('uploadedBadge') || "Uploaded"}
-            </span>
-          ) : (
-            <span className="bg-blue-50 text-[#1A73E8] text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200">
-              {t('videoBoostBadge') || "Boosts Applications +80%"}
-            </span>
-          )}
-        </div>
-
-        <p className="text-[11px] text-slate-500 font-medium">
-          {t('videoIntroDesc') || "Upload a 30–60 second introduction video introducing your work experience and cooking/cleaning skills."}
-        </p>
-
-        <div className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between gap-3 ${videoUploaded ? 'border-emerald-300 bg-emerald-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl shrink-0 ${videoUploaded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-              <Video size={16} />
-            </div>
-            <div>
-              <p className="text-xs font-black text-slate-900">{t('videoIntroTitle') || "Worker Intro Video"}</p>
-              <p className="text-[10px] text-slate-400 font-semibold">{t('videoSpecs') || "MP4 · WebM · Max 50MB"}</p>
-            </div>
-          </div>
-
-          {videoUploaded ? (
-            <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-xl shrink-0">
-              <CheckCircle2 size={12} className="text-emerald-600" />
-              <span className="text-[10px] font-black text-emerald-800">{t('uploadedBadge') || "Uploaded"}</span>
-              <button onClick={() => setVideoUploaded(false)} className="text-emerald-600 hover:text-red-500 ml-1 cursor-pointer">✕</button>
-            </div>
-          ) : (
-            <label className="cursor-pointer shrink-0">
-              <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleVideoChange} />
-              <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                <Upload size={11} /><span>{t('uploadVideoBtn') || "Upload Video"}</span>
+          {/* Intro Video */}
+          <div className="space-y-2">
+            <div className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${(videoUploaded || workerProfile.video_url) ? 'border-purple-300 bg-purple-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-purple-300'}`}>
+              <div className={`p-2.5 rounded-xl shrink-0 ${(videoUploaded || workerProfile.video_url) ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}>
+                <Video size={16} />
               </div>
-            </label>
-          )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-slate-900">Intro Video (60s)</p>
+                <p className="text-[10px] text-slate-400 font-semibold truncate">Self introduction &bull; MP4 &bull; WebM &bull; Max 50MB</p>
+              </div>
+              {(videoUploaded || workerProfile.video_url) ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveInlinePreview(activeInlinePreview === 'video' ? null : 'video')}
+                    className="py-1.5 px-3 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Play size={12} className="text-purple-700 fill-purple-700" />
+                    <span>{activeInlinePreview === 'video' ? 'Hide Video' : 'Play Video'}</span>
+                  </button>
+                  <label className="cursor-pointer">
+                    <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleVideoChange} />
+                    <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
+                      <Upload size={11} />
+                      <span>Change</span>
+                    </div>
+                  </label>
+                  <button 
+                    type="button"
+                    onClick={() => { setVideoUploaded(false); setIntroVideoUrl(null); if (activeInlinePreview === 'video') setActiveInlinePreview(null); }} 
+                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer transition-colors"
+                    title="Remove"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <label className="cursor-pointer shrink-0">
+                  <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleVideoChange} />
+                  <div className="py-2 px-3.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
+                    <Upload size={11} /><span>Upload Video</span>
+                  </div>
+                </label>
+              )}
+            </div>
+
+            {/* Inline Video Player Drawer */}
+            {activeInlinePreview === 'video' && (
+              <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 animate-fade-in border border-purple-950 shadow-md">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs font-black text-purple-400 flex items-center gap-1.5">
+                    <Video size={14} /> 60-Second Video Intro Preview
+                  </span>
+                  <button onClick={() => setActiveInlinePreview(null)} className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer">
+                    Close Video ✕
+                  </button>
+                </div>
+                <div className="flex justify-center bg-black rounded-xl p-1 min-h-[220px] max-h-[360px] overflow-hidden">
+                  {(introVideoUrl || workerProfile.video_url) ? (
+                    <video src={introVideoUrl || workerProfile.video_url || ''} controls autoPlay className="max-h-[340px] w-full object-contain rounded-lg" />
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
+                      <Video size={32} className="mx-auto text-purple-400 opacity-60 mb-2" />
+                      <p>Video Intro Active &amp; Stored</p>
+                      <p className="text-[10px] text-slate-500 font-normal">Self introduction video ready for employer hiring applications</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+
+        {/* 💾 IN-CARD SAVE BUTTON FOR DOCUMENTS */}
+        <div className="pt-2 border-t border-slate-100 flex justify-end">
+          <button
+            type="button"
+            onClick={onSaveDocuments}
+            disabled={saveDocsLoading}
+            className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            <Save size={14} />
+            <span>{saveDocsLoading ? 'Saving Documents...' : 'Save Uploaded Documents'}</span>
+          </button>
         </div>
       </div>
 
-      {/* DISCRETE DANGER ZONE CARD */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all">
+      {/* 🔴 DANGER ZONE: ACCOUNT DELETION */}
+      <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-3">
         <button
+          type="button"
           onClick={() => setShowDangerZone(!showDangerZone)}
-          className="w-full p-4 flex items-center justify-between text-left hover:bg-slate-50/50 transition-colors cursor-pointer"
+          className="w-full flex justify-between items-center text-xs font-black text-red-600 hover:text-red-700 cursor-pointer"
         >
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-red-50 text-red-600 rounded-xl">
-              <ShieldAlert size={16} />
-            </div>
-            <div>
-              <h4 className="text-xs font-black text-slate-900">{t('accountPrivacyTitle') || "Account Privacy & Danger Zone"}</h4>
-              <p className="text-[10px] text-slate-400 font-semibold">{t('accountPrivacySub') || "Self-service account deletion & DPDP compliance"}</p>
-            </div>
-          </div>
-          {showDangerZone ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+          <span className="flex items-center gap-2">
+            <Trash2 size={16} />
+            <span>Danger Zone &amp; Worker Account Offboarding</span>
+          </span>
+          {showDangerZone ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
 
         {showDangerZone && (
-          <div className="p-5 border-t border-slate-100 bg-red-50/20 space-y-3">
-            <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              {t('dangerZoneDesc') || "If you wish to remove your candidate profile from Sevikaa's active society hiring feeds, you can submit a deletion request."}
+          <div className="pt-3 border-t border-red-50 space-y-3 animate-fade-in">
+            <p className="text-xs text-slate-500 font-medium">
+              If you are moving or no longer wish to work through Sevikaa, you can request profile offboarding.
             </p>
-
             <button
+              type="button"
               onClick={() => setShowDeleteModal(true)}
               disabled={deletionRequested}
-              className="py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              className="py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl text-xs font-black transition-all border border-red-200/70 disabled:opacity-50 cursor-pointer"
             >
-              <Trash2 size={14} />
-              <span>{deletionRequested ? (t('deletionLoggedBtn') || 'Deletion Request Logged') : (t('requestDeletionBtn') || 'Request Account Deletion')}</span>
+              {deletionRequested ? 'Account Deletion Pending Review' : 'Request Worker Profile Deletion'}
             </button>
           </div>
         )}
@@ -836,61 +945,58 @@ export default function WorkerProfilePage() {
 
       {/* DELETION CONFIRMATION MODAL */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle size={20} className="text-amber-600" />
-                <h3 className="text-sm font-black text-slate-900">{t('requestDeletionModalTitle') || "Request Account Deletion"}</h3>
-              </div>
-              <button onClick={() => setShowDeleteModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-scale-up border border-slate-100">
+            <div className="flex items-center gap-3 text-red-600 border-b border-slate-100 pb-3">
+              <AlertTriangle size={24} />
+              <h3 className="text-sm font-black text-slate-900">Request Profile Deletion</h3>
             </div>
 
-            <p className="text-xs text-slate-600 font-medium">
-              {t('requestDeletionModalSub') || "Please state your reason for deleting your account."}
+            <p className="text-xs text-slate-600 font-medium leading-relaxed">
+              Please select the primary reason for offboarding your Sevikaa worker profile:
             </p>
 
-            <div className="space-y-2 text-xs font-bold text-slate-700">
-              <label className="text-[10px] text-slate-400 uppercase">{t('reasonLabel') || "Reason for Leaving"}</label>
-              <select 
-                value={deletionReason} 
-                onChange={(e) => setDeletionReason(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-              >
-                <option value="Moving to another city">{t('reasonMoving') || "Moving to another city"}</option>
-                <option value="Hired full-time elsewhere">{t('reasonHiredFullTime') || "Hired full-time elsewhere"}</option>
-                <option value="Taking a break from work">{t('reasonTakingBreak') || "Taking a break from work"}</option>
-                <option value="Other">{t('reasonOther') || "Other Reason"}</option>
-              </select>
+            <select
+              value={deletionReason}
+              onChange={(e) => setDeletionReason(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-red-500"
+            >
+              <option value="Moving to another city">Moving to another city</option>
+              <option value="Found permanent full-time employment">Found permanent full-time employment</option>
+              <option value="No longer available for domestic work">No longer available for domestic work</option>
+              <option value="Other">Other reason</option>
+            </select>
 
-              {deletionReason === 'Other' && (
-                <textarea 
-                  placeholder="Specify reason..." 
-                  value={customReason}
-                  onChange={(e) => setCustomReason(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                />
-              )}
-            </div>
+            {deletionReason === 'Other' && (
+              <textarea
+                rows={2}
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Specify your reason..."
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 focus:outline-none focus:border-red-500"
+              />
+            )}
 
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button 
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
                 onClick={() => setShowDeleteModal(false)}
-                className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold"
               >
-                {t('cancelBtn') || "Cancel"}
+                Cancel
               </button>
-              <button 
+              <button
+                type="button"
                 onClick={onSubmitDeletionRequest}
-                disabled={saveLoading}
-                className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-md cursor-pointer"
+                className="py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-black shadow-md"
               >
-                {t('submitDeletionBtn') || "Submit Deletion Request"}
+                Confirm Offboarding Request
               </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

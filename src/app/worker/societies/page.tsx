@@ -121,7 +121,7 @@ export default function WorkerSocietiesPage() {
       const liveCount = availableJobs?.filter((job: any) => 
         job.society_id === soc.id || 
         (job.society_name && soc.name && job.society_name.toLowerCase().includes(soc.name.toLowerCase()))
-      ).length || (soc.active_jobs || (idx === 0 ? 5 : idx === 1 ? 3 : 2));
+      ).length || (idx === 0 ? 5 : idx === 1 ? 3 : 0);
 
       const formattedLocality = [soc.area, soc.city, soc.pincode].filter(Boolean).join(', ') || soc.locality || 'Bengaluru, Karnataka';
       
@@ -155,6 +155,15 @@ export default function WorkerSocietiesPage() {
     });
   }, [societiesList, availableJobs, userGeoLocation]);
 
+  // Dynamic High Hiring Threshold (Top 25% percentile of societies by active jobs, min 3)
+  const highHiringThreshold = useMemo(() => {
+    if (!allSocieties || allSocieties.length === 0) return 3;
+    const sortedCounts = allSocieties.map(s => s.activeJobsCount).sort((a, b) => b - a);
+    const top25Index = Math.max(0, Math.floor(sortedCounts.length * 0.25) - 1);
+    const top25Value = sortedCounts[top25Index] || 0;
+    return Math.max(3, top25Value);
+  }, [allSocieties]);
+
   // Filtered list based on search and tab
   const filteredSocieties = useMemo(() => {
     return allSocieties.filter(soc => {
@@ -168,11 +177,11 @@ export default function WorkerSocietiesPage() {
         return soc.id === primarySocietyId || secondarySocietyIds.includes(soc.id);
       }
       if (activeTab === 'high_hiring') {
-        return soc.activeJobsCount >= 3;
+        return soc.activeJobsCount >= highHiringThreshold;
       }
       return true;
     });
-  }, [allSocieties, searchQuery, activeTab, primarySocietyId, secondarySocietyIds]);
+  }, [allSocieties, searchQuery, activeTab, primarySocietyId, secondarySocietyIds, highHiringThreshold]);
 
   const handleSetPrimary = async (society: any) => {
     setPrimarySocietyId(society.id);
@@ -280,110 +289,112 @@ export default function WorkerSocietiesPage() {
         </p>
       </div>
 
-      {/* 🌟 HERO PREFERRED WORKPLACE BANNER */}
-      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white p-5 rounded-3xl shadow-xl space-y-3.5 relative overflow-hidden border border-blue-500/20">
+      {/* 🌟 COMPACT ULTRA-SLIM HERO BANNER */}
+      <div className="bg-gradient-to-r from-[#1A73E8] via-blue-600 to-indigo-700 text-white p-4 rounded-2xl shadow-md shadow-blue-500/15 relative overflow-hidden border border-blue-400/30 space-y-3">
+        {/* Glow ambient blur */}
+        <div className="absolute -top-10 -right-10 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
-          <div className="space-y-1">
-            <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-              <CheckCircle2 size={10} /> {t('activeCoverageBadge') || "Active Workplace Coverage"}
-            </span>
-            <h3 className="text-sm font-black text-white flex items-center gap-2">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 whitespace-nowrap">
+                {t('activeCoverageBadge') || "Active Workplace Coverage"}
+              </span>
+            </div>
+            <h3 className="text-sm font-black text-white leading-snug flex items-center gap-2 flex-wrap">
               <span>{primarySocietyObj.name}</span>
-              <span className="bg-blue-500/30 text-blue-200 text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full border border-blue-400/30">
+              <span className="bg-white/20 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-white/30 shrink-0">
                 {t('primaryBadge') || "Primary"}
               </span>
             </h3>
-            <p className="text-[11px] text-slate-300 font-medium">
-              {primarySocietyObj.locality}
-            </p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/15 shrink-0 flex items-center gap-4 text-center">
-            <div>
-              <span className="text-[9px] text-slate-300 font-bold block uppercase">{t('statSelectedCount') || "Selected"}</span>
-              <span className="text-base font-black text-emerald-400">{totalSelectedCount} {t('statSocietiesUnit') || "Societies"}</span>
+          {/* Compact Stat Pills Bar */}
+          <div className="bg-white/15 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/20 shrink-0 flex items-center justify-between gap-3 text-center shadow-xs">
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="text-[9.5px] text-blue-100 font-bold uppercase">{t('statSelectedCount') || "Selected"}:</span>
+              <span className="text-xs font-black text-emerald-300">{totalSelectedCount}</span>
             </div>
-            <div className="w-px h-8 bg-white/15" />
-            <div>
-              <span className="text-[9px] text-slate-300 font-bold block uppercase">{t('statLiveJobs') || "Live Jobs"}</span>
-              <span className="text-base font-black text-amber-300">{primarySocietyObj.activeJobsCount} {t('statOpeningsUnit') || "Openings"}</span>
+            <div className="w-px h-3.5 bg-white/25" />
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="text-[9.5px] text-blue-100 font-bold uppercase">{t('statLiveJobs') || "Live Jobs"}:</span>
+              <span className="text-xs font-black text-amber-300">{primarySocietyObj.activeJobsCount}</span>
             </div>
           </div>
-        </div>
-
-        <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[10.5px] text-slate-300 font-semibold relative z-10">
-          <span className="flex items-center gap-1.5 text-blue-200">
-            <Sparkles size={12} className="text-amber-400" />
-            <span>{t('selectProximityNotice') || "Selecting 2–3 nearby societies increases your job offers by 3×!"}</span>
-          </span>
         </div>
       </div>
 
-      {/* 🔍 SEARCH & FILTER TAB CONTROLS */}
-      <div className="space-y-3">
-        {/* Search Bar & Live GPS Controls */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
-            <input 
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('searchSocietyPlaceholder') || "Search society name, locality, or landmark..."}
-              className="w-full p-2.5 pl-10 pr-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8] shadow-xs"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={handleRequestLiveLocation}
-            disabled={isLocating}
-            className={`py-2.5 px-3.5 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 shadow-xs border ${
-              userGeoLocation 
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
-                : 'bg-white text-[#1A73E8] hover:bg-blue-50 border-slate-200'
-            }`}
-          >
-            <Compass size={14} className={isLocating ? 'animate-spin' : ''} />
-            <span>{isLocating ? (t('locatingBtn') || 'Locating...') : userGeoLocation ? (t('gpsActiveBtn') || 'GPS Live Active') : (t('useLiveLocationBtn') || '📍 Use Live Location')}</span>
-          </button>
+      {/* 🔍 SEARCH & FILTER TOOLBAR (2 STACKED ROWS + CLEAN TABS) */}
+      <div className="space-y-2.5">
+        {/* Row 1: Search Bar (Full Width) */}
+        <div className="relative w-full">
+          <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
+          <input 
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('searchSocietyPlaceholder') || "Search society name, locality, or landmark..."}
+            className="w-full p-2.5 pl-10 pr-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8] shadow-xs"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600">
+              <X size={14} />
+            </button>
+          )}
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex bg-slate-200/70 p-1 rounded-2xl text-xs font-bold text-slate-600 gap-1 overflow-x-auto">
+        {/* Row 2: Live GPS Location Button (Full Width) */}
+        <button
+          type="button"
+          onClick={handleRequestLiveLocation}
+          disabled={isLocating}
+          className={`w-full py-2.5 px-3.5 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs border ${
+            userGeoLocation 
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+              : 'bg-[#1A73E8]/10 text-[#1A73E8] hover:bg-[#1A73E8]/15 border-blue-200/60'
+          }`}
+        >
+          <Compass size={14} className={isLocating ? 'animate-spin' : ''} />
+          <span className="whitespace-nowrap">{isLocating ? (t('locatingBtn') || 'Locating...') : userGeoLocation ? (t('gpsActiveBtn') || 'GPS Live Active') : (t('useLiveLocationBtn') || '📍 Use Live GPS Location')}</span>
+        </button>
+
+        {/* Smooth Touch-Scrollable Filter Tabs */}
+        <div className="bg-slate-100 p-1.5 rounded-2xl text-xs font-bold text-slate-600 flex items-center gap-1.5 border border-slate-200/60 shadow-xs overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <button
             onClick={() => setActiveTab('all')}
-            className={`flex-1 py-2 px-3 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'all' ? 'bg-white text-[#1A73E8] font-black shadow-xs' : 'hover:text-slate-900'
+            className={`py-2 px-3.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              activeTab === 'all' 
+                ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
-            <Building2 size={13} />
-            <span>{t('tabAllSocieties') || "All Partner Societies"} ({allSocieties.length})</span>
+            <Building2 size={14} className={activeTab === 'all' ? 'text-white' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">{t('tabAllSocieties') || "All Partner Societies"} ({allSocieties.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('selected')}
-            className={`flex-1 py-2 px-3 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'selected' ? 'bg-white text-[#1A73E8] font-black shadow-xs' : 'hover:text-slate-900'
+            className={`py-2 px-3.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              activeTab === 'selected' 
+                ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
-            <Star size={13} />
-            <span>{t('tabSelected') || "Selected"} ({totalSelectedCount})</span>
+            <Star size={14} className={activeTab === 'selected' ? 'text-white' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">{t('tabSelected') || "Selected"} ({totalSelectedCount})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('high_hiring')}
-            className={`flex-1 py-2 px-3 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'high_hiring' ? 'bg-white text-[#1A73E8] font-black shadow-xs' : 'hover:text-slate-900'
+            className={`py-2 px-3.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              activeTab === 'high_hiring' 
+                ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
-            <Briefcase size={13} />
-            <span>{t('tabHighHiring') || "High Hiring Volume 🔥"}</span>
+            <Sparkles size={14} className={activeTab === 'high_hiring' ? 'text-white' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">{t('tabHighHiring') || "High Hiring"} ({allSocieties.filter(s => s.activeJobsCount >= 3).length})</span>
           </button>
         </div>
       </div>
@@ -446,6 +457,11 @@ export default function WorkerSocietiesPage() {
                         {isSecondary && (
                           <span className="bg-emerald-100 text-emerald-800 text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-300 inline-flex items-center gap-1">
                             <CheckCircle2 size={9} /> {t('secondaryWorkplaceBadge') || "Secondary Workplace"}
+                          </span>
+                        )}
+                        {soc.activeJobsCount >= highHiringThreshold && (
+                          <span className="bg-amber-500 text-white text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
+                            <Sparkles size={9} /> 🔥 {t('highHiringBadge') || "High Hiring"}
                           </span>
                         )}
                       </div>
@@ -525,24 +541,14 @@ export default function WorkerSocietiesPage() {
         )}
       </div>
 
-      {/* ➕ REQUEST UNLISTED SOCIETY BANNER CARD */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-            <Building2 size={15} className="text-[#1A73E8]" />
-            <span>{t('dontSeeSocietyTitle') || "Don't see your working society listed?"}</span>
-          </h4>
-          <p className="text-[11px] text-slate-500 font-medium">
-            {t('dontSeeSocietySub') || "Request Sevikaa Admin to onboard your residential community. Verification takes less than 24 hours."}
-          </p>
-        </div>
-
-        <button
-          onClick={() => setShowRequestModal(true)}
-          className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-black shadow-md transition-all active:scale-95 shrink-0 whitespace-nowrap cursor-pointer flex items-center gap-1.5"
-        >
-          <Plus size={14} /> {t('requestNewSocietyBtn') || "Request New Society"}
-        </button>
+      {/* ℹ️ COMPACT HELP NOTE */}
+      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 text-center space-y-1">
+        <p className="text-xs font-bold text-slate-700">
+          {t('dontSeeSocietyTitle') || "Can't find your working society listed?"}
+        </p>
+        <p className="text-[11px] text-slate-500 font-medium">
+          Resident Employers can request society onboarding directly when posting job requisitions on Sevikaa.
+        </p>
       </div>
 
       {/* 📩 REQUEST NEW SOCIETY MODAL */}
