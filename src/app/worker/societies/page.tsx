@@ -90,7 +90,7 @@ export default function WorkerSocietiesPage() {
           distance: '0.3 km away',
           activeJobsCount: availableJobs?.filter((j: any) => j.society_name?.includes('DLF')).length || 4,
           activeWorkersCount: 52,
-          securityType: 'MyGate Verified Security',
+          securityType: 'Physical Gate Security',
           totalFlats: 850
         },
         {
@@ -100,7 +100,7 @@ export default function WorkerSocietiesPage() {
           distance: '0.8 km away',
           activeJobsCount: availableJobs?.filter((j: any) => j.society_name?.includes('Prestige')).length || 3,
           activeWorkersCount: 38,
-          securityType: 'NoBrokerHood Security',
+          securityType: 'Physical Gate Security',
           totalFlats: 1200
         },
         {
@@ -110,7 +110,7 @@ export default function WorkerSocietiesPage() {
           distance: '1.2 km away',
           activeJobsCount: availableJobs?.filter((j: any) => j.society_name?.includes('SNN')).length || 2,
           activeWorkersCount: 29,
-          securityType: 'GuardOn Gate Audit',
+          securityType: 'Physical Gate Security',
           totalFlats: 650
         }
       ];
@@ -149,7 +149,7 @@ export default function WorkerSocietiesPage() {
         distance: distanceStr,
         activeJobsCount: liveCount,
         activeWorkersCount: soc.workers_count || (30 + idx * 8),
-        securityType: soc.gate_security || (idx % 2 === 0 ? 'MyGate Verified Security' : 'Gate Verified Security'),
+        securityType: soc.gate_security || 'Physical Gate Security',
         totalFlats: soc.total_flats || (500 + idx * 200)
       };
     });

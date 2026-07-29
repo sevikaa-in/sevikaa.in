@@ -10,14 +10,14 @@ import { useLanguage } from '@/context/LanguageContext';
 import { supabase } from '@/lib/supabaseClient';
 
 const FALLBACK_SOCIETIES = [
-  { id: 'soc_1', name: 'DLF Westend Heights', area: 'DLF City, Begur Road', city: 'Bengaluru', pincode: '560068', total_flats: 850, gate_security: 'MyGate' },
-  { id: 'soc_2', name: 'Prestige Song of the South', area: 'Yelenahalli, Begur Road', city: 'Bengaluru', pincode: '560068', total_flats: 1200, gate_security: 'NoBrokerHood' },
-  { id: 'soc_3', name: 'SNN Raj Serenity', area: 'Electronic City Link Rd', city: 'Bengaluru', pincode: '560068', total_flats: 650, gate_security: 'ADDA' },
-  { id: 'soc_4', name: 'Adarsh Palm Retreat', area: 'Outer Ring Road, Bellandur', city: 'Bengaluru', pincode: '560103', total_flats: 1200, gate_security: 'MyGate' },
-  { id: 'soc_5', name: 'Salarpuria Sattva Cadenza', area: 'Kudlu Gate, Hosur Rd', city: 'Bengaluru', pincode: '560068', total_flats: 900, gate_security: 'MyGate' },
-  { id: 'soc_6', name: 'Sobha Royal Pavilion', area: 'Sarjapur Main Road', city: 'Bengaluru', pincode: '560035', total_flats: 1100, gate_security: 'ADDA' },
-  { id: 'soc_7', name: 'Purva Westend', area: 'Kudlu Gate, Hosur Rd', city: 'Bengaluru', pincode: '560068', total_flats: 850, gate_security: 'MyGate' },
-  { id: 'soc_8', name: 'Brigade Millennium', area: 'JP Nagar 7th Phase', city: 'Bengaluru', pincode: '560078', total_flats: 1400, gate_security: 'ADDA' }
+  { id: 'soc_1', name: 'DLF Westend Heights', area: 'DLF City, Begur Road', city: 'Bengaluru', pincode: '560068', total_flats: 850, gate_security: 'Physical Gate Security' },
+  { id: 'soc_2', name: 'Prestige Song of the South', area: 'Yelenahalli, Begur Road', city: 'Bengaluru', pincode: '560068', total_flats: 1200, gate_security: 'Physical Gate Security' },
+  { id: 'soc_3', name: 'SNN Raj Serenity', area: 'Electronic City Link Rd', city: 'Bengaluru', pincode: '560068', total_flats: 650, gate_security: 'Physical Gate Security' },
+  { id: 'soc_4', name: 'Adarsh Palm Retreat', area: 'Outer Ring Road, Bellandur', city: 'Bengaluru', pincode: '560103', total_flats: 1200, gate_security: 'Physical Gate Security' },
+  { id: 'soc_5', name: 'Salarpuria Sattva Cadenza', area: 'Kudlu Gate, Hosur Rd', city: 'Bengaluru', pincode: '560068', total_flats: 900, gate_security: 'Physical Gate Security' },
+  { id: 'soc_6', name: 'Sobha Royal Pavilion', area: 'Sarjapur Main Road', city: 'Bengaluru', pincode: '560035', total_flats: 1100, gate_security: 'Physical Gate Security' },
+  { id: 'soc_7', name: 'Purva Westend', area: 'Kudlu Gate, Hosur Rd', city: 'Bengaluru', pincode: '560068', total_flats: 850, gate_security: 'Physical Gate Security' },
+  { id: 'soc_8', name: 'Brigade Millennium', area: 'JP Nagar 7th Phase', city: 'Bengaluru', pincode: '560078', total_flats: 1400, gate_security: 'Physical Gate Security' }
 ];
 
 
@@ -169,7 +169,7 @@ export default function PublicSocietiesPage() {
         activeJobs: activeJobsCount,
         verifiedHelpers: finalWorkerCount,
         totalFlats: soc.total_flats || (idx === 0 ? 850 : idx === 1 ? 1200 : 650),
-        gateApp: soc.gate_security || (idx % 2 === 0 ? 'MyGate' : 'ADDA')
+        gateApp: soc.gate_security || 'Physical Gate Security'
       };
     });
   }, [dbSocieties, dbJobs, dbWorkers]);
@@ -228,45 +228,99 @@ export default function PublicSocietiesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-32">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col justify-between">
+      <main className="flex-1">
       
-      {/* 🌟 HERO MARKETING HEADER (ROYAL BLUE BRIGHT GRADIENT) */}
-      <section className="bg-gradient-to-br from-[#1A73E8] via-blue-600 to-indigo-800 text-white py-14 px-4 sm:px-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-        
+      {/* 1. TOP NAVIGATION HEADER (MATCHING HOME PAGE) */}
+      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50 transition-all duration-300">
+        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 hover:scale-102 active:scale-98 transition-all">
+            <img src="/logo.png" alt="Sevikaa Logo" className="h-16 sm:h-20 w-auto object-contain" />
+          </Link>
+
+          <div className="flex items-center gap-4">
+            {/* Desktop Nav Links */}
+            <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
+              {[
+                { label: 'About Us', href: '/about' },
+                { label: 'Societies', href: '/societies' },
+                { label: 'How It Works', href: '/how-it-works' },
+                { label: 'Pricing', href: '/pricing' },
+                { label: 'Safety', href: '/safety' },
+                { label: 'Contact', href: '/contact' },
+                { label: 'FAQ', href: '/faq' }
+              ].map((link, index) => (
+                <Link 
+                  key={index} 
+                  href={link.href} 
+                  className={`relative py-1 text-slate-600 hover:text-[#1A73E8] transition-all hover:scale-105 active:scale-95 duration-200 group font-bold ${link.href === '/societies' ? 'text-[#1A73E8]' : ''}`}
+                >
+                  {link.label}
+                  <span className={`absolute bottom-0 left-0 w-full h-0.5 bg-[#1A73E8] transform transition-transform origin-center duration-300 ${link.href === '/societies' ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'}`} />
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      {/* 🌟 HERO MARKETING HEADER (PLAIN WHITE) */}
+      <section className="bg-white text-slate-900 py-14 px-4 sm:px-6 border-b border-slate-200/80 relative overflow-hidden">
         <div className="max-w-5xl mx-auto space-y-6 relative z-10 text-center">
           
           {/* Eyebrow Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/30 text-xs font-bold text-white shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="uppercase tracking-wider text-[9.5px] font-black text-blue-100">GATED COMMUNITY DIRECTORY</span>
-            <span className="text-white/40">•</span>
-            <span className="font-black text-white">{realSocieties.length}+ Partner Societies</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-xs font-bold shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="uppercase tracking-wider text-[9.5px] font-black text-[#1A73E8]">GATED COMMUNITY DIRECTORY</span>
+            <span className="text-slate-300">•</span>
+            <span className="font-black text-slate-800">{realSocieties.length}+ Partner Societies</span>
           </div>
 
           {/* Dynamic Title */}
           <div className="space-y-3">
-            <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
+            <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
               Explore Partner Societies &amp; <br className="hidden sm:block" />
-              <span className="text-amber-300">Hire Verified Helpers</span>
+              <span className="text-[#1A73E8]">Hire Verified Helpers</span>
             </h1>
 
-            <p className="text-xs sm:text-base text-blue-100 font-medium max-w-2xl mx-auto leading-relaxed">
-              Find background-checked cooks, maids, nannies, and drivers active inside your gated community with entrance desk security integration.
+            <p className="text-xs sm:text-base text-slate-500 font-medium max-w-2xl mx-auto leading-relaxed">
+              Find background-checked cooks, maids, nannies, and drivers active inside your gated community.
             </p>
           </div>
 
           {/* Live Network Metrics Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl mx-auto pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 max-w-3xl mx-auto pt-2">
             {[
-              { label: 'Partner Communities', val: `${realSocieties.length}+`, color: 'text-white' },
-              { label: 'Verified Helpers Available', val: `${dbWorkers.length > 0 ? dbWorkers.length : 21}`, color: 'text-emerald-300' },
-              { label: 'Gate Security Apps', val: 'MyGate / ADDA', color: 'text-amber-300' },
-              { label: 'Instant Matching', val: '< 24 Hours', color: 'text-blue-100' }
+              { 
+                label: 'Partner Communities', 
+                val: `${realSocieties.length}+`, 
+                valColor: 'text-[#1A73E8]', 
+                cardBg: 'bg-blue-50/70 border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50',
+                badgeBg: 'bg-blue-100/90 text-blue-800 border border-blue-200'
+              },
+              { 
+                label: 'Verified Helpers Available', 
+                val: `${dbWorkers.length > 0 ? dbWorkers.length : 21}`, 
+                valColor: 'text-emerald-700', 
+                cardBg: 'bg-emerald-50/70 border-2 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50',
+                badgeBg: 'bg-emerald-100/90 text-emerald-800 border border-emerald-200'
+              },
+              { 
+                label: 'Instant Matching', 
+                val: '< 24 Hours', 
+                valColor: 'text-purple-700', 
+                cardBg: 'bg-purple-50/70 border-2 border-purple-200 hover:border-purple-400 hover:bg-purple-50',
+                badgeBg: 'bg-purple-100/90 text-purple-800 border border-purple-200'
+              }
             ].map((stat, i) => (
-              <div key={i} className="p-3 bg-white/15 border border-white/20 rounded-2xl backdrop-blur-md text-center shadow-xs">
-                <span className={`block text-base sm:text-lg font-black ${stat.color}`}>{stat.val}</span>
-                <span className="block text-[9.5px] font-bold text-blue-100 uppercase tracking-wider mt-0.5">{stat.label}</span>
+              <div 
+                key={i} 
+                className={`p-4 rounded-2xl transition-all duration-200 text-center shadow-xs flex flex-col items-center justify-center space-y-1 ${stat.cardBg}`}
+              >
+                <span className={`block text-xl sm:text-2xl font-black tracking-tight ${stat.valColor}`}>{stat.val}</span>
+                <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider ${stat.badgeBg}`}>
+                  {stat.label}
+                </span>
               </div>
             ))}
           </div>
@@ -275,7 +329,7 @@ export default function PublicSocietiesPage() {
           <div className="pt-2 flex items-center justify-center gap-3 flex-wrap">
             <button
               onClick={() => setShowRequestModal(true)}
-              className="py-3.5 px-6 bg-white text-[#1A73E8] hover:bg-blue-50 rounded-2xl text-xs sm:text-sm font-black transition-all shadow-xl active:scale-95 cursor-pointer flex items-center gap-2"
+              className="py-3.5 px-6 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs sm:text-sm font-black transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
             >
               <Plus size={16} />
               <span>Request Society Onboarding</span>
@@ -283,7 +337,7 @@ export default function PublicSocietiesPage() {
 
             <Link
               href="/employer"
-              className="py-3.5 px-6 bg-[#34A853] hover:bg-emerald-600 text-white rounded-2xl text-xs sm:text-sm font-black transition-all shadow-lg shadow-emerald-900/20 active:scale-95 flex items-center gap-2"
+              className="py-3.5 px-6 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs sm:text-sm font-black transition-all shadow-md active:scale-95 flex items-center gap-2"
             >
               <span>Employer Hiring Portal</span>
               <ArrowRight size={15} />
@@ -676,6 +730,40 @@ export default function PublicSocietiesPage() {
           </div>
         </div>
       )}
+    </main>
+
+    {/* 8. REGULATORY FOOTER POLICIES (MATCHING HOME PAGE) */}
+      <footer className="bg-[#202124] text-white py-12 px-4 mt-16 w-full shrink-0">
+        <div className="max-w-6xl mx-auto space-y-8 text-center">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-xs font-bold text-gray-400">
+            <Link href="/about" className="hover:text-white transition-colors">About Us</Link>
+            <Link href="/how-it-works" className="hover:text-white transition-colors">How It Works</Link>
+            <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+            <Link href="/safety" className="hover:text-white transition-colors">Safety</Link>
+            <Link href="/contact" className="hover:text-white transition-colors">Contact Us</Link>
+            <Link href="/faq" className="hover:text-white transition-colors">FAQ</Link>
+          </div>
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] text-gray-500 border-t border-gray-800 pt-6">
+            <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms &amp; Conditions</Link>
+            <span className="text-gray-700">|</span>
+            <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy Policy</Link>
+            <span className="text-gray-700">|</span>
+            <Link href="/refunds" className="hover:text-gray-300 transition-colors">Refund &amp; Cancellation</Link>
+            <span className="text-gray-700">|</span>
+            <Link href="/shipping" className="hover:text-gray-300 transition-colors">Shipping &amp; Delivery</Link>
+            <span className="text-gray-700">|</span>
+            <Link href="/sitemap.xml" className="hover:text-gray-300 transition-colors">Sitemap</Link>
+          </div>
+          <div className="space-y-1 pt-2">
+            <p className="text-[10px] text-gray-500 font-bold max-w-md mx-auto leading-normal">
+              Sevikaa is proudly owned and operated by YugaYatra Retail (OPC) Private Limited, a Government-Registered and DPIIT-Recognized Startup committed to building trusted digital platforms for India.
+            </p>
+            <p className="text-[9px] text-gray-600 font-semibold pt-1">
+              © {new Date().getFullYear()} Sevikaa. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

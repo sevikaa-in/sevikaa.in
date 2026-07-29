@@ -77,7 +77,7 @@ export default function SocietiesPage() {
         city: reqItem.city || 'Bangalore',
         area: reqItem.area || 'General Sector',
         pincode: reqItem.pincode || '560087',
-        gate_security: reqItem.gate_security || 'MyGate',
+        gate_security: reqItem.gate_security || 'Physical Gate Security',
         total_flats: reqItem.total_flats || 850,
         workers_count: 0,
         active_jobs: 0
@@ -331,16 +331,13 @@ export default function SocietiesPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[9.5px] text-slate-400 uppercase font-black">Gate Security App</label>
+              <label className="text-[9.5px] text-slate-400 uppercase font-black">Gate Security Type</label>
               <select
                 value={gateSecurity}
                 onChange={(e) => setGateSecurity(e.target.value)}
                 className="w-full py-2 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
               >
-                <option value="MyGate">MyGate</option>
-                <option value="ADDA">ADDA</option>
-                <option value="NoBrokerHood">NoBrokerHood</option>
-                <option value="Gatekeeper">Gatekeeper</option>
+                <option value="Physical Security">Physical Security</option>
                 <option value="Physical Register">Physical Register</option>
               </select>
             </div>

@@ -704,9 +704,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         })));
       }
 
-      if (pendingJobs) {
-        setPendingJobsList(pendingJobs);
-      }
+      // Note: pendingJobsList already set above with employer_name resolved from employer_profiles join
 
       if (pendingReviews) {
         setPendingReviewsList(pendingReviews);
