@@ -7,9 +7,7 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const isServiceKeyValid = serviceKey && !serviceKey.includes('placeholder');
 const apiKey = isServiceKeyValid ? serviceKey : anonKey;
 
-if (!isServiceKeyValid) {
-  console.warn("Supabase Admin client using ANON_KEY fallback because SERVICE_ROLE_KEY is placeholder.");
-}
+
 
 export const supabaseAdmin = createClient(supabaseUrl, apiKey, {
   auth: {

@@ -88,7 +88,7 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
 
       const { error: employerErr } = await supabase
         .from('employer_profiles')
-        .insert({
+        .upsert({
           user_id: userId,
           name: fullName,
           company_name: companyName || null,

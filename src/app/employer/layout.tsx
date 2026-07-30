@@ -90,36 +90,61 @@ export default function EmployerDashboardLayout({ children }: { children: React.
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      let activeUserId = session?.user?.id;
+      let activeUser: any = session?.user;
+
+      if (!activeUser && typeof window !== 'undefined') {
+        const storedUser = localStorage.getItem('sevikaa_user');
+        if (storedUser) {
+          try { activeUser = JSON.parse(storedUser); } catch (e) {}
+        }
+      }
+
+      let activeUserId = activeUser?.id;
       let profileData: any = null;
       let empProf: any = null;
 
-      if (session?.user) {
-        setUser(session.user);
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*, employer_profiles(*)')
-          .eq('id', session.user.id)
-          .maybeSingle();
+      if (activeUser?.id) {
+        setUser(activeUser);
 
-        profileData = profile;
-        empProf = profile?.employer_profiles 
-          ? (Array.isArray(profile.employer_profiles) ? profile.employer_profiles[0] : profile.employer_profiles)
-          : null;
+        try {
+          const res = await fetch(`/api/auth/me?userId=${activeUser.id}`);
+          if (res.ok) {
+            const meData = await res.json();
+            if (meData.success) {
+              profileData = meData.profile;
+              empProf = meData.employerProfile;
+            }
+          }
+        } catch (apiErr) {
+          console.warn("API employer profile fetch warning:", apiErr);
+        }
 
-        if (!empProf) {
+        if (!profileData && !empProf) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*, employer_profiles(*)')
+            .eq('id', activeUser.id)
+            .maybeSingle();
+
+          profileData = profile;
+          empProf = profile?.employer_profiles 
+            ? (Array.isArray(profile.employer_profiles) ? profile.employer_profiles[0] : profile.employer_profiles)
+            : null;
+        }
+
+        if (!empProf && activeUser.id) {
           const { data: directEmpProf } = await supabase
             .from('employer_profiles')
             .select('*')
-            .eq('user_id', session.user.id)
+            .eq('user_id', activeUser.id)
             .maybeSingle();
           if (directEmpProf) empProf = directEmpProf;
         }
 
-        if (profile?.role && profile.role !== 'employer') {
-          if (profile.role === 'worker') router.push('/worker');
-          else if (profile.role === 'super-admin') router.push('/super-admin/dashboard');
-          else if (profile.role === 'admin') router.push('/admin/dashboard');
+        if (profileData?.role && profileData.role !== 'employer') {
+          if (profileData.role === 'worker') router.push('/worker');
+          else if (profileData.role === 'super-admin') router.push('/super-admin/dashboard');
+          else if (profileData.role === 'admin') router.push('/admin/dashboard');
           return;
         }
 
@@ -127,15 +152,15 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
         }
 
-        if (profile || empProf) {
-          if (profile?.status === 'deletion_requested') {
+        if (profileData || empProf || activeUser) {
+          if (profileData?.status === 'deletion_requested') {
             setDeletionRequested(true);
           }
           setEmployerProfile({
-            company_name: empProf?.company_name || empProf?.name || profile?.full_name || '',
-            email: profile?.email || session.user.email || empProf?.email || session.user.user_metadata?.email || '',
+            company_name: empProf?.company_name || empProf?.name || profileData?.full_name || 'Employer',
+            email: profileData?.email || activeUser.email || empProf?.email || '',
             society_name: empProf?.society_name || empProf?.billing_address || '',
-            phone: profile?.phone || empProf?.phone || session.user.phone || session.user.user_metadata?.phone || '',
+            phone: profileData?.phone || empProf?.phone || activeUser.phone || '',
             subscription_status: empProf?.subscription_status || 'Free',
             address: empProf?.billing_address || empProf?.address || ''
           });
@@ -310,32 +335,19 @@ export default function EmployerDashboardLayout({ children }: { children: React.
 
     try {
       if (user?.id) {
-        const updatePayload: any = {
-          company_name: updatedData.company_name,
-          phone: updatedData.phone,
-          email: updatedData.email,
-          billing_address: updatedData.address ? `${updatedData.tower || ''}, ${updatedData.address}` : updatedData.billing_address,
-          avatar_url: updatedData.avatar_url || updatedData.profilePhoto,
-          aadhaar_front_url: updatedData.aadhaar_front_url || updatedData.aadhaarFrontUrl,
-          aadhaar_back_url: updatedData.aadhaar_back_url || updatedData.aadhaarBackUrl
-        };
-
-        if (isChangesRequested) {
-          updatePayload.status = 'pending_review';
-          updatePayload.admin_note = null;
-        }
-
-        await supabase
-          .from('employer_profiles')
-          .update(updatePayload)
-          .eq('user_id', user.id);
-
-        if (isChangesRequested) {
-          await supabase
-            .from('profiles')
-            .update({ status: 'pending_review', admin_note: null })
-            .eq('id', user.id);
-        }
+        await fetch('/api/employer/profile/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            company_name: updatedData.company_name,
+            phone: updatedData.phone,
+            email: updatedData.email,
+            address: updatedData.address ? `${updatedData.tower || ''}, ${updatedData.address}` : updatedData.billing_address,
+            society_name: updatedData.society_name,
+            status: isChangesRequested ? 'pending_review' : undefined
+          })
+        });
       }
 
       showToast(

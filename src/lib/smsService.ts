@@ -176,10 +176,9 @@ export class MSG91Provider implements SMSProvider {
 
         const flowData = await flowRes.json();
         if (flowRes.ok && (flowData.type === 'success' || flowData.status === 'success')) {
-          console.log(`[MSG91 FLOW SMS DISPATCH] Sent SMS to ${phoneWithCountry} using template ${params.dltTemplateId}`);
           return { success: true, messageId: flowData.message || 'msg91-flow-sent' };
         } else {
-          console.warn("MSG91 Flow API warning:", flowData);
+          console.warn("MSG91 Flow API response notice:", flowData?.type || flowData?.status);
         }
       }
 

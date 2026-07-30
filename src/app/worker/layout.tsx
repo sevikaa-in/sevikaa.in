@@ -132,10 +132,10 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         setSocietiesList(dbSocieties);
       }
 
-      // Fetch live jobs unconditionally and join with societies table
+      // Fetch live jobs unconditionally
       const { data: liveJobs } = await supabase
         .from('jobs')
-        .select('*, societies(id, name, locality, city)')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (liveJobs) {
@@ -160,23 +160,52 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*, worker_profiles(*)')
-          .eq('id', session.user.id)
-          .maybeSingle();
+      let activeUser: any = session?.user;
 
-        let wProf = profile?.worker_profiles 
-          ? (Array.isArray(profile.worker_profiles) ? profile.worker_profiles[0] : profile.worker_profiles)
-          : null;
+      if (!activeUser && typeof window !== 'undefined') {
+        const storedUser = localStorage.getItem('sevikaa_user');
+        if (storedUser) {
+          try { activeUser = JSON.parse(storedUser); } catch (e) {}
+        }
+      }
 
-        if (!wProf) {
+      if (activeUser?.id) {
+        setUser(activeUser);
+
+        let profile: any = null;
+        let wProf: any = null;
+
+        try {
+          const res = await fetch(`/api/auth/me?userId=${activeUser.id}`);
+          if (res.ok) {
+            const meData = await res.json();
+            if (meData.success) {
+              profile = meData.profile;
+              wProf = meData.workerProfile;
+            }
+          }
+        } catch (apiErr) {
+          console.warn("API profile fetch warning:", apiErr);
+        }
+
+        // Fallback to client query if API didn't return
+        if (!profile && !wProf) {
+          const { data: clientProf } = await supabase
+            .from('profiles')
+            .select('*, worker_profiles(*)')
+            .eq('id', activeUser.id)
+            .maybeSingle();
+          profile = clientProf;
+          wProf = profile?.worker_profiles 
+            ? (Array.isArray(profile.worker_profiles) ? profile.worker_profiles[0] : profile.worker_profiles)
+            : null;
+        }
+
+        if (!wProf && activeUser.id) {
           const { data: directWProf } = await supabase
             .from('worker_profiles')
             .select('*')
-            .eq('user_id', session.user.id)
+            .eq('user_id', activeUser.id)
             .maybeSingle();
           if (directWProf) wProf = directWProf;
         }
@@ -192,7 +221,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
         }
 
-        if (profile || wProf) {
+        if (profile || wProf || activeUser) {
           const profStatus = profile?.status || wProf?.status || 'pending_verification';
           const isApproved = profStatus === 'live' || profStatus === 'approved';
 
@@ -200,35 +229,33 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             setDeletionRequested(true);
           }
 
-          if (wProf) {
-            setWorkerProfile({
-              name: wProf.full_name || wProf.name || profile?.full_name || 'Worker',
-              category: Array.isArray(wProf.skills) ? wProf.skills : (wProf.skills ? [wProf.skills] : ['maid']),
-              skills: Array.isArray(wProf.skills) ? wProf.skills : (wProf.skills ? [wProf.skills] : ['maid']),
-              expectedSalary: String(wProf.expected_salary || '15000'),
-              experience: wProf.experience_years ? `${wProf.experience_years} Years` : '0 Years',
-              society: wProf.preferred_society_name || wProf.society || 'DLF Westend Heights',
-              society_id: wProf.preferred_society_id || '',
-              secondary_societies: Array.isArray(wProf.secondary_society_names) ? wProf.secondary_society_names : (wProf.secondary_society_names ? [wProf.secondary_society_names] : ['Prestige Song of the South', 'SNN Raj Serenity']),
-              phone: profile?.phone || wProf.phone || '',
-              email: profile?.email || session?.user?.email || '',
-              languages: wProf.languages_spoken || [],
-              gender: wProf.gender || 'female',
-              age: wProf.age || 28,
-              status: profStatus,
-              profile_picture_url: wProf.profile_picture_url || wProf.avatar_url || profile?.avatar_url || '',
-              aadhaar_front_url: wProf.aadhaar_front_url || '',
-              aadhaar_back_url: wProf.aadhaar_back_url || '',
-              video_url: wProf.video_url || '',
-              is_aadhaar_verified: wProf.is_aadhaar_verified || isApproved
-            });
+          setWorkerProfile({
+            name: wProf?.full_name || wProf?.name || profile?.full_name || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_worker_name') : null) || 'Worker',
+            category: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
+            skills: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
+            expectedSalary: String(wProf?.expected_salary || '15000'),
+            experience: wProf?.experience_years ? `${wProf.experience_years} Years` : '0 Years',
+            society: wProf?.preferred_society_name || wProf?.society || 'DLF Westend Heights',
+            society_id: wProf?.preferred_society_id || '',
+            secondary_societies: Array.isArray(wProf?.secondary_society_names) ? wProf.secondary_society_names : (wProf?.secondary_society_names ? [wProf.secondary_society_names] : ['Prestige Song of the South', 'SNN Raj Serenity']),
+            phone: profile?.phone || wProf?.phone || activeUser?.phone || '',
+            email: profile?.email || wProf?.email || activeUser?.email || '',
+            languages: wProf?.languages_spoken || [],
+            gender: wProf?.gender || 'female',
+            age: wProf?.age || 28,
+            status: profStatus,
+            profile_picture_url: wProf?.profile_picture_url || wProf?.avatar_url || profile?.avatar_url || '',
+            aadhaar_front_url: wProf?.aadhaar_front_url || '',
+            aadhaar_back_url: wProf?.aadhaar_back_url || '',
+            video_url: wProf?.video_url || '',
+            is_aadhaar_verified: wProf?.is_aadhaar_verified || isApproved
+          });
 
-            setBadges([
-              { name: 'Aadhaar Verified', status: (wProf.is_aadhaar_verified || isApproved) ? 'Verified' : 'Pending' },
-              { name: 'Police Clearance', status: (wProf.is_police_verified || isApproved) ? 'Verified' : 'Pending' },
-              { name: 'Interview Audit', status: (wProf.is_interview_verified || isApproved) ? 'Verified' : 'Pending' }
-            ]);
-          }
+          setBadges([
+            { name: 'Aadhaar Verified', status: (wProf?.is_aadhaar_verified || isApproved) ? 'Verified' : 'Pending' },
+            { name: 'Police Clearance', status: (wProf?.is_police_verified || isApproved) ? 'Verified' : 'Pending' },
+            { name: 'Interview Audit', status: (wProf?.is_interview_verified || isApproved) ? 'Verified' : 'Pending' }
+          ]);
         }
 
         // Fetch real candidate job applications for this worker from database
@@ -236,7 +263,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           const { data: dbApps } = await supabase
             .from('applications')
             .select('*, jobs(*)')
-            .eq('worker_id', session.user.id);
+            .eq('worker_id', activeUser.id);
 
           if (dbApps) {
             const mappedApps = dbApps.map((a: any) => ({
@@ -275,6 +302,10 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
       const isChangesRequested = workerProfile.status === 'changes_requested' || !!workerProfile.admin_note;
       const nextStatus = isChangesRequested ? 'pending_review' : workerProfile.status;
 
+      if (updatedData.name && typeof window !== 'undefined') {
+        localStorage.setItem('sevikaa_worker_name', updatedData.name);
+      }
+
       setWorkerProfile((prev: any) => ({
         ...prev,
         ...updatedData,
@@ -287,40 +318,28 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
       
       if (!isPlaceholder && user?.id) {
-        const updatePayload: any = {
-          full_name: updatedData.name,
-          expected_salary: parseInt(updatedData.expectedSalary) || 15000,
-          experience_years: parseInt(updatedData.experience) || 0,
-          gender: updatedData.gender,
-          age: updatedData.age,
-          preferred_shift: updatedData.preferredShift,
-          emergency_contact: updatedData.emergencyContact,
-          bio: updatedData.bio,
-          languages_spoken: updatedData.languages,
-          skills: updatedData.category,
-          profile_picture_url: updatedData.profilePicUrl || updatedData.profile_picture_url || null,
-          aadhaar_front_url: updatedData.aadhaarFrontUrl || updatedData.aadhaar_front_url || null,
-          aadhaar_back_url: updatedData.aadhaarBackUrl || updatedData.aadhaar_back_url || null,
-          video_url: updatedData.introVideoUrl || updatedData.video_url || null,
-          is_aadhaar_verified: (!!updatedData.aadhaarFrontUrl && !!updatedData.aadhaarBackUrl) || workerProfile.is_aadhaar_verified
-        };
-
-        if (isChangesRequested) {
-          updatePayload.status = 'pending_review';
-          updatePayload.admin_note = null;
-        }
-
-        await supabase
-          .from('worker_profiles')
-          .update(updatePayload)
-          .eq('user_id', user.id);
-
-        if (isChangesRequested) {
-          await supabase
-            .from('profiles')
-            .update({ status: 'pending_review', admin_note: null })
-            .eq('id', user.id);
-        }
+        await fetch('/api/worker/profile/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            name: updatedData.name,
+            full_name: updatedData.name,
+            phone: updatedData.phone,
+            email: updatedData.email,
+            gender: updatedData.gender,
+            age: updatedData.age,
+            expectedSalary: updatedData.expectedSalary,
+            experience: updatedData.experience,
+            skills: updatedData.category,
+            languages: updatedData.languages,
+            bio: updatedData.bio,
+            emergencyContact: updatedData.emergencyContact,
+            preferredShift: updatedData.preferredShift,
+            profile_picture_url: updatedData.profilePicUrl || updatedData.profile_picture_url || null,
+            status: isChangesRequested ? 'pending_review' : undefined
+          })
+        });
       }
 
       showToast(

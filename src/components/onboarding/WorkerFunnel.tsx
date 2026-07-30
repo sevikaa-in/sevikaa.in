@@ -167,8 +167,29 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
     }
   };
 
+  const handleSelfieFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Photo size exceeds 5MB. Please select a smaller image.');
+        return;
+      }
+      setSelfieFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelfiePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   useEffect(() => {
     if (step === 1 && !selfiePreview) {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        setCameraError("Camera is not available on this device. You can upload a photo file below.");
+        return;
+      }
+
       navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } 
       })
@@ -177,10 +198,11 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
         }
+        setCameraError('');
       })
       .catch((err) => {
-        console.error("Camera access error:", err);
-        setCameraError("Camera access is required. Please grant permission or use a device with a camera.");
+        console.warn("Camera access permission notice:", err.name);
+        setCameraError("Camera access denied or unavailable. Please upload a photo from your gallery below.");
       });
     }
 

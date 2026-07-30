@@ -292,16 +292,16 @@ export default function WorkerProfilePage() {
   };
 
   const onSave = async () => {
-    if (phone.length !== 10) return;
+    const cleanPhoneDigits = phone ? phone.replace(/\D/g, '').slice(-10) : '';
     await handleSaveProfile({
       name,
       expectedSalary,
       experience,
-      phone: `+91 ${phone}`,
+      phone: cleanPhoneDigits ? `+91${cleanPhoneDigits}` : phone,
       gender,
       age: Number(age),
       preferredShift,
-      emergencyContact: emergencyContact ? `+91 ${emergencyContact}` : '',
+      emergencyContact: emergencyContact ? `+91${emergencyContact.replace(/\D/g, '').slice(-10)}` : '',
       bio,
       languages,
       category: selectedSkills.map(id => SKILL_CATEGORIES.find(s => s.id === id)?.defaultLabel || id),

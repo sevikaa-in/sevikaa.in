@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { LanguageSelector } from '../components/onboarding/LanguageSelector';
 import { OtpLogin } from '../components/onboarding/OtpLogin';
 import { WorkerFunnel } from '../components/onboarding/WorkerFunnel';
@@ -26,8 +26,79 @@ type ViewState =
   | 'employer-funnel' 
   | 'status-pending';
 
+async function findWorkerProfile(userId: string, phone?: string, email?: string) {
+  if (!userId) return null;
+
+  // 1. Check worker_profiles by user_id
+  const { data: p1 } = await supabase.from('worker_profiles').select('id').eq('user_id', userId).maybeSingle();
+  if (p1) return p1;
+
+  // 2. Check worker_profiles by id
+  const { data: p2 } = await supabase.from('worker_profiles').select('id').eq('id', userId).maybeSingle();
+  if (p2) return p2;
+
+  // 3. Lookup target user ID from profiles by phone or email first, then check worker_profiles
+  const cleanPhone = phone ? phone.replace(/\D/g, '').slice(-10) : '';
+  const cleanEmail = email ? email.trim().toLowerCase() : '';
+
+  if (cleanPhone.length === 10 || cleanEmail.includes('@')) {
+    let query = supabase.from('profiles').select('id');
+    if (cleanPhone.length === 10) {
+      query = query.ilike('phone', `%${cleanPhone}%`);
+    } else {
+      query = query.ilike('email', cleanEmail);
+    }
+    const { data: prof } = await query.maybeSingle();
+
+    if (prof?.id && prof.id !== userId) {
+      const { data: p3 } = await supabase.from('worker_profiles').select('id').eq('user_id', prof.id).maybeSingle();
+      if (p3) return p3;
+      const { data: p4 } = await supabase.from('worker_profiles').select('id').eq('id', prof.id).maybeSingle();
+      if (p4) return p4;
+    }
+  }
+
+  return null;
+}
+
+async function findEmployerProfile(userId: string, phone?: string, email?: string) {
+  if (!userId) return null;
+
+  // 1. Check employer_profiles by user_id
+  const { data: p1 } = await supabase.from('employer_profiles').select('id').eq('user_id', userId).maybeSingle();
+  if (p1) return p1;
+
+  // 2. Check employer_profiles by id
+  const { data: p2 } = await supabase.from('employer_profiles').select('id').eq('id', userId).maybeSingle();
+  if (p2) return p2;
+
+  // 3. Lookup target user ID from profiles by phone or email first, then check employer_profiles
+  const cleanPhone = phone ? phone.replace(/\D/g, '').slice(-10) : '';
+  const cleanEmail = email ? email.trim().toLowerCase() : '';
+
+  if (cleanPhone.length === 10 || cleanEmail.includes('@')) {
+    let query = supabase.from('profiles').select('id');
+    if (cleanPhone.length === 10) {
+      query = query.ilike('phone', `%${cleanPhone}%`);
+    } else {
+      query = query.ilike('email', cleanEmail);
+    }
+    const { data: prof } = await query.maybeSingle();
+
+    if (prof?.id && prof.id !== userId) {
+      const { data: p3 } = await supabase.from('employer_profiles').select('id').eq('user_id', prof.id).maybeSingle();
+      if (p3) return p3;
+      const { data: p4 } = await supabase.from('employer_profiles').select('id').eq('id', prof.id).maybeSingle();
+      if (p4) return p4;
+    }
+  }
+
+  return null;
+}
+
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { language, t } = useLanguage();
   
   // Onboarding wizard view state
@@ -38,6 +109,21 @@ export default function Home() {
   
   // FAQ Accordion local state
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // React to URL role query parameter changes (e.g. from header nav buttons)
+  useEffect(() => {
+    const roleParam = searchParams.get('role');
+    const stepParam = searchParams.get('step');
+    if (roleParam === 'worker') {
+      setTargetRole('worker');
+      setView(stepParam === 'login' ? 'login' : 'language');
+    } else if (roleParam === 'employer') {
+      setTargetRole('employer');
+      setView('login');
+    } else if (!roleParam && view !== 'worker-funnel' && view !== 'employer-funnel' && view !== 'landing') {
+      setView('landing');
+    }
+  }, [searchParams]);
 
   // Initialize and check active session
   useEffect(() => {
@@ -77,7 +163,7 @@ export default function Home() {
             .from('profiles')
             .select('role, status')
             .eq('id', session.user.id)
-            .single();
+            .maybeSingle();
 
           const checkUrlParams = () => {
             const searchParams = new URLSearchParams(window.location.search);
@@ -93,85 +179,53 @@ export default function Home() {
           };
 
           if (profile) {
-            let activeRole = profile.role;
-            const searchParams = new URLSearchParams(window.location.search);
-            const urlRole = searchParams.get('role');
-            if (profile.role === 'worker' && urlRole === 'employer') {
-              const { data: workerProfile } = await supabase
-                .from('worker_profiles')
-                .select('id')
-                .eq('user_id', session.user.id)
-                .maybeSingle();
-
-              if (!workerProfile) {
-                await supabase
-                  .from('profiles')
-                  .update({ role: 'employer' })
-                  .eq('id', session.user.id);
-                activeRole = 'employer';
-              }
-            }
-
-            if (activeRole === 'worker') {
-              const { data: workerProfile } = await supabase
-                .from('worker_profiles')
-                .select('id')
-                .or(`user_id.eq.${session.user.id},id.eq.${session.user.id}`)
-                .maybeSingle();
-
-              if (workerProfile) {
-                router.push('/worker');
-              } else {
-                setTargetRole('worker');
-                setView('worker-funnel');
-              }
-            } else if (profile.role === 'employer') {
-              const { data: employerProfile } = await supabase
-                .from('employer_profiles')
-                .select('id')
-                .or(`user_id.eq.${session.user.id},id.eq.${session.user.id}`)
-                .maybeSingle();
-
-              if (employerProfile) {
-                router.push('/employer');
-              } else {
-                setTargetRole('employer');
-                setView('employer-funnel');
-              }
-            } else if (profile.role === 'super-admin') {
+            if (profile.role === 'super-admin') {
               router.push('/super-admin/dashboard');
-            } else if (profile.role === 'admin') {
-              router.push('/admin/dashboard');
-            } else {
-              setView('landing');
-              checkUrlParams();
-            }
-          } else {
-            // Direct fallback check if user exists in worker_profiles or employer_profiles
-            const { data: directWorkerProf } = await supabase
-              .from('worker_profiles')
-              .select('id')
-              .or(`user_id.eq.${session.user.id},id.eq.${session.user.id}`)
-              .maybeSingle();
-
-            if (directWorkerProf) {
-              router.push('/worker');
               return;
             }
-
-            const { data: directEmpProf } = await supabase
-              .from('employer_profiles')
-              .select('id')
-              .or(`user_id.eq.${session.user.id},id.eq.${session.user.id}`)
-              .maybeSingle();
-
-            if (directEmpProf) {
+            if (profile.role === 'admin') {
+              router.push('/admin/dashboard');
+              return;
+            }
+            if (profile.role === 'employer') {
+              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
               router.push('/employer');
               return;
             }
+            if (profile.role === 'worker') {
+              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
+              router.push('/worker');
+              return;
+            }
+          }
 
-            setView('landing');
-            checkUrlParams();
+          // 1. Check existing employer_profiles
+          const employerProfile = await findEmployerProfile(session.user.id, session.user.phone, session.user.email);
+          if (employerProfile) {
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
+            router.push('/employer');
+            return;
+          }
+
+          // 2. Check existing worker_profiles
+          const workerProfile = await findWorkerProfile(session.user.id, session.user.phone, session.user.email);
+          if (workerProfile) {
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
+            router.push('/worker');
+            return;
+          }
+
+          // 3. Brand-new user with no profile: route to appropriate onboarding based on URL or targetRole
+          const currentSearchParams = new URLSearchParams(window.location.search);
+          const urlRole = currentSearchParams.get('role');
+          const isEmp = urlRole === 'employer' || targetRole === 'employer';
+
+          if (isEmp) {
+            setTargetRole('employer');
+            setView('employer-funnel');
+          } else {
+            setTargetRole('worker');
+            setView('worker-funnel');
           }
         } else {
           setView('landing');
@@ -213,10 +267,17 @@ export default function Home() {
     window.history.pushState({}, '', '/');
   };
 
-  const handleLoginSuccess = async (sessionData: { user: { id: string; email?: string; phone?: string } }) => {
+  const handleLoginSuccess = async (sessionData: { user: { id: string; email?: string; phone?: string; role?: string }; role?: string; isExistingUser?: boolean }) => {
     const sessionUser = sessionData.user;
+    const loginRole = sessionData.role || sessionUser.role;
+    const isExistingUser = sessionData.isExistingUser;
     setUser(sessionUser);
     setLoading(true);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sevikaa_user', JSON.stringify(sessionUser));
+      localStorage.setItem('sevikaa_user_id', sessionUser.id);
+    }
 
     try {
       const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
@@ -228,93 +289,68 @@ export default function Home() {
         return;
       }
 
-      // Check profile
+      // If user profile is confirmed existing in DB by OTP API, route straight to dashboard!
+      if (isExistingUser) {
+        const activeRole = loginRole === 'employer' ? 'employer' : 'worker';
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=${activeRole}; path=/; max-age=86400`;
+        router.push(activeRole === 'employer' ? '/employer' : '/worker');
+        return;
+      }
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('role, status')
         .eq('id', sessionUser.id)
-        .single();
+        .maybeSingle();
 
       if (profile) {
-        let activeRole = profile.role;
-        if (profile.role === 'worker' && targetRole === 'employer') {
-          const { data: workerProfile } = await supabase
-            .from('worker_profiles')
-            .select('id')
-            .eq('user_id', sessionUser.id)
-            .maybeSingle();
-
-          if (!workerProfile) {
-            await supabase
-              .from('profiles')
-              .update({ role: 'employer' })
-              .eq('id', sessionUser.id);
-            activeRole = 'employer';
-          }
-        }
-
-        if (typeof window !== 'undefined') {
-          document.cookie = `sevikaa_user_role=${activeRole}; path=/; max-age=86400`;
-        }
-
-        if (activeRole === 'worker') {
-          const { data: workerProfile } = await supabase
-            .from('worker_profiles')
-            .select('id')
-            .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
-            .maybeSingle();
-
-          if (workerProfile) {
-            router.push('/worker');
-          } else {
-            setTargetRole('worker');
-            setView('worker-funnel');
-          }
-        } else if (profile.role === 'employer') {
-          const { data: employerProfile } = await supabase
-            .from('employer_profiles')
-            .select('id')
-            .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
-            .maybeSingle();
-
-          if (employerProfile) {
-            router.push('/employer');
-          } else {
-            setTargetRole('employer');
-            setView('employer-funnel');
-          }
-        } else if (profile.role === 'super-admin') {
+        if (profile.role === 'super-admin') {
           router.push('/super-admin/dashboard');
-        } else if (profile.role === 'admin') {
-          router.push('/admin/dashboard');
-        } else {
-          setView(targetRole === 'worker' ? 'worker-funnel' : 'employer-funnel');
-        }
-      } else {
-        // Fallback check worker_profiles directly
-        const { data: directWorkerProf } = await supabase
-          .from('worker_profiles')
-          .select('id')
-          .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
-          .maybeSingle();
-
-        if (directWorkerProf) {
-          router.push('/worker');
           return;
         }
-
-        const { data: directEmpProf } = await supabase
-          .from('employer_profiles')
-          .select('id')
-          .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
-          .maybeSingle();
-
-        if (directEmpProf) {
+        if (profile.role === 'admin') {
+          router.push('/admin/dashboard');
+          return;
+        }
+        if (profile.role === 'employer' || loginRole === 'employer') {
+          if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
           router.push('/employer');
           return;
         }
+        if (profile.role === 'worker' || loginRole === 'worker') {
+          if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
+          router.push('/worker');
+          return;
+        }
+      }
 
-        setView(targetRole === 'worker' ? 'worker-funnel' : 'employer-funnel');
+      // 1. Check existing employer_profiles
+      const employerProfile = await findEmployerProfile(sessionUser.id, sessionUser.phone, sessionUser.email);
+      if (employerProfile) {
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
+        router.push('/employer');
+        return;
+      }
+
+      // 2. Check existing worker_profiles
+      const workerProfile = await findWorkerProfile(sessionUser.id, sessionUser.phone, sessionUser.email);
+      if (workerProfile) {
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
+        router.push('/worker');
+        return;
+      }
+
+      // 3. New user onboarding: check portal role
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlRole = searchParams.get('role');
+      const isEmp = loginRole === 'employer' || urlRole === 'employer' || targetRole === 'employer';
+
+      if (isEmp) {
+        setTargetRole('employer');
+        setView('employer-funnel');
+      } else {
+        setTargetRole('worker');
+        setView('worker-funnel');
       }
     } catch (err) {
       console.error("Profile check error:", err);
@@ -384,14 +420,24 @@ export default function Home() {
         )}
         <main className={`flex-1 w-full bg-gray-50 ${isFunnelView ? 'flex items-center justify-center py-6' : ''}`}>
           {view === 'language' && (
-            <LanguageSelector onNext={() => {
-              setView('login');
-              window.history.pushState({}, '', '?role=worker&step=login');
-            }} />
+            <LanguageSelector 
+              onNext={() => {
+                setView('login');
+                window.history.pushState({}, '', '?role=worker&step=login');
+              }} 
+              onBack={handleBackToLanding}
+            />
           )}
           {view === 'login' && (
             <OtpLogin 
-              onBack={handleBackToLanding} 
+              onBack={() => {
+                if (targetRole === 'worker') {
+                  setView('language');
+                  window.history.pushState({}, '', '?role=worker&step=language');
+                } else {
+                  handleBackToLanding();
+                }
+              }} 
               onSuccess={handleLoginSuccess} 
               role={targetRole}
             />
