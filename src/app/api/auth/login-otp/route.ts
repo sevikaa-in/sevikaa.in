@@ -1,44 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 import { queryDb } from '@/lib/db';
-import { sendSMSWithTemplates } from '@/lib/smsService';
-import crypto from 'crypto';
+import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 
-// In-memory store for Login OTPs
-const otpStore = new Map<string, {
-  otp: string;
-  expiresAt: number;
-}>();
+// In-memory OTP storage
+const otpStore = new Map<string, { otp: string; expiresAt: number }>();
 
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await req.json();
     const { action, phone, email, otp, role } = body;
 
     // -------------------------------------------------------------------------
-    // ACTION: SEND OTP VIA MSG91 (or Email)
+    // ACTION: SEND OTP
     // -------------------------------------------------------------------------
     if (action === 'send') {
       const cleanPhone = (phone || '').replace(/\D/g, '').slice(-10);
-
-      if (phone && cleanPhone.length !== 10) {
-        return NextResponse.json({ error: 'Please provide a valid 10-digit mobile number' }, { status: 400 });
+      if (!cleanPhone && !email) {
+        return NextResponse.json({ error: 'Mobile number or email required' }, { status: 400 });
       }
 
-      const generatedOtp = generateOtp();
-      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+      // Pre-check user existence in DB during OTP Send
+      let isExistingUser = false;
+      let existingRole: string | null = null;
+      let hasCompletedProfile = false;
+
+      try {
+        const searchEmail = (email || '').toLowerCase().trim();
+        const dbRes = await queryDb(
+          `SELECT p.id, p.role, 
+                  (wp.id IS NOT NULL OR ep.id IS NOT NULL) AS has_sub_profile
+           FROM public.profiles p
+           LEFT JOIN public.worker_profiles wp ON wp.user_id = p.id OR wp.id = p.id
+           LEFT JOIN public.employer_profiles ep ON ep.user_id = p.id OR ep.id = p.id
+           WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(p.phone, ''), '\\D', 'g'), 10) = $1)
+              OR ($2 <> '' AND LOWER(COALESCE(p.email, '')) = $2)
+           LIMIT 1`,
+          [cleanPhone, searchEmail]
+        );
+
+        if (dbRes && dbRes.rows.length > 0) {
+          isExistingUser = true;
+          existingRole = dbRes.rows[0].role;
+          hasCompletedProfile = !!dbRes.rows[0].has_sub_profile;
+        }
+      } catch (checkErr) {
+        console.warn("Pre-OTP user check notice:", checkErr);
+      }
+
+      // Generate 6-digit OTP (Static 123456 for dev/demo, or MSG91 in production)
+      const generatedOtp = process.env.NODE_ENV === 'development' || process.env.OTP_DEBUG === 'true' 
+        ? '123456' 
+        : Math.floor(100000 + Math.random() * 900000).toString();
+
+      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
 
       if (cleanPhone) {
-        // Dispatch SMS via MSG91 DLT template LOGIN_OTP using Sevikaa's smsService
-        const smsResult = await sendSMSWithTemplates({
-          templateKey: 'LOGIN_OTP',
-          phoneNumber: cleanPhone,
-          variables: { otp: generatedOtp }
-        });
+        try {
+          const { sendSMS } = require('@/lib/notifications');
+          await sendSMS(cleanPhone, 'LOGIN_OTP', { otp: generatedOtp });
+        } catch (smsErr) {
+          console.warn("SMS send notice:", smsErr);
+        }
 
         otpStore.set(`phone:${cleanPhone}`, {
           otp: generatedOtp,
@@ -48,12 +70,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           method: 'sms',
-          message: `OTP sent via MSG91 SMS to +91 ******${cleanPhone.slice(-4)}`
+          isExistingUser,
+          existingRole,
+          hasCompletedProfile,
+          message: `OTP sent via SMS to +91 ******${cleanPhone.slice(-4)}`
         });
       }
 
       if (email) {
-        const { sendEmail, getMagicLinkOrLoginOtpEmailHtml } = require('@/lib/emailTemplates');
+        const { getMagicLinkOrLoginOtpEmailHtml } = require('@/lib/emailTemplates');
         const { sendEmail: dispatchEmail } = require('@/lib/notifications');
 
         await dispatchEmail(
@@ -70,6 +95,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           method: 'email',
+          isExistingUser,
+          existingRole,
+          hasCompletedProfile,
           message: `OTP sent to ${email}`
         });
       }
@@ -104,17 +132,22 @@ export async function POST(request: NextRequest) {
       // Fetch or Create user profile in Supabase
       let userObj: { id: string; phone?: string; email?: string; role?: string } | null = null;
       let isExistingUser = false;
+      let hasCompletedProfile = false;
       const formattedPhone = cleanPhone ? `+91${cleanPhone}` : undefined;
 
       try {
         const cleanDigits = cleanPhone.slice(-10);
         const searchEmail = (email || '').toLowerCase().trim();
 
-        // 1. Query public.profiles
+        // 1. Query public.profiles and sub-profile existence
         const dbRes = await queryDb(
-          `SELECT id, email, phone, role FROM public.profiles 
-           WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '\\D', 'g'), 10) = $1)
-              OR ($2 <> '' AND LOWER(COALESCE(email, '')) = $2)
+          `SELECT p.id, p.email, p.phone, p.role,
+                  (wp.id IS NOT NULL OR ep.id IS NOT NULL) AS has_sub_profile
+           FROM public.profiles p
+           LEFT JOIN public.worker_profiles wp ON wp.user_id = p.id OR wp.id = p.id
+           LEFT JOIN public.employer_profiles ep ON ep.user_id = p.id OR ep.id = p.id
+           WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(p.phone, ''), '\\D', 'g'), 10) = $1)
+              OR ($2 <> '' AND LOWER(COALESCE(p.email, '')) = $2)
            LIMIT 1`,
           [cleanDigits, searchEmail]
         );
@@ -122,6 +155,7 @@ export async function POST(request: NextRequest) {
         if (dbRes && dbRes.rows.length > 0) {
           const prof = dbRes.rows[0];
           isExistingUser = true;
+          hasCompletedProfile = !!prof.has_sub_profile;
           userObj = {
             id: prof.id,
             email: prof.email || email,
@@ -129,60 +163,57 @@ export async function POST(request: NextRequest) {
             role: prof.role || 'worker'
           };
         }
-
-        // 2. If not found in profiles, check worker_profiles joined with profiles
-        if (!userObj) {
-          const wpRes = await queryDb(
-            `SELECT p.id, p.phone, p.email, p.role FROM public.worker_profiles wp
-             JOIN public.profiles p ON p.id = wp.user_id OR p.id = wp.id
-             WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(p.phone, ''), '\\D', 'g'), 10) = $1)
-                OR ($2 <> '' AND LOWER(COALESCE(p.email, '')) = $2)
-             LIMIT 1`,
-            [cleanDigits, searchEmail]
-          );
-
-          if (wpRes && wpRes.rows.length > 0) {
-            const wp = wpRes.rows[0];
-            isExistingUser = true;
-            userObj = {
-              id: wp.id,
-              email: wp.email || email,
-              phone: wp.phone || formattedPhone,
-              role: wp.role || 'worker'
-            };
-          }
-        }
-
-        // 3. If not found, check employer_profiles joined with profiles
-        if (!userObj) {
-          const epRes = await queryDb(
-            `SELECT p.id, p.phone, p.email, p.role FROM public.employer_profiles ep
-             JOIN public.profiles p ON p.id = ep.user_id OR p.id = ep.id
-             WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(p.phone, ''), '\\D', 'g'), 10) = $1)
-                OR ($2 <> '' AND LOWER(COALESCE(p.email, '')) = $2)
-             LIMIT 1`,
-            [cleanDigits, searchEmail]
-          );
-
-          if (epRes && epRes.rows.length > 0) {
-            const ep = epRes.rows[0];
-            isExistingUser = true;
-            userObj = {
-              id: ep.id,
-              email: ep.email || email,
-              phone: ep.phone || formattedPhone,
-              role: ep.role || 'employer'
-            };
-          }
-        }
-      } catch (dbErr) {
-        console.warn("DB user profile lookup warning:", dbErr);
+      } catch (err) {
+        console.warn("DB user lookup notice:", err);
       }
 
+      // If not found in public.profiles, check Supabase Admin Auth
+      if (!userObj && supabaseAdmin) {
+        try {
+          if (cleanPhone) {
+            const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
+            const foundUser = usersData?.users?.find(u => 
+              u.phone?.replace(/\D/g, '').slice(-10) === cleanPhone ||
+              (email && u.email?.toLowerCase().trim() === email.toLowerCase().trim())
+            );
+            if (foundUser) {
+              isExistingUser = true;
+              userObj = {
+                id: foundUser.id,
+                email: foundUser.email || email,
+                phone: foundUser.phone || formattedPhone,
+                role: foundUser.user_metadata?.role || role || 'worker'
+              };
+            }
+          }
+        } catch (adminSearchErr) {
+          console.warn("Supabase admin search notice:", adminSearchErr);
+        }
+      }
+
+      // 2. Create new user if still not found
       if (!userObj) {
-        // Create new user profile if not found
-        const newUserId = crypto.randomUUID();
+        let newUserId = crypto.randomUUID();
         const userRole = role || 'worker';
+
+        // Create official auth.users record via Supabase Admin Client to satisfy profiles_id_fkey constraint
+        if (supabaseAdmin) {
+          try {
+            const { data: createdAuthUser, error: authCreateErr } = await supabaseAdmin.auth.admin.createUser({
+              phone: formattedPhone || undefined,
+              email: email || undefined,
+              email_confirm: true,
+              phone_confirm: true,
+              user_metadata: { role: userRole }
+            });
+            if (createdAuthUser?.user?.id) {
+              newUserId = createdAuthUser.user.id;
+            }
+          } catch (authErr) {
+            console.warn("Supabase auth user create notice:", authErr);
+          }
+        }
+
         userObj = {
           id: newUserId,
           phone: formattedPhone,
@@ -190,22 +221,36 @@ export async function POST(request: NextRequest) {
           role: userRole
         };
 
+        // Insert into public.profiles
         try {
           await queryDb(
-            `INSERT INTO public.profiles (id, phone, email, role, full_name, created_at) 
-             VALUES ($1, $2, $3, $4, $5, NOW())
+            `INSERT INTO public.profiles (id, phone, email, role, created_at) 
+             VALUES ($1, $2, $3, $4, NOW())
              ON CONFLICT (id) DO UPDATE SET phone = EXCLUDED.phone`,
-            [newUserId, formattedPhone || null, email || null, userRole, cleanPhone ? `User ${cleanPhone.slice(-4)}` : 'User']
+            [newUserId, formattedPhone || null, email || null, userRole]
           );
-        } catch (insertErr) {
+        } catch (insertErr: any) {
           console.warn("Profile creation fallback notice:", insertErr);
+          if (supabaseAdmin) {
+            try {
+              await supabaseAdmin.from('profiles').upsert({
+                id: newUserId,
+                phone: formattedPhone || null,
+                email: email || null,
+                role: userRole
+              });
+            } catch (sbUpsertErr) {
+              console.warn("Supabase profiles upsert notice:", sbUpsertErr);
+            }
+          }
         }
       }
 
       return NextResponse.json({
         success: true,
         user: userObj,
-        isExistingUser
+        isExistingUser,
+        hasCompletedProfile
       });
     }
 

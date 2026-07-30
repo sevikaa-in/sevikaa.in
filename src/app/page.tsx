@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LanguageSelector } from '../components/onboarding/LanguageSelector';
 import { OtpLogin } from '../components/onboarding/OtpLogin';
+import { NewUserRoleSelector } from '../components/onboarding/NewUserRoleSelector';
 import { WorkerFunnel } from '../components/onboarding/WorkerFunnel';
 import { EmployerFunnel } from '../components/onboarding/EmployerFunnel';
 import { StatusPending } from '../components/onboarding/StatusPending';
@@ -24,7 +25,8 @@ type ViewState =
   | 'login' 
   | 'worker-funnel' 
   | 'employer-funnel' 
-  | 'status-pending';
+  | 'status-pending'
+  | 'new-user-role-select';
 
 async function findWorkerProfile(userId: string, phone?: string, email?: string) {
   if (!userId) return null;
@@ -114,14 +116,16 @@ export default function Home() {
   useEffect(() => {
     const roleParam = searchParams.get('role');
     const stepParam = searchParams.get('step');
-    if (roleParam === 'worker') {
-      setTargetRole('worker');
-      setView(stepParam === 'login' ? 'login' : 'language');
-    } else if (roleParam === 'employer') {
-      setTargetRole('employer');
-      setView('login');
-    } else if (!roleParam && view !== 'worker-funnel' && view !== 'employer-funnel' && view !== 'landing') {
-      setView('landing');
+    
+    // Only apply URL params if user is not in active onboarding/login flow
+    if (view === 'landing' || view === 'language') {
+      if (roleParam === 'worker') {
+        setTargetRole('worker');
+        setView(stepParam === 'login' ? 'login' : 'language');
+      } else if (roleParam === 'employer') {
+        setTargetRole('employer');
+        setView('login');
+      }
     }
   }, [searchParams]);
 
@@ -178,27 +182,6 @@ export default function Home() {
             }
           };
 
-          if (profile) {
-            if (profile.role === 'super-admin') {
-              router.push('/super-admin/dashboard');
-              return;
-            }
-            if (profile.role === 'admin') {
-              router.push('/admin/dashboard');
-              return;
-            }
-            if (profile.role === 'employer') {
-              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
-              router.push('/employer');
-              return;
-            }
-            if (profile.role === 'worker') {
-              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
-              router.push('/worker');
-              return;
-            }
-          }
-
           // 1. Check existing employer_profiles
           const employerProfile = await findEmployerProfile(session.user.id, session.user.phone, session.user.email);
           if (employerProfile) {
@@ -215,17 +198,27 @@ export default function Home() {
             return;
           }
 
-          // 3. Brand-new user with no profile: route to appropriate onboarding based on URL or targetRole
+          // 3. Check Admin / Super Admin roles
+          if (profile?.role === 'super-admin') {
+            router.push('/super-admin/dashboard');
+            return;
+          }
+          if (profile?.role === 'admin') {
+            router.push('/admin/dashboard');
+            return;
+          }
+
+          // 4. Brand-new user with no completed sub-profile: route to onboarding setup
           const currentSearchParams = new URLSearchParams(window.location.search);
           const urlRole = currentSearchParams.get('role');
-          const isEmp = urlRole === 'employer' || targetRole === 'employer';
+          const hasExplicitStartingRole = urlRole === 'employer' || urlRole === 'worker' || targetRole === 'employer' || targetRole === 'worker';
 
-          if (isEmp) {
-            setTargetRole('employer');
-            setView('employer-funnel');
+          if (hasExplicitStartingRole) {
+            const selectedStartingRole = (urlRole === 'employer' || targetRole === 'employer') ? 'employer' : 'worker';
+            setTargetRole(selectedStartingRole);
+            setView(selectedStartingRole === 'employer' ? 'employer-funnel' : 'worker-funnel');
           } else {
-            setTargetRole('worker');
-            setView('worker-funnel');
+            setView('new-user-role-select');
           }
         } else {
           setView('landing');
@@ -267,10 +260,11 @@ export default function Home() {
     window.history.pushState({}, '', '/');
   };
 
-  const handleLoginSuccess = async (sessionData: { user: { id: string; email?: string; phone?: string; role?: string }; role?: string; isExistingUser?: boolean }) => {
+  const handleLoginSuccess = async (sessionData: { user: { id: string; email?: string; phone?: string; role?: string }; role?: string; isExistingUser?: boolean; hasCompletedProfile?: boolean }) => {
     const sessionUser = sessionData.user;
     const loginRole = sessionData.role || sessionUser.role;
     const isExistingUser = sessionData.isExistingUser;
+    const hasCompletedProfile = sessionData.hasCompletedProfile;
     setUser(sessionUser);
     setLoading(true);
 
@@ -289,39 +283,12 @@ export default function Home() {
         return;
       }
 
-      // If user profile is confirmed existing in DB by OTP API, route straight to dashboard!
-      if (isExistingUser) {
+      // 1. Existing users with completed sub-profiles route IMMEDIATELY to their dashboard!
+      if (isExistingUser && hasCompletedProfile) {
         const activeRole = loginRole === 'employer' ? 'employer' : 'worker';
         if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=${activeRole}; path=/; max-age=86400`;
         router.push(activeRole === 'employer' ? '/employer' : '/worker');
         return;
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, status')
-        .eq('id', sessionUser.id)
-        .maybeSingle();
-
-      if (profile) {
-        if (profile.role === 'super-admin') {
-          router.push('/super-admin/dashboard');
-          return;
-        }
-        if (profile.role === 'admin') {
-          router.push('/admin/dashboard');
-          return;
-        }
-        if (profile.role === 'employer' || loginRole === 'employer') {
-          if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
-          router.push('/employer');
-          return;
-        }
-        if (profile.role === 'worker' || loginRole === 'worker') {
-          if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
-          router.push('/worker');
-          return;
-        }
       }
 
       // 1. Check existing employer_profiles
@@ -340,23 +307,51 @@ export default function Home() {
         return;
       }
 
-      // 3. New user onboarding: check portal role
+      // 3. Check Admin / Super Admin profiles
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, status')
+        .eq('id', sessionUser.id)
+        .maybeSingle();
+
+      if (profile?.role === 'super-admin') {
+        router.push('/super-admin/dashboard');
+        return;
+      }
+      if (profile?.role === 'admin') {
+        router.push('/admin/dashboard');
+        return;
+      }
+
+      // 4. Brand new user with no completed sub-profile: route to onboarding setup or role selector
       const searchParams = new URLSearchParams(window.location.search);
       const urlRole = searchParams.get('role');
-      const isEmp = loginRole === 'employer' || urlRole === 'employer' || targetRole === 'employer';
+      const hasExplicitStartingRole = urlRole === 'employer' || urlRole === 'worker' || targetRole === 'employer' || targetRole === 'worker';
 
-      if (isEmp) {
-        setTargetRole('employer');
-        setView('employer-funnel');
+      if (hasExplicitStartingRole) {
+        const selectedStartingRole = (urlRole === 'employer' || targetRole === 'employer') ? 'employer' : 'worker';
+        setTargetRole(selectedStartingRole);
+        setView(selectedStartingRole === 'employer' ? 'employer-funnel' : 'worker-funnel');
       } else {
-        setTargetRole('worker');
-        setView('worker-funnel');
+        setView('new-user-role-select');
       }
     } catch (err) {
       console.error("Profile check error:", err);
-      setView(targetRole === 'worker' ? 'worker-funnel' : 'employer-funnel');
+      setView('new-user-role-select');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePostOtpRoleSelected = (selectedRole: 'worker' | 'employer') => {
+    if (typeof window !== 'undefined') {
+      document.cookie = `sevikaa_user_role=${selectedRole}; path=/; max-age=86400`;
+    }
+    setTargetRole(selectedRole);
+    if (selectedRole === 'employer') {
+      setView('employer-funnel');
+    } else {
+      setView('worker-funnel');
     }
   };
 
@@ -440,6 +435,12 @@ export default function Home() {
               }} 
               onSuccess={handleLoginSuccess} 
               role={targetRole}
+            />
+          )}
+          {view === 'new-user-role-select' && user && (
+            <NewUserRoleSelector 
+              userId={user.id} 
+              onRoleSelected={handlePostOtpRoleSelected} 
             />
           )}
           {view === 'worker-funnel' && user && (

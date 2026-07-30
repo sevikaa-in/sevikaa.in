@@ -402,6 +402,7 @@ export async function sendSMSWithTemplates(params: {
     if (!activeTemplate) {
       const FALLBACK_TEMPLATES: Record<string, string> = {
         LOGIN_OTP: 'Your Sevikaa verification code is {{otp}}.\nValid for 10 minutes.\nDo not share this code with anyone.',
+        OTP_VERIFICATION: 'Your Sevikaa verification code is {{otp}}.\nValid for 10 minutes.\nDo not share this code with anyone.',
         REGISTER_OTP: 'Welcome to Sevikaa.\nYour registration verification code is {{otp}}.\nValid for 10 minutes.',
         FORGOT_PASSWORD_OTP: 'Your Sevikaa password reset code is {{otp}}.\nValid for 10 minutes.',
         CHANGE_MOBILE_OTP: 'Verify your new mobile number on Sevikaa using OTP {{otp}}. Valid for 10 minutes. Team Sevikaa.',
