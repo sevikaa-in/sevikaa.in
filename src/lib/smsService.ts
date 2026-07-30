@@ -153,6 +153,7 @@ export class MSG91Provider implements SMSProvider {
         if (flowVars.plan_name) flowVars.alphanumeric = flowVars.plan_name;
         if (flowVars.amount && !flowVars.number) flowVars.number = flowVars.amount;
         if (flowVars.transaction_id) flowVars.alphanumeric = flowVars.transaction_id;
+        if (flowVars.upload_url && !flowVars.url) flowVars.url = flowVars.upload_url;
 
         const flowPayload = {
           template_id: params.dltTemplateId,

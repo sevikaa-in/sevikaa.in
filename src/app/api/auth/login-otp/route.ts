@@ -47,10 +47,8 @@ export async function POST(req: NextRequest) {
         console.warn("Pre-OTP user check notice:", checkErr);
       }
 
-      // Generate 6-digit OTP (Static 123456 for dev/demo, or MSG91 in production)
-      const generatedOtp = process.env.NODE_ENV === 'development' || process.env.OTP_DEBUG === 'true' 
-        ? '123456' 
-        : Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate real 6-digit random OTP code
+      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
 
@@ -246,12 +244,31 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      return NextResponse.json({
+      // Prepare response and set HTTP-only role cookies for proxy security
+      const res = NextResponse.json({
         success: true,
         user: userObj,
         isExistingUser,
         hasCompletedProfile
       });
+
+      if (userObj?.role) {
+        res.cookies.set('sevikaa_user_role', userObj.role, {
+          path: '/',
+          maxAge: 86400,
+          sameSite: 'lax'
+        });
+      }
+
+      if (userObj?.id) {
+        res.cookies.set('sevikaa_user_id', userObj.id, {
+          path: '/',
+          maxAge: 86400,
+          sameSite: 'lax'
+        });
+      }
+
+      return res;
     }
 
     return NextResponse.json({ error: 'Invalid action parameter' }, { status: 400 });

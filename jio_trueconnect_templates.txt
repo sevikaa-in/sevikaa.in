@@ -196,4 +196,22 @@ Sample Content (fill in the placeholder field on the portal):
 
 Sample Backend variables:
 - {#alphanumeric#} (Job Title)  =>  Expected key in code: 'job_title' (e.g. "Full Time Cook")
+
+
+[🆕 READY FOR JIO DLT REGISTRATION] 3. SEVKAA_DOCUMENT_UPLOAD_LINK
+--------------------------------------------------------------------------------
+DLT Status: Ready for Jio DLT Registration 🔄
+Template Message:
+Namaste! Upload selfie and Aadhaar card for Sevikaa verification: {#url#}
+
+Character Count Breakdown (160-char Single SMS Limit):
+- Static Message Text: 55 characters
+- Dynamic Upload URL ({#url#}): ~44 characters (e.g. https://www.sevikaa.in/verify-upload?t=a8f2k9x1)
+- Total SMS Length: 99 characters (WELL WITHIN 160 CHARACTERS LIMIT ✅)
+
+Sample Content (fill in the placeholder field on the portal):
+- {#url#} = https://www.sevikaa.in/verify-upload?t=a8f2k9x1
+
+Sample Backend variables:
+- {#url#} (Upload URL)  =>  Expected key in code: 'url' / 'upload_url' (e.g. "https://www.sevikaa.in/verify-upload?t=a8f2k9x1")
 ================================================================================

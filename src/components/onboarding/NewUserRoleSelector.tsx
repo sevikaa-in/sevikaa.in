@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Building2, UserCheck, ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { Building2, UserCheck, ArrowRight, Loader2, Sparkles, PhoneCall, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { WorkerOnboardingChoiceModal } from './WorkerOnboardingChoiceModal';
 
 interface NewUserRoleSelectorProps {
   userId: string;
@@ -10,17 +11,25 @@ interface NewUserRoleSelectorProps {
 
 export const NewUserRoleSelector: React.FC<NewUserRoleSelectorProps> = ({ userId, onRoleSelected }) => {
   const [loadingRole, setLoadingRole] = useState<'worker' | 'employer' | null>(null);
+  const [showWorkerChoice, setShowWorkerChoice] = useState(false);
+  const [assistedInfo, setAssistedInfo] = useState<{ phone: string; slot: string } | null>(null);
   const [error, setError] = useState('');
 
   const handleSelectRole = async (role: 'worker' | 'employer') => {
+    if (role === 'worker') {
+      setShowWorkerChoice(true);
+      return;
+    }
+
     setLoadingRole(role);
     setError('');
 
     try {
+      const savedLang = (typeof window !== 'undefined' && localStorage.getItem('sevikaa_language')) || 'hi';
       const res = await fetch('/api/auth/set-role', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, role })
+        body: JSON.stringify({ userId, role, preferred_language: savedLang })
       });
 
       const data = await res.json();
@@ -34,6 +43,55 @@ export const NewUserRoleSelector: React.FC<NewUserRoleSelectorProps> = ({ userId
       setLoadingRole(null);
     }
   };
+
+  const handleWorkerChoiceSelected = (mode: 'assisted' | 'self', helplinePhone?: string, scheduledSlot?: string) => {
+    if (mode === 'assisted') {
+      setAssistedInfo({
+        phone: helplinePhone || '+91 917096093039',
+        slot: scheduledSlot || 'the scheduled daytime slot'
+      });
+    } else {
+      onRoleSelected('worker');
+    }
+  };
+
+  if (assistedInfo) {
+    return (
+      <div className="relative min-h-[85vh] flex flex-col justify-center items-center px-4 py-8 max-w-lg mx-auto w-full animate-scale-up">
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-slate-200/80 w-full text-center space-y-5">
+          <div className="w-16 h-16 rounded-full bg-emerald-50 text-[#34A853] flex items-center justify-center mx-auto shadow-sm">
+            <CheckCircle2 size={36} />
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-slate-900">Telephonic Onboarding Booked!</h3>
+            <p className="text-xs text-slate-600 font-bold mt-2 leading-relaxed">
+              Namaste! Your verification call is scheduled for <strong className="text-slate-900">{assistedInfo.slot}</strong>. A Sevikaa verification agent will call your phone.
+            </p>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-left">
+            <span className="block text-[10px] font-black uppercase text-slate-500">Need Immediate Help?</span>
+            <div className="flex items-center justify-between text-xs font-black text-slate-800">
+              <span className="flex items-center gap-1.5"><PhoneCall size={14} className="text-[#34A853]" /> Official Sevikaa Helpline:</span>
+              <a href={`tel:${assistedInfo.phone}`} className="text-[#1A73E8] underline font-extrabold">{assistedInfo.phone}</a>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onRoleSelected('worker')}
+            className="w-full py-3.5 bg-[#34A853] hover:bg-[#2b8a43] text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+          >
+            <span>Proceed to Worker Dashboard</span>
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (showWorkerChoice) {
+    return <WorkerOnboardingChoiceModal userId={userId} onChoiceSelected={handleWorkerChoiceSelected} />;
+  }
 
   return (
     <div className="relative min-h-[85vh] flex flex-col justify-center items-center px-4 py-8 max-w-xl mx-auto w-full">

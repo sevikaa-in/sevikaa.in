@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, User, Mail, Phone, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, 
   Sparkles, FileText, Check, ShieldCheck, PlayCircle, ShieldAlert, Award,
-  PhoneCall, Copy, MessageSquare, CheckCheck
+  PhoneCall, Copy, MessageSquare, CheckCheck, ChevronDown, Building2
 } from 'lucide-react';
 
 interface InterviewDetailModalProps {
@@ -24,6 +25,192 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
   const [smsSent, setSmsSent] = useState(false);
   const [smsSending, setSmsSending] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Reschedule Modal State
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState('10:30 AM');
+  const [customReason, setCustomReason] = useState('');
+
+  // Admin Live Profile Editor & Asset Upload States
+  const [isEditingBio, setIsEditingBio] = useState(false);
+  const [savingBio, setSavingBio] = useState(false);
+  const [uploadingAsset, setUploadingAsset] = useState(false);
+  const [uploadLinkSent, setUploadLinkSent] = useState(false);
+  const [previewMedia, setPreviewMedia] = useState<{ url: string; title: string; type: 'image' | 'video' } | null>(null);
+
+  const [editFullName, setEditFullName] = useState('');
+  const [editAge, setEditAge] = useState('');
+  const [editGender, setEditGender] = useState('female');
+  const [editExperience, setEditExperience] = useState('');
+  const [editSalary, setEditSalary] = useState('');
+  const [editSkills, setEditSkills] = useState('');
+  const [editEmergencyContact, setEditEmergencyContact] = useState('');
+  const [editPrimarySociety, setEditPrimarySociety] = useState('');
+  const [editLanguages, setEditLanguages] = useState('');
+  const [isSocietyDropdownOpen, setIsSocietyDropdownOpen] = useState(false);
+  const [allSocieties, setAllSocieties] = useState<any[]>([]);
+
+  useEffect(() => {
+    setMounted(true);
+    const loadSocieties = async () => {
+      try {
+        const res = await fetch('/api/societies');
+        const data = await res.json();
+        if (data?.societies && data.societies.length > 0) {
+          setAllSocieties(data.societies);
+          return;
+        }
+      } catch (e) {}
+
+      try {
+        const res2 = await fetch('/api/super-admin/data?tab=societies');
+        const data2 = await res2.json();
+        if (data2?.societies && data2.societies.length > 0) {
+          setAllSocieties(data2.societies);
+        }
+      } catch (e) {}
+    };
+    loadSocieties();
+  }, []);
+
+  // Initialize edit fields when interview changes
+  useEffect(() => {
+    if (interview?.worker) {
+      const w = interview.worker;
+      setEditFullName(w.full_name || w.name || '');
+      setEditAge(w.age ? String(w.age) : '28');
+      setEditGender(w.gender || 'female');
+      setEditExperience(w.experience_years ? String(w.experience_years) : '0');
+      setEditSalary(w.expected_salary ? String(w.expected_salary) : '0');
+      setEditSkills(Array.isArray(w.skills) ? w.skills.join(', ') : (w.skills || 'Domestic Help'));
+      setEditEmergencyContact(w.emergency_contact || '');
+      setEditPrimarySociety(w.primary_society_id || w.society || '');
+      const existingLangs = (w.languages_spoken && Array.isArray(w.languages_spoken) && w.languages_spoken.length > 0)
+        ? w.languages_spoken.join(', ')
+        : (w.preferred_language ? ({ hi: 'Hindi', en: 'English', kn: 'Kannada', te: 'Telugu', ta: 'Tamil' }[w.preferred_language as string] || w.preferred_language) : '');
+      setEditLanguages(existingLangs);
+    }
+  }, [interview]);
+
+  // Live photo polling while Admin drawer is open ONLY if assets are missing
+  useEffect(() => {
+    if (!isOpen) return;
+    const targetId = interview?.worker?.id || interview?.id;
+    if (!targetId) return;
+
+    const w = interview?.worker;
+    const isMissingAssets = !w?.profile_picture_url || !w?.aadhaar_front_url || !w?.aadhaar_back_url;
+    if (!isMissingAssets) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/worker/upload-token?userId=${targetId}`);
+        const data = await res.json();
+        if (data?.existingAssets && interview?.worker) {
+          let updated = false;
+          if (data.existingAssets.profile_picture_url && !interview.worker.profile_picture_url) {
+            interview.worker.profile_picture_url = data.existingAssets.profile_picture_url;
+            updated = true;
+          }
+          if (data.existingAssets.aadhaar_front_url && !interview.worker.aadhaar_front_url) {
+            interview.worker.aadhaar_front_url = data.existingAssets.aadhaar_front_url;
+            updated = true;
+          }
+          if (data.existingAssets.aadhaar_back_url && !interview.worker.aadhaar_back_url) {
+            interview.worker.aadhaar_back_url = data.existingAssets.aadhaar_back_url;
+            updated = true;
+          }
+          if (updated) {
+            clearInterval(interval);
+          }
+        }
+      } catch (err) {
+        console.warn("Live photo poll notice:", err);
+      }
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [interview, isOpen]);
+
+  const handleSaveAdminBioEdit = async () => {
+    if (!interview?.id) return;
+    setSavingBio(true);
+    try {
+      const skillsArray = editSkills.split(',').map(s => s.trim()).filter(Boolean);
+      const languagesArray = editLanguages.split(',').map(s => s.trim()).filter(Boolean);
+      const res = await fetch('/api/admin/worker/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: interview.worker?.id || interview.id,
+          full_name: editFullName,
+          age: editAge,
+          gender: editGender,
+          experience_years: editExperience,
+          expected_salary: editSalary,
+          skills: skillsArray,
+          languages_spoken: languagesArray,
+          emergency_contact: editEmergencyContact,
+          primary_society_id: editPrimarySociety
+        })
+      });
+      if (res.ok) {
+        setIsEditingBio(false);
+        if (interview.worker) {
+          interview.worker.full_name = editFullName;
+          interview.worker.name = editFullName;
+          interview.worker.age = parseInt(editAge) || 28;
+          interview.worker.gender = editGender;
+          interview.worker.experience_years = parseInt(editExperience) || 0;
+          interview.worker.expected_salary = parseInt(editSalary) || 0;
+          interview.worker.skills = skillsArray;
+          interview.worker.languages_spoken = languagesArray;
+          interview.worker.emergency_contact = editEmergencyContact;
+          interview.worker.primary_society_id = editPrimarySociety;
+        }
+      }
+    } catch (err) {
+      console.error("Save bio edit failed:", err);
+    } finally {
+      setSavingBio(false);
+    }
+  };
+
+  const handleSendUploadLinkSms = async () => {
+    const activePhone = worker?.phone;
+    if (!activePhone) return;
+    try {
+      const tokenRes = await fetch('/api/worker/upload-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: worker.id || interview.id })
+      });
+      const tokenData = await tokenRes.json();
+      if (tokenData.success && tokenData.uploadUrl) {
+        await fetch('/api/notifications/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'interview_scheduled',
+            userId: worker.id || interview.id,
+            name: workerName,
+            phone: activePhone,
+            note: `Upload Link: ${tokenData.uploadUrl}`
+          })
+        });
+        setUploadLinkSent(true);
+        setTimeout(() => setUploadLinkSent(false), 4000);
+      }
+    } catch (e) {
+      console.error("Failed sending upload link SMS:", e);
+    }
+  };
 
   const handleSendSmsReminder = async () => {
     if (!worker?.phone) return;
@@ -63,9 +250,16 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
     }
   }, [interview]);
 
-  if (!isOpen || !interview) return null;
+  if (!isOpen || !interview || !mounted) return null;
 
   const { worker } = interview;
+
+  const workerName = 
+    interview.workerName ||
+    (worker?.full_name && worker.full_name.trim() && worker.full_name !== 'Verified Worker' ? worker.full_name.trim() : null) ||
+    (worker?.name && worker.name.trim() && worker.name !== 'Verified Worker' ? worker.name.trim() : null) ||
+    (worker?.email ? worker.email.split('@')[0].charAt(0).toUpperCase() + worker.email.split('@')[0].slice(1) : null) ||
+    (worker?.phone ? `Candidate (${worker.phone.slice(-4)})` : 'Registered Candidate');
 
   const getPublicUrl = (bucket: string, path: string | null) => {
     if (!path) return '';
@@ -77,27 +271,28 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
 
   const selfieUrl = worker ? getPublicUrl('worker-selfies', worker.profile_picture_url) : '';
   const aadhaarFrontUrl = worker ? getPublicUrl('worker-documents', worker.aadhaar_front_url) : '';
+  const aadhaarBackUrl = worker ? getPublicUrl('worker-documents', worker.aadhaar_back_url) : '';
   const videoUrl = worker ? getPublicUrl('worker-videos', worker.video_url) : '';
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 sm:p-6 animate-fade-in"
+      className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-[99999] flex justify-end animate-fade-in"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-3xl max-h-[85vh] bg-white shadow-2xl rounded-3xl flex flex-col border border-slate-100 animate-scale-up overflow-hidden"
+        className="w-full max-w-3xl h-screen bg-white shadow-2xl flex flex-col border-l border-slate-100 animate-slide-left overflow-hidden relative z-[100000]"
         onClick={(e) => e.stopPropagation()}
       >
         
         {/* Header */}
-        <div className="p-5 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+        <div className="p-5 border-b border-slate-50 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-50 text-[#1A73E8] flex items-center justify-center font-black text-sm">
+            <div className="w-10 h-10 rounded-full bg-blue-50 text-[#1A73E8] flex items-center justify-center font-black text-sm shrink-0">
               <User size={18} />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
-                <span>Verification Interview for {interview.workerName}</span>
+              <h3 className="text-sm font-black text-slate-800 flex items-center gap-2 flex-wrap">
+                <span>Verification Interview for {workerName}</span>
                 <span className="px-2.5 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-blue-50 text-blue-600 border border-blue-100/50">
                   {interview.status}
                 </span>
@@ -107,7 +302,7 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 hover:bg-slate-100 rounded-full transition-colors text-gray-400 hover:text-slate-800 cursor-pointer"
+            className="p-1.5 hover:bg-slate-100 rounded-full transition-colors text-gray-400 hover:text-slate-800 cursor-pointer shrink-0"
           >
             <X size={18} />
           </button>
@@ -115,44 +310,54 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
 
         {/* Call Action Bar */}
         {worker?.phone && (
-          <div className="px-5 py-3 border-b border-slate-50 bg-emerald-50/40 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center">
-                <PhoneCall size={13} className="text-emerald-700" />
+          <div className="px-5 py-3 border-b border-slate-50 bg-emerald-50/40 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                <PhoneCall size={14} className="text-emerald-700" />
               </div>
               <div>
-                <span className="block text-[9px] font-black text-emerald-800 uppercase tracking-wide">Phone Interview — Call Worker Directly</span>
-                <span className="text-xs font-black text-slate-800">{worker.phone}</span>
+                <span className="block text-[9px] font-black text-emerald-800 uppercase tracking-wide">Phone Interview — Call {workerName} Directly</span>
+                <span className="text-sm font-black text-slate-800 tracking-wide">{worker.phone}</span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {/* Tap-to-Call */}
               <a
                 href={`tel:${worker.phone}`}
-                className="py-2 px-3.5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-[10px] font-black transition-all active:scale-95 flex items-center gap-1.5"
+                className="py-2 px-3.5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
               >
-                <PhoneCall size={12} />
+                <PhoneCall size={13} />
                 Call Now
+              </a>
+              {/* WhatsApp Direct */}
+              <a
+                href={`https://wa.me/91${worker.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(`Namaste ${workerName}! This is Sevikaa Verification Team regarding your interview call.`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-2 px-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
+              >
+                <MessageSquare size={13} />
+                WhatsApp
               </a>
               {/* Copy Number */}
               <button
                 onClick={handleCopyPhone}
-                className="py-2 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                className="py-2 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
-                {copied ? <CheckCheck size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                {copied ? <CheckCheck size={13} className="text-emerald-500" /> : <Copy size={13} />}
                 {copied ? 'Copied!' : 'Copy'}
               </button>
               {/* SMS Reminder */}
               <button
                 onClick={handleSendSmsReminder}
                 disabled={smsSent || smsSending}
-                className={`py-2 px-3 rounded-xl text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer border ${
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer border ${
                   smsSent
                     ? 'bg-blue-50 border-blue-100 text-[#1A73E8]'
                     : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
-                } disabled:cursor-not-allowed`}
+                } disabled:cursor-not-allowed shadow-xs`}
               >
-                {smsSent ? <CheckCheck size={12} /> : <MessageSquare size={12} />}
+                {smsSent ? <CheckCheck size={13} /> : <MessageSquare size={13} />}
                 {smsSending ? 'Sending...' : smsSent ? 'SMS Sent ✓' : 'SMS Reminder'}
               </button>
             </div>
@@ -168,43 +373,251 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
             {/* Bio Card */}
             {worker ? (
               <div className="bg-slate-50/40 border border-slate-100 p-5 rounded-2xl space-y-4">
-                <span className="block text-[9.5px] font-black text-slate-700 uppercase tracking-wider">Candidate Biography</span>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-2 text-xs font-bold text-slate-700">
-                  <div className="space-y-0.5">
-                    <span className="block text-[9px] text-gray-400 uppercase">Age / Gender</span>
-                    <span>{worker.age || 'N/A'} yrs / {worker.gender || 'N/A'}</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="block text-[9px] text-gray-400 uppercase">Experience</span>
-                    <span>{worker.experience_years || 0} years</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="block text-[9px] text-gray-400 uppercase">Expected Salary</span>
-                    <span>₹{worker.expected_salary || 0}/mo</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="block text-[9px] text-gray-400 uppercase">Phone</span>
-                    <span>{worker.phone || 'N/A'}</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="block text-[9px] text-gray-400 uppercase">Emergency Contact</span>
-                    <span>{worker.emergency_contact || 'N/A'}</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="block text-[9px] text-gray-400 uppercase">Status</span>
-                    <span className="capitalize">{worker.status || 'Pending'}</span>
-                  </div>
+                <div className="flex items-center justify-between">
+                  <span className="block text-[9.5px] font-black text-slate-700 uppercase tracking-wider">Candidate Biography</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingBio(!isEditingBio)}
+                    className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-[#1A73E8] rounded-xl text-[10px] font-extrabold transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1"
+                  >
+                    <FileText size={11} />
+                    <span>{isEditingBio ? 'Cancel Edit' : 'Edit Candidate Details'}</span>
+                  </button>
                 </div>
+
+                {isEditingBio ? (
+                  <div className="space-y-3 pt-2 border-t border-slate-100 animate-fade-in">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Full Name</label>
+                        <input
+                          type="text"
+                          value={editFullName}
+                          onChange={(e) => setEditFullName(e.target.value)}
+                          className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Category / Skills</label>
+                        <select
+                          value={editSkills}
+                          onChange={(e) => setEditSkills(e.target.value)}
+                          className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8]"
+                        >
+                          <option value="" className="text-slate-900 bg-white">Select Category...</option>
+                          <option value="Cook" className="text-slate-900 bg-white">Cook / Chef</option>
+                          <option value="House Maid" className="text-slate-900 bg-white">House Maid / Cleaning</option>
+                          <option value="Nanny / Baby Care" className="text-slate-900 bg-white">Nanny / Baby Care</option>
+                          <option value="Elderly Care" className="text-slate-900 bg-white">Elderly Care / Patient Care</option>
+                          <option value="Driver" className="text-slate-900 bg-white">Driver</option>
+                          <option value="Pet Care" className="text-slate-900 bg-white">Pet Care</option>
+                          <option value="All Rounder" className="text-slate-900 bg-white">All Rounder / Multi-tasker</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Age</label>
+                        <input
+                          type="number"
+                          value={editAge}
+                          onChange={(e) => setEditAge(e.target.value)}
+                          className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Gender</label>
+                        <select
+                          value={editGender}
+                          onChange={(e) => setEditGender(e.target.value)}
+                          className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8]"
+                        >
+                          <option value="female" className="text-slate-900 bg-white">Female</option>
+                          <option value="male" className="text-slate-900 bg-white">Male</option>
+                          <option value="other" className="text-slate-900 bg-white">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Experience (Years)</label>
+                        <input
+                          type="number"
+                          value={editExperience}
+                          onChange={(e) => setEditExperience(e.target.value)}
+                          className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Expected Salary (₹/mo)</label>
+                        <input
+                          type="number"
+                          value={editSalary}
+                          onChange={(e) => setEditSalary(e.target.value)}
+                          className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8]"
+                        />
+                      </div>
+                      <div className="col-span-2 sm:col-span-1">
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Emergency / Alternate Phone (10 Digits)</label>
+                        <input
+                          type="tel"
+                          maxLength={10}
+                          value={editEmergencyContact}
+                          onChange={(e) => setEditEmergencyContact(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          placeholder="e.g. 9876543210"
+                          className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8] font-mono"
+                        />
+                      </div>
+                      <div className="col-span-2 sm:col-span-1">
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Languages Spoken</label>
+                        <input
+                          type="text"
+                          value={editLanguages}
+                          onChange={(e) => setEditLanguages(e.target.value)}
+                          placeholder="e.g. Telugu, Hindi, English"
+                          className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8]"
+                        />
+                      </div>
+                      <div className="col-span-2 relative">
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Primary Gated Society</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={editPrimarySociety}
+                            onChange={(e) => {
+                              setEditPrimarySociety(e.target.value);
+                              setIsSocietyDropdownOpen(true);
+                            }}
+                            onFocus={() => setIsSocietyDropdownOpen(true)}
+                            placeholder="Type to search society..."
+                            className="w-full py-1.5 pl-2.5 pr-7 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setIsSocietyDropdownOpen(!isSocietyDropdownOpen)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-slate-700 cursor-pointer"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+
+                        {/* Searchable Scrollable Dropdown Menu (All India Address Search) */}
+                        {isSocietyDropdownOpen && (
+                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-[100010] max-h-52 overflow-y-auto p-1 space-y-0.5 animate-scale-up">
+                            {allSocieties
+                              .filter((soc: any) => {
+                                if (!editPrimarySociety) return true;
+                                const q = editPrimarySociety.toLowerCase().trim();
+                                return (
+                                  (soc.name && soc.name.toLowerCase().includes(q)) ||
+                                  (soc.address && soc.address.toLowerCase().includes(q)) ||
+                                  (soc.locality && soc.locality.toLowerCase().includes(q)) ||
+                                  (soc.city && soc.city.toLowerCase().includes(q)) ||
+                                  (soc.pincode && String(soc.pincode).includes(q))
+                                );
+                              })
+                              .map((soc: any) => (
+                                <button
+                                  key={soc.id || soc.name}
+                                  type="button"
+                                  onClick={() => {
+                                    setEditPrimarySociety(soc.name);
+                                    setIsSocietyDropdownOpen(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs font-bold text-slate-800 hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-between cursor-pointer"
+                                >
+                                  <span className="font-extrabold">{soc.name}</span>
+                                  <span className="text-[10px] text-gray-400 font-semibold">
+                                    {[soc.city, soc.pincode].filter(Boolean).join(' • ')}
+                                  </span>
+                                </button>
+                              ))}
+                            {allSocieties.filter((soc: any) => {
+                              if (!editPrimarySociety) return true;
+                              const q = editPrimarySociety.toLowerCase().trim();
+                              return (
+                                (soc.name && soc.name.toLowerCase().includes(q)) ||
+                                (soc.address && soc.address.toLowerCase().includes(q)) ||
+                                (soc.locality && soc.locality.toLowerCase().includes(q)) ||
+                                (soc.city && soc.city.toLowerCase().includes(q)) ||
+                                (soc.pincode && String(soc.pincode).includes(q))
+                              );
+                            }).length === 0 && (
+                              <div className="px-3 py-2 text-xs text-gray-500 font-semibold italic text-center">
+                                Using custom society: "{editPrimarySociety}"
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSaveAdminBioEdit}
+                      disabled={savingBio}
+                      className="w-full py-2 px-3 bg-[#1A73E8] hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all cursor-pointer active:scale-95 shadow-sm"
+                    >
+                      {savingBio ? 'Saving Changes...' : 'Save & Sync Candidate Details'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-4 text-xs font-bold text-slate-700">
+                    <div className="space-y-0.5 col-span-2 sm:col-span-1">
+                      <span className="block text-[9px] text-gray-400 uppercase font-extrabold">Full Name</span>
+                      <span className="text-slate-900 font-black">{workerName}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="block text-[9px] text-gray-400 uppercase font-extrabold">Age / Gender</span>
+                      <span>{worker.age || 'N/A'} yrs / {worker.gender || 'N/A'}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="block text-[9px] text-gray-400 uppercase font-extrabold">Experience</span>
+                      <span>{worker.experience_years || 0} years</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="block text-[9px] text-gray-400 uppercase font-extrabold">Expected Salary</span>
+                      <span className="text-[#34A853] font-black">₹{worker.expected_salary || 0}/mo</span>
+                    </div>
+                    <div className="space-y-0.5 col-span-2 sm:col-span-1">
+                      <span className="block text-[9px] text-gray-400 uppercase font-extrabold">Phone</span>
+                      <span className="break-all">{worker.phone || 'N/A'}</span>
+                    </div>
+                    <div className="space-y-0.5 col-span-2 sm:col-span-1">
+                      <span className="block text-[9px] text-gray-400 uppercase font-extrabold">Emergency Contact</span>
+                      <span className="break-all">{worker.emergency_contact || 'N/A'}</span>
+                    </div>
+                    <div className="space-y-0.5 col-span-2 sm:col-span-1">
+                      <span className="block text-[9px] text-gray-400 uppercase font-extrabold">Primary Gated Society</span>
+                      <span className="text-slate-900 font-black flex items-center gap-1">
+                        <Building2 size={12} className="text-[#1A73E8]" />
+                        <span>{worker.primary_society_id || worker.society || 'Not Assigned'}</span>
+                      </span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="block text-[9px] text-gray-400 uppercase font-extrabold">Status</span>
+                      <span className="capitalize px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200/50 rounded-full text-[9px] font-black inline-block">{worker.status || 'Pending'}</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="border-t border-slate-100 pt-4 space-y-2">
                   <span className="block text-[9px] text-gray-400 uppercase font-black">Languages Spoken</span>
-                  <div className="flex flex-wrap gap-1">
-                    {worker.languages_spoken?.map((lang: string) => (
-                      <span key={lang} className="px-2 py-0.5 bg-white border border-slate-100 text-slate-700 rounded-full text-[9px] font-extrabold uppercase">
-                        {lang}
-                      </span>
-                    )) || <span className="text-[10px] text-gray-400">None logged</span>}
+                  <div className="flex flex-wrap gap-1.5">
+                    {(() => {
+                      const langs = (worker.languages_spoken && Array.isArray(worker.languages_spoken) && worker.languages_spoken.length > 0)
+                        ? worker.languages_spoken
+                        : (worker.languages && Array.isArray(worker.languages) && worker.languages.length > 0)
+                          ? worker.languages
+                          : (worker.preferred_language
+                              ? [
+                                  { hi: 'Hindi', en: 'English', kn: 'Kannada', ta: 'Tamil', te: 'Telugu', bn: 'Bengali', mr: 'Marathi', gu: 'Gujarati', pa: 'Punjabi', ml: 'Malayalam', as: 'Assamese', ne: 'Nepali' }[worker.preferred_language as string] || worker.preferred_language
+                                ]
+                              : []);
+                      if (langs.length === 0) {
+                        return <span className="text-[10px] text-gray-400 italic">None logged / Not selected</span>;
+                      }
+                      return langs.map((lang: string) => (
+                        <span key={lang} className="px-2.5 py-1 bg-white border border-slate-200 text-slate-700 rounded-full text-[9.5px] font-extrabold uppercase shadow-2xs">
+                          {lang}
+                        </span>
+                      ));
+                    })()}
                   </div>
                 </div>
               </div>
@@ -216,58 +629,148 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
 
             {/* Document Checklists Links */}
             <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm space-y-4">
-              <span className="block text-[9.5px] font-black text-slate-700 uppercase tracking-wider">Candidate Verification Assets</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <span className="block text-[10px] font-black text-slate-800 uppercase tracking-wider">Candidate Verification Assets</span>
+                  <span className="text-[9px] text-gray-400 font-bold">4 Verified Media Documents</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSendUploadLinkSms}
+                  className="px-3 py-1.5 bg-emerald-50 border border-emerald-200/80 hover:bg-emerald-100 text-emerald-800 rounded-xl text-[10.5px] font-black transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5 self-start sm:self-auto"
+                >
+                  <MessageSquare size={13} />
+                  <span>{uploadLinkSent ? 'SMS Upload Link Sent ✓' : 'Send 1-Click Photo Upload Link (SMS)'}</span>
+                </button>
+              </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                 
-                {/* Selfie Photo */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50 flex flex-col justify-between items-center text-center space-y-2 min-h-[96px]">
-                  <span className="text-[8.5px] font-black text-gray-400 uppercase">Selfie Photo</span>
+                {/* 1. Selfie Photo */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/60 flex flex-col justify-between items-center text-center space-y-2.5 min-h-[140px] hover:border-slate-300 transition-all">
+                  <span className="text-[9.5px] font-black text-slate-600 uppercase tracking-wide">1. Selfie Photo</span>
                   {selfieUrl ? (
-                    <a 
-                      href={selfieUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-[9.5px] font-bold text-[#1A73E8] hover:underline flex items-center gap-0.5"
-                    >
-                      <FileText size={10} /> View Selfie Photo
-                    </a>
+                    <div className="space-y-2 w-full">
+                      <span className="px-2 py-0.5 bg-emerald-50 text-[#34A853] border border-emerald-200 rounded-full text-[9px] font-black inline-block">
+                        Uploaded ✓
+                      </span>
+                      <button 
+                        type="button"
+                        onClick={() => setPreviewMedia({ url: selfieUrl, title: `${workerName} - Selfie Photo`, type: 'image' })}
+                        className="w-full py-1.5 px-2 bg-white border border-slate-200 hover:bg-blue-50 text-[#1A73E8] rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                      >
+                        <FileText size={11} /> Inspect Selfie
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendUploadLinkSms()}
+                        className="w-full py-1 px-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/70 rounded-lg text-[8.5px] font-extrabold cursor-pointer transition-all"
+                      >
+                        Request Retake
+                      </button>
+                    </div>
                   ) : (
-                    <span className="text-[9px] text-gray-400 font-black">Not Uploaded</span>
+                    <div className="space-y-2 my-auto">
+                      <span className="px-2 py-0.5 bg-slate-100 text-gray-400 rounded-full text-[9px] font-black inline-block">
+                        Not Uploaded
+                      </span>
+                    </div>
                   )}
                 </div>
 
-                {/* Aadhaar Scanner */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50 flex flex-col justify-between items-center text-center space-y-2 min-h-[96px]">
-                  <span className="text-[8.5px] font-black text-gray-400 uppercase">Aadhaar Card</span>
+                {/* 2. Aadhaar Front Card */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/60 flex flex-col justify-between items-center text-center space-y-2.5 min-h-[140px] hover:border-slate-300 transition-all">
+                  <span className="text-[9.5px] font-black text-slate-600 uppercase tracking-wide">2. Aadhaar Front</span>
                   {aadhaarFrontUrl ? (
-                    <a 
-                      href={aadhaarFrontUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-[9.5px] font-bold text-[#1A73E8] hover:underline flex items-center gap-0.5"
-                    >
-                      <FileText size={10} /> Inspect Document
-                    </a>
+                    <div className="space-y-2 w-full">
+                      <span className="px-2 py-0.5 bg-emerald-50 text-[#34A853] border border-emerald-200 rounded-full text-[9px] font-black inline-block">
+                        Uploaded ✓
+                      </span>
+                      <button 
+                        type="button"
+                        onClick={() => setPreviewMedia({ url: aadhaarFrontUrl, title: `${workerName} - Aadhaar Front Card`, type: 'image' })}
+                        className="w-full py-1.5 px-2 bg-white border border-slate-200 hover:bg-blue-50 text-[#1A73E8] rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                      >
+                        <FileText size={11} /> Inspect Front
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendUploadLinkSms()}
+                        className="w-full py-1 px-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/70 rounded-lg text-[8.5px] font-extrabold cursor-pointer transition-all"
+                      >
+                        Request Retake
+                      </button>
+                    </div>
                   ) : (
-                    <span className="text-[9px] text-gray-400 font-black">Not Uploaded</span>
+                    <div className="space-y-2 my-auto">
+                      <span className="px-2 py-0.5 bg-slate-100 text-gray-400 rounded-full text-[9px] font-black inline-block">
+                        Not Uploaded
+                      </span>
+                    </div>
                   )}
                 </div>
 
-                {/* Verification Video */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50 flex flex-col justify-between items-center text-center space-y-2 min-h-[96px]">
-                  <span className="text-[8.5px] font-black text-gray-400 uppercase">Intro Video</span>
-                  {videoUrl ? (
-                    <a 
-                      href={videoUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-[9.5px] font-bold text-[#1A73E8] hover:underline flex items-center gap-0.5"
-                    >
-                      <PlayCircle size={10} /> Play Video
-                    </a>
+                {/* 3. Aadhaar Back Card */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/60 flex flex-col justify-between items-center text-center space-y-2.5 min-h-[140px] hover:border-slate-300 transition-all">
+                  <span className="text-[9.5px] font-black text-slate-600 uppercase tracking-wide">3. Aadhaar Back</span>
+                  {aadhaarBackUrl ? (
+                    <div className="space-y-2 w-full">
+                      <span className="px-2 py-0.5 bg-emerald-50 text-[#34A853] border border-emerald-200 rounded-full text-[9px] font-black inline-block">
+                        Uploaded ✓
+                      </span>
+                      <button 
+                        type="button"
+                        onClick={() => setPreviewMedia({ url: aadhaarBackUrl, title: `${workerName} - Aadhaar Back Card`, type: 'image' })}
+                        className="w-full py-1.5 px-2 bg-white border border-slate-200 hover:bg-blue-50 text-[#1A73E8] rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                      >
+                        <FileText size={11} /> Inspect Back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendUploadLinkSms()}
+                        className="w-full py-1 px-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/70 rounded-lg text-[8.5px] font-extrabold cursor-pointer transition-all"
+                      >
+                        Request Retake
+                      </button>
+                    </div>
                   ) : (
-                    <span className="text-[9px] text-gray-400 font-black">Not Uploaded</span>
+                    <div className="space-y-2 my-auto">
+                      <span className="px-2 py-0.5 bg-slate-100 text-gray-400 rounded-full text-[9px] font-black inline-block">
+                        Not Uploaded
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Verification Video */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/60 flex flex-col justify-between items-center text-center space-y-2.5 min-h-[140px] hover:border-slate-300 transition-all">
+                  <span className="text-[9.5px] font-black text-slate-600 uppercase tracking-wide">4. Intro Video (15s)</span>
+                  {videoUrl ? (
+                    <div className="space-y-2 w-full">
+                      <span className="px-2 py-0.5 bg-emerald-50 text-[#34A853] border border-emerald-200 rounded-full text-[9px] font-black inline-block">
+                        Uploaded ✓
+                      </span>
+                      <button 
+                        type="button"
+                        onClick={() => setPreviewMedia({ url: videoUrl, title: `${workerName} - 15s Intro Video`, type: 'video' })}
+                        className="w-full py-1.5 px-2 bg-white border border-slate-200 hover:bg-blue-50 text-[#1A73E8] rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                      >
+                        <PlayCircle size={11} /> Play Video
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendUploadLinkSms()}
+                        className="w-full py-1 px-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/70 rounded-lg text-[8.5px] font-extrabold cursor-pointer transition-all"
+                      >
+                        Request Retake
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 my-auto">
+                      <span className="px-2 py-0.5 bg-slate-100 text-gray-400 rounded-full text-[9px] font-black inline-block">
+                        Not Uploaded
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -354,14 +857,11 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
         {interview.status !== 'Completed' ? (
           <div className="p-5 border-t border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-50/20">
             <button
-              onClick={() => {
-                onLogResult(interview.id, 'Re-interview', notesText || 'Reschedule requested.');
-                onClose();
-              }}
+              onClick={() => setIsRescheduleOpen(true)}
               className="w-full sm:w-auto py-2.5 px-4 border border-yellow-200 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1"
             >
-              <AlertCircle size={14} />
-              Reschedule &amp; Re-audit
+              <Calendar size={14} />
+              Reschedule &amp; Select Time
             </button>
 
             <div className="flex gap-2 w-full sm:w-auto justify-end">
@@ -397,7 +897,159 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
             </button>
           </div>
         )}
+
+        {/* Reschedule Date & Time Picker Sub-Modal */}
+        {isRescheduleOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[100001] flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4 animate-scale-up">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2 text-slate-800">
+                  <Calendar size={18} className="text-[#1A73E8]" />
+                  <h4 className="text-sm font-black">Reschedule Verification Interview</h4>
+                </div>
+                <button 
+                  onClick={() => setIsRescheduleOpen(false)}
+                  className="p-1 hover:bg-slate-100 rounded-full text-gray-400 hover:text-slate-800 cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <p className="text-[10px] text-gray-500 font-bold">
+                Select a new date and time slot for <strong>{workerName}</strong>. An automated DLT SMS notification will be dispatched instantly.
+              </p>
+
+              {/* Date Selector */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500">Interview Date</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              {/* Time Slot Presets */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500">Time Slot</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    '09:00 AM (Morning)',
+                    '11:30 AM (Mid-Day)',
+                    '02:30 PM (Afternoon)',
+                    '05:00 PM (Late Afternoon)'
+                  ].map((slot) => (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => setSelectedTimeSlot(slot)}
+                      className={`py-2 px-2.5 rounded-xl text-[10px] font-bold border transition-all text-center cursor-pointer ${
+                        selectedTimeSlot === slot
+                          ? 'bg-[#1A73E8] text-white border-[#1A73E8] shadow-xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reason / Notes */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500">Reschedule Reason / Admin Notes</label>
+                <textarea
+                  rows={2}
+                  value={customReason}
+                  onChange={(e) => setCustomReason(e.target.value)}
+                  placeholder="e.g. Candidate requested afternoon shift call due to work..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none resize-none text-slate-800"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsRescheduleOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const formattedDate = new Date(selectedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                    const resMsg = `Rescheduled to ${formattedDate} at ${selectedTimeSlot}. ${customReason ? 'Reason: ' + customReason : ''}`;
+                    onLogResult(interview.id, 'Re-interview', resMsg);
+                    setIsRescheduleOpen(false);
+                    onClose();
+                  }}
+                  className="flex-1 py-2.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black cursor-pointer shadow-sm active:scale-95"
+                >
+                  Confirm &amp; Send DLT SMS
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* In-App Enlarged Image & Video Media Lightbox Modal (Clean Light Mode) */}
+        {previewMedia && (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[100005] flex flex-col items-center justify-center p-4 animate-fade-in"
+            onClick={() => setPreviewMedia(null)}
+          >
+            <div 
+              className="bg-white border border-slate-200 rounded-3xl max-w-4xl w-full p-5 flex flex-col space-y-3 relative shadow-2xl animate-scale-up overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 px-1">
+                <div className="flex items-center gap-2">
+                  <FileText size={16} className="text-[#1A73E8]" />
+                  <h4 className="text-xs font-black text-slate-800">{previewMedia.title}</h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewMedia.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-xl transition-all"
+                  >
+                    Open Original Tab ↗
+                  </a>
+                  <button 
+                    onClick={() => setPreviewMedia(null)}
+                    className="p-1 hover:bg-slate-100 text-gray-400 hover:text-slate-800 rounded-full transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 flex items-center justify-center min-h-[420px] max-h-[72vh] bg-slate-50 border border-slate-100 rounded-2xl overflow-hidden p-3 relative">
+                {previewMedia.type === 'video' ? (
+                  <video 
+                    src={previewMedia.url} 
+                    controls 
+                    autoPlay 
+                    className="max-h-[68vh] w-auto max-w-full rounded-xl shadow-sm border border-slate-200" 
+                  />
+                ) : (
+                  <img 
+                    src={previewMedia.url} 
+                    alt={previewMedia.title} 
+                    className="max-h-[68vh] w-auto max-w-full object-contain rounded-xl shadow-sm border border-slate-200" 
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

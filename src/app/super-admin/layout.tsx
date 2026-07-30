@@ -441,42 +441,63 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     { name: 'Backups', status: 'Healthy' as const, lastChecked: '4 hours ago', details: 'Daily DB dump captured' }
   ]);
 
-  // Fetch real statistics from Supabase tables
-  const fetchDashboardData = async () => {
+  // Fetch real statistics from Supabase tables with pagination and tab filter
+  const fetchDashboardData = async (pageVal = 1, currentTab?: string) => {
     setError('');
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
     if (isPlaceholder) {
       setDbStats({
-        totalWorkers: 154,
-        verifiedWorkers: 140,
-        pendingWorkers: 7,
-        totalEmployers: 42,
-        activeEmployers: 12,
-        totalSocieties: 3,
-        pendingJobs: 2,
-        pendingReviews: 2,
+        totalWorkers: 128,
+        verifiedWorkers: 94,
+        pendingWorkers: 14,
+        totalEmployers: 86,
+        activeEmployers: 42,
+        totalSocieties: 18,
+        pendingJobs: 9,
+        pendingReviews: 5,
       });
 
       setWorkersList([
-        { id: 'w1', full_name: 'Sunita Devi', skills: ['Maid', 'Cook'], languages_spoken: ['Hindi'], status: 'pending_review', age: 34, gender: 'female' },
-        { id: 'w2', full_name: 'Ramesh Singh', skills: ['Gardener'], languages_spoken: ['Hindi', 'English'], status: 'live', age: 41, gender: 'male' },
-        { id: 'w3', full_name: 'Seema Bai', skills: ['Nanny', 'Maid'], languages_spoken: ['Kannada', 'Tamil'], status: 'live', age: 29, gender: 'female' }
+        { 
+          id: 'w1', 
+          full_name: 'Ramesh Kumar', 
+          skills: ['Cook', 'Driver'], 
+          status: 'pending_review',
+          age: 34,
+          gender: 'Male',
+          experience_years: 6,
+          expected_salary: 15000,
+          phone: '+91 98765 43210',
+          emergency_contact: '+91 98765 00000',
+          badges: { mobile: 'Verified', aadhaar: 'Verified', police: 'Pending', interview: 'Pending', video: 'Pending', profile: 'Pending' }
+        }
       ]);
 
       setEmployersList([
-        { id: 'e1', name: 'Alok Goel', company_name: 'Goel Tech', subscription_status: 'premium', created_at: '2026-07-22' },
-        { id: 'e2', name: 'Rajesh Mehta', company_name: 'Mehta Retail', subscription_status: 'free', created_at: '2026-07-23' }
+        {
+          id: 'e1',
+          name: 'Alok Goel',
+          company_name: 'Goel Household',
+          billing_address: 'Flat 402, DLF Westend Heights, Bangalore',
+          society_name: 'DLF Westend Heights',
+          phone: '+91 91234 56789',
+          email: 'alok@goel.com',
+          subscription_status: 'premium',
+          status: 'active'
+        }
       ]);
 
       setPendingJobsList([
         { 
-          id: 'job_102', 
-          title: 'Housemaid for Deep Cleaning & Ironing', 
-          category: 'maid',
-          salary_offered: 12000, 
-          society_name: 'General Locality', 
+          id: 'j1', 
+          title: 'Full-time Cook & Housemaid', 
+          category: 'Cook', 
+          salary: 18000,
+          salary_offered: 18000,
+          society_name: 'DLF Westend Heights', 
+          status: 'pending',
           employer: 'Household Employer',
           employer_phone: '',
           description: 'Need reliable maid for daily sweeping, mopping, utensil cleaning, and clothes ironing.', 
@@ -526,7 +547,132 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
       return;
     }
 
+    const processSuperAdminApiData = (apiData: any) => {
+      if (!apiData || !apiData.success) return;
+      const { workers, employers, societies, jobs, admins, stats } = apiData;
+
+      if (stats) {
+        setDbStats(stats);
+      }
+
+      if (workers && workers.length > 0) {
+        setWorkersList(workers.map((w: any) => {
+          const displayName = (w.full_name && w.full_name.trim() && w.full_name !== 'Verified Worker')
+            ? w.full_name.trim()
+            : (w.name && w.name.trim() && w.name !== 'Verified Worker')
+            ? w.name.trim()
+            : w.email
+            ? w.email.split('@')[0].charAt(0).toUpperCase() + w.email.split('@')[0].slice(1)
+            : w.phone
+            ? `Candidate (${w.phone.slice(-4)})`
+            : 'Registered Worker';
+
+          const displayCategory = (w.skills && Array.isArray(w.skills) && w.skills.length > 0)
+            ? w.skills.join(', ')
+            : 'Domestic Worker';
+
+          return {
+            id: w.id,
+            name: displayName,
+            full_name: displayName,
+            email: w.email || '',
+            phone: w.phone || '',
+            skills: w.skills || [],
+            displayCategory,
+            status: w.status || 'pending_review',
+            age: w.age || 28,
+            gender: w.gender || 'female',
+            profile_picture_url: w.profile_picture_url || '',
+            video_url: w.video_url || '',
+            aadhaar_front_url: w.aadhaar_front_url || '',
+            aadhaar_back_url: w.aadhaar_back_url || '',
+            experience_years: w.experience_years || 0,
+            expected_salary: w.expected_salary || 0,
+            created_at: w.created_at,
+            badges: {
+              mobile: w.phone ? 'Verified' : 'Pending',
+              aadhaar: w.aadhaar_front_url ? 'Verified' : 'Pending',
+              police: 'Pending',
+              interview: w.status === 'live' ? 'Verified' : 'Pending',
+              video: w.video_url ? 'Verified' : 'Pending',
+              profile: w.profile_picture_url ? 'Verified' : 'Pending'
+            }
+          };
+        }));
+      }
+
+      if (employers && employers.length > 0) {
+        setEmployersList(employers.map((e: any) => ({
+          id: e.id,
+          user_id: e.user_id || e.id,
+          name: e.company_name || e.name || 'Employer Household',
+          company_name: e.company_name || e.name || 'Individual Household',
+          billing_address: e.billing_address || 'Locality Not Specified',
+          society_name: e.society_name || 'General Locality',
+          phone: e.phone || '',
+          email: e.email || '',
+          subscription_status: e.subscription_status || 'free',
+          status: e.status || 'active',
+          created_at: e.created_at
+        })));
+      }
+
+      if (societies && societies.length > 0) {
+        setSocietiesList(societies);
+      }
+
+      if (jobs && jobs.length > 0) {
+        setPendingJobsList(jobs.map((j: any) => ({
+          id: j.id,
+          user_id: j.user_id,
+          title: j.title || 'General Job Requirement',
+          category: j.category || 'General',
+          salary_offered: j.salary_offered || j.salary || 0,
+          salary: j.salary_offered || j.salary || 0,
+          society_name: j.society_name || 'General Locality',
+          employer: j.employer_name || 'Employer Household',
+          employer_name: j.employer_name || 'Employer Household',
+          phone: j.phone || '',
+          email: j.email || '',
+          status: j.status || 'pending',
+          created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
+        })));
+      }
+    };
+
     try {
+      // 1. Client Memory Cache Check (Instant 0ms render without DB hits!)
+      const targetTab = currentTab || pathname.split('/').pop() || 'overview';
+      const cacheKey = `sa_${targetTab}_p${pageVal}`;
+
+      if (!(globalThis as any).__saClientCache) {
+        (globalThis as any).__saClientCache = new Map<string, any>();
+      }
+      const clientCache: Map<string, any> = (globalThis as any).__saClientCache;
+
+      if (clientCache.has(cacheKey)) {
+        const cachedApiData = clientCache.get(cacheKey);
+        processSuperAdminApiData(cachedApiData);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Background Re-validation & SWR Cache Store
+      try {
+        const apiRes = await fetch(`/api/super-admin/data?tab=${targetTab}&page=${pageVal}&limit=20`);
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          if (apiData.success) {
+            clientCache.set(cacheKey, apiData);
+            processSuperAdminApiData(apiData);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (apiFetchErr) {
+        console.warn("Super admin server data API notice:", apiFetchErr);
+      }
+
       const { count: workerCount } = await supabase
         .from('worker_profiles')
         .select('*', { count: 'exact', head: true });
@@ -778,16 +924,27 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
       }
 
       try {
+        let activeUser: any = null;
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
+        if (session?.user) {
+          activeUser = session.user;
+        } else if (typeof window !== 'undefined') {
+          const storedUser = localStorage.getItem('sevikaa_user');
+          if (storedUser) {
+            try { activeUser = JSON.parse(storedUser); } catch (e) {}
+          }
+        }
+
+        if (!activeUser) {
           router.push('/');
           return;
         }
-        setUser(session.user);
+
+        setUser(activeUser);
         fetchDashboardData();
 
         // Enforce Single Active Session for Super Admin
-        cleanupFn = await enforceSingleAdminSession(session.user.id, (reason) => {
+        cleanupFn = await enforceSingleAdminSession(activeUser.id, (reason) => {
           showToast(reason, 'error');
           supabase.auth.signOut();
           router.push('/');
@@ -804,6 +961,13 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
       if (cleanupFn) cleanupFn();
     };
   }, [router]);
+
+  useEffect(() => {
+    if (pathname) {
+      const currentTab = pathname.split('/').pop() || 'overview';
+      fetchDashboardData(1, currentTab);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     if (pathname.includes('/sms')) {

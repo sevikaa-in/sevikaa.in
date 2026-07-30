@@ -32,15 +32,11 @@ export default function SocietiesPage() {
       const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-      if (!isPlaceholder) {
-        const { data, error } = await supabase
-          .from('societies')
-          .select('*')
-          .eq('status', 'pending_verification')
-          .order('created_at', { ascending: false });
-
-        if (!error && data) {
-          setPendingRequests(data);
+      const res = await fetch('/api/societies');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.societies) {
+          setPendingRequests(data.societies.filter((s: any) => s.status === 'pending_verification'));
           return;
         }
       }

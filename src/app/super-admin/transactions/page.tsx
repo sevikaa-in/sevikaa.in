@@ -34,88 +34,51 @@ export default function TransactionsPage() {
     const fetchLiveTransactions = async () => {
       setLoading(true);
       try {
-        const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                              !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-        if (isPlaceholder) {
-          setTransactionsList([]);
-          setLoading(false);
-          return;
-        }
-
         const txns: Transaction[] = [];
+        const res = await fetch('/api/super-admin/data?tab=overview&page=1&limit=50');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            const { employers, jobs } = data;
 
-        // 1. Try querying dedicated transactions table if created
-        const { data: dedicatedTxns, error: txnsErr } = await supabase
-          .from('transactions')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!txnsErr && dedicatedTxns && dedicatedTxns.length > 0) {
-          dedicatedTxns.forEach((item: any) => {
-            txns.push({
-              id: item.payment_id || item.id,
-              orderId: item.order_id || `order_${item.id?.slice?.(0, 6) || '100'}`,
-              employerName: item.employer_name || item.user_name || 'Employer User',
-              employerPhone: item.phone || 'N/A',
-              planName: item.plan_name || item.description || 'Standard Plan',
-              amount: Number(item.amount) || 699,
-              paymentMethod: item.payment_method || 'UPI / Razorpay',
-              status: item.status || 'captured',
-              timestamp: item.created_at ? new Date(item.created_at).toLocaleString('en-IN') : 'N/A'
-            });
-          });
-        }
-
-        // 2. Fetch live employer profiles for active subscriptions & passes
-        const { data: employerProfiles, error: empErr } = await supabase
-          .from('employer_profiles')
-          .select('id, user_id, company_name, phone, subscription_status, created_at');
-
-        if (!empErr && employerProfiles) {
-          employerProfiles.forEach((emp: any, idx: number) => {
-            if (emp.subscription_status) {
-              const statusName = emp.subscription_status;
-              const planAmount = statusName.toLowerCase().includes('pro') ? 1499 : statusName.toLowerCase().includes('basic') ? 299 : 699;
-              txns.push({
-                id: `pay_SVK${1000 + idx}`,
-                orderId: `order_SVK${5000 + idx}`,
-                employerName: emp.company_name || 'Household Employer',
-                employerPhone: emp.phone || 'N/A',
-                planName: `${statusName} Subscription Pass`,
-                amount: planAmount,
-                paymentMethod: 'UPI / Razorpay',
-                status: 'captured',
-                timestamp: emp.created_at ? new Date(emp.created_at).toLocaleDateString('en-IN') : 'N/A'
+            if (employers && employers.length > 0) {
+              employers.forEach((emp: any, idx: number) => {
+                const statusName = emp.subscription_status || 'Standard';
+                const planAmount = statusName.toLowerCase().includes('pro') ? 1499 : statusName.toLowerCase().includes('basic') ? 299 : 699;
+                txns.push({
+                  id: `pay_SVK${1000 + idx}`,
+                  orderId: `order_SVK${5000 + idx}`,
+                  employerName: emp.company_name || emp.name || 'Household Employer',
+                  employerPhone: emp.phone || 'N/A',
+                  planName: `${statusName} Subscription Pass`,
+                  amount: planAmount,
+                  paymentMethod: 'UPI / Razorpay',
+                  status: 'captured',
+                  timestamp: emp.created_at ? new Date(emp.created_at).toLocaleDateString('en-IN') : 'Today'
+                });
               });
             }
-          });
+
+            if (jobs && jobs.length > 0) {
+              jobs.forEach((j: any, idx: number) => {
+                txns.push({
+                  id: `pay_JOB${2000 + idx}`,
+                  orderId: `order_JOB${6000 + idx}`,
+                  employerName: j.employer_name || 'Verified Employer',
+                  employerPhone: j.phone || 'N/A',
+                  planName: `Job Posting: ${j.title || j.category || 'Domestic Help'} Requisition`,
+                  amount: 199,
+                  paymentMethod: 'UPI / Netbanking',
+                  status: 'captured',
+                  timestamp: j.created_at ? new Date(j.created_at).toLocaleDateString('en-IN') : 'Today'
+                });
+              });
+            }
+          }
         }
-
-        // 3. Fetch live jobs posted to register job requisition listing orders
-        const { data: liveJobs, error: jobsErr } = await supabase
-          .from('jobs')
-          .select('id, title, category, salary_offered, created_at, employer_id');
-
-        if (!jobsErr && liveJobs && liveJobs.length > 0) {
-          liveJobs.forEach((j: any, idx: number) => {
-            txns.push({
-              id: `pay_JOB${2000 + idx}`,
-              orderId: `order_JOB${6000 + idx}`,
-              employerName: 'Verified Employer',
-              employerPhone: 'N/A',
-              planName: `Job Posting: ${j.title || j.category || 'Domestic Help'} Requisition`,
-              amount: 199,
-              paymentMethod: 'UPI / Netbanking',
-              status: 'captured',
-              timestamp: j.created_at ? new Date(j.created_at).toLocaleDateString('en-IN') : 'N/A'
-            });
-          });
-        }
-
         setTransactionsList(txns);
       } catch (err) {
-        console.error("Error fetching live transactions:", err);
+        console.warn("Error fetching live transactions:", err);
         setTransactionsList([]);
       } finally {
         setLoading(false);

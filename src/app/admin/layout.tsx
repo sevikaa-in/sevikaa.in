@@ -51,7 +51,7 @@ interface AdminContextProps {
   setDateRange: React.Dispatch<React.SetStateAction<string>>;
   searchQuery: string;
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-  fetchDashboardData: () => Promise<void>;
+  fetchDashboardData: (pageVal?: number, currentTab?: string) => Promise<void>;
   handleUpdateBadge: (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => Promise<void>;
   handleUpdateWorkerStatus: (workerId: string, newStatus: string) => Promise<void>;
   handleModerateJob: (jobId: string, action: 'approve' | 'reject' | 'request_changes' | 'unapprove' | 'revert' | boolean, adminNote?: string) => Promise<void>;
@@ -131,7 +131,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const [disputesList, setDisputesList] = useState<any[]>([]);
 
   // Fetch real statistics from Supabase tables
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (pageVal = 1, currentTab?: string) => {
     setError('');
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
@@ -313,7 +313,150 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       return;
     }
 
+    const processApiData = (apiData: any) => {
+      if (!apiData || !apiData.success) return;
+      const { workers, employers, societies, jobs, counts } = apiData;
+
+      if (counts) {
+        setCounts(counts);
+      }
+
+      if (workers && workers.length > 0) {
+        const mappedWorkers = workers.map((w: any) => {
+          const displayName = (w.full_name && w.full_name.trim() && w.full_name !== 'Verified Worker')
+            ? w.full_name.trim()
+            : (w.name && w.name.trim() && w.name !== 'Verified Worker')
+            ? w.name.trim()
+            : w.email
+            ? w.email.split('@')[0].charAt(0).toUpperCase() + w.email.split('@')[0].slice(1)
+            : w.phone
+            ? `Candidate (${w.phone.slice(-4)})`
+            : 'Registered Worker';
+
+          const displayCategory = (w.skills && Array.isArray(w.skills) && w.skills.length > 0)
+            ? w.skills.join(', ')
+            : 'Domestic Worker';
+
+          return {
+            id: w.id,
+            name: displayName,
+            full_name: displayName,
+            email: w.email || '',
+            phone: w.phone || '',
+            skills: w.skills || [],
+            displayCategory,
+            status: w.status || 'pending_review',
+            age: w.age || 28,
+            gender: w.gender || 'female',
+            profile_picture_url: w.profile_picture_url || '',
+            video_url: w.video_url || '',
+            aadhaar_front_url: w.aadhaar_front_url || '',
+            aadhaar_back_url: w.aadhaar_back_url || '',
+            experience_years: w.experience_years || 0,
+            expected_salary: w.expected_salary || 0,
+            created_at: w.created_at,
+            badges: {
+              mobile: w.phone ? 'Verified' : 'Pending',
+              aadhaar: w.aadhaar_front_url ? 'Verified' : 'Pending',
+              police: 'Pending',
+              interview: w.status === 'approved' || w.status === 'live' ? 'Verified' : 'Pending',
+              video: w.video_url ? 'Verified' : 'Pending',
+              profile: w.profile_picture_url ? 'Verified' : 'Pending'
+            }
+          };
+        });
+        setWorkersList(mappedWorkers);
+        if (mappedWorkers.length > 0) {
+          setSelectedWorker(mappedWorkers[0]);
+        }
+
+        const pendingWorkers = mappedWorkers.filter((w: any) => w.status === 'pending_review' || w.status === 'admin_interview');
+        setInterviewsList(pendingWorkers.map((w: any, index: number) => {
+          const dateObj = w.created_at ? new Date(w.created_at) : new Date();
+          const timeString = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+          const isToday = dateObj.toDateString() === new Date().toDateString();
+          const slotTime = isToday ? `Today at ${timeString}` : `${dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} at ${timeString}`;
+
+          return {
+            id: w.id,
+            workerName: w.name,
+            category: w.displayCategory,
+            time: slotTime,
+            status: w.status === 'admin_interview' ? 'Completed' : 'Today',
+            result: w.status === 'approved' ? 'Pass' : '',
+            resultNotes: '',
+            worker: w
+          };
+        }));
+      }
+
+      if (employers && employers.length > 0) {
+        setEmployersList(employers.map((e: any) => ({
+          id: e.id,
+          user_id: e.user_id || e.id,
+          name: e.company_name || e.name || 'Employer Household',
+          company_name: e.company_name || e.name || 'Individual Household',
+          billing_address: e.billing_address || 'Locality Not Specified',
+          society_name: e.society_name || 'General Locality',
+          phone: e.phone || '',
+          email: e.email || '',
+          subscription_status: e.subscription_status || 'free',
+          status: e.status || 'active',
+          created_at: e.created_at
+        })));
+      }
+
+      if (jobs && jobs.length > 0) {
+        setPendingJobsList(jobs.map((j: any) => ({
+          id: j.id,
+          user_id: j.user_id,
+          title: j.title || 'General Job Requirement',
+          category: j.category || 'General',
+          salary_offered: j.salary_offered || j.salary || 0,
+          salary: j.salary_offered || j.salary || 0,
+          society_name: j.society_name || 'General Locality',
+          employer: j.employer_name || 'Employer Household',
+          employer_name: j.employer_name || 'Employer Household',
+          phone: j.phone || '',
+          email: j.email || '',
+          status: j.status || 'pending',
+          created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
+        })));
+      }
+    };
+
     try {
+      // 1. Fetch real database metrics & records via server API endpoint
+      try {
+        const targetTab = currentTab || pathname.split('/').pop() || 'overview';
+        const cacheKey = `adm_${targetTab}_p${pageVal}`;
+
+        if (!(globalThis as any).__admClientCache) {
+          (globalThis as any).__admClientCache = new Map<string, any>();
+        }
+        const clientCache: Map<string, any> = (globalThis as any).__admClientCache;
+
+        if (clientCache.has(cacheKey)) {
+          const cachedApiData = clientCache.get(cacheKey);
+          processApiData(cachedApiData);
+          setLoading(false);
+          return;
+        }
+
+        const apiRes = await fetch(`/api/admin/data?tab=${targetTab}&page=${pageVal}&limit=20`);
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          if (apiData.success) {
+            clientCache.set(cacheKey, apiData);
+            processApiData(apiData);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (apiFetchErr) {
+        console.warn("Admin server data API notice:", apiFetchErr);
+      }
+
       const { data: profilesList } = await supabase
         .from('profiles')
         .select(`
@@ -522,16 +665,27 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       }
 
       try {
+        let activeUser: any = null;
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
+        if (session?.user) {
+          activeUser = session.user;
+        } else if (typeof window !== 'undefined') {
+          const storedUser = localStorage.getItem('sevikaa_user');
+          if (storedUser) {
+            try { activeUser = JSON.parse(storedUser); } catch (e) {}
+          }
+        }
+
+        if (!activeUser) {
           router.push('/');
           return;
         }
-        setUser(session.user);
+
+        setUser(activeUser);
         fetchDashboardData();
 
         // Enforce Single Active Session for Admin
-        cleanupFn = await enforceSingleAdminSession(session.user.id, (reason) => {
+        cleanupFn = await enforceSingleAdminSession(activeUser.id, (reason) => {
           showToast(reason, 'error');
           supabase.auth.signOut();
           router.push('/');
@@ -548,6 +702,13 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       if (cleanupFn) cleanupFn();
     };
   }, [router]);
+
+  useEffect(() => {
+    if (pathname) {
+      const currentTab = pathname.split('/').pop() || 'overview';
+      fetchDashboardData(1, currentTab);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
@@ -737,9 +898,32 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           .eq('id', id);
         if (error) throw error;
       }
+
+      // Automatically dispatch new MSG91 DLT SMS to worker if rescheduled
+      if (result === 'Re-interview') {
+        const targetWorker = workersList.find(w => w.id === id);
+        if (targetWorker?.phone) {
+          try {
+            await fetch('/api/notifications/trigger', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'interview_scheduled',
+                userId: id,
+                name: targetWorker.name,
+                phone: targetWorker.phone,
+                note: resultNotes || 'Interview rescheduled by admin'
+              })
+            });
+          } catch (e) {
+            console.warn("Reschedule SMS notification notice:", e);
+          }
+        }
+      }
+
       setInterviewsList(prev => prev.map(item => item.id === id ? {
         ...item,
-        status: 'Completed',
+        status: result === 'Re-interview' ? 'Today' : 'Completed',
         result,
         resultNotes
       } : item));

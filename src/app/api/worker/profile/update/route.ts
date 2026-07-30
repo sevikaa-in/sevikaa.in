@@ -108,6 +108,59 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 4. Multi-Admin Parallel Capacity Queueing Algorithm (15-minute intervals scaled by admin team size)
+    if (phone) {
+      try {
+        const { sendSMS } = require('@/lib/notifications');
+
+        // Dynamically query active admin count (e.g. 3 admins = 3 parallel calls per 15-min slot)
+        let adminCount = 1;
+        let pendingCount = 0;
+        try {
+          const adminRes = await queryDb(`SELECT COUNT(*) FROM public.profiles WHERE role = 'admin' OR role = 'super-admin'`);
+          adminCount = Math.max(1, parseInt(adminRes?.rows?.[0]?.count || '1', 10));
+
+          const countRes = await queryDb(
+            `SELECT COUNT(*) FROM public.profiles WHERE role = 'worker' AND (status = 'pending_verification' OR status = 'pending_review' OR status = 'admin_interview')`
+          );
+          pendingCount = parseInt(countRes?.rows?.[0]?.count || '0', 10);
+        } catch (e) {}
+
+        // Scale slot index by admin capacity (e.g., 3 admins = 3 workers per 15-min slot)
+        const slotIndex = Math.floor(pendingCount / adminCount);
+        const offsetMinutes = (slotIndex % 32) * 15; // Spreads across 32 daytime slots (8 hours x 4 slots/hr)
+
+        const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+        
+        let slotDate = new Date(nowIST);
+        if (nowIST.getHours() >= 17 || nowIST.getHours() < 8) {
+          slotDate.setDate(slotDate.getDate() + (nowIST.getHours() >= 17 ? 1 : 0));
+          slotDate.setHours(9, 0, 0, 0);
+        } else {
+          slotDate.setHours(slotDate.getHours() + 1, 0, 0, 0);
+        }
+
+        // Apply staggered offset
+        slotDate.setMinutes(slotDate.getMinutes() + offsetMinutes);
+
+        const isTomorrow = slotDate.getDate() !== nowIST.getDate();
+        const dateStr = isTomorrow ? 'Tomorrow' : 'Today';
+        const hours = slotDate.getHours();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const displayHour = (hours % 12) || 12;
+        const minutesStr = slotDate.getMinutes().toString().padStart(2, '0');
+        const timeStr = `${displayHour.toString().padStart(2, '0')}:${minutesStr} ${ampm}`;
+
+        await sendSMS(phone, 'INTERVIEW_SCHEDULED', {
+          name: displayName,
+          date: dateStr,
+          time: timeStr
+        });
+      } catch (smsErr) {
+        console.warn("Automated DLT SMS dispatch notice:", smsErr);
+      }
+    }
+
     return NextResponse.json({ success: true, name: displayName });
   } catch (err: any) {
     console.error("Worker profile update error:", err);

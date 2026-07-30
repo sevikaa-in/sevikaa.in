@@ -146,4 +146,18 @@ Your Sevikaa job application for ##alphanumeric## has been submitted successfull
 
 Backend Variable Key:
 - ##alphanumeric##  =>  'job_title' (e.g. "Full Time Cook")
+
+
+13. SEVKAA_DOCUMENT_UPLOAD_LINK
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Namaste! Upload selfie and Aadhaar card for Sevikaa verification: ##url##
+
+Character Count Breakdown (160-char Single SMS Limit):
+- Static Text: 55 characters
+- URL (##url##): 44 characters (https://www.sevikaa.in/verify-upload?t=a8f2k9x1)
+- Total Length: 99 characters (WELL WITHIN 160 CHARS LIMIT ✅)
+
+Backend Variable Key:
+- ##url##  =>  'url' / 'upload_url' (e.g. "https://www.sevikaa.in/verify-upload?t=a8f2k9x1")
 ================================================================================

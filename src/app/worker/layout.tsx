@@ -122,14 +122,31 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         return;
       }
 
-      // Fetch real societies from database unconditionally
-      const { data: dbSocieties } = await supabase
-        .from('societies')
-        .select('*')
-        .order('name', { ascending: true });
+      // Fetch real societies from database unconditionally via API
+      let dbSocieties: any[] = [];
+      try {
+        const socRes = await fetch('/api/societies');
+        if (socRes.ok) {
+          const socData = await socRes.json();
+          if (socData.success && socData.societies) {
+            dbSocieties = socData.societies;
+            setSocietiesList(dbSocieties);
+          }
+        }
+      } catch (socErr) {
+        console.warn("Societies API fetch warning:", socErr);
+      }
 
-      if (dbSocieties) {
-        setSocietiesList(dbSocieties);
+      if (dbSocieties.length === 0) {
+        const { data: clientSoc } = await supabase
+          .from('societies')
+          .select('*')
+          .order('name', { ascending: true });
+
+        if (clientSoc && clientSoc.length > 0) {
+          dbSocieties = clientSoc;
+          setSocietiesList(dbSocieties);
+        }
       }
 
       // Fetch live jobs unconditionally
