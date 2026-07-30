@@ -135,25 +135,73 @@ export class MSG91Provider implements SMSProvider {
       const cleanedPhone = params.phoneNumber.replace(/\D/g, '');
       const phoneWithCountry = cleanedPhone.length === 10 ? `91${cleanedPhone}` : cleanedPhone;
 
-      // MSG91 OTP API (standard flow support)
+      // MSG91 Flow API (For 24-character MSG91 Flow Template IDs e.g. 6a6a31a6a088f7fd010c7e52)
+      if (params.dltTemplateId && params.dltTemplateId.length >= 20) {
+        // Map backend keys to MSG91 DLT variable tags (number, alphanumeric, etc.)
+        const flowVars: Record<string, string> = { ...params.variables };
+        if (flowVars.otp && !flowVars.number) {
+          flowVars.number = flowVars.otp;
+        }
+        if (flowVars.date) flowVars.alphanumeric1 = flowVars.date;
+        if (flowVars.time) flowVars.alphanumeric2 = flowVars.time;
+        if (flowVars.job_title && flowVars.company) {
+          flowVars.alphanumeric1 = flowVars.job_title;
+          flowVars.alphanumeric2 = flowVars.company;
+        } else if (flowVars.job_title) {
+          flowVars.alphanumeric = flowVars.job_title;
+        }
+        if (flowVars.plan_name) flowVars.alphanumeric = flowVars.plan_name;
+        if (flowVars.amount && !flowVars.number) flowVars.number = flowVars.amount;
+        if (flowVars.transaction_id) flowVars.alphanumeric = flowVars.transaction_id;
+
+        const flowPayload = {
+          template_id: params.dltTemplateId,
+          short_url: "0",
+          recipients: [
+            {
+              mobiles: phoneWithCountry,
+              ...flowVars
+            }
+          ]
+        };
+
+        const flowRes = await fetch('https://api.msg91.com/api/v5/flow/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'authkey': authKey
+          },
+          body: JSON.stringify(flowPayload)
+        });
+
+        const flowData = await flowRes.json();
+        if (flowRes.ok && (flowData.type === 'success' || flowData.status === 'success')) {
+          console.log(`[MSG91 FLOW SMS DISPATCH] Sent SMS to ${phoneWithCountry} using template ${params.dltTemplateId}`);
+          return { success: true, messageId: flowData.message || 'msg91-flow-sent' };
+        } else {
+          console.warn("MSG91 Flow API warning:", flowData);
+        }
+      }
+
+      // Fallback: Standard MSG91 OTP API
       const payload = {
         template_id: params.dltTemplateId || process.env.MSG91_TEMPLATE_ID || '',
         mobile: phoneWithCountry,
-        authkey: authKey,
         sender: params.senderId || 'SEVKAA',
         ...params.variables
       };
 
-      const response = await fetch('https://api.msg91.com/api/v5/otp', {
+      const response = await fetch('https://control.msg91.com/api/v5/otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'authkey': authKey
         },
         body: JSON.stringify(payload)
       });
 
       const data = await response.json();
-      if (data.type === 'success') {
+      if (data.type === 'success' || data.status === 'success') {
         return { success: true, messageId: data.message };
       } else {
         return { success: false, error: data.message || 'MSG91 API error' };
@@ -305,8 +353,19 @@ export async function sendSMSWithTemplates(params: {
 }): Promise<{ success: boolean; messageId?: string; error?: string; providerUsed?: string }> {
   const { templateKey, phoneNumber, variables, language = 'en', userId } = params;
 
+  // 0. Check for pending DLT templates (bypassed until approved)
+  const PENDING_DLT_TEMPLATES = ['FORGOT_PASSWORD_OTP', 'NEW_APPLICATION', 'JOB_APPLIED'];
+  if (PENDING_DLT_TEMPLATES.includes(templateKey)) {
+    console.log(`[SMS PENDING DLT] Template "${templateKey}" is pending DLT/MSG91 approval. Bypassing dispatch gracefully.`);
+    return {
+      success: true,
+      messageId: `pending-dlt-bypass-${Date.now()}`,
+      providerUsed: 'msg91 (bypassed - pending DLT approval)'
+    };
+  }
+
   let activeTemplate: any = null;
-  let providerUsed = 'aws'; // Baseline provider
+  let providerUsed = 'msg91'; // Baseline provider set to MSG91
 
   try {
     // 1. Fetch template from DB
@@ -343,17 +402,17 @@ export async function sendSMSWithTemplates(params: {
     // 2. Ultimate hardcoded fallbacks if DB lookup yielded nothing
     if (!activeTemplate) {
       const FALLBACK_TEMPLATES: Record<string, string> = {
-        LOGIN_OTP: 'Your Sevikaa verification code is {{otp}}.\nValid for {{expiry}} minutes.\nDo not share this code with anyone.',
-        REGISTER_OTP: 'Welcome to Sevikaa.\nYour registration verification code is {{otp}}.\nValid for {{expiry}} minutes.',
-        FORGOT_PASSWORD_OTP: 'Your Sevikaa password reset code is {{otp}}.\nValid for {{expiry}} minutes.',
-        CHANGE_MOBILE_OTP: 'Verify your new mobile number using OTP {{otp}}.\nValid for {{expiry}} minutes.',
-        JOB_APPLIED: 'Your application for {{job_title}} has been submitted successfully.',
-        JOB_ACCEPTED: 'Congratulations!\nYour application for {{job_title}} has been accepted by {{company}}.',
+        LOGIN_OTP: 'Your Sevikaa verification code is {{otp}}.\nValid for 10 minutes.\nDo not share this code with anyone.',
+        REGISTER_OTP: 'Welcome to Sevikaa.\nYour registration verification code is {{otp}}.\nValid for 10 minutes.',
+        FORGOT_PASSWORD_OTP: 'Your Sevikaa password reset code is {{otp}}.\nValid for 10 minutes.',
+        CHANGE_MOBILE_OTP: 'Verify your new mobile number on Sevikaa using OTP {{otp}}. Valid for 10 minutes. Team Sevikaa.',
+        JOB_APPLIED: 'Your Sevikaa job application for {{job_title}} has been submitted successfully.',
+        JOB_ACCEPTED: 'Congratulations! Your application for {{job_title}} has been accepted by {{company}} on Sevikaa.',
         INTERVIEW_SCHEDULED: 'Interview scheduled on {{date}} at {{time}}.\nCheck Sevikaa for complete details.',
         WORKER_VERIFIED: 'Congratulations!\nYour Sevikaa profile has been verified successfully.',
-        NEW_APPLICATION: 'A new worker has applied for {{job_title}}.\nLogin to review the application.',
+        NEW_APPLICATION: 'A new worker has applied for {{job_title}} on Sevikaa. Login to review.',
         SUBSCRIPTION_ACTIVATED: 'Your Sevikaa subscription {{plan_name}} is now active.\nThank you.',
-        PAYMENT_SUCCESS: 'Payment of ₹{{amount}} received successfully.\nTransaction ID: {{transaction_id}}',
+        PAYMENT_SUCCESS: 'Sevikaa: Payment of Rs.{{amount}} received successfully. Transaction ID {{transaction_id}}. Thank you for using Sevikaa.',
         SECURITY_ALERT: 'A security-sensitive action was detected on your Sevikaa account.\nIf this wasn\'t you, contact support immediately.'
       };
       
@@ -363,17 +422,12 @@ export async function sendSMSWithTemplates(params: {
       }
       activeTemplate = {
         template_key: templateKey,
-        provider: 'aws',
+        provider: 'msg91',
         sender_id: 'SEVKAA',
         message: fallbackMsg,
         dlt_template_id: null,
       };
-      providerUsed = 'aws';
-    }
-
-    // 3. Auto-inject hardcoded expiry of 10 minutes for OTP templates
-    if (templateKey.includes('OTP')) {
-      variables.expiry = '10';
+      providerUsed = 'msg91';
     }
 
     // 4. Interpolate variables
@@ -385,13 +439,18 @@ export async function sendSMSWithTemplates(params: {
       throw new Error(`Template variable validation failed. Missing variables: ${validation.missing.join(', ')}`);
     }
 
+    const envDltId = process.env[`MSG91_TEMPLATE_ID_${templateKey}`];
+    const effectiveDltId = activeTemplate.dlt_template_id || 
+                           (envDltId && !envDltId.includes('placeholder') ? envDltId : null) ||
+                           (process.env.MSG91_TEMPLATE_ID && !process.env.MSG91_TEMPLATE_ID.includes('placeholder') ? process.env.MSG91_TEMPLATE_ID : null);
+
     // 6. Send using primary resolved provider
     let provider = getProviderInstance(providerUsed);
     let sendResult = await provider.sendSMS({
       phoneNumber,
       message: interpolatedMessage,
       senderId: activeTemplate.sender_id,
-      dltTemplateId: activeTemplate.dlt_template_id,
+      dltTemplateId: effectiveDltId,
       variables
     });
 

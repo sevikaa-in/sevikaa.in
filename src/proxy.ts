@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Prepare Base Response and Attach Enterprise Defense-in-Depth Security Headers
@@ -22,11 +22,12 @@ export async function middleware(request: NextRequest) {
   // Content Security Policy (CSP)
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.googletagmanager.com https://checkout.razorpay.com https://api.razorpay.com https://cdn.razorpay.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' blob: data: https:;
+    img-src 'self' blob: data: https: https://www.google-analytics.com https://www.googletagmanager.com https://cdn.razorpay.com;
     font-src 'self' https://fonts.gstatic.com data:;
-    connect-src 'self' https: wss:;
+    connect-src 'self' https: wss: https://www.google-analytics.com https://region1.google-analytics.com https://lumberjack.razorpay.com https://api.razorpay.com https://cdn.razorpay.com;
+    frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com;
     frame-ancestors 'none';
     object-src 'none';
     base-uri 'self';
@@ -78,7 +79,7 @@ export async function middleware(request: NextRequest) {
         }
       }
     } catch (err) {
-      console.error("[Zero-Trust Middleware] Verification error:", err);
+      console.error("[Zero-Trust Proxy] Verification error:", err);
     }
   }
 
@@ -98,45 +99,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/?error=account_suspended', request.url));
   }
 
-  // 5. Enforce Strict RBAC Portal Boundaries (Zero Trust Policy)
-  // A. Worker Portal Protection (Worker ONLY)
-  if (pathname.startsWith('/worker')) {
-    if (effectiveRole && effectiveRole !== 'worker') {
-      const redirectUrl = effectiveRole === 'employer' ? '/employer' : 
-                         effectiveRole === 'super-admin' ? '/super-admin/dashboard' : 
-                         effectiveRole === 'admin' ? '/admin/dashboard' : '/';
-      return NextResponse.redirect(new URL(redirectUrl, request.url));
-    }
+  // 5. Strict Role-Based Access Control (RBAC) Route Isolation Matrix
+  if (pathname.startsWith('/worker') && effectiveRole && effectiveRole !== 'worker' && effectiveRole !== 'super-admin') {
+    return NextResponse.redirect(new URL('/employer', request.url));
   }
 
-  // B. Employer Portal Protection (Employer ONLY)
-  if (pathname.startsWith('/employer')) {
-    if (effectiveRole && effectiveRole !== 'employer') {
-      const redirectUrl = effectiveRole === 'worker' ? '/worker' : 
-                         effectiveRole === 'super-admin' ? '/super-admin/dashboard' : 
-                         effectiveRole === 'admin' ? '/admin/dashboard' : '/';
-      return NextResponse.redirect(new URL(redirectUrl, request.url));
-    }
+  if (pathname.startsWith('/employer') && effectiveRole && effectiveRole !== 'employer' && effectiveRole !== 'super-admin') {
+    return NextResponse.redirect(new URL('/worker', request.url));
   }
 
-  // C. Admin Portal Protection (Admin & Super Admin ONLY)
-  if (pathname.startsWith('/admin')) {
-    if (effectiveRole && effectiveRole !== 'admin' && effectiveRole !== 'super-admin') {
-      const redirectUrl = effectiveRole === 'worker' ? '/worker' : 
-                         effectiveRole === 'employer' ? '/employer' : '/';
-      return NextResponse.redirect(new URL(redirectUrl, request.url));
-    }
+  if (pathname.startsWith('/admin') && effectiveRole && effectiveRole !== 'admin' && effectiveRole !== 'super-admin') {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
-  // D. Super Admin Portal Protection (Super Admin ONLY)
-  if (pathname.startsWith('/super-admin')) {
-    if (effectiveRole && effectiveRole !== 'super-admin') {
-      // ADMIN role cannot access /super-admin under any circumstance
-      const redirectUrl = effectiveRole === 'admin' ? '/admin/dashboard' : 
-                         effectiveRole === 'worker' ? '/worker' : 
-                         effectiveRole === 'employer' ? '/employer' : '/';
-      return NextResponse.redirect(new URL(redirectUrl, request.url));
-    }
+  if (pathname.startsWith('/super-admin') && effectiveRole && effectiveRole !== 'super-admin') {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   return response;
@@ -144,9 +121,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/worker/:path*',
-    '/employer/:path*',
-    '/admin/:path*',
-    '/super-admin/:path*'
+    '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

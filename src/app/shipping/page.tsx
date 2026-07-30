@@ -1,73 +1,83 @@
+"use client";
+
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle } from 'lucide-react';
+import { PublicNavbar } from '@/components/public/PublicNavbar';
+import { PublicFooter } from '@/components/public/PublicFooter';
+import { Zap, CheckCircle2, Server, Clock } from 'lucide-react';
 
 export default function ShippingPage() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto w-full border-x border-gray-200">
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-gray-400 hover:text-gray-600">
-            <ArrowLeft size={20} />
-          </Link>
-          <img src="/logo.png" alt="Sevikaa Logo" className="h-10 w-auto object-contain" />
-        </div>
-        <span className="font-extrabold text-sm tracking-tight text-gray-500 uppercase">Shipping</span>
-      </header>
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      <PublicNavbar />
 
-      <main className="flex-1 p-6 space-y-6">
-        <div className="text-center space-y-1">
-          <h1 className="text-2xl font-black text-[#202124]">Shipping Policy</h1>
-          <p className="text-xs text-gray-500 font-bold">Digital Services Only</p>
-        </div>
-
-        <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-gray-400 hover:shadow-lg hover:shadow-gray-200/50 cursor-pointer">
-          <p>
-            Sevikaa is a digital platform that connects verified domestic workers with employers. We do not sell or deliver any physical products. All services, including Premium Pass activation and access to platform features, are delivered electronically.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#1A73E8] hover:shadow-lg hover:shadow-blue-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-[#1A73E8] text-sm">1. Digital Service Delivery</h3>
-            <p>Upon successful payment confirmation, eligible premium features are activated on your Sevikaa account.</p>
-            <p className="text-gray-400 font-semibold mt-2 mb-1">Services may include:</p>
-            <ul className="space-y-2 text-gray-400 font-semibold">
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#1A73E8] shrink-0 mt-0.5" /> Access to Premium Pass features</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#1A73E8] shrink-0" /> Unlocking verified worker contact details</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#1A73E8] shrink-0" /> Premium hiring tools and platform benefits</li>
-            </ul>
-          </div>
-
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#FBBC05] hover:shadow-lg hover:shadow-yellow-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-yellow-600 text-sm">2. Delivery Timeline</h3>
-            <p>Most digital services are activated immediately after successful payment.</p>
-            <p className="text-gray-400 mt-1">
-              In rare cases, activation may take up to 24 hours due to payment verification, banking delays, or technical maintenance.
+      <main className="flex-1">
+        
+        {/* Shipping Hero */}
+        <section className="bg-gradient-to-b from-blue-50/60 via-white to-slate-50 border-b border-slate-200/80 py-16 px-4 text-center">
+          <div className="max-w-4xl mx-auto space-y-3">
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-50 text-[#1A73E8] border border-blue-200 text-xs font-black uppercase shadow-sm">
+              <Zap size={14} className="text-[#1A73E8]" /> Instant Digital Fulfilment
+            </span>
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900">Shipping &amp; Service Delivery Policy</h1>
+            <p className="text-xs sm:text-sm text-slate-600 font-semibold max-w-2xl mx-auto leading-relaxed">
+              Sevikaa is an online platform. All services and subscription benefits are delivered instantly electronically.
             </p>
           </div>
+        </section>
 
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#34A853] hover:shadow-lg hover:shadow-green-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-[#34A853] text-sm">3. Service Availability</h3>
-            <p>
-              Premium features remain available for the duration of your active subscription plan. If you experience any issues accessing your purchased services, please contact our support team for assistance.
-            </p>
-          </div>
+        {/* Content Body */}
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-10 shadow-sm space-y-8 text-slate-700 leading-relaxed text-sm">
+            
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-600">
+              Sevikaa (operated by <strong className="text-slate-900">YugaYatra Retail (OPC) Private Limited</strong>) delivers services digitally. No physical goods or packages are shipped.
+            </div>
 
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#EA4335] hover:shadow-lg hover:shadow-red-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-[#EA4335] text-sm">4. Support</h3>
-            <p>If your Premium Pass is not activated after a successful payment, please contact us with your payment details:</p>
-            <p className="mt-1 text-gray-400 font-semibold">
-              Email: support@sevikaa.in<br />
-              Business Hours: Monday – Friday, 10:00 AM – 5:00 PM (IST), Saturday & Sunday: Closed
-            </p>
+            {/* Section 1 */}
+            <div className="space-y-3">
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-xl bg-blue-50 text-[#1A73E8] flex items-center justify-center text-xs">1</span>
+                Instant Digital Delivery
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                Upon successful payment via Razorpay, your employer hiring subscription is activated instantly.
+              </p>
+              <ul className="space-y-2 text-xs font-semibold text-slate-600 pt-1">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-[#1A73E8] shrink-0 mt-0.5" />
+                  Instant contact unlocking for verified candidates in your society.
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-[#1A73E8] shrink-0 mt-0.5" />
+                  Automated PDF Tax Invoice generation sent via email and available in account settings.
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 2 */}
+            <div className="space-y-3 border-t border-slate-100 pt-6">
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xs">2</span>
+                Service Fulfilment Timeline
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                99% of subscription activations occur within <strong>1–2 seconds</strong> of payment completion. In rare cases of bank network latency, activation completes within 1–2 hours.
+              </p>
+            </div>
+
+            {/* Support footer */}
+            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-between text-xs font-bold text-slate-700">
+              <span>Need help with digital service access?</span>
+              <Link href="/contact" className="text-[#1A73E8] hover:underline">Contact Customer Care →</Link>
+            </div>
+
           </div>
-        </div>
+        </section>
+
       </main>
 
-      <footer className="bg-white border-t border-gray-200 py-4 text-center text-[10px] text-gray-400">
-        Powered by YugaYatra Retail (OPC) Private Limited
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

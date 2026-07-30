@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check, Sparkles, Heart, ShieldCheck, Zap, Award, Star, ArrowRight, X } from 'lucide-react';
 import { executeRazorpayCheckout } from '../../utils/razorpay';
+import { PublicNavbar } from '@/components/public/PublicNavbar';
+import { PublicFooter } from '@/components/public/PublicFooter';
 
 export default function PricingPage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
@@ -32,24 +34,8 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col w-full text-slate-800 antialiased">
-      {/* Header Bar */}
-      <header className="bg-white border-b border-slate-200/80 px-6 py-3.5 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-slate-400 hover:text-slate-700 transition-colors p-1 hover:bg-slate-100 rounded-lg">
-            <ArrowLeft size={18} />
-          </Link>
-          <img src="/logo.png" alt="Sevikaa Logo" className="h-9 w-auto object-contain" />
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/employer/dashboard"
-            className="py-2 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all active:scale-95 shadow-sm hidden sm:inline-flex"
-          >
-            Employer Portal
-          </Link>
-        </div>
-      </header>
+    <div className="min-h-screen bg-slate-50 flex flex-col w-full text-slate-800 antialiased font-sans">
+      <PublicNavbar />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 sm:py-12 space-y-10">
@@ -254,10 +240,7 @@ export default function PricingPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400 font-semibold">
-        Sevikaa Platform &bull; Powered by YugaYatra Retail (OPC) Private Limited
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

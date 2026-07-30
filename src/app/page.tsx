@@ -10,6 +10,8 @@ import { EmployerFunnel } from '../components/onboarding/EmployerFunnel';
 import { StatusPending } from '../components/onboarding/StatusPending';
 import { useLanguage } from '../context/LanguageContext';
 import { GlobalLanguageSelector } from '../components/GlobalLanguageSelector';
+import { PublicNavbar } from '../components/public/PublicNavbar';
+import { PublicFooter } from '../components/public/PublicFooter';
 import { supabase } from '../lib/supabaseClient';
 import { 
   Check, Shield, ChevronDown, HelpCircle, Star, Phone, Mail, 
@@ -59,6 +61,16 @@ export default function Home() {
             email: session.user.email,
             phone: session.user.phone
           });
+
+          // If user explicitly navigated to browse public homepage
+          const searchParams = new URLSearchParams(window.location.search);
+          const isBrowsing = searchParams.get('browse') === 'true' || searchParams.get('mode') === 'public';
+
+          if (isBrowsing) {
+            setView('landing');
+            setLoading(false);
+            return;
+          }
 
           // Fetch profile to verify route
           const { data: profile } = await supabase
@@ -437,362 +449,579 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-[#202124]">
       {/* 1. TOP NAVIGATION HEADER */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50 transition-all duration-300">
-        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 hover:scale-102 active:scale-98 transition-all">
-            <img src="/logo.png" alt="Sevikaa Logo" className="h-20 w-auto object-contain" />
-          </Link>
+      <PublicNavbar />
 
-          <div className="flex items-center gap-4">
-            {/* Desktop Nav Links */}
-            <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
-              {[
-                { label: 'About Us', href: '/about' },
-                { label: 'Societies', href: '/societies' },
-                { label: 'How It Works', href: '/how-it-works' },
-                { label: 'Pricing', href: '/pricing' },
-                { label: 'Safety', href: '/safety' },
-                { label: 'Contact', href: '/contact' },
-                { label: 'FAQ', href: '/faq' }
-              ].map((link, index) => (
-                <Link 
-                  key={index} 
-                  href={link.href} 
-                  className="relative py-1 text-gray-600 hover:text-[#1A73E8] transition-all hover:scale-105 active:scale-95 duration-200 group font-bold"
-                >
-                  {link.label}
-                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[#1A73E8] transform scale-x-0 group-hover:scale-x-100 transition-transform origin-center duration-300" />
-                </Link>
-              ))}
-            </nav>
-            
+      {/* 2. HERO MARKETING SECTION & 2 ENTRANCE CARDS */}
+      <section className="bg-gradient-to-b from-blue-50/50 via-white to-slate-50 border-b border-slate-200/80 py-20 px-4 relative overflow-hidden">
+        <div className="max-w-4xl mx-auto text-center space-y-8 relative z-10">
+          
+          {/* Top Pill Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-black border border-emerald-200 shadow-sm mx-auto">
+            <Shield size={14} className="text-[#34A853]" />
+            <span>🛡️ India's #1 Verified Domestic Workforce Platform</span>
           </div>
-        </div>
-      </header>
 
-      {/* 2. HERO MARKETING SECTION & 2 CTA CARDS */}
-      <section className="bg-white border-b border-gray-200 py-16 px-4">
-        <div className="max-w-3xl mx-auto text-center space-y-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#34A853]/10 text-[#34A853] rounded-full text-xs font-bold mx-auto">
-            <Shield size={12} />
-            <span>🛡️ India's Trusted Domestic Workforce Platform</span>
+          {/* Main Headline */}
+          <div className="space-y-3">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.1] text-slate-900">
+              Connecting Trusted Homes with <br className="hidden sm:inline" />
+              <span className="bg-gradient-to-r from-[#1A73E8] via-indigo-600 to-[#34A853] bg-clip-text text-transparent">
+                Verified Domestic Workers
+              </span>
+            </h1>
+            <p className="text-slate-600 text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed font-semibold">
+              Smart society-based matching for maids, cooks, nannies, caregivers &amp; drivers across 500+ gated communities.
+            </p>
           </div>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-none text-[#202124]">
-            Connecting Trusted Homes with Trusted Domestic Workers
-          </h1>
-          <p className="text-gray-500 text-sm md:text-base max-w-xl mx-auto leading-relaxed">
-            Whether you're looking for work or looking to hire, Sevikaa helps verified maids, cooks, and nannies connect with families nearby through smart, society-based matching.
-          </p>
 
           {/* Core Entrance Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto pt-6">
-            <button
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto pt-4 text-left">
+            
+            {/* Card 1: Domestic Helpers (Green Theme) */}
+            <div
               onClick={handleStartWorkerFlow}
-              className="p-6 rounded-3xl border-2 border-gray-200 hover:border-[#1A73E8] text-left active:scale-[0.98] transition-all bg-white shadow-sm flex flex-col justify-between min-h-[180px] group"
+              className="p-7 rounded-3xl border-2 border-emerald-200 hover:border-emerald-500 transition-all duration-300 bg-white shadow-sm hover:shadow-xl hover:shadow-emerald-500/10 flex flex-col justify-between space-y-6 group cursor-pointer active:scale-[0.98] relative overflow-hidden"
             >
-              <div className="w-12 h-12 rounded-2xl bg-[#1A73E8]/10 text-[#1A73E8] group-hover:bg-[#1A73E8] group-hover:text-white flex items-center justify-center transition-all">
-                <UserPlus size={24} />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="p-3.5 rounded-2xl bg-emerald-50 text-[#34A853] border border-emerald-100 group-hover:bg-[#34A853] group-hover:text-white transition-all">
+                    <UserPlus size={22} />
+                  </div>
+                  <span className="text-[9.5px] font-black uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    🟢 100% Free For Workers
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 group-hover:text-[#34A853] transition-colors leading-snug">
+                    Looking for Work?
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1.5">
+                    Create your profile, showcase skills &amp; shift timings, and receive direct job calls from nearby families.
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <span className="block text-lg font-extrabold text-gray-700">Looking for Work?</span>
-                <span className="block text-[11px] text-gray-400 font-medium leading-normal">Create your profile, showcase your skills, set your availability, and connect with trusted employers near you.</span>
-                <span className="inline-block mt-2 text-xs font-bold text-[#1A73E8] group-hover:underline">Find Jobs &rarr;</span>
-              </div>
-            </button>
 
-            <button
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleStartWorkerFlow(); }}
+                className="w-full py-3 px-4 bg-[#34A853] hover:bg-emerald-600 text-white rounded-2xl text-xs font-black shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Register as Worker (Free)</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
+
+            {/* Card 2: Household Employers (Blue Theme) */}
+            <div
               onClick={handleStartEmployerFlow}
-              className="p-6 rounded-3xl border-2 border-gray-200 hover:border-[#34A853] text-left active:scale-[0.98] transition-all bg-white shadow-sm flex flex-col justify-between min-h-[180px] group"
+              className="p-7 rounded-3xl border-2 border-blue-200 hover:border-[#1A73E8] transition-all duration-300 bg-white shadow-sm hover:shadow-xl hover:shadow-blue-500/10 flex flex-col justify-between space-y-6 group cursor-pointer active:scale-[0.98] relative overflow-hidden"
             >
-              <div className="w-12 h-12 rounded-2xl bg-[#34A853]/10 text-[#34A853] group-hover:bg-[#34A853] group-hover:text-white flex items-center justify-center transition-all">
-                <Search size={24} />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="p-3.5 rounded-2xl bg-blue-50 text-[#1A73E8] border border-blue-100 group-hover:bg-[#1A73E8] group-hover:text-white transition-all">
+                    <Search size={22} />
+                  </div>
+                  <span className="text-[9.5px] font-black uppercase px-2.5 py-1 rounded-full bg-blue-50 text-[#1A73E8] border border-blue-200">
+                    🔵 For Household Employers
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 group-hover:text-[#1A73E8] transition-colors leading-snug">
+                    Looking to Hire Help?
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1.5">
+                    Discover verified maids, cooks, nannies &amp; drivers available in your apartment complex or nearby societies.
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <span className="block text-lg font-extrabold text-gray-700">Looking to Hire?</span>
-                <span className="block text-[11px] text-gray-400 font-medium leading-normal">Discover verified maids, cooks, and nannies available in your society or nearby and hire with confidence.</span>
-                <span className="inline-block mt-2 text-xs font-bold text-[#34A853] group-hover:underline">Find Workers &rarr;</span>
-              </div>
-            </button>
+
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleStartEmployerFlow(); }}
+                className="w-full py-3 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs font-black shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Hire Domestic Helper</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
+
+          </div>
+
+          {/* Trust Proof Points Bar */}
+          <div className="pt-2 flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-xs font-extrabold text-slate-500">
+            <span className="flex items-center gap-1.5"><Check size={15} className="text-[#34A853]" /> Aadhaar Verified</span>
+            <span className="hidden sm:inline text-slate-300">•</span>
+            <span className="flex items-center gap-1.5"><Check size={15} className="text-[#34A853]" /> Zero Agency Commission</span>
+            <span className="hidden sm:inline text-slate-300">•</span>
+            <span className="flex items-center gap-1.5"><Check size={15} className="text-[#1A73E8]" /> Smart Society Matching</span>
+            <span className="hidden sm:inline text-slate-300">•</span>
+            <span className="flex items-center gap-1.5"><Check size={15} className="text-[#1A73E8]" /> 100% Safe &amp; Private</span>
           </div>
 
           {/* 🏘️ PUBLIC PARTNER SOCIETIES BANNER */}
-          <div className="max-w-xl mx-auto mt-6 bg-gradient-to-r from-[#1A73E8] via-blue-600 to-indigo-700 p-5 rounded-3xl text-white shadow-xl shadow-blue-500/20 text-left flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-blue-400/30">
-            <div className="space-y-1 min-w-0">
-              <span className="bg-white/20 text-white text-[9.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-white/30 inline-flex items-center gap-1">
-                <Building2 size={11} /> 500+ Partner Gated Communities
+          <div className="max-w-2xl mx-auto mt-6 bg-gradient-to-r from-blue-50/90 via-white to-blue-50/90 p-6 sm:p-7 rounded-3xl text-slate-900 shadow-md text-left flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 border-2 border-blue-200/80">
+            <div className="space-y-1.5 min-w-0">
+              <span className="bg-blue-100/80 text-[#1A73E8] text-[9.5px] font-black uppercase px-3 py-1 rounded-full border border-blue-200 inline-flex items-center gap-1.5 shadow-sm">
+                <Building2 size={12} className="text-[#1A73E8]" /> 500+ Partner Gated Communities
               </span>
-              <h3 className="text-sm sm:text-base font-black text-white leading-snug">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 leading-snug">
                 Explore Partner Societies or Request Your Community Onboarding
               </h3>
-              <p className="text-[11px] text-blue-100 font-medium">
-                Browse live jobs, verified helpers &amp; onboard your apartment complex.
+              <p className="text-[11px] text-slate-600 font-semibold leading-relaxed">
+                Browse live jobs, verified helpers &amp; onboard your apartment complex with gate verification.
               </p>
             </div>
             <Link
               href="/societies"
-              className="py-2.5 px-4 bg-white text-[#1A73E8] hover:bg-blue-50 rounded-2xl text-xs font-black transition-all shadow-md shrink-0 whitespace-nowrap active:scale-95 flex items-center gap-1.5"
+              className="py-3 px-5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs font-black transition-all shadow-md shadow-blue-500/20 shrink-0 whitespace-nowrap active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
-              <span>Explore Directory →</span>
+              <span>Explore Directory &rarr;</span>
+            </Link>
+          </div>
+
+        </div>
+      </section>
+
+      {/* 3. HOW IT WORKS SECTION */}
+      <section className="py-20 px-4 bg-white border-b border-slate-200/80 relative overflow-hidden">
+        <div className="max-w-5xl mx-auto text-center space-y-12 relative z-10">
+          <div>
+            <span className="bg-blue-50 text-[#1A73E8] text-[10px] font-black uppercase px-3.5 py-1 rounded-full border border-blue-200/60 inline-flex items-center gap-1.5 mb-3 shadow-sm">
+              <Sparkles size={13} />
+              3-Step Simple Process
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              How Sevikaa Works
+            </h2>
+            <p className="text-slate-500 text-xs sm:text-sm mt-1.5 font-semibold max-w-lg mx-auto">
+              Three simple steps to connect, hire &amp; get hired with total peace of mind.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+            {[
+              { 
+                step: 'STEP 01', 
+                title: 'Register & Get Verified', 
+                desc: 'Create your profile in minutes. Workers showcase skills & availability, while employers list hiring needs. Government ID verification builds instant trust.', 
+                icon: <UserPlus size={22} />, 
+                badgeBg: 'bg-blue-50 text-[#1A73E8] border-blue-100', 
+                iconBg: 'bg-blue-50 text-[#1A73E8] border-blue-100', 
+                hoverBorder: 'hover:border-[#1A73E8] hover:shadow-blue-500/10' 
+              },
+              { 
+                step: 'STEP 02', 
+                title: 'Smart Society Matching', 
+                desc: 'Our intelligent matching engine pairs verified helpers and employers from the exact same apartment complex or nearby gated societies based on skills & shifts.', 
+                icon: <Search size={22} />, 
+                badgeBg: 'bg-amber-50 text-amber-700 border-amber-100', 
+                iconBg: 'bg-amber-50 text-amber-600 border-amber-100', 
+                hoverBorder: 'hover:border-[#FBBC05] hover:shadow-amber-500/10' 
+              },
+              { 
+                step: 'STEP 03', 
+                title: 'Direct Connect & Hire', 
+                desc: 'Employers securely unlock verified contacts to connect via Call or WhatsApp, while workers receive direct job offers with zero agency commissions.', 
+                icon: <PhoneCall size={22} />, 
+                badgeBg: 'bg-emerald-50 text-[#34A853] border-emerald-100', 
+                iconBg: 'bg-emerald-50 text-[#34A853] border-emerald-100', 
+                hoverBorder: 'hover:border-[#34A853] hover:shadow-emerald-500/10' 
+              }
+            ].map((item, i) => (
+              <div 
+                key={i} 
+                className={`bg-white rounded-3xl border border-slate-200/80 p-7 text-left space-y-5 shadow-sm relative transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer ${item.hoverBorder}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className={`p-3 rounded-2xl border ${item.iconBg}`}>
+                    {item.icon}
+                  </div>
+                  <span className={`text-[9.5px] font-black uppercase px-2.5 py-1 rounded-full border ${item.badgeBg}`}>
+                    {item.step}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base sm:text-lg leading-tight">{item.title}</h3>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-2.5 leading-relaxed font-medium">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-2 text-center">
+            <Link 
+              href="/how-it-works" 
+              className="inline-flex items-center gap-2 py-3 px-6 bg-white border border-slate-200 hover:border-[#1A73E8] rounded-2xl text-xs font-black text-slate-700 hover:text-[#1A73E8] transition-all shadow-sm hover:shadow-md active:scale-95"
+            >
+              <span>Explore Detailed Workflow &amp; Hiring Guides</span>
+              <span className="text-[#1A73E8]">&rarr;</span>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* 3. HOW IT WORKS SECTION */}
-      <section className="py-16 px-4 bg-gray-50 border-b border-gray-200">
-        <div className="max-w-4xl mx-auto text-center space-y-12">
-          <div>
-            <h2 className="text-2xl font-black text-gray-800">How Sevikaa Works</h2>
-            <p className="text-gray-400 text-xs mt-1 font-medium">Three Simple Steps to Connect, Hire & Get Hired</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { step: '1', title: 'Register & Get Verified', desc: 'Create your profile in minutes. Workers showcase their skills and availability, while employers add their hiring requirements. Verified profiles help build trust for everyone.', icon: <UserPlus size={18} />, hoverBorder: 'hover:border-[#1A73E8]', badgeBg: 'bg-[#1A73E8]', iconBg: 'bg-[#1A73E8]/5 text-[#1A73E8]' },
-              { step: '2', title: 'Smart Society-Based Matching', desc: 'Our intelligent matching system connects workers and employers from the same apartment or nearby societies based on skills, availability, and location preferences.', icon: <Search size={18} />, hoverBorder: 'hover:border-[#FBBC05]', badgeBg: 'bg-[#FBBC05]', iconBg: 'bg-[#FBBC05]/5 text-[#FBBC05]' },
-              { step: '3', title: 'Connect & Start with Confidence', desc: 'Employers can securely unlock contact details to connect via Call or WhatsApp, while workers receive genuine nearby job opportunities from verified families.', icon: <PhoneCall size={18} />, hoverBorder: 'hover:border-[#34A853]', badgeBg: 'bg-[#34A853]', iconBg: 'bg-[#34A853]/5 text-[#34A853]' }
-            ].map((item, i) => (
-              <div key={i} className={`bg-white rounded-3xl border-2 border-gray-200 p-6 text-left space-y-4 shadow-sm relative transition-all duration-200 hover:shadow-md cursor-pointer ${item.hoverBorder}`}>
-                <div className={`absolute -top-3 -left-3 w-8 h-8 rounded-full ${item.badgeBg} text-white font-black text-xs flex items-center justify-center shadow-sm`}>
-                  {item.step}
-                </div>
-                <div className={`p-3 rounded-2xl w-fit ${item.iconBg}`}>
-                  {item.icon}
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-gray-700 text-sm">{item.title}</h3>
-                  <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* 4. SAFETY & TRUST SECTION */}
-      <section className="py-16 px-4 bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto space-y-12 text-center">
+      <section className="py-20 px-4 bg-gradient-to-b from-slate-50 via-white to-slate-50 border-b border-slate-200/80 relative overflow-hidden">
+        <div className="max-w-5xl mx-auto space-y-12 text-center relative z-10">
           <div>
-            <h2 className="text-2xl font-black text-gray-800">Safety & Trust</h2>
-            <p className="text-gray-400 text-xs mt-1 font-medium">Designed to build trust between workers and employers.</p>
+            <span className="bg-red-50 text-[#EA4335] text-[10px] font-black uppercase px-3.5 py-1 rounded-full border border-red-200/60 inline-flex items-center gap-1.5 mb-3 shadow-sm">
+              <Shield size={13} />
+              Identity &amp; Safety Audit
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              Safety &amp; Verification You Can Trust
+            </h2>
+            <p className="text-slate-500 text-xs sm:text-sm mt-1.5 font-semibold max-w-xl mx-auto">
+              Built from the ground up to protect both domestic helpers and household families with strict privacy standards.
+            </p>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
             {[
-              { title: 'Aadhaar Verified', subtitle: 'Verified Identity', desc: 'Every worker submits a government-issued Aadhaar for identity verification, helping employers hire with greater confidence.', icon: <Shield size={20} />, color: 'bg-red-50 text-[#EA4335]', hoverBorder: 'hover:border-[#EA4335]' },
-              { title: 'Location Privacy', subtitle: 'Your Privacy Comes First', desc: 'Exact addresses and GPS locations are never shared. Employers only see approximate locations until a connection is established.', icon: <Lock size={20} />, color: 'bg-blue-50 text-[#1A73E8]', hoverBorder: 'hover:border-[#1A73E8]' },
-              { title: 'Police Verification', subtitle: 'Additional Peace of Mind', desc: 'Workers can upload their Police Clearance Certificate (PCC). Verified documents are reviewed before the Police Verified badge is displayed.', icon: <Shield size={20} />, color: 'bg-green-50 text-[#34A853]', hoverBorder: 'hover:border-[#34A853]' }
+              { 
+                title: 'Aadhaar Verified Identity', 
+                badge: 'Government Verified',
+                subtitle: 'VERIFIED GOVT ID', 
+                desc: 'Every worker submits a government-issued Aadhaar for multi-step identity verification, helping employers hire with 100% confidence.', 
+                icon: <Shield size={22} />, 
+                iconBg: 'bg-red-50 text-[#EA4335] border-red-100', 
+                hoverBorder: 'hover:border-[#EA4335] hover:shadow-red-500/10' 
+              },
+              { 
+                title: 'Strict Location Privacy', 
+                badge: 'Privacy First',
+                subtitle: 'ADDRESSES NEVER PUBLIC', 
+                desc: 'Exact house addresses and GPS locations are never exposed. Employers only see society names until a hiring connection is confirmed.', 
+                icon: <Lock size={22} />, 
+                iconBg: 'bg-blue-50 text-[#1A73E8] border-blue-100', 
+                hoverBorder: 'hover:border-[#1A73E8] hover:shadow-blue-500/10' 
+              },
+              { 
+                title: 'Police Clearance (PCC)', 
+                badge: 'Background Check',
+                subtitle: 'ADDITIONAL PEACE OF MIND', 
+                desc: 'Domestic helpers can upload their official Police Clearance Certificate (PCC), thoroughly reviewed before the Police Verified badge is awarded.', 
+                icon: <Shield size={22} />, 
+                iconBg: 'bg-emerald-50 text-[#34A853] border-emerald-100', 
+                hoverBorder: 'hover:border-[#34A853] hover:shadow-emerald-500/10' 
+              }
             ].map((item, i) => (
-              <div key={i} className={`p-6 bg-gray-50 border-2 border-gray-200 rounded-3xl space-y-4 transition-all duration-200 hover:shadow-md cursor-pointer ${item.hoverBorder}`}>
-                <div className={`p-3 rounded-2xl w-fit ${item.color}`}>
-                  {item.icon}
+              <div 
+                key={i} 
+                className={`p-7 bg-white border border-slate-200/80 rounded-3xl space-y-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl shadow-sm cursor-pointer ${item.hoverBorder}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className={`p-3 rounded-2xl border ${item.iconBg}`}>
+                    {item.icon}
+                  </div>
+                  <span className="text-[9.5px] font-black uppercase px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60">
+                    {item.badge}
+                  </span>
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-gray-700 text-sm">{item.title}</h3>
-                  <span className="block text-[10px] text-gray-400 uppercase font-semibold mt-0.5">{item.subtitle}</span>
-                  <p className="text-xs text-gray-400 mt-2 leading-relaxed">{item.desc}</p>
+                  <h3 className="font-black text-slate-900 text-base sm:text-lg leading-tight">{item.title}</h3>
+                  <span className="block text-[9.5px] text-slate-400 font-extrabold uppercase tracking-wider mt-1">{item.subtitle}</span>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-2.5 leading-relaxed font-medium">{item.desc}</p>
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="pt-2 text-center">
+            <Link 
+              href="/safety" 
+              className="inline-flex items-center gap-2 py-3 px-6 bg-white border border-slate-200 hover:border-[#1A73E8] rounded-2xl text-xs font-black text-slate-700 hover:text-[#1A73E8] transition-all shadow-sm hover:shadow-md active:scale-95"
+            >
+              <span>Learn more about Sevikaa Safety Standards</span>
+              <span className="text-[#1A73E8]">&rarr;</span>
+            </Link>
           </div>
         </div>
       </section>
 
       {/* 5. PRICING SECTION */}
       <section className="py-16 px-4 bg-gray-50 border-b border-gray-200">
-        <div className="max-w-4xl mx-auto space-y-12 text-center">
+        <div className="max-w-4xl mx-auto space-y-10 text-center">
           <div>
-            <h2 className="text-2xl font-black text-gray-800">Simple & Transparent Pricing</h2>
-            <p className="text-gray-400 text-xs mt-1 font-medium">Free for domestic workers. Premium features for employers who want to hire faster.</p>
+            <span className="bg-blue-50 text-[#1A73E8] text-[10px] font-black uppercase px-3 py-1 rounded-full border border-blue-200/60 inline-block mb-2">
+              Simple &amp; Transparent Pricing
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Fair Pricing for Everyone</h2>
+            <p className="text-gray-500 text-xs sm:text-sm mt-1 font-semibold">100% Free forever for domestic workers. Transparent hiring plans for household employers.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto items-stretch">
-            {/* Workers Free */}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch max-w-3xl mx-auto">
+            
+            {/* Card 1: Domestic Helpers (Free Forever) */}
             <div 
               onClick={handleStartWorkerFlow}
-              className="bg-white border-2 border-gray-200 p-6 rounded-3xl text-left flex flex-col justify-between transition-all duration-300 hover:-translate-y-1.5 hover:border-[#34A853] hover:shadow-lg hover:shadow-green-100/50 cursor-pointer shadow-sm"
+              className="bg-white border-2 border-emerald-200 p-8 rounded-3xl text-left flex flex-col justify-between transition-all duration-300 hover:-translate-y-1.5 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-100/50 cursor-pointer shadow-sm relative overflow-hidden"
             >
-              <div className="space-y-4">
-                <div>
-                  <span className="bg-[#34A853]/10 text-[#34A853] text-[9px] font-bold px-2.5 py-0.5 rounded-full">🟢 For Domestic Workers</span>
-                  <h4 className="text-base font-extrabold text-gray-700 mt-3">Always Free</h4>
-                  <div className="text-3xl font-black text-gray-800 mt-1"><sup className="text-lg font-bold">₹</sup>0</div>
-                  <p className="text-xs text-gray-400 mt-1 leading-normal font-medium">Everything you need to find your next job—at no cost.</p>
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase px-3 py-1 rounded-full border border-emerald-200">
+                    🟢 For Domestic Helpers
+                  </span>
+                  <span className="text-xs font-black text-emerald-600 bg-emerald-100/60 px-2.5 py-0.5 rounded-md">
+                    100% FREE
+                  </span>
                 </div>
-                <ul className="text-xs text-gray-500 space-y-2 border-t border-gray-100 pt-4 font-semibold">
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#34A853] shrink-0" /> Create your verified profile</li>
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#34A853] shrink-0" /> Apply for unlimited job opportunities</li>
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#34A853] shrink-0" /> Update your skills & availability anytime</li>
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#34A853] shrink-0" /> Receive interview requests from employers</li>
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#34A853] shrink-0" /> Multilingual profile support</li>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900">Worker Membership</h3>
+                  <div className="text-4xl font-black text-gray-900 mt-2">
+                    <sup className="text-xl font-bold">₹</sup>0 <span className="text-xs text-gray-400 font-bold uppercase">/ Forever</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 leading-relaxed font-medium">
+                    Maids, cooks, nannies, and drivers never pay any fee to register, showcase skills, or connect with nearby families.
+                  </p>
+                </div>
+
+                <ul className="text-xs text-gray-600 space-y-2.5 border-t border-gray-100 pt-5 font-bold">
+                  <li className="flex items-center gap-2"><Check size={16} className="text-emerald-500 shrink-0" /> Verified Worker Profile Badge</li>
+                  <li className="flex items-center gap-2"><Check size={16} className="text-emerald-500 shrink-0" /> Apply for Unlimited Nearby Job Posts</li>
+                  <li className="flex items-center gap-2"><Check size={16} className="text-emerald-500 shrink-0" /> Direct Employer Interview Calls</li>
+                  <li className="flex items-center gap-2"><Check size={16} className="text-emerald-500 shrink-0" /> Zero Agency or Salary Commission</li>
                 </ul>
               </div>
+
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleStartWorkerFlow(); }}
-                className="w-full py-3 mt-6 text-xs font-bold rounded-2xl border-2 border-[#34A853] text-[#34A853] hover:bg-[#34A853] hover:text-white transition-all active:scale-[0.98]"
+                className="w-full py-3.5 mt-8 text-xs font-black rounded-2xl bg-emerald-50 text-emerald-700 border-2 border-emerald-400 hover:bg-emerald-600 hover:text-white transition-all active:scale-[0.98] shadow-sm"
               >
-                Register for Free
+                Register as Worker (Free)
               </button>
             </div>
 
-            {/* Employers Subscription */}
+            {/* Card 2: Household Employers (Hiring Passes) */}
             <div 
-              onClick={handleStartEmployerFlow}
-              className="bg-white border-2 border-[#1A73E8] p-6 rounded-3xl text-left flex flex-col justify-between transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-blue-100/50 cursor-pointer relative shadow-md"
+              className="bg-white border-2 border-[#1A73E8] p-8 rounded-3xl text-left flex flex-col justify-between transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-blue-100/80 relative shadow-md"
             >
-              <div className="absolute -top-3 right-6 bg-gradient-to-r from-[#1A73E8] to-[#9b51e0] text-white text-[9px] font-black px-3.5 py-1 rounded-full shadow-sm uppercase tracking-wide">
-                Popular
+              <div className="absolute -top-3.5 right-6 bg-gradient-to-r from-[#1A73E8] to-indigo-600 text-white text-[9.5px] font-black px-4 py-1 rounded-full shadow-md uppercase tracking-wider">
+                Recommended For Families
               </div>
-              <div className="space-y-4">
-                <div>
-                  <span className="bg-[#1A73E8]/10 text-[#1A73E8] text-[9px] font-bold px-2.5 py-0.5 rounded-full">🔵 For Employers</span>
-                  <h4 className="text-base font-extrabold text-gray-700 mt-3">Premium Pass</h4>
-                  <div className="text-3xl font-black text-gray-800 mt-1"><sup className="text-lg font-bold">₹</sup>999<span className="text-xs text-gray-400 font-medium">/30 Days</span></div>
-                  <p className="text-xs text-gray-400 mt-1 leading-normal font-medium">Everything you need to hire trusted domestic workers with confidence.</p>
+
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <span className="bg-blue-50 text-[#1A73E8] text-[10px] font-black uppercase px-3 py-1 rounded-full border border-blue-200">
+                    🔵 For Household Employers
+                  </span>
                 </div>
-                <ul className="text-xs text-gray-500 space-y-2 border-t border-gray-100 pt-4 font-semibold">
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#1A73E8] shrink-0" /> View unlimited verified worker profiles</li>
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#1A73E8] shrink-0" /> Unlock Call & WhatsApp contact details</li>
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#1A73E8] shrink-0" /> Smart society-based worker matching</li>
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#1A73E8] shrink-0" /> Post unlimited job requirements</li>
-                  <li className="flex items-center gap-1.5"><Check size={14} className="text-[#1A73E8] shrink-0" /> Priority support during your subscription</li>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900">Employer Hiring Passes</h3>
+                  <div className="text-4xl font-black text-gray-900 mt-2">
+                    <span className="text-xs text-gray-400 font-bold mr-1">Starts from</span><sup className="text-xl font-bold">₹</sup>299 <span className="text-xs text-gray-400 font-bold uppercase">/ 30 Days</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 leading-relaxed font-medium">
+                    Unlock verified candidate contact details, post job requirements, and get society-matched domestic workers instantly.
+                  </p>
+                </div>
+
+                <ul className="text-xs text-gray-600 space-y-2.5 border-t border-gray-100 pt-5 font-bold">
+                  <li className="flex items-center gap-2"><Check size={16} className="text-[#1A73E8] shrink-0" /> Starter, Standard &amp; Pro Unlimited Passes</li>
+                  <li className="flex items-center gap-2"><Check size={16} className="text-[#1A73E8] shrink-0" /> Unlock Direct Call &amp; WhatsApp Contacts</li>
+                  <li className="flex items-center gap-2"><Check size={16} className="text-[#1A73E8] shrink-0" /> Smart Society-Based Worker Matching</li>
+                  <li className="flex items-center gap-2"><Check size={16} className="text-[#1A73E8] shrink-0" /> Zero Hidden Charges &amp; No Agency Fees</li>
                 </ul>
               </div>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); handleStartEmployerFlow(); }}
-                className="w-full py-3 mt-6 text-xs font-bold rounded-2xl bg-[#1A73E8] text-white hover:bg-[#155cb4] transition-all shadow-md shadow-blue-200/50 active:scale-[0.98]"
+
+              <Link
+                href="/pricing"
+                className="w-full py-3.5 mt-8 text-xs font-black rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-center shadow-lg shadow-blue-500/25 transition-all active:scale-[0.98] block"
               >
-                Get Premium Pass
-              </button>
+                View All Hiring Plans &amp; Pricing &rarr;
+              </Link>
             </div>
+
           </div>
         </div>
       </section>
 
       {/* 6. FAQ ACCORDION SECTION */}
-      <section className="py-16 px-4 bg-white border-b border-gray-200">
-        <div className="max-w-3xl mx-auto space-y-12 text-center">
+      <section className="py-20 px-4 bg-gradient-to-b from-white via-slate-50 to-white border-b border-slate-200/80 relative overflow-hidden">
+        <div className="max-w-3xl mx-auto space-y-10 text-center relative z-10">
           <div>
-            <h2 className="text-2xl font-black text-gray-800">Frequently Asked Questions</h2>
-            <p className="text-gray-400 text-xs mt-1 font-medium">Everything you need to know about Sevikaa.</p>
+            <span className="bg-blue-50 text-[#1A73E8] text-[10px] font-black uppercase px-3.5 py-1 rounded-full border border-blue-200/60 inline-flex items-center gap-1.5 mb-3 shadow-sm">
+              <HelpCircle size={12} />
+              Got Questions? We've Got Answers
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-slate-500 text-xs sm:text-sm mt-1.5 font-semibold">
+              Everything you need to know about how Sevikaa connects verified helpers with trusted households.
+            </p>
           </div>
-          <div className="space-y-3.5 text-left">
+
+          <div className="space-y-4 text-left">
             {[
-              { q: "Is Sevikaa free for domestic workers?", a: "Yes. Registration and job applications are completely free for maids, cooks, and nannies.", tag: "🟢 Free Tier" },
-              { q: "How does Sevikaa help me find the right match?", a: "Our smart society-based matching connects verified workers and employers based on location, skills, and availability, making hiring faster and more convenient.", tag: "📍 Matching" },
-              { q: "Is my personal information safe on Sevikaa?", a: "Yes. Identity documents and personal information are securely protected. Exact addresses are never publicly displayed, ensuring privacy for both workers and employers.", tag: "🔒 Privacy" }
+              { 
+                q: "Is Sevikaa completely free for domestic workers?", 
+                a: "Yes! Maids, cooks, nannies, caregivers, and drivers never pay any registration fees, commission, or salary cuts. Sevikaa is 100% free forever for all domestic workers.", 
+                tag: "🟢 100% Free Worker Guarantee" 
+              },
+              { 
+                q: "How does Sevikaa match domestic helpers with nearby homes?", 
+                a: "Our smart society-based matching engine pairs verified helpers with household employers in the exact same apartment complex or nearby gated societies based on skills, work shifts, and availability.", 
+                tag: "📍 Society Matching" 
+              },
+              { 
+                q: "How are worker identity and background verified?", 
+                a: "Every worker profile undergoes government-issued Aadhaar identity verification. Additionally, workers can submit Police Clearance Certificates (PCC) for the Police Verified Badge.", 
+                tag: "🔒 Verified Trust" 
+              },
+              { 
+                q: "What hiring plans are available for household employers?", 
+                a: "Employers can choose from Starter (₹299/30 days), Standard (₹699/60 days), or Pro Unlimited (₹1,499/90 days) passes to unlock verified contact details and hire with total peace of mind.", 
+                tag: "💳 Flexible Passes" 
+              }
             ].map((faq, index) => {
               const isOpen = openFaq === index;
               return (
                 <div 
                   key={index} 
-                  className={`bg-gray-50 border-2 rounded-2xl overflow-hidden transition-all duration-300 ${
-                    isOpen ? 'border-[#1A73E8] shadow-md shadow-blue-50/50' : 'border-gray-200'
+                  className={`bg-white border rounded-2xl overflow-hidden transition-all duration-300 ${
+                    isOpen 
+                      ? 'border-[#1A73E8] shadow-xl shadow-blue-500/10 ring-1 ring-[#1A73E8]/20 bg-gradient-to-r from-blue-50/20 via-white to-white' 
+                      : 'border-slate-200/80 shadow-sm hover:border-slate-300 hover:shadow-md'
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => setOpenFaq(isOpen ? null : index)}
-                    className="w-full p-4 flex items-center justify-between text-xs font-bold text-gray-700 hover:bg-gray-100/50"
+                    className="w-full p-5 flex items-center justify-between text-xs sm:text-sm font-extrabold text-slate-800 hover:text-[#1A73E8] transition-colors cursor-pointer"
                   >
-                    <span className="flex items-center gap-2.5">
-                      <HelpCircle size={16} className="text-[#1A73E8] shrink-0" /> 
+                    <span className="flex items-center gap-3 pr-4">
+                      <div className={`p-2 rounded-xl shrink-0 transition-colors ${
+                        isOpen ? 'bg-[#1A73E8] text-white' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        <HelpCircle size={16} />
+                      </div>
                       <span className="leading-snug">{faq.q}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-white border border-gray-200 text-[8px] text-gray-400 font-bold uppercase shrink-0">
+                    </span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="hidden sm:inline-block px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[9.5px] font-black uppercase tracking-wider border border-slate-200/60">
                         {faq.tag}
                       </span>
-                    </span>
-                    <ChevronDown size={14} className={`transform transition-transform duration-300 ${isOpen ? 'rotate-180 text-[#1A73E8]' : 'text-gray-400'}`} />
+                      <div className={`p-1.5 rounded-lg transition-transform duration-300 ${isOpen ? 'bg-blue-100 text-[#1A73E8] rotate-180' : 'text-slate-400'}`}>
+                        <ChevronDown size={16} />
+                      </div>
+                    </div>
                   </button>
-                  <div 
-                    className={`transition-all duration-300 ease-in-out overflow-hidden ${
-                      isOpen ? 'max-h-40 border-t border-gray-200/50 bg-white' : 'max-h-0'
-                    }`}
-                  >
-                    <div className="px-5 py-4 text-xs text-gray-400 font-semibold leading-relaxed">
+
+                  {isOpen && (
+                    <div className="px-5 pb-5 pt-1 text-xs sm:text-sm text-slate-600 font-medium leading-relaxed border-t border-slate-100 animate-fade-in pl-14">
                       {faq.a}
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })}
           </div>
 
-          <div className="pt-6 text-center">
+          <div className="pt-4 text-center">
             <Link 
               href="/faq" 
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1A73E8] hover:underline"
+              className="inline-flex items-center gap-2 py-3 px-6 bg-white border border-slate-200 hover:border-[#1A73E8] rounded-2xl text-xs font-black text-slate-700 hover:text-[#1A73E8] transition-all shadow-sm hover:shadow-md active:scale-95"
             >
-              Have more questions? View all FAQs &rarr;
+              <span>Have more questions? View complete FAQ Directory</span>
+              <span className="text-[#1A73E8]">&rarr;</span>
             </Link>
           </div>
         </div>
       </section>
 
       {/* 7. CONTACT & SUPPORT SECTION */}
-      <section className="py-16 px-4 bg-gray-50 border-b border-gray-200">
-        <div className="max-w-xl mx-auto space-y-6 text-center">
+      <section className="py-20 px-4 bg-slate-50 border-b border-slate-200/80">
+        <div className="max-w-4xl mx-auto space-y-10 text-center">
           <div>
-            <h2 className="text-2xl font-black text-gray-800">Support & Contact</h2>
-            <p className="text-gray-400 text-xs mt-1 font-medium">Need assistance? Our support team is here to help workers and employers every step of the way.</p>
+            <span className="bg-blue-50 text-[#1A73E8] text-[10px] font-black uppercase px-3 py-1 rounded-full border border-blue-200/60 inline-block mb-2 shadow-sm">
+              We Are Here To Help
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              Support &amp; Contact
+            </h2>
+            <p className="text-slate-500 text-xs sm:text-sm mt-1.5 font-semibold max-w-lg mx-auto">
+              Our dedicated support team assists workers, employers, and apartment RWAs every step of the way.
+            </p>
           </div>
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-6 space-y-0 divide-y divide-gray-100 shadow-sm text-left text-xs font-bold text-gray-700 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-gray-200/50">
-            {/* Row 1: Email */}
+
+          {/* 2-Column Responsive Support Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+            
+            {/* Card 1: Email Support */}
             <a 
-              href="mailto:support@sevikaa.in" 
-              className="flex items-start gap-4 py-4 first:pt-0 transition-all duration-200 hover:bg-[#1A73E8]/5 -mx-6 px-6 rounded-t-3xl cursor-pointer group block"
+              href="mailto:support@sevikaa.in"
+              className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 hover:border-[#1A73E8] hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 group cursor-pointer block shadow-sm relative overflow-hidden"
             >
-              <div className="p-2.5 rounded-xl bg-[#1A73E8]/10 text-[#1A73E8] shrink-0 group-hover:bg-[#1A73E8] group-hover:text-white transition-all">
-                <Mail size={16} />
-              </div>
-              <div>
-                <span className="block text-[9px] text-gray-400 uppercase">Support Email</span>
-                <span className="block mt-0.5 text-sm font-extrabold text-gray-700 group-hover:text-[#1A73E8] transition-colors">support@sevikaa.in</span>
-                <span className="block text-[9px] text-gray-400 font-medium leading-normal mt-1">For account support, profile verification, partnerships, billing enquiries, and general assistance.</span>
-              </div>
-            </a>
-
-            {/* Row 2: Phone */}
-            <a 
-              href="tel:+918757728679" 
-              className="flex items-start gap-4 py-4 transition-all duration-200 hover:bg-[#34A853]/5 -mx-6 px-6 cursor-pointer group block"
-            >
-              <div className="p-2.5 rounded-xl bg-[#34A853]/10 text-[#34A853] shrink-0 group-hover:bg-[#34A853] group-hover:text-white transition-all">
-                <Phone size={16} />
-              </div>
-              <div>
-                <span className="block text-[9px] text-gray-400 uppercase">Customer Support</span>
-                <span className="block mt-0.5 text-sm font-extrabold text-gray-700 group-hover:text-[#34A853] transition-colors">+91 87577 28679</span>
-                <span className="block text-[9px] text-gray-400 font-medium leading-normal mt-1">Speak with our support team during business hours for quick assistance.</span>
-              </div>
-            </a>
-
-            {/* Row 3: Business Hours */}
-            <div className="flex items-start gap-4 py-4 transition-all duration-200 hover:bg-[#FBBC05]/5 -mx-6 px-6 group">
-              <div className="p-2.5 rounded-xl bg-[#FBBC05]/10 text-[#FBBC05] shrink-0 group-hover:bg-[#FBBC05] group-hover:text-white transition-all">
-                <Sparkles size={16} />
-              </div>
-              <div>
-                <span className="block text-[9px] text-gray-400 uppercase">Business Hours</span>
-                <span className="block mt-0.5 text-sm font-extrabold text-gray-700 group-hover:text-[#FBBC05] transition-colors">Monday – Friday: 10:00 AM – 5:00 PM (IST)</span>
-                <span className="block text-[9px] text-gray-400 font-medium leading-normal mt-1">Saturday & Sunday: Closed. Email enquiries are responded to within 1–2 business days.</span>
-              </div>
-            </div>
-
-            {/* Row 4: Company Info */}
-            <div className="flex items-start gap-4 py-4 last:pb-0 transition-all duration-200 hover:bg-[#EA4335]/5 -mx-6 px-6 rounded-b-3xl group">
-              <div className="p-2.5 rounded-xl bg-[#EA4335]/10 text-[#EA4335] shrink-0 group-hover:bg-[#EA4335] group-hover:text-white transition-all">
-                <MapPin size={16} />
-              </div>
-              <div>
-                <span className="block text-[9px] text-gray-400 uppercase">Owned & Operated By</span>
-                <span className="block mt-0.5 text-sm font-extrabold text-gray-700 group-hover:text-[#EA4335] transition-colors">YugaYatra Retail (OPC) Private Limited</span>
-                <span className="block text-xs font-semibold text-gray-400 mt-1 leading-normal">
-                  Electronic City, Phase 1, Bengaluru, Karnataka, India
+              <div className="flex items-center justify-between">
+                <div className="p-3 rounded-2xl bg-blue-50 text-[#1A73E8] group-hover:bg-[#1A73E8] group-hover:text-white transition-all">
+                  <Mail size={20} />
+                </div>
+                <span className="text-[10px] font-extrabold uppercase text-[#1A73E8] bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
+                  Email Support
                 </span>
-                <span className="block text-[9px] text-gray-400 mt-0.5">CIN: U47912KA2024OPC188603 (Registered with the Ministry of Corporate Affairs, Government of India)</span>
+              </div>
+              <div>
+                <h3 className="text-xs text-slate-400 font-extrabold uppercase tracking-wider">Official Support Email</h3>
+                <div className="text-lg sm:text-xl font-black text-slate-900 group-hover:text-[#1A73E8] transition-colors mt-0.5">
+                  support@sevikaa.in
+                </div>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed mt-2">
+                  For profile verifications, employer billing, partnership enquiries, and account assistance. Responded within 24 hours.
+                </p>
+              </div>
+            </a>
+
+            {/* Card 2: Phone Helpline & Business Hours */}
+            <a 
+              href="tel:+918757728679"
+              className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 hover:border-[#34A853] hover:shadow-xl hover:shadow-green-500/10 transition-all duration-300 group cursor-pointer block shadow-sm relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between">
+                <div className="p-3 rounded-2xl bg-emerald-50 text-[#34A853] group-hover:bg-[#34A853] group-hover:text-white transition-all">
+                  <Phone size={20} />
+                </div>
+                <span className="text-[10px] font-extrabold uppercase text-[#34A853] bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                  Customer Helpline
+                </span>
+              </div>
+              <div>
+                <h3 className="text-xs text-slate-400 font-extrabold uppercase tracking-wider">Phone &amp; WhatsApp Support</h3>
+                <div className="text-lg sm:text-xl font-black text-slate-900 group-hover:text-[#34A853] transition-colors mt-0.5">
+                  +91 87577 28679
+                </div>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed mt-2">
+                  Mon – Fri: 10:00 AM – 5:00 PM (IST). Speak directly with our customer support executives for quick assistance.
+                </p>
+              </div>
+            </a>
+
+          </div>
+
+          {/* Bottom Corporate Entity Card */}
+          <div className="bg-white border border-slate-200/80 p-6 sm:p-7 rounded-3xl shadow-sm text-left flex flex-col md:flex-row items-start md:items-center justify-between gap-6 hover:shadow-md transition-all">
+            <div className="flex items-start gap-4">
+              <div className="p-3.5 rounded-2xl bg-red-50 text-[#EA4335] shrink-0">
+                <MapPin size={22} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black text-slate-900">YugaYatra Retail (OPC) Private Limited</span>
+                  <span className="bg-slate-100 text-slate-600 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-slate-200">
+                    Government Registered
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 font-bold">
+                  Electronic City, Phase 1, Bengaluru, Karnataka, India
+                </p>
+                <p className="text-[10.5px] text-slate-400 font-semibold leading-relaxed pt-0.5">
+                  CIN: U47912KA2024OPC188603 (Registered under the Ministry of Corporate Affairs, Govt. of India)
+                </p>
               </div>
             </div>
           </div>
+
         </div>
       </section>
 

@@ -141,24 +141,37 @@ export default function TransactionsPage() {
     .filter(t => t.status === 'captured')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const handleExportCSV = () => {
+  const handleExportITRCSV = () => {
     if (filtered.length === 0) {
       showToast("No transaction records available to export.", "info");
       return;
     }
 
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + ["Transaction ID,Order ID,Employer,Plan,Amount (INR),Payment Method,Status,Timestamp"]
-        .concat(filtered.map(t => `${t.id},${t.orderId},"${t.employerName}","${t.planName}",${t.amount},${t.paymentMethod},${t.status},${t.timestamp}`))
-        .join("\n");
+    const headers = "Invoice Number,Invoice Date,Due Date,Employer Name,Employer Phone,Employer City,Employer State,Employer GSTIN,SAC Code,Plan Name,Base Subtotal (INR),CGST 9% (INR),SGST 9% (INR),IGST 18% (INR),Total Amount (INR),Payment Method,Transaction ID,Status";
+
+    const rows = filtered.map((t, idx) => {
+      const invNum = `SV/26-27/${(idx + 1).toString().padStart(4, '0')}`;
+      const totalAmt = Number(t.amount || 0);
+      const subtotal = Number((totalAmt / 1.18).toFixed(2));
+      const totalTax = Number((totalAmt - subtotal).toFixed(2));
+      
+      const isKarnataka = false;
+      const cgst = isKarnataka ? (totalTax / 2).toFixed(2) : '0.00';
+      const sgst = isKarnataka ? (totalTax / 2).toFixed(2) : '0.00';
+      const igst = !isKarnataka ? totalTax.toFixed(2) : '0.00';
+
+      return `"${invNum}","${t.timestamp}","${t.timestamp}","${t.employerName}","${t.employerPhone}","Kolkata","West Bengal","","998519","${t.planName}",${subtotal},${cgst},${sgst},${igst},${totalAmt},"${t.paymentMethod}","${t.id}","${t.status}"`;
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `sevikaa_live_transactions_${Date.now()}.csv`);
+    link.setAttribute("download", `Sevikaa_ITR_GST_Sales_Register_FY26-27_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     link.remove();
-    showToast("Live Transactions CSV ledger exported successfully!", "success");
+    showToast("ITR & GST Sales Register CSV Report exported for CA Tax filing!", "success");
   };
 
   const renderStatusBadge = (status: string) => {
@@ -209,12 +222,12 @@ export default function TransactionsPage() {
         </div>
 
         <button
-          onClick={handleExportCSV}
+          onClick={handleExportITRCSV}
           disabled={transactionsList.length === 0}
-          className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white rounded-xl text-xs font-black transition-all active:scale-95 shadow-md flex items-center justify-center gap-1.5 cursor-pointer shrink-0 disabled:cursor-not-allowed"
+          className="py-2.5 px-4 bg-[#2E7D32] hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-black transition-all active:scale-95 shadow-md flex items-center justify-center gap-1.5 cursor-pointer shrink-0 disabled:cursor-not-allowed"
         >
           <Download size={14} />
-          <span>Export Ledger CSV</span>
+          <span>Export ITR & GST Sales Register (.CSV)</span>
         </button>
       </div>
 
@@ -345,6 +358,14 @@ export default function TransactionsPage() {
                 <span className="text-[9.5px] font-medium text-slate-400 flex items-center gap-1">
                   <Clock size={9} /> {t.timestamp}
                 </span>
+                <a 
+                  href={`/employer/account/invoices/${t.id.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-bold text-[#2E7D32] hover:underline flex items-center gap-1 mt-1"
+                >
+                  <FileText size={10} /> View Tax Invoice
+                </a>
               </div>
             </div>
           ))

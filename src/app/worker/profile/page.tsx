@@ -6,8 +6,10 @@ import { useLanguage } from '@/context/LanguageContext';
 import { 
   User, CheckCircle2, ShieldAlert, AlertTriangle, ChevronDown, ChevronUp, 
   Trash2, Save, Phone, IndianRupee, Briefcase, Languages, Clock,
-  Upload, Camera, FileText, Image, Star, ChevronRight, Lock, X, Video, ShieldCheck, MapPin, Eye, Play
+  Upload, Camera, FileText, Image, Star, ChevronRight, Lock, X, Video, ShieldCheck, MapPin, Eye, Play, Sparkles
 } from 'lucide-react';
+import { ChangeMobileInlineSection } from '@/components/profile/ChangeMobileInlineSection';
+import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInlineSection';
 
 const SKILL_CATEGORIES = [
   { id: 'cook', key: 'cook', label: 'Cook / Chef', defaultLabel: 'Cook / Chef', icon: '🍳' },
@@ -40,10 +42,12 @@ export default function WorkerProfilePage() {
   } = useWorkerDashboard();
   const { t } = useLanguage();
 
+  const [isChangeMobileOpen, setIsChangeMobileOpen] = useState(false);
   const [name, setName] = useState(workerProfile.name || '');
   const [expectedSalary, setExpectedSalary] = useState(workerProfile.expectedSalary || '');
   const [experience, setExperience] = useState(workerProfile.experience || '');
   const [phone, setPhone] = useState(workerProfile.phone?.replace(/\D/g, '').slice(-10) || '');
+  const [email, setEmail] = useState(workerProfile.email || '');
   const [gender, setGender] = useState(workerProfile.gender || 'female');
   const [age, setAge] = useState(String(workerProfile.age || '28'));
   const [preferredShift, setPreferredShift] = useState(workerProfile.preferredShift || 'Full Day (8–12 Hours)');
@@ -81,6 +85,7 @@ export default function WorkerProfilePage() {
       const cleanP = workerProfile.phone.replace(/\D/g, '').slice(-10);
       if (cleanP) setPhone(cleanP);
     }
+    if (workerProfile.email) setEmail(workerProfile.email);
     if (workerProfile.expectedSalary) setExpectedSalary(workerProfile.expectedSalary);
     if (workerProfile.experience) setExperience(workerProfile.experience);
     if (workerProfile.gender) setGender(workerProfile.gender);
@@ -361,90 +366,148 @@ export default function WorkerProfilePage() {
         </div>
       )}
 
-      {/* 🏡 HERO WORKER PROFILE & COMPLETENESS CARD */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 sm:p-7 rounded-3xl space-y-6 shadow-xl border border-slate-800 relative overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
-          <Briefcase size={240} className="text-white" />
-        </div>
+      {/* 🏡 HERO WORKER PROFILE & COMPLETENESS CARD - LIGHT BRIGHT EXECUTIVE THEME */}
+      <div className="bg-gradient-to-r from-blue-50/90 via-white to-emerald-50/90 text-slate-900 p-5 sm:p-7 rounded-3xl space-y-5 border-2 border-slate-200/90 relative overflow-hidden">
+        
+        {/* Top Header Row: 100% Width Available for Avatar, Long Candidate Name & Full Society Location */}
+        <div className="flex items-center gap-4 relative z-10">
+          {/* Avatar Container with Sophisticated Circular SVG Progress Ring */}
+          <div className="relative group shrink-0 flex items-center justify-center">
+            {/* SVG Circular Progress Ring */}
+            <svg className="w-20 h-20 sm:w-24 sm:h-24 -rotate-90 pointer-events-none drop-shadow-xs">
+              <circle
+                cx="50%"
+                cy="50%"
+                r="36"
+                className="stroke-slate-200"
+                strokeWidth="4"
+                fill="transparent"
+              />
+              <circle
+                cx="50%"
+                cy="50%"
+                r="36"
+                className={`transition-all duration-1000 ${
+                  completionPercent === 100 ? 'stroke-[#34A853]' : completionPercent >= 60 ? 'stroke-amber-500' : 'stroke-[#1A73E8]'
+                }`}
+                strokeWidth="4"
+                strokeDasharray="226"
+                strokeDashoffset={226 - (226 * completionPercent) / 100}
+                strokeLinecap="round"
+                fill="transparent"
+              />
+            </svg>
 
-        <div className="flex flex-col sm:flex-row items-center gap-5 relative z-10">
-          {/* Profile Photo Uploader */}
-          <div className="relative group shrink-0">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-slate-700 border-4 border-white/20 shadow-lg flex items-center justify-center text-slate-300 font-black text-2xl">
-              {profilePhoto ? (
-                <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+            {/* Profile Avatar Image with Premium Executive Vibrant Fallback */}
+            <div className="absolute inset-1.5 rounded-full overflow-hidden bg-gradient-to-tr from-[#1A73E8] via-indigo-600 to-[#34A853] border-2 border-white shadow-md flex items-center justify-center text-white font-black text-2xl sm:text-3xl tracking-tight select-none">
+              {profilePhoto && (profilePhoto.startsWith('data:') || profilePhoto.startsWith('http') || profilePhoto.startsWith('/')) ? (
+                <img 
+                  src={profilePhoto} 
+                  alt={name || "Worker Candidate"} 
+                  className="w-full h-full object-cover" 
+                  onError={() => setProfilePhoto(null)}
+                />
               ) : (
-                name ? name[0].toUpperCase() : 'W'
+                <span className="drop-shadow-xs">{name && name.trim() ? name.trim().charAt(0).toUpperCase() : 'W'}</span>
               )}
             </div>
-            <label className="absolute bottom-0 right-0 p-2 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95 border-2 border-slate-900">
-              <Camera size={14} />
+
+            {/* Camera Upload Button Overlay */}
+            <label className="absolute bottom-0 right-0 p-1.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95 border-2 border-white">
+              <Camera size={12} />
               <input type="file" accept="image/jpeg,image/png" onChange={handlePhotoChange} className="hidden" />
             </label>
           </div>
 
-          {/* Profile Details */}
-          <div className="text-center sm:text-left space-y-1.5 min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <h3 className="text-lg sm:text-xl font-black tracking-tight">{name || 'Domestic Worker'}</h3>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
+          {/* Candidate Name, Dedicated Society Location Row, and Salary/Readiness Badges */}
+          <div className="space-y-2 min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{name || 'Domestic Worker'}</h3>
+            </div>
+
+            {/* Dedicated Row for Society Location */}
+            <p className="text-xs sm:text-sm font-extrabold text-slate-700 flex items-center gap-1.5 leading-snug">
+              <MapPin size={15} className="text-[#1A73E8] shrink-0" />
+              <span>{workerProfile.society || 'DLF Westend Heights'}</span>
+            </p>
+
+            {/* Badges Row: Profile Ready & Expected Salary */}
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs ${
+                completionPercent === 100
+                  ? 'bg-emerald-100 text-[#34A853] border border-emerald-300'
+                  : completionPercent >= 60
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                  : 'bg-blue-100 text-[#1A73E8] border border-blue-300'
+              }`}>
+                <Sparkles size={12} />
+                <span>{completionPercent}% Profile Ready</span>
+              </span>
+
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-black uppercase bg-emerald-100 text-[#34A853] border border-emerald-300 flex items-center gap-1 shadow-2xs whitespace-nowrap">
                 <IndianRupee size={11} />
                 ₹{expectedSalary || '15000'}/mo
               </span>
             </div>
+          </div>
+        </div>
 
-            <p className="text-xs text-slate-300 font-medium flex items-center justify-center sm:justify-start gap-1">
-              <MapPin size={12} className="text-blue-400" />
-              <span className="truncate">{workerProfile.society || 'DLF Westend Heights'}, Bengaluru</span>
-            </p>
-
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1 text-[11px] font-semibold text-slate-300">
-              <span className="flex items-center gap-1"><Phone size={11} className="text-emerald-400" /> +91 {phone}</span>
-              <span className="flex items-center gap-1"><Briefcase size={11} className="text-amber-400" /> {experience || '3+ Years Exp'}</span>
-              <span className="flex items-center gap-1"><Clock size={11} className="text-indigo-400" /> {preferredShift}</span>
+        {/* 3 Dedicated Full-Width Rows for Mobile Number, Experience & Preferred Shift Slot */}
+        <div className="flex flex-col gap-2 pt-1 relative z-10">
+          <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <Phone size={15} className="text-[#34A853] shrink-0" />
+              <span className="text-slate-500 font-bold">Mobile:</span>
             </div>
+            <span className="font-mono text-sm font-black text-slate-900 break-all">+91 {phone}</span>
           </div>
 
-          {/* Completeness Badge */}
-          <div className="text-center bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 shrink-0 min-w-[120px]">
-            <span className="block text-[10px] font-black uppercase text-slate-300 tracking-wider">Completeness</span>
-            <span className={`text-2xl font-black font-mono mt-0.5 block ${
-              completionPercent === 100 ? 'text-emerald-400' : completionPercent >= 60 ? 'text-amber-400' : 'text-blue-400'
-            }`}>
-              {completionPercent}%
-            </span>
+          <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <Briefcase size={15} className="text-amber-600 shrink-0" />
+              <span className="text-slate-500 font-bold">Experience:</span>
+            </div>
+            <span className="text-sm font-black text-slate-900 break-words sm:text-right">{experience || '3+ Years Exp'}</span>
+          </div>
+
+          <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <Clock size={15} className="text-[#1A73E8] shrink-0" />
+              <span className="text-slate-500 font-bold">Shift Slot:</span>
+            </div>
+            <span className="text-sm font-black text-slate-900 break-words sm:text-right">{preferredShift}</span>
           </div>
         </div>
 
         {/* Animated Progress Bar */}
-        <div className="space-y-2 relative z-10 pt-2 border-t border-white/10">
-          <div className="flex justify-between items-center text-xs font-bold text-slate-300">
+        <div className="space-y-3 relative z-10 pt-4 border-t border-slate-200/80">
+          <div className="flex justify-between items-center text-xs font-black text-slate-700">
             <span>{t('profileCompletenessTitle') || "Profile Readiness"}</span>
             <span>{completedCount} of {completionSteps.length} steps completed</span>
           </div>
-          <div className="h-2.5 bg-white/10 rounded-full overflow-hidden p-0.5">
+          <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
             <div 
               className={`h-full rounded-full transition-all duration-700 ${
-                completionPercent === 100 ? 'bg-gradient-to-r from-emerald-400 to-teal-300' : 'bg-gradient-to-r from-blue-500 to-indigo-400'
+                completionPercent === 100 ? 'bg-gradient-to-r from-[#34A853] to-emerald-400' : 'bg-gradient-to-r from-[#1A73E8] to-blue-400'
               }`}
               style={{ width: `${completionPercent}%` }}
             />
           </div>
 
-          {/* Step Badges */}
-          <div className="flex flex-wrap gap-1.5 pt-2">
+          {/* Step Badges - Dynamically Responsive Flex Wrap to Fit Exact Text Size */}
+          <div className="flex flex-wrap gap-2 pt-2">
             {completionSteps.map((step) => (
-              <span 
+              <div 
                 key={step.key} 
-                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
+                className={`py-2 px-3.5 rounded-xl text-xs font-black inline-flex items-center gap-2 border transition-all ${
                   step.done 
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                    : 'bg-white/5 text-slate-400 border border-white/10'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs' 
+                    : 'bg-white text-slate-400 border-slate-200'
                 }`}
               >
-                {step.done ? <CheckCircle2 size={11} className="text-emerald-400" /> : <Lock size={11} />}
-                <span>{step.label}</span>
-              </span>
+                <span className="whitespace-nowrap">{step.label}</span>
+                {step.done ? <CheckCircle2 size={14} className="text-[#34A853] shrink-0" /> : <Lock size={14} className="text-slate-400 shrink-0" />}
+              </div>
             ))}
           </div>
         </div>
@@ -477,20 +540,25 @@ export default function WorkerProfilePage() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-black text-slate-700 mb-1">Primary Mobile Number (OTP Verified)</label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-3 text-xs font-black text-slate-400">+91</span>
-                <input 
-                  type="text" 
-                  value={phone}
-                  onChange={(e) => handlePhoneChange(e.target.value)}
-                  maxLength={10}
-                  placeholder="9876543210"
-                  className="w-full pl-12 pr-3 py-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-black text-slate-900 focus:outline-none transition-colors"
-                />
-              </div>
-            </div>
+            <ChangeMobileInlineSection
+              currentPhone={phone}
+              label="Primary Mobile Number"
+              onSuccess={(newP) => {
+                setPhone(newP);
+                setWorkerProfile((prev: any) => ({ ...prev, phone: `+91 ${newP}` }));
+                showToast('Worker mobile number updated successfully!', 'success');
+              }}
+            />
+
+            <ChangeEmailInlineSection
+              currentEmail={email || workerProfile.email || ''}
+              label="Primary Email Address (Optional)"
+              onSuccess={(newE) => {
+                setEmail(newE);
+                setWorkerProfile((prev: any) => ({ ...prev, email: newE }));
+                showToast('Worker email address updated successfully!', 'success');
+              }}
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -941,6 +1009,18 @@ export default function WorkerProfilePage() {
             </button>
           </div>
         )}
+
+        {/* 🛡️ POWERED BY YGAYATRA BRAND FOOTER */}
+        <div className="pt-8 pb-2 flex flex-col items-center justify-center gap-1.5 opacity-75 hover:opacity-100 transition-opacity select-none">
+          <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+            Powered By
+          </span>
+          <img 
+            src="/ygayatra.png" 
+            alt="Ygayatra" 
+            className="h-6 sm:h-7 object-contain grayscale hover:grayscale-0 transition-all opacity-80 hover:opacity-100" 
+          />
+        </div>
       </div>
 
       {/* DELETION CONFIRMATION MODAL */}

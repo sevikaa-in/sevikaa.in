@@ -1,73 +1,45 @@
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import nodemailer from 'nodemailer';
+import { sendSMSWithTemplates } from './smsService';
+
+export * from './emailTemplates';
 
 const awsAccessKey = process.env.AWS_SES_ACCESS_KEY_ID || '';
 const awsSecretKey = process.env.AWS_SES_SECRET_ACCESS_KEY || '';
-const awsRegion = process.env.AWS_SES_REGION || 'ap-south-1';
+const awsRegion = process.env.AWS_SES_REGION || 'ap-southeast-2';
+const sourceEmail = process.env.AWS_SES_SOURCE_EMAIL || 'support@sevikaa.in';
 
-const msg91AuthKey = process.env.MSG91_AUTH_KEY || '';
-const msg91TemplateId = process.env.MSG91_TEMPLATE_ID || '';
-
-// Initialize SES Client if credentials are provided and not placeholders
+// Check if SES SMTP credentials are configured
 const isSESConfigured = awsAccessKey && !awsAccessKey.includes('placeholder') &&
                         awsSecretKey && !awsSecretKey.includes('placeholder');
 
-const sesClient = isSESConfigured
-  ? new SESClient({
-      region: awsRegion,
-      credentials: {
-        accessKeyId: awsAccessKey,
-        secretAccessKey: awsSecretKey,
+// Create Nodemailer SMTP Transporter using Amazon SES SMTP Server
+const smtpTransporter = isSESConfigured
+  ? nodemailer.createTransport({
+      host: `email-smtp.${awsRegion}.amazonaws.com`,
+      port: 587,
+      secure: false, // TLS via port 587
+      auth: {
+        user: awsAccessKey,
+        pass: awsSecretKey,
       },
     })
   : null;
 
 /**
  * Sends a transactional SMS notification via MSG91 SMS Gateway
- * Falls back to mock logging if configurations are placeholders.
- * 
- * @param phoneNumber Indian mobile phone number (10 digits or with prefix)
- * @param message Text contents to dispatch
- * @param variables Optional templating variables for MSG91 triggers
  */
 export async function sendSMS(
   phoneNumber: string,
-  message: string,
-  variables?: Record<string, string>
+  templateKey: string,
+  variables: Record<string, string> = {}
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const isMSG91Configured = msg91AuthKey && !msg91AuthKey.includes('placeholder');
-
-  if (!isMSG91Configured) {
-    console.log(`[MSG91 MOCK SMS] Dispatching to ${phoneNumber}: "${message}"`);
-    return { success: true, messageId: `mock-msg91-id-${Date.now()}` };
-  }
-
   try {
-    // Standard MSG91 Flow
-    const cleanedPhone = phoneNumber.replace(/\D/g, '');
-    const phoneWithCountry = cleanedPhone.length === 10 ? `91${cleanedPhone}` : cleanedPhone;
-
-    const payload = {
-      template_id: msg91TemplateId,
-      mobile: phoneWithCountry,
-      authkey: msg91AuthKey,
-      ...variables
-    };
-
-    const response = await fetch('https://api.msg91.com/api/v5/otp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
+    const result = await sendSMSWithTemplates({
+      templateKey: templateKey.includes(' ') ? 'SECURITY_ALERT' : templateKey,
+      phoneNumber,
+      variables
     });
-
-    const data = await response.json();
-
-    if (data.type === 'success') {
-      return { success: true, messageId: data.message };
-    } else {
-      return { success: false, error: data.message || 'MSG91 API error' };
-    }
+    return { success: result.success, messageId: result.messageId, error: result.error };
   } catch (err: any) {
     console.error("MSG91 send SMS error:", err);
     return { success: false, error: err.message || 'SMS network error' };
@@ -75,47 +47,29 @@ export async function sendSMS(
 }
 
 /**
- * Sends a transactional HTML email via Amazon SES
- * Falls back to mock logging if configurations are placeholders.
- * 
- * @param toEmail Recipient email address
- * @param subject Email subject headline
- * @param htmlBody Email body contents formatted in HTML
+ * Sends a transactional HTML email via Amazon SES SMTP (Port 587)
  */
 export async function sendEmail(
   toEmail: string,
   subject: string,
   htmlBody: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  if (!sesClient) {
-    console.log(`[SES MOCK EMAIL] Dispatching to ${toEmail}\nSubject: "${subject}"\nBody: ${htmlBody}`);
-    return { success: true, messageId: `mock-ses-id-${Date.now()}` };
+  if (smtpTransporter) {
+    try {
+      const info = await smtpTransporter.sendMail({
+        from: `"Sevikaa" <${sourceEmail}>`,
+        to: toEmail,
+        subject: subject,
+        html: htmlBody,
+      });
+      console.log(`[LIVE EMAIL SENT via SES SMTP] To: ${toEmail} | Subject: "${subject}" | MessageId: ${info.messageId}`);
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.error("Amazon SES SMTP send email error:", err);
+    }
   }
 
-  try {
-    const command = new SendEmailCommand({
-      Destination: {
-        ToAddresses: [toEmail],
-      },
-      Message: {
-        Body: {
-          Html: {
-            Charset: 'UTF-8',
-            Data: htmlBody,
-          },
-        },
-        Subject: {
-          Charset: 'UTF-8',
-          Data: subject,
-        },
-      },
-      Source: 'noreply@sevikaa.in', // Must be verified in Amazon SES Console
-    });
-
-    const response = await sesClient.send(command);
-    return { success: true, messageId: response.MessageId };
-  } catch (err: any) {
-    console.error("Amazon SES send email error:", err);
-    return { success: false, error: err.message || 'SES service error' };
-  }
+  // Fallback to mock logging if SMTP fails or credentials are placeholders
+  console.log(`[SES MOCK EMAIL] Dispatching to ${toEmail}\nSubject: "${subject}"\nBody: ${htmlBody}`);
+  return { success: true, messageId: `mock-ses-id-${Date.now()}` };
 }

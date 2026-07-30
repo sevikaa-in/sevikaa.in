@@ -79,63 +79,71 @@ export default function EmployerMyJobsPage() {
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl pb-24">
       
-      {/* Page Title & Post Button */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
+      {/* Page Title & Post Button - STACKED TOP TO BOTTOM */}
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-2xs space-y-3.5">
+        <div className="space-y-1">
           <div className="flex items-center gap-2 mb-1">
             <span className="bg-blue-50 text-[#1A73E8] text-[9.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200/60 inline-flex items-center gap-1">
               <Sparkles size={11} className="text-amber-500" />
               {t('employerRequisitions')}
             </span>
           </div>
-          <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Briefcase size={18} className="text-[#1A73E8]" />
+
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+            <Briefcase size={22} className="text-[#1A73E8] shrink-0" />
             <span>{t('myPostedRequisitions')}</span>
           </h2>
-          <p className="text-xs text-slate-500 font-semibold mt-0.5 leading-relaxed">
+
+          <p className="text-xs sm:text-sm text-slate-500 font-semibold leading-relaxed pt-0.5">
             {t('manageRequisitionsSub')}
           </p>
         </div>
 
-        <Link
-          href="/employer/post-job"
-          className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs font-black shadow-md cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0 transition-all active:scale-95"
-        >
-          <PlusCircle size={15} />
-          <span>{t('postNewJobReq')}</span>
-        </Link>
+        {/* Dedicated Button Row underneath */}
+        <div className="pt-1">
+          <Link
+            href="/employer/post-job"
+            className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs sm:text-sm font-black shadow-sm cursor-pointer inline-flex items-center gap-2 transition-all active:scale-95 whitespace-nowrap"
+          >
+            <PlusCircle size={17} />
+            <span>{t('postNewJobReq')}</span>
+          </Link>
+        </div>
       </div>
 
-      {/* 📊 HERO STATS BANNER */}
-      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white p-5 rounded-3xl shadow-xl space-y-4 relative overflow-hidden border border-blue-500/20">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-          <div className="space-y-1">
-            <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-              <CheckCircle2 size={10} /> {t('activePipeline')}
+      {/* 📊 HERO STATS BANNER - TEXT ON TOP, COUNT BOXES ON BOTTOM */}
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-2xs space-y-4">
+        {/* Top Section: Title & Subtitle (100% Full Width) */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="bg-emerald-50 text-[#34A853] text-[9.5px] font-black uppercase px-3 py-1 rounded-full border border-emerald-200 inline-flex items-center gap-1.5 shadow-2xs">
+              <CheckCircle2 size={12} className="text-[#34A853]" /> 
+              <span>{t('activePipeline')}</span>
             </span>
-            <h3 className="text-sm font-black text-white">
-              {postedJobs.length} {t('postedIn')} {employerProfile.society_name?.split('-')[0] || 'Society'}
-            </h3>
-            <p className="text-[11px] text-slate-300 font-medium">
-              {t('aadhaarVerifiedSub')}
-            </p>
           </div>
+          
+          <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight pt-1">
+            {postedJobs.length} Requisitions Posted by Your Household
+          </h3>
+          
+          <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+            Track your active job requisitions in {employerProfile.society_name?.split('-')[0] || 'your society'}, view pending admin approvals, and manage inbound candidate applications.
+          </p>
+        </div>
 
-          <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/15 shrink-0 flex items-center gap-3 text-center">
-            <div>
-              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">{t('liveJobs')}</span>
-              <span className="text-base font-black text-emerald-400">{activeCount}</span>
-            </div>
-            <div className="w-px h-7 bg-white/15" />
-            <div>
-              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">{t('pendingAudit')}</span>
-              <span className="text-base font-black text-amber-300">{pendingCount}</span>
-            </div>
-            <div className="w-px h-7 bg-white/15" />
-            <div>
-              <span className="text-[8.5px] text-slate-300 font-bold block uppercase">{t('inboundApps')}</span>
-              <span className="text-base font-black text-blue-300">{totalApplicants}</span>
-            </div>
+        {/* Bottom Section: Count Metrics Boxes (100% Full Width Grid across bottom) */}
+        <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 w-full grid grid-cols-3 gap-2 text-center shadow-2xs divide-x divide-slate-200/80">
+          <div className="px-1">
+            <span className="text-[9px] sm:text-[10px] text-slate-500 font-black block uppercase tracking-wider truncate">{t('liveJobs')}</span>
+            <span className="text-lg sm:text-xl font-black text-[#34A853] mt-0.5 block">{activeCount}</span>
+          </div>
+          <div className="px-1">
+            <span className="text-[9px] sm:text-[10px] text-slate-500 font-black block uppercase tracking-wider truncate">{t('pendingAudit')}</span>
+            <span className="text-lg sm:text-xl font-black text-amber-600 mt-0.5 block">{pendingCount}</span>
+          </div>
+          <div className="px-1">
+            <span className="text-[9px] sm:text-[10px] text-slate-500 font-black block uppercase tracking-wider truncate">{t('inboundApps')}</span>
+            <span className="text-lg sm:text-xl font-black text-[#1A73E8] mt-0.5 block">{totalApplicants}</span>
           </div>
         </div>
       </div>

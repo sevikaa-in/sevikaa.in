@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { supabase } from '@/lib/supabaseClient';
+import { PublicNavbar } from '@/components/public/PublicNavbar';
+import { PublicFooter } from '@/components/public/PublicFooter';
 
 const FALLBACK_SOCIETIES = [
   { id: 'soc_1', name: 'DLF Westend Heights', area: 'DLF City, Begur Road', city: 'Bengaluru', pincode: '560068', total_flats: 850, gate_security: 'Physical Gate Security' },
@@ -229,41 +231,9 @@ export default function PublicSocietiesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col justify-between">
+      <PublicNavbar />
       <main className="flex-1">
       
-      {/* 1. TOP NAVIGATION HEADER (MATCHING HOME PAGE) */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50 transition-all duration-300">
-        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 hover:scale-102 active:scale-98 transition-all">
-            <img src="/logo.png" alt="Sevikaa Logo" className="h-16 sm:h-20 w-auto object-contain" />
-          </Link>
-
-          <div className="flex items-center gap-4">
-            {/* Desktop Nav Links */}
-            <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
-              {[
-                { label: 'About Us', href: '/about' },
-                { label: 'Societies', href: '/societies' },
-                { label: 'How It Works', href: '/how-it-works' },
-                { label: 'Pricing', href: '/pricing' },
-                { label: 'Safety', href: '/safety' },
-                { label: 'Contact', href: '/contact' },
-                { label: 'FAQ', href: '/faq' }
-              ].map((link, index) => (
-                <Link 
-                  key={index} 
-                  href={link.href} 
-                  className={`relative py-1 text-slate-600 hover:text-[#1A73E8] transition-all hover:scale-105 active:scale-95 duration-200 group font-bold ${link.href === '/societies' ? 'text-[#1A73E8]' : ''}`}
-                >
-                  {link.label}
-                  <span className={`absolute bottom-0 left-0 w-full h-0.5 bg-[#1A73E8] transform transition-transform origin-center duration-300 ${link.href === '/societies' ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'}`} />
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </div>
-      </header>
-
       {/* 🌟 HERO MARKETING HEADER (PLAIN WHITE) */}
       <section className="bg-white text-slate-900 py-14 px-4 sm:px-6 border-b border-slate-200/80 relative overflow-hidden">
         <div className="max-w-5xl mx-auto space-y-6 relative z-10 text-center">

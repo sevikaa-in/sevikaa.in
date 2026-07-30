@@ -49,7 +49,7 @@ export default function WorkerInterviewsPage() {
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
       if (!isPlaceholder && app.id) {
         await supabase
-          .from('job_applications')
+          .from('applications')
           .update({ status: 'confirmed' })
           .eq('id', app.id);
       }

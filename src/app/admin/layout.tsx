@@ -811,10 +811,10 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           <div className="flex flex-col">
             {/* Sidebar Header */}
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <img src="/logo.png" alt="Sevikaa Logo" className="h-8 w-auto object-contain bg-white rounded-full p-0.5 border border-slate-100" />
-                {!sidebarCollapsed && <span className="font-extrabold text-sm tracking-tight text-slate-800">Sevikaa Admin</span>}
-              </div>
+              <Link href="/admin" className="flex items-center gap-2 overflow-hidden group cursor-pointer" title="Sevikaa Admin Dashboard">
+                <img src="/logo.png" alt="Sevikaa Logo" className="h-8 w-auto object-contain bg-white rounded-full p-0.5 border border-slate-100 transition-transform group-hover:scale-105" />
+                {!sidebarCollapsed && <span className="font-extrabold text-sm tracking-tight text-slate-800 group-hover:text-[#1A73E8] transition-colors">Sevikaa Admin</span>}
+              </Link>
               <button 
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                 className="text-gray-400 hover:text-slate-800 hover:bg-slate-50 p-1.5 rounded-lg transition-colors cursor-pointer"
@@ -832,7 +832,8 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                 { id: 'jobs',        label: 'Job Moderation',       href: '/admin/jobs',        icon: <Briefcase size={16} />,        badge: counts.pendingJobs },
                 { id: 'reviews',     label: 'Reviews Moderation',   href: '/admin/reviews',     icon: <Star size={16} />,             badge: counts.pendingReviews },
                 { id: 'interviews',  label: 'Interviews Panel',     href: '/admin/interviews',  icon: <Calendar size={16} />,         badge: counts.interviewsToday },
-                { id: 'disputes',    label: 'Disputes Resolution',  href: '/admin/disputes',    icon: <ShieldAlert size={16} />,      badge: counts.activeDisputes }
+                { id: 'disputes',    label: 'Disputes Resolution',  href: '/admin/disputes',    icon: <ShieldAlert size={16} />,      badge: counts.activeDisputes },
+                { id: 'enquiries',   label: 'Support Enquiries',    href: '/admin/enquiries',   icon: <HelpCircle size={16} />,       badge: 0 }
               ].map((tab) => {
                 const isActive = (tab.id === 'overview' && pathname === '/admin') || (tab.id !== 'overview' && pathname === tab.href);
                 return (

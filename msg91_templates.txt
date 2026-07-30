@@ -1,0 +1,149 @@
+================================================================================
+SEVKAA - MSG91 DLT SMS TEMPLATES (STRICT CLEAN COPY-PASTE FORMAT)
+================================================================================
+Sender ID (Header): SEVKAA
+Last Updated: 29-07-2026
+
+CRITICAL MSG91 COPY-PASTE RULES:
+  1. Use double-hash syntax: ##number##, ##alphanumeric##
+  2. For templates with 2+ variables of the same type, use ##alphanumeric1##, ##alphanumeric2##
+  3. Copy EXACT text blocks below (preserve exact dots, spaces, and line breaks)
+  4. Ensure no trailing space after dots or variables when pasting to MSG91
+
+================================================================================
+ALL 12 SEVKAA MSG91 TEMPLATES
+================================================================================
+
+1. SEVKAA_REGISTER_OTP
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Welcome to Sevikaa.
+Your registration verification code is ##number##.
+Valid for 10 minutes.
+
+Backend Variable Key:
+- ##number##  =>  'otp' (e.g. "123456")
+
+
+2. SEVKAA_FORGOT_PASSWORD_OTP
+--------------------------------------------------------------------------------
+MSG91 Template Text (Two-line Variant — COPY & PASTE EXACTLY):
+Your Sevikaa password reset code is ##number##.
+Valid for 10 minutes.
+
+MSG91 Template Text (Single-line Variant — Try if Two-line fails DLT matching):
+Your Sevikaa password reset code is ##number##. Valid for 10 minutes.
+
+Backend Variable Key:
+- ##number##  =>  'otp' (e.g. "654321")
+
+
+2b. SEVKAA_FORGOT_PASSWORD_OTP_V2 (NEW 3-LINE TEMPLATE FOR DLT)
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Your Sevikaa password reset code is ##number##.
+Valid for 10 minutes.
+Do not share this code with anyone.
+
+Backend Variable Key:
+- ##number##  =>  'otp' (e.g. "654321")
+
+
+3. SEVKAA_INTERVIEW_SCHEDULED
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Interview scheduled on ##alphanumeric1## at ##alphanumeric2##.
+Check Sevikaa for complete details.
+
+Backend Variable Keys:
+- ##alphanumeric1##  =>  'date' (e.g. "30-07-2026")
+- ##alphanumeric2##  =>  'time' (e.g. "10:30 AM")
+
+
+4. SEVKAA_SUBSCRIPTION_ACTIVATED
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Your Sevikaa subscription ##alphanumeric## is now active.
+Thank you.
+
+Backend Variable Key:
+- ##alphanumeric##  =>  'plan_name' (e.g. "Gold Plan")
+
+
+5. SEVKAA_SECURITY_ALERT
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+A security-sensitive action was detected on your Sevikaa account.
+If this wasn't you, contact support immediately.
+
+Backend Variable Keys:
+- None (This template has no variables)
+
+
+6. SEVKAA_LOGIN_OTP
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Your Sevikaa verification code is ##number##.
+Valid for 10 minutes.
+Do not share this code with anyone.
+
+Backend Variable Key:
+- ##number##  =>  'otp' (e.g. "987654")
+
+
+7. SEVKAA_WORKER_VERIFIED
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Congratulations!
+Your Sevikaa profile has been verified successfully.
+
+Backend Variable Keys:
+- None (This template has no variables)
+
+
+8. SEVKAA_CHANGE_MOBILE_OTP
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Verify your new mobile number on Sevikaa using OTP ##number##. Valid for 10 minutes. Team Sevikaa.
+
+Backend Variable Key:
+- ##number##  =>  'otp' (e.g. "456789")
+
+
+9. SEVKAA_JOB_ACCEPTED
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Congratulations! Your application for ##alphanumeric1## has been accepted by ##alphanumeric2## on Sevikaa.
+
+Backend Variable Keys:
+- ##alphanumeric1##  =>  'job_title' (e.g. "Nanny")
+- ##alphanumeric2##  =>  'company' (e.g. "Ria Bhagat")
+
+
+10. SEVKAA_PAYMENT_SUCCESS
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Sevikaa: Payment of Rs.##number## received successfully. Transaction ID ##alphanumeric##. Thank you for using Sevikaa.
+
+Backend Variable Keys:
+- ##number##        =>  'amount' (e.g. "699")
+- ##alphanumeric##  =>  'transaction_id' (e.g. "PAY_901248")
+
+
+11. SEVKAA_NEW_APPLICATION
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+A new worker has applied for ##alphanumeric## on Sevikaa. Login to review.
+
+Backend Variable Key:
+- ##alphanumeric##  =>  'job_title' (e.g. "Housemaid")
+
+
+12. SEVKAA_JOB_APPLIED
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Your Sevikaa job application for ##alphanumeric## has been submitted successfully.
+
+Backend Variable Key:
+- ##alphanumeric##  =>  'job_title' (e.g. "Full Time Cook")
+================================================================================

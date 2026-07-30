@@ -5,6 +5,9 @@ Header (Sender ID): SEVKAA
 Entity Type: Principal Entity (PE)
 Placeholders Format: Jio TrueConnect standard ({#number#}, {#alphanumeric#}, {#var#})
 
+Last Updated: 29-07-2026
+Approved: 10  |  Rejected / Pending Resubmit: 2
+
 ================================================================================
 SECTION A: APPROVED DLT TEMPLATES (GLOBAL STATUS: ACTIVE ✅)
 ================================================================================
@@ -21,12 +24,27 @@ Sample Backend variables:
 - {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
 
 
-[✅ APPROVED] 2. SEVKAA_FORGOT_PASSWORD_OTP
+[✅ APPROVED / ⚠️ CHECK MSG91 MATCHING] 2. SEVKAA_FORGOT_PASSWORD_OTP
 --------------------------------------------------------------------------------
-DLT Status: Active (APPROVED ✅)
-Template Message:
+DLT Status: Active on Jio (APPROVED ✅)
+Template Message (Two-line Variant):
 Your Sevikaa password reset code is {#number#}.
 Valid for 10 minutes.
+
+Template Message (Single-line Variant — Try this if 2-line fails MSG91 matching):
+Your Sevikaa password reset code is {#number#}. Valid for 10 minutes.
+
+Sample Backend variables:
+- {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
+
+
+[🆕 NEW RECOMMENDED RESUBMISSION] 2b. SEVKAA_FORGOT_PASSWORD_OTP_V2
+--------------------------------------------------------------------------------
+DLT Status: Ready for Jio DLT Registration 🔄
+Template Message (Standard 3-Line Format — Same as Login OTP):
+Your Sevikaa password reset code is {#number#}.
+Valid for 10 minutes.
+Do not share this code with anyone.
 
 Sample Backend variables:
 - {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
@@ -89,64 +107,93 @@ Sample Backend variables:
 - None (This template has no variables)
 
 
-================================================================================
-SECTION B: REJECTED TEMPLATES & REVISED READY-TO-RESUBMIT TEMPLATES ❌
-================================================================================
-Note: DLT Operators (Jio/Fast2SMS) reject templates that:
-  1. Do not explicitly contain the Brand Name "Sevikaa".
-  2. Have a placeholder variable ({#var#}) as the very LAST word of the message.
-
-Below are the REVISED, FIXED templates ready for re-submission on Jio Trueconnect:
-
-
-[❌ REJECTED -> 🔄 RESUBMIT THIS] 1. SEVKAA_CHANGE_MOBILE_OTP
+[✅ APPROVED] 8. SEVKAA_CHANGE_MOBILE_OTP
 --------------------------------------------------------------------------------
-Rejection Reason: Template should have Entity / Trade / Brand Name
-FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
+DLT Status: Active (APPROVED ✅)
+Template Message:
 Verify your new mobile number on Sevikaa using OTP {#number#}. Valid for 10 minutes. Team Sevikaa.
 
 Sample Backend variables:
 - {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
 
 
-[❌ REJECTED -> 🔄 RESUBMIT THIS] 2. SEVKAA_JOB_APPLIED
+[✅ APPROVED] 9. SEVKAA_JOB_ACCEPTED
 --------------------------------------------------------------------------------
-Rejection Reason: Template should have Entity / Trade / Brand Name & Last word variable
-FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
-Your application for {#alphanumeric#} has been submitted successfully on Sevikaa.
-
-Sample Backend variables:
-- {#alphanumeric#} (Job Title)  =>  Expected key in code: 'job_title' (e.g. "Full Time Cook")
-
-
-[❌ REJECTED -> 🔄 RESUBMIT THIS] 3. SEVKAA_JOB_ACCEPTED
---------------------------------------------------------------------------------
-Rejection Reason: Template should have Entity / Trade / Brand Name & Last word variable
-FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
+DLT Status: Active (APPROVED ✅)
+Template Message:
 Congratulations! Your application for {#alphanumeric#} has been accepted by {#alphanumeric#} on Sevikaa.
 
 Sample Backend variables:
 - First {#alphanumeric#} (Job Title)   =>  Expected key in code: 'job_title' (e.g. "Nanny")
-- Second {#alphanumeric#} (Employer)    =>  Expected key in code: 'company' (e.g. "Ria Bhagat")
+- Second {#alphanumeric#} (Employer)   =>  Expected key in code: 'company' (e.g. "Ria Bhagat")
 
 
-[❌ REJECTED -> 🔄 RESUBMIT THIS] 4. SEVKAA_NEW_APPLICATION
+[✅ APPROVED] 10. SEVKAA_PAYMENT_SUCCESS
 --------------------------------------------------------------------------------
-Rejection Reason: Template should have Entity / Trade / Brand Name
-FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
-Sevikaa: A new worker has applied for {#alphanumeric#}. Login to Sevikaa to review the application.
+DLT Status: Active (APPROVED ✅)
+Template Message:
+Sevikaa: Payment of Rs.{#number#} received successfully. Transaction ID {#alphanumeric#}. Thank you for using Sevikaa.
+
+Sample Backend variables:
+- {#number#} (Amount)              =>  Expected key in code: 'amount' (e.g. "699")
+- {#alphanumeric#} (Transaction ID) =>  Expected key in code: 'transaction_id' (e.g. "PAY_901248")
+
+
+================================================================================
+SECTION B: REJECTED TEMPLATES & REVISED READY-TO-RESUBMIT TEMPLATES ❌
+================================================================================
+Note: DLT Operators (Jio/Fast2SMS) reject templates that:
+  1. Do not explicitly contain the Brand Name matching the registered entity string.
+  2. Have a placeholder variable ({#var#}) as the very LAST word of the message.
+
+ROOT CAUSE IDENTIFIED:
+The "Edit" button on Jio TrueConnect shows a READ-ONLY Template Content field.
+This means editing a rejected template does NOT change the actual template text —
+only the sample values change. The old rejected text was never replaced.
+
+⚠️  ACTION REQUIRED: You must DELETE both rejected templates and CREATE them
+    as brand new templates with the corrected text below.
+
+STEPS:
+  1. Go to Content Templates on Jio TrueConnect
+  2. Find the rejected template → click DELETE (not Edit)
+  3. Click "Add New Template"
+  4. Fill in: Header = SEVKAA, Template Name = (same name), Content = (text below)
+  5. Submit for approval
+
+
+[❌ REJECTED x2 -> 🔄 DELETE & RECREATE] 1. SEVKAA_NEW_APPLICATION
+--------------------------------------------------------------------------------
+Rejection History:
+  - Attempt 1 (28-07-2026): "Template should have Entity / Trade / Brand Name"
+    Text: "You have a new worker application for {#alphanumeric#}. Check Sevikaa."
+  - Attempt 2 (29-07-2026): "Template should have Entity / Trade / Brand Name"
+    Text: (Edit button was Read-only — text was never actually changed)
+
+NEW TEMPLATE MESSAGE (Delete old → Create new with this text):
+A new worker has applied for {#alphanumeric#} on Sevikaa. Login to review.
+
+Sample Content (fill in the placeholder field on the portal):
+- {#alphanumeric#} = Housemaid
 
 Sample Backend variables:
 - {#alphanumeric#} (Job Title)  =>  Expected key in code: 'job_title' (e.g. "Housemaid")
 
 
-[❌ REJECTED -> 🔄 RESUBMIT THIS] 5. SEVKAA_PAYMENT_SUCCESS
+[❌ REJECTED x2 -> 🔄 DELETE & RECREATE] 2. SEVKAA_JOB_APPLIED
 --------------------------------------------------------------------------------
-Rejection Reason: Last word variable not allowed & Template should have Entity / Trade / Brand Name
-FIXED TEMPLATE MESSAGE (Copy & Paste to Jio DLT):
-Sevikaa: Payment of Rs.{#number#} received successfully. Transaction ID {#alphanumeric#}. Thank you for using Sevikaa.
+Rejection History:
+  - Attempt 1 (28-07-2026): "Template should have Entity / Trade / Brand Name"
+    Text: "Job application submitted for {#alphanumeric#}."
+  - Attempt 2 (29-07-2026): "Template should have Entity / Trade / Brand Name"
+    Text: (Edit button was Read-only — text was never actually changed)
+
+NEW TEMPLATE MESSAGE (Delete old → Create new with this text):
+Your Sevikaa job application for {#alphanumeric#} has been submitted successfully.
+
+Sample Content (fill in the placeholder field on the portal):
+- {#alphanumeric#} = Full Time Cook
 
 Sample Backend variables:
-- {#number#} (Amount)             =>  Expected key in code: 'amount' (e.g. "699")
-- {#alphanumeric#} (Transaction ID) =>  Expected key in code: 'transaction_id' (e.g. "PAY_901248")
+- {#alphanumeric#} (Job Title)  =>  Expected key in code: 'job_title' (e.g. "Full Time Cook")
 ================================================================================

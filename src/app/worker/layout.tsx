@@ -211,6 +211,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
               society_id: wProf.preferred_society_id || '',
               secondary_societies: Array.isArray(wProf.secondary_society_names) ? wProf.secondary_society_names : (wProf.secondary_society_names ? [wProf.secondary_society_names] : ['Prestige Song of the South', 'SNN Raj Serenity']),
               phone: profile?.phone || wProf.phone || '',
+              email: profile?.email || session?.user?.email || '',
               languages: wProf.languages_spoken || [],
               gender: wProf.gender || 'female',
               age: wProf.age || 28,
@@ -233,7 +234,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         // Fetch real candidate job applications for this worker from database
         try {
           const { data: dbApps } = await supabase
-            .from('job_applications')
+            .from('applications')
             .select('*, jobs(*)')
             .eq('worker_id', session.user.id);
 
@@ -393,11 +394,20 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           <header className="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-xs">
             <div className="px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Link href="/" className="text-slate-400 hover:text-slate-700">
-                  <ArrowLeft size={18} />
-                </Link>
-                <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
-                <span className="font-black text-xs text-slate-800">{t('headerWorker')}</span>
+                {(() => {
+                  const isDashboardHome = pathname === '/worker' || pathname === '/worker/dashboard';
+                  const logoHref = isDashboardHome ? '/?browse=true' : '/worker';
+                  const logoTitle = isDashboardHome ? 'Go to Sevikaa Public Homepage' : 'Return to Worker Dashboard Home';
+                  return (
+                    <Link href={logoHref} className="flex items-center gap-2 group cursor-pointer" title={logoTitle}>
+                      {!isDashboardHome && (
+                        <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
+                      )}
+                      <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain transition-transform group-hover:scale-105" />
+                      <span className="font-black text-xs text-slate-800">{t('headerWorker')}</span>
+                    </Link>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center gap-2">
@@ -466,7 +476,15 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                     <GlobalLanguageSelector />
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 flex gap-2">
+                  <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                    <Link
+                      href="/?browse=true"
+                      onClick={() => setShowMobileMenu(false)}
+                      className="w-full py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100 text-[#34A853] border border-emerald-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>🌐 Visit Public Homepage</span>
+                    </Link>
+
                     <button
                       onClick={() => { setShowMobileMenu(false); handleLogout(); }}
                       className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
@@ -517,23 +535,23 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           </main>
 
           {/* Sticky Mobile Bottom Navigation Bar */}
-          <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200/90 py-2.5 px-2 flex justify-around items-center z-50 shadow-lg shrink-0">
+          <nav className="sticky bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 py-3 px-2 flex justify-around items-center z-50 shadow-xl shrink-0">
             {navItems.map((item) => {
               const isActive = (item.id === 'overview' && pathname === '/worker') || (item.id !== 'overview' && pathname === item.href);
               return (
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl text-[9.5px] font-bold transition-all relative text-center ${
+                  className={`flex flex-col items-center justify-center gap-1 py-1 px-2.5 rounded-xl transition-all relative text-center cursor-pointer ${
                     isActive 
-                      ? 'text-[#1A73E8] font-black bg-blue-50/80 scale-105' 
-                      : 'text-slate-400 hover:text-slate-600'
+                      ? 'text-[#1A73E8] font-black bg-blue-50/90 border border-blue-200/80 scale-105 shadow-xs' 
+                      : 'text-slate-600 font-bold hover:text-slate-900'
                   }`}
                 >
-                  {item.icon}
-                  <span className="text-center leading-tight">{item.label}</span>
+                  <div className="shrink-0">{item.icon}</div>
+                  <span className="text-center leading-tight text-xs">{item.label}</span>
                   {item.badge && item.badge > 0 ? (
-                    <span className="absolute -top-1 -right-1 bg-[#1A73E8] text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 bg-[#1A73E8] text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs">
                       {item.badge}
                     </span>
                   ) : null}

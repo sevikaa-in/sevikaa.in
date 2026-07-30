@@ -44,8 +44,8 @@ export default function EmployerPostJobPage() {
 
   const [category, setCategory] = useState<string>('cook');
   const [title, setTitle] = useState('');
-  const [societyName, setSocietyName] = useState(employerProfile.society_name || 'DLF Westend Heights');
-  const [salary, setSalary] = useState('15000');
+  const [societyName, setSocietyName] = useState(employerProfile.society_name || '');
+  const [salary, setSalary] = useState('');
   const [flatType, setFlatType] = useState('3BHK Apartment');
   const [familyMembers, setFamilyMembers] = useState('4 Members (2 Adults, 2 Kids)');
   const [careNeeds, setCareNeeds] = useState('No Special Senior/Infant Care');
@@ -64,6 +64,7 @@ export default function EmployerPostJobPage() {
   const [leavePolicy, setLeavePolicy] = useState('4 Sundays Off + 1 Paid Leave');
   const [deductionPolicy, setDeductionPolicy] = useState('Pro-rata Daily Rate (Salary ÷ 30)');
   const [customDeduction, setCustomDeduction] = useState('500');
+  const [selectedShiftSlot, setSelectedShiftSlot] = useState('fullday');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -185,46 +186,54 @@ export default function EmployerPostJobPage() {
         </div>
       )}
 
-      {/* Live Worker Feed Preview */}
-      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white p-6 rounded-3xl shadow-2xl space-y-4 relative overflow-hidden border border-blue-500/20">
-        <div className="flex items-center justify-between relative z-10">
-          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[9.5px] font-black uppercase px-3 py-1 rounded-full shadow-md flex items-center gap-1.5">
-            <Eye size={12} /> {t('liveWorkerFeedPreview') || "Live Worker Feed Preview"}
-          </span>
-          <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-3 py-1 rounded-full border border-amber-500/30 backdrop-blur-xs flex items-center gap-1">
-            <Clock size={10} /> {t('pendingAdminAudit') || "Pending Admin Audit"}
-          </span>
-        </div>
+      {/* Live Form Card Preview - ONLY SHOWS WHEN EMPLOYER ENTERS INPUT */}
+      {(title.trim().length > 0 || salary.trim().length > 0) && (
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-2xs space-y-3.5 relative overflow-hidden animate-fade-in">
+          <div className="flex items-center justify-between relative z-10">
+            <span className="bg-blue-50 text-[#1A73E8] text-[9.5px] font-black uppercase px-3 py-1 rounded-full border border-blue-200 shadow-2xs flex items-center gap-1.5">
+              <Eye size={12} className="text-[#1A73E8]" /> {t('liveWorkerFeedPreview') || "Live Form Card Preview"}
+            </span>
+            <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-3 py-1 rounded-full border border-slate-200 flex items-center gap-1">
+              <Sparkles size={11} className="text-amber-500" /> Live Draft Preview
+            </span>
+          </div>
 
-        <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 space-y-2.5 relative z-10">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-black text-white">{displayTitle}</h3>
-                <span className="bg-blue-500/30 text-blue-200 text-[8.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-400/30 shrink-0 flex items-center gap-1">
-                  <span>{activeCategoryObj.icon}</span>
-                  <span>{t(activeCategoryObj.labelKey)}</span>
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2.5 relative z-10 shadow-2xs">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-black text-slate-900">
+                    {title}
+                  </h3>
+                  <span className="bg-blue-100 text-[#1A73E8] text-[8.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200 shrink-0 flex items-center gap-1">
+                    <span>{activeCategoryObj.icon}</span>
+                    <span>{t(activeCategoryObj.labelKey)}</span>
+                  </span>
+                </div>
+                <span className="text-xs text-slate-600 font-semibold flex items-center gap-1 mt-1">
+                  <MapPin size={12} className="text-[#1A73E8]" /> {societyName || employerProfile.society_name || 'Gated Society'}
                 </span>
               </div>
-              <span className="text-[11px] text-slate-300 font-semibold flex items-center gap-1 mt-1">
-                <MapPin size={11} className="text-blue-400" /> {societyName || employerProfile.society_name || 'DLF Westend Heights'}
-              </span>
+              {salary && (
+                <span className="text-base font-black text-[#34A853] font-mono shrink-0">
+                  ₹{salary}/mo
+                </span>
+              )}
             </div>
-            <span className="text-sm font-black text-emerald-400 font-mono shrink-0">₹{salary || '0'}/mo</span>
-          </div>
 
-          {description && (
-            <p className="text-xs text-slate-300 font-medium line-clamp-2 leading-relaxed pt-2 border-t border-white/10">
-              "{description}"
-            </p>
-          )}
+            {description && (
+              <p className="text-xs text-slate-600 font-medium line-clamp-2 leading-relaxed pt-2 border-t border-slate-200/80">
+                "{description}"
+              </p>
+            )}
 
-          <div className="flex items-center justify-between text-[10.5px] text-slate-300 font-bold pt-2 border-t border-white/10">
-            <span>{t('leaveLabel') || "Leave:"} <strong>{leavePolicy}</strong></span>
-            <span className="text-emerald-300 font-mono">{t('deductionLabel') || "Deduction:"} {deductionPolicy.split(' ')[0]}</span>
+            <div className="flex items-center justify-between text-[11px] text-slate-700 font-bold pt-2 border-t border-slate-200/80">
+              <span>{t('leaveLabel') || "Leave:"} <strong className="text-slate-900">{leavePolicy}</strong></span>
+              <span className="text-[#34A853] font-mono">{t('deductionLabel') || "Deduction:"} {deductionPolicy.split(' ')[0]}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-6">
         
@@ -514,80 +523,47 @@ export default function EmployerPostJobPage() {
           </div>
         </div>
 
-        {/* Step 4: 7-Day Shift & Time Slot Picker */}
+        {/* Step 4: Shift Slot Selection */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-            <div>
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#1A73E8] text-white text-[10px] flex items-center justify-center font-black">4</span>
-                <span>{t('step4Title') || "Weekly Work Schedule Slots"}</span>
-              </h3>
-              <p className="text-[11px] text-slate-400 font-semibold mt-0.5">{t('scheduleSub') || "Select preferred working hours for each day of the week"}</p>
-            </div>
-
-            {/* Quick Presets */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1 sm:pt-0">
-              <button 
-                type="button" 
-                onClick={applyMorningPreset}
-                className="py-1 px-3 bg-blue-50 hover:bg-blue-100 text-[#1A73E8] rounded-xl text-[10px] font-black transition-all cursor-pointer shadow-xs active:scale-95"
-              >
-                {t('presetMorningShift') || "⚡ Morning Shift"}
-              </button>
-              <button 
-                type="button" 
-                onClick={applyFullDayPreset}
-                className="py-1 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black transition-all cursor-pointer shadow-xs active:scale-95"
-              >
-                {t('presetFullDayShift') || "⚡ Full Day Shift"}
-              </button>
-              <button 
-                type="button" 
-                onClick={applyLiveInPreset}
-                className="py-1 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-[10px] font-black transition-all cursor-pointer shadow-xs active:scale-95"
-              >
-                {t('presetLiveInShift') || "⚡ 24x7 Live-In"}
-              </button>
-            </div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-[#1A73E8] text-white text-[10px] flex items-center justify-center font-black">4</span>
+              <span>{t('step4Title') || "Work Schedule & Shift Timing Slots"}</span>
+            </h3>
+            <span className="text-[10px] text-slate-400 font-bold">{t('step4of4') || "Step 4 of 4"}</span>
           </div>
 
-          {/* Interactive Schedule Grid */}
-          <div className="overflow-x-auto pt-2">
-            <div className="min-w-[500px] border border-slate-200/80 rounded-2xl overflow-hidden text-xs">
-              <div className="grid grid-cols-6 bg-slate-100 font-black text-slate-700 p-2.5 text-[10.5px] uppercase border-b border-slate-200">
-                <span>{t('dayMon')?.slice(0, 3) || "Day"}</span>
-                {SHIFT_TIMES.map(shift => (
-                  <span key={shift.key} className="text-center">{t(shift.labelKey)?.split(' ')[0] || shift.fallback.split(' ')[0]}</span>
-                ))}
-              </div>
+          <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+            Select the shift timing slot required for your household. Domestic helpers will view this schedule when applying.
+          </p>
 
-              {DAYS_OF_WEEK.map(day => {
-                const daySlots = weeklyGrid[day.key] || [];
-                return (
-                  <div key={day.key} className="grid grid-cols-6 items-center p-2.5 border-b border-slate-100 last:border-b-0 text-slate-800 font-bold hover:bg-slate-50/50 transition-colors">
-                    <span className="font-black text-slate-900">{t(day.labelKey) || day.fallback}</span>
-                    {SHIFT_TIMES.map(shift => {
-                      const isChecked = daySlots.includes(shift.key);
-                      return (
-                        <div key={shift.key} className="flex justify-center">
-                          <button
-                            type="button"
-                            onClick={() => toggleSlot(day.key, shift.key)}
-                            className={`w-6 h-6 rounded-lg border transition-all flex items-center justify-center cursor-pointer ${
-                              isChecked 
-                                ? 'bg-[#1A73E8] border-[#1A73E8] text-white shadow-xs scale-105' 
-                                : 'border-slate-300 hover:border-slate-400 bg-white text-transparent'
-                            }`}
-                          >
-                            ✓
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {[
+              { id: 'morning', label: '🌅 Morning Shift', timing: '7:00 AM – 12:00 PM', dbValue: 'Morning Duty (7:00 AM – 12:00 PM)', desc: 'Morning cooking breakfast, house cleaning & dishwashing' },
+              { id: 'fullday', label: '☀️ Full Day Shift', timing: '8:00 AM – 4:00 PM', dbValue: 'Full Day (8:00 AM – 4:00 PM)', desc: 'Standard 8-hour shift for cooking, childcare & deep cleaning' },
+              { id: 'split', label: '⚡ Split Shift (Cook / Maid)', timing: '7:00 AM – 10:00 AM & 6:00 PM – 9:00 PM', dbValue: 'Split Shift: 7:00 AM – 10:00 AM & 6:00 PM – 9:00 PM', desc: 'Morning breakfast + Evening dinner prep double slot' },
+              { id: 'evening', label: '🌆 Evening Shift', timing: '4:00 PM – 9:00 PM', dbValue: 'Evening Duty (4:00 PM – 9:00 PM)', desc: 'Evening dinner preparation & kitchen cleanup' },
+              { id: 'livein', label: '🏠 24x7 Live-In Help', timing: '24-Hour Resident', dbValue: '24x7 Live-In Accommodation', desc: 'Full-time resident helper with private room & meals included' },
+              { id: 'custom', label: '⏱️ Flexible / Custom Hours', timing: 'Part-Time / On-Demand', dbValue: 'Flexible Custom Hours', desc: 'Custom working hours arranged mutually' }
+            ].map(shift => (
+              <button
+                key={shift.id}
+                type="button"
+                onClick={() => setSelectedShiftSlot(shift.id)}
+                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                  selectedShiftSlot === shift.id
+                    ? 'bg-blue-50/90 border-[#1A73E8] ring-2 ring-blue-500/20 text-slate-900 shadow-xs scale-[1.01]'
+                    : 'bg-slate-50/70 border-slate-200/80 hover:bg-slate-100/80 text-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-xs text-slate-900">{shift.label}</span>
+                  {selectedShiftSlot === shift.id && <CheckCircle2 size={16} className="text-[#1A73E8]" />}
+                </div>
+                <span className="text-[11px] font-bold text-[#1A73E8] block mt-0.5">{shift.timing}</span>
+                <span className="text-[10px] text-slate-400 font-medium block mt-1 leading-tight">{shift.desc}</span>
+              </button>
+            ))}
           </div>
         </div>
 

@@ -1,116 +1,133 @@
+"use client";
+
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle } from 'lucide-react';
+import { PublicNavbar } from '@/components/public/PublicNavbar';
+import { PublicFooter } from '@/components/public/PublicFooter';
+import { FileText, CheckCircle2, ShieldAlert, Scale, Building2 } from 'lucide-react';
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto w-full border-x border-gray-200">
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-gray-400 hover:text-gray-600">
-            <ArrowLeft size={20} />
-          </Link>
-          <img src="/logo.png" alt="Sevikaa Logo" className="h-10 w-auto object-contain" />
-        </div>
-        <span className="font-extrabold text-sm tracking-tight text-gray-500 uppercase">Terms</span>
-      </header>
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      <PublicNavbar />
 
-      <main className="flex-1 p-6 space-y-6">
-        <div className="text-center space-y-1">
-          <h1 className="text-2xl font-black text-[#202124]">Terms & Conditions</h1>
-          <p className="text-xs text-gray-500 font-bold">Terms of Service</p>
-        </div>
-
-        <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-gray-400 hover:shadow-lg hover:shadow-gray-200/50 cursor-pointer">
-          <p>
-            Welcome to Sevikaa, a platform owned and operated by YugaYatra Retail (OPC) Private Limited. By accessing or using Sevikaa, you agree to comply with these Terms & Conditions.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#1A73E8] hover:shadow-lg hover:shadow-blue-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-[#1A73E8] text-sm">1. Eligibility & Registration</h3>
-            <p>Users must provide accurate and up-to-date information during registration.</p>
-            <ul className="space-y-2 text-gray-400 font-semibold">
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#1A73E8] shrink-0 mt-0.5" /> Workers must submit genuine identity documents for verification.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#1A73E8] shrink-0" /> Employers must provide authentic hiring requirements.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#1A73E8] shrink-0" /> Any false or misleading information may result in account suspension or permanent removal.</li>
-            </ul>
-          </div>
-
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#34A853] hover:shadow-lg hover:shadow-green-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-[#34A853] text-sm">2. Verification & Platform Use</h3>
-            <p>Sevikaa verifies user profiles to promote trust and safety.</p>
-            <ul className="space-y-2 text-gray-400 font-semibold">
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#34A853] shrink-0" /> Verification improves profile credibility but does not guarantee employment or hiring.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#34A853] shrink-0" /> Users are responsible for the information they provide.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#34A853] shrink-0" /> All interactions should remain respectful, lawful, and professional.</li>
-            </ul>
-          </div>
-
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#FBBC05] hover:shadow-lg hover:shadow-yellow-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-[#FBBC05] text-sm">3. Premium Services</h3>
-            <ul className="space-y-2 text-gray-400 font-semibold">
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#FBBC05] shrink-0" /> Worker registration and job applications are free.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#FBBC05] shrink-0" /> Employers may purchase a Premium Pass to unlock contact details and premium hiring features.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#FBBC05] shrink-0" /> All payments are processed securely through our authorized payment partners.</li>
-            </ul>
-          </div>
-
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#EA4335] hover:shadow-lg hover:shadow-red-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-[#EA4335] text-sm">4. Privacy & Safety</h3>
-            <p>Your privacy is important to us.</p>
-            <ul className="space-y-2 text-gray-400 font-semibold">
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#EA4335] shrink-0" /> Personal information is handled in accordance with our Privacy Policy.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#EA4335] shrink-0" /> Exact residential addresses and sensitive information are never publicly displayed.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-[#EA4335] shrink-0" /> Users must not misuse or share another user's personal information without consent.</li>
-            </ul>
-          </div>
-
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-purple-500 text-sm">5. User Responsibilities</h3>
-            <p>By using Sevikaa, you agree to:</p>
-            <ul className="space-y-2 text-gray-400 font-semibold">
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-purple-500 shrink-0" /> Provide accurate information.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-purple-500 shrink-0" /> Respect other users.</li>
-              <li className="flex items-start gap-1.5"><CheckCircle size={14} className="text-purple-500 shrink-0" /> Comply with all applicable laws and avoid illegal activities.</li>
-            </ul>
-          </div>
-
-          <div className="bg-amber-50 text-amber-800 border-l-4 border-amber-500 rounded-2xl p-4 text-xs space-y-1 font-semibold leading-relaxed shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md cursor-pointer">
-            <span className="block font-bold">Important Notice:</span>
-            <p>Violation of these terms may result in immediate account suspension or permanent termination.</p>
-          </div>
-
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-amber-500 hover:shadow-lg hover:shadow-amber-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-amber-600 text-sm">6. Limitation of Liability</h3>
-            <p>
-              Sevikaa provides a platform to connect workers and employers. Employment decisions, interviews, negotiations, salaries, and work agreements are made directly between the parties. Sevikaa is not responsible for disputes arising after users choose to engage with one another.
+      <main className="flex-1">
+        
+        {/* Header Hero */}
+        <section className="bg-gradient-to-b from-blue-50/60 via-white to-slate-50 border-b border-slate-200/80 py-16 px-4 text-center">
+          <div className="max-w-4xl mx-auto space-y-3">
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-50 text-[#1A73E8] border border-blue-200 text-xs font-black uppercase shadow-sm">
+              <FileText size={14} className="text-[#1A73E8]" /> Legal Agreement
+            </span>
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900">Terms &amp; Conditions</h1>
+            <p className="text-xs sm:text-sm text-slate-600 font-semibold max-w-2xl mx-auto leading-relaxed">
+              Last Updated: January 2026 | Platform Terms of Service governing Sevikaa platform usage.
             </p>
           </div>
+        </section>
 
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-indigo-600 text-sm">7. Governing Law</h3>
-            <p>
-              These Terms & Conditions are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of the competent courts in Bengaluru, Karnataka.
-            </p>
-          </div>
+        {/* Content Body */}
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-10 shadow-sm space-y-8 text-slate-700 leading-relaxed text-sm">
+            
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-600">
+              Welcome to Sevikaa, a digital platform owned and operated by <strong className="text-slate-900">YugaYatra Retail (OPC) Private Limited</strong>. By registering, accessing, or using Sevikaa, you agree to comply with these Terms &amp; Conditions.
+            </div>
 
-          <div className="bg-white rounded-3xl border-2 border-gray-200 p-5 shadow-sm space-y-3 text-xs text-gray-500 leading-relaxed text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#1A73E8] hover:shadow-lg hover:shadow-blue-100/50 cursor-pointer">
-            <h3 className="font-extrabold text-[#1A73E8] text-sm">8. Contact Us</h3>
-            <p>For questions regarding these Terms & Conditions, please contact:</p>
-            <p className="mt-1 text-gray-400 font-semibold">
-              Email: support@sevikaa.in<br />
-              Company: YugaYatra Retail (OPC) Private Limited<br />
-              Business Hours: Monday – Friday, 10:00 AM – 5:00 PM (IST)
-            </p>
+            {/* Section 1 */}
+            <div className="space-y-3">
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-xl bg-blue-50 text-[#1A73E8] flex items-center justify-center text-xs">1</span>
+                Eligibility &amp; Account Registration
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                Users must provide accurate, current, and truthful information during registration.
+              </p>
+              <ul className="space-y-2 text-xs font-semibold text-slate-600 pt-1">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-[#1A73E8] shrink-0 mt-0.5" />
+                  Domestic helpers must upload authentic government Aadhaar identity documents for profile verification.
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-[#1A73E8] shrink-0 mt-0.5" />
+                  Employers must state genuine household requirements and residential society details.
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-[#1A73E8] shrink-0 mt-0.5" />
+                  Any misrepresentation or impersonation will result in immediate account termination.
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 2 */}
+            <div className="space-y-3 border-t border-slate-100 pt-6">
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs">2</span>
+                Profile Verification &amp; Badge Standard
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                Sevikaa verifies profile identity to build trust across gated residential communities.
+              </p>
+              <ul className="space-y-2 text-xs font-semibold text-slate-600 pt-1">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  Verification badges signify document authenticity but do not constitute employment guarantees.
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  Employers remain responsible for interviewing and assessing candidates prior to hiring.
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 3 */}
+            <div className="space-y-3 border-t border-slate-100 pt-6">
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xs">3</span>
+                Subscription Fees &amp; Payments
+              </h2>
+              <ul className="space-y-2 text-xs font-semibold text-slate-600">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  Helper registration and job applications are 100% free with zero salary commissions.
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  Employers purchase hiring subscription plans to unlock candidate contact details.
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  All payments include 18% GST and are processed securely via authorized gateways.
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 4 */}
+            <div className="space-y-3 border-t border-slate-100 pt-6">
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-xs">4</span>
+                Limitation of Liability &amp; Governing Law
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+                Sevikaa provides a digital matchmaking platform. Employment contracts, salary negotiations, and work terms are established directly between the employer and the worker. Sevikaa is not liable for disputes arising after parties connect.
+              </p>
+              <p className="text-xs text-slate-500 font-semibold pt-1">
+                These terms are governed by the laws of India. Courts in Bengaluru, Karnataka have exclusive jurisdiction.
+              </p>
+            </div>
+
+            {/* Support footer */}
+            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-between text-xs font-bold text-slate-700">
+              <span>Have questions about our Terms of Service?</span>
+              <Link href="/contact" className="text-[#1A73E8] hover:underline">Contact Support →</Link>
+            </div>
+
           </div>
-        </div>
+        </section>
+
       </main>
 
-      <footer className="bg-white border-t border-gray-200 py-4 text-center text-[10px] text-gray-400">
-        Powered by YugaYatra Retail (OPC) Private Limited
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

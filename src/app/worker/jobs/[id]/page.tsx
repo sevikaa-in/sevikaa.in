@@ -257,7 +257,7 @@ export default function WorkerJobDetailsPage() {
 
       if (!isPlaceholder) {
         await supabase
-          .from('job_applications')
+          .from('applications')
           .insert([{
             job_id: job.id,
             worker_id: workerProfile.phone || 'w_user',

@@ -49,11 +49,11 @@ export default function EmployerWorkersPage() {
     const fetchRealApplicants = async () => {
       setLoadingCandidates(true);
       try {
-        const { data: dbApps } = await supabase
-          .from('job_applications')
+        const { data: dbApps, error } = await supabase
+          .from('applications')
           .select('*, worker:profiles(*, worker_profiles(*)), job:jobs(*)');
 
-        if (dbApps && dbApps.length > 0) {
+        if (!error && dbApps && dbApps.length > 0) {
           const mapped: Candidate[] = dbApps.map((a: any) => {
             const wProfile = a.worker?.worker_profiles?.[0] || a.worker_profiles || {};
             const skills = wProfile.skills || [];
@@ -167,7 +167,7 @@ export default function EmployerWorkersPage() {
 
       if (!isPlaceholder) {
         await supabase
-          .from('job_applications')
+          .from('applications')
           .update({
             status: 'interview_scheduled',
             interview_time: interviewSlot,

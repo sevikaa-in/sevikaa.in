@@ -7,8 +7,10 @@ import { useLanguage } from '@/context/LanguageContext';
 import { 
   User, ShieldAlert, ChevronDown, ChevronUp, Trash2, 
   Save, Phone, CreditCard, Home, MapPin, AlertTriangle, Mail, Building, ShieldCheck, Sparkles, Bell, Check, Zap, History, X,
-  Upload, Camera, FileText, Lock, CheckCircle2, IdCard, Eye
+  Upload, Camera, FileText, Lock, CheckCircle2, IdCard, Eye, Search, RefreshCw, ArrowRight
 } from 'lucide-react';
+import { ChangeMobileInlineSection } from '@/components/profile/ChangeMobileInlineSection';
+import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInlineSection';
 
 export default function EmployerAccountPage() {
   const { 
@@ -17,6 +19,7 @@ export default function EmployerAccountPage() {
   } = useEmployerDashboard();
   const { t } = useLanguage();
 
+  const [isChangeMobileOpen, setIsChangeMobileOpen] = useState(false);
   const [activeInlinePreview, setActiveInlinePreview] = useState<'residency' | 'front' | 'back' | null>(null);
 
   const [companyName, setCompanyName] = useState(employerProfile.company_name || employerProfile.name || '');
@@ -24,6 +27,10 @@ export default function EmployerAccountPage() {
   const [email, setEmail] = useState(employerProfile.email || '');
   const [towerBlock, setTowerBlock] = useState(employerProfile.tower || '');
   const [address, setAddress] = useState(employerProfile.address || '');
+  const [city, setCity] = useState(employerProfile.city || '');
+  const [stateName, setStateName] = useState(employerProfile.state || '');
+  const [pincode, setPincode] = useState(employerProfile.pincode || '');
+  const [gstin, setGstin] = useState(employerProfile.gstin || '');
   const [altPhone, setAltPhone] = useState(employerProfile.alt_phone || '');
   const [verificationPref, setVerificationPref] = useState(employerProfile.verification_pref || 'Aadhaar + Police Audit (Default)');
   const [saveLoading, setSaveLoading] = useState(false);
@@ -39,6 +46,116 @@ export default function EmployerAccountPage() {
 
   // Profile Photo State
   const [profilePhoto, setProfilePhoto] = useState<string | null>(employerProfile.avatar_url || null);
+
+  // Society Relocation Inbuilt Section State
+  const [isRelocationOpen, setIsRelocationOpen] = useState(false);
+  const [relocationReason, setRelocationReason] = useState('Moved to new residential gated society');
+  const [targetSociety, setTargetSociety] = useState('');
+  const [relocationProofUrl, setRelocationProofUrl] = useState<string | null>(null);
+  const [relocationSubmitLoading, setRelocationSubmitLoading] = useState(false);
+
+  // Custom Searchable Society Picker Modal State
+  const [isSocietyPickerOpen, setIsSocietyPickerOpen] = useState(false);
+  const [societySearchQuery, setSocietySearchQuery] = useState('');
+
+  const VERIFIED_SOCIETIES = [
+    { value: "DLF Westend Heights - Akshayanagar, Bengaluru", label: "DLF Westend Heights", locality: "Akshayanagar, Bengaluru" },
+    { value: "Prestige Song of the South - Begur, Bengaluru", label: "Prestige Song of the South", locality: "Begur Main Rd, Bengaluru" },
+    { value: "SNN Raj Serenity - Yelenahalli, Bengaluru", label: "SNN Raj Serenity", locality: "Yelenahalli, Begur, Bengaluru" },
+    { value: "Purva Westend - Kudlu Gate, Bengaluru", label: "Purva Westend", locality: "Kudlu Gate, Hosur Rd, Bengaluru" },
+    { value: "Sobha Royal Pavilion - Sarjapur Road, Bengaluru", label: "Sobha Royal Pavilion", locality: "Sarjapur Road, Bengaluru" },
+    { value: "Godrej Eternity - Kanakapura Road, Bengaluru", label: "Godrej Eternity", locality: "Kanakapura Road, Bengaluru" },
+    { value: "Prestige Falcon City - Kanakapura Road, Bengaluru", label: "Prestige Falcon City", locality: "Kanakapura Road, Bengaluru" },
+    { value: "Brigade Lakefront - Whitefield, Bengaluru", label: "Brigade Lakefront", locality: "Whitefield, Bengaluru" },
+    { value: "Hiranandani Meadows - Thane, Mumbai", label: "Hiranandani Meadows", locality: "Thane West, Mumbai" },
+    { value: "DLF Pinnacle - Phase 5, Gurgaon", label: "DLF Pinnacle", locality: "DLF Phase 5, Gurgaon" },
+    { value: "Naya Gaon Gated Community - Kolkata", label: "Naya Gaon Gated Community", locality: "Naya Gaon, Kolkata" },
+  ];
+
+  const filteredVerifiedSocieties = VERIFIED_SOCIETIES.filter((soc) =>
+    soc.label.toLowerCase().includes(societySearchQuery.toLowerCase()) ||
+    soc.locality.toLowerCase().includes(societySearchQuery.toLowerCase())
+  );
+
+  const handleRelocationProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
+      showToast('Relocation Proof: Only JPG, PNG, or PDF files allowed.', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(`File size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setRelocationProofUrl(reader.result as string);
+      showToast('New residence proof document attached successfully!', 'success');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmitRelocationRequest = async () => {
+    if (!targetSociety.trim()) {
+      showToast('Please enter the target new gated society name.', 'error');
+      return;
+    }
+    if (!relocationProofUrl) {
+      showToast('Please upload a proof of residence document for the new society.', 'error');
+      return;
+    }
+    setRelocationSubmitLoading(true);
+    try {
+      const noteMsg = `⏳ Society Relocation Request to "${targetSociety.trim()}" submitted for admin verification. Reason: ${relocationReason}`;
+      if (typeof handleSaveEmployerProfile === 'function') {
+        await handleSaveEmployerProfile({
+          ...employerProfile,
+          status: 'changes_requested',
+          admin_note: noteMsg,
+          residency_proof_url: relocationProofUrl
+        });
+      } else {
+        setEmployerProfile((prev: any) => ({
+          ...prev,
+          status: 'changes_requested',
+          admin_note: noteMsg,
+          residency_proof_url: relocationProofUrl
+        }));
+      }
+      setIsRelocationOpen(false);
+      showToast(`Society relocation request to "${targetSociety.trim()}" submitted to admin for audit!`, 'success');
+    } catch (err: any) {
+      showToast(`Error submitting relocation request: ${err.message}`, 'error');
+    } finally {
+      setRelocationSubmitLoading(false);
+    }
+  };
+
+  // Sync state when employerProfile finishes loading from DB / context on page refresh
+  React.useEffect(() => {
+    if (employerProfile) {
+      if (employerProfile.company_name || employerProfile.name) {
+        setCompanyName(employerProfile.company_name || employerProfile.name || '');
+      }
+      if (employerProfile.phone) {
+        const cleanP = employerProfile.phone.replace(/\D/g, '').slice(-10);
+        if (cleanP) setPhone(cleanP);
+      }
+      if (employerProfile.email) setEmail(employerProfile.email);
+      if (employerProfile.tower) setTowerBlock(employerProfile.tower);
+      if (employerProfile.address) setAddress(employerProfile.address);
+      if (employerProfile.city) setCity(employerProfile.city);
+      if (employerProfile.state) setStateName(employerProfile.state);
+      if (employerProfile.pincode) setPincode(employerProfile.pincode);
+      if (employerProfile.gstin) setGstin(employerProfile.gstin);
+      if (employerProfile.alt_phone) setAltPhone(employerProfile.alt_phone);
+      if (employerProfile.residency_proof_url) setResidencyProofUrl(employerProfile.residency_proof_url);
+      if (employerProfile.aadhaar_front_url) setAadhaarFrontUrl(employerProfile.aadhaar_front_url);
+      if (employerProfile.aadhaar_back_url) setAadhaarBackUrl(employerProfile.aadhaar_back_url);
+      if (employerProfile.avatar_url) setProfilePhoto(employerProfile.avatar_url);
+    }
+  }, [employerProfile]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -178,6 +295,10 @@ export default function EmployerAccountPage() {
           email,
           tower: towerBlock,
           address,
+          city,
+          state: stateName,
+          pincode,
+          gstin,
           alt_phone: altPhone,
           verification_pref: verificationPref,
           avatar_url: profilePhoto || employerProfile.avatar_url
@@ -190,6 +311,10 @@ export default function EmployerAccountPage() {
           email,
           tower: towerBlock,
           address,
+          city,
+          state: stateName,
+          pincode,
+          gstin,
           alt_phone: altPhone,
           verification_pref: verificationPref
         }));
@@ -233,36 +358,59 @@ export default function EmployerAccountPage() {
   const onSubmitDeletionRequest = async () => {
     const finalReason = deletionReason === 'Other' ? customReason : deletionReason;
     await handleRequestAccountDeletion(finalReason);
+    if (email) {
+      try {
+        fetch('/api/notifications/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'account-deletion',
+            toEmail: email,
+            data: { employerName: companyName }
+          })
+        }).catch((err: any) => console.warn("Deletion email notice:", err));
+      } catch (emailErr) {
+        console.warn("Deletion email error notice:", emailErr);
+      }
+    }
     setShowDeleteModal(false);
   };
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl pb-24 mx-auto">
       
-      {/* 👑 PAGE HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
-            <User size={22} className="text-[#1A73E8]" />
-            <span>{t('employerAccountTitle') || "Household & Employer Account"}</span>
-          </h2>
-          <p className="text-xs text-slate-500 font-semibold mt-1">
-            {t('employerAccountSub') || "Manage your residential address, contact details, subscription tier, and security preferences."}
-          </p>
-        </div>
+      {/* 👑 PAGE HEADER - DEDICATED SEPARATE LINES */}
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-2xs space-y-3">
+        {/* Line 1: Title (Full 100% Width) */}
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+          <User size={24} className="text-[#1A73E8] shrink-0" />
+          <span>{t('employerAccountTitle') || "Household & Employer Account"}</span>
+        </h2>
 
-        <div className="flex items-center gap-2">
-          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase flex items-center gap-1.5 border shadow-2xs ${
+        {/* Line 2: Status Badge on its own line */}
+        <div>
+          <span className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider border shadow-2xs ${
             employerProfile.status === 'live' || employerProfile.status === 'approved'
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              ? 'bg-emerald-50 text-[#34A853] border-emerald-200'
               : employerProfile.status === 'changes_requested'
-              ? 'bg-amber-50 text-amber-800 border-amber-200 animate-pulse'
+              ? 'bg-amber-50 text-amber-800 border-amber-300 animate-pulse'
               : 'bg-blue-50 text-[#1A73E8] border-blue-200'
           }`}>
-            <ShieldCheck size={14} />
-            <span>{employerProfile.status === 'changes_requested' ? '⚠️ Revision Requested' : employerProfile.status === 'live' ? '🟢 Account Active' : '⏳ Pending Audit'}</span>
+            <ShieldCheck size={15} className="shrink-0" />
+            <span>
+              {employerProfile.status === 'changes_requested' 
+                ? '⚠️ Revision Requested' 
+                : employerProfile.status === 'live' 
+                ? '🟢 Account Active' 
+                : '⏳ Pending Admin Audit'}
+            </span>
           </span>
         </div>
+
+        {/* Line 3: Subtitle */}
+        <p className="text-xs sm:text-sm text-slate-500 font-semibold leading-relaxed">
+          {t('employerAccountSub') || "Manage your residential address, contact details, subscription tier, and security preferences."}
+        </p>
       </div>
 
       {/* ⚠️ ADMIN REVISION DIRECTIONS CALLOUT CARD */}
@@ -284,89 +432,150 @@ export default function EmployerAccountPage() {
         </div>
       )}
 
-      {/* 🏡 HERO HOUSEHOLD PROFILE & COMPLETENESS CARD */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 sm:p-7 rounded-3xl space-y-6 shadow-xl border border-slate-800 relative overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
-          <Building size={240} className="text-white" />
-        </div>
+      {/* 🏡 HERO HOUSEHOLD PROFILE & COMPLETENESS CARD - LIGHT BRIGHT EXECUTIVE THEME */}
+      <div className="bg-gradient-to-r from-blue-50/90 via-white to-emerald-50/90 text-slate-900 p-5 sm:p-7 rounded-3xl space-y-5 border-2 border-slate-200/90 relative overflow-hidden">
+        
+        {/* Top Header Row: 100% Width Available for Avatar, Long Employer Name & Full Society Location */}
+        <div className="flex items-center gap-4 relative z-10">
+          {/* Avatar Container with Sophisticated Circular SVG Progress Ring */}
+          <div className="relative group shrink-0 flex items-center justify-center">
+            {/* SVG Circular Progress Ring */}
+            <svg className="w-20 h-20 sm:w-24 sm:h-24 -rotate-90 pointer-events-none drop-shadow-xs">
+              <circle
+                cx="50%"
+                cy="50%"
+                r="36"
+                className="stroke-slate-200"
+                strokeWidth="4"
+                fill="transparent"
+              />
+              <circle
+                cx="50%"
+                cy="50%"
+                r="36"
+                className={`transition-all duration-1000 ${
+                  completionPercent === 100 ? 'stroke-[#34A853]' : completionPercent >= 60 ? 'stroke-amber-500' : 'stroke-[#1A73E8]'
+                }`}
+                strokeWidth="4"
+                strokeDasharray="226"
+                strokeDashoffset={226 - (226 * completionPercent) / 100}
+                strokeLinecap="round"
+                fill="transparent"
+              />
+            </svg>
 
-        <div className="flex flex-col sm:flex-row items-center gap-5 relative z-10">
-          {/* Profile Photo Uploader */}
-          <div className="relative group shrink-0">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-slate-700 border-4 border-white/20 shadow-lg flex items-center justify-center text-slate-300 font-black text-2xl">
-              {profilePhoto ? (
-                <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+            {/* Profile Avatar Image with Premium Executive Vibrant Fallback */}
+            <div className="absolute inset-1.5 rounded-full overflow-hidden bg-gradient-to-tr from-[#1A73E8] via-indigo-600 to-[#34A853] border-2 border-white shadow-md flex items-center justify-center text-white font-black text-2xl sm:text-3xl tracking-tight select-none">
+              {profilePhoto && (profilePhoto.startsWith('data:') || profilePhoto.startsWith('http') || profilePhoto.startsWith('/')) ? (
+                <img 
+                  src={profilePhoto} 
+                  alt={companyName || "Employer"} 
+                  className="w-full h-full object-cover" 
+                  onError={() => setProfilePhoto(null)}
+                />
               ) : (
-                companyName ? companyName[0].toUpperCase() : 'H'
+                <span className="drop-shadow-xs">{companyName && companyName.trim() ? companyName.trim().charAt(0).toUpperCase() : 'E'}</span>
               )}
             </div>
-            <label className="absolute bottom-0 right-0 p-2 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95 border-2 border-slate-900">
-              <Camera size={14} />
+
+            {/* Camera Upload Button Overlay */}
+            <label className="absolute bottom-0 right-0 p-1.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95 border-2 border-white">
+              <Camera size={12} />
               <input type="file" accept="image/jpeg,image/png" onChange={handlePhotoChange} className="hidden" />
             </label>
           </div>
 
-          {/* Profile Details */}
-          <div className="text-center sm:text-left space-y-1.5 min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <h3 className="text-lg sm:text-xl font-black tracking-tight">{companyName || 'Household Employer'}</h3>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center gap-1">
-                <CreditCard size={11} />
-                {(employerProfile.subscription_status || 'free').toUpperCase()} PLAN
-              </span>
+          {/* Employer Name, Dedicated Society Location Row, and Plan/Readiness Badges */}
+          <div className="space-y-2 min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{companyName || 'Household Employer'}</h3>
             </div>
 
-            <p className="text-xs text-slate-300 font-medium flex items-center justify-center sm:justify-start gap-1">
-              <MapPin size={12} className="text-blue-400" />
-              <span className="truncate">{employerProfile.society_name || 'DLF Westend Heights'}, Bengaluru</span>
+            {/* Dedicated Row for Society Location */}
+            <p className="text-xs sm:text-sm font-extrabold text-slate-700 flex items-center gap-1.5 leading-snug">
+              <MapPin size={15} className="text-[#1A73E8] shrink-0" />
+              <span>{employerProfile.society_name || 'DLF Westend Heights'}{city ? `, ${city}` : ''}</span>
             </p>
 
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1 text-[11px] font-semibold text-slate-300">
-              <span className="flex items-center gap-1"><Phone size={11} className="text-emerald-400" /> +91 {phone}</span>
-              {email && <span className="flex items-center gap-1"><Mail size={11} className="text-amber-400" /> {email}</span>}
+            {/* Badges Row: Account Ready & Subscription Plan */}
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs ${
+                completionPercent === 100
+                  ? 'bg-emerald-100 text-[#34A853] border border-emerald-300'
+                  : completionPercent >= 60
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                  : 'bg-blue-100 text-[#1A73E8] border border-blue-300'
+              }`}>
+                <Sparkles size={12} />
+                <span>{completionPercent}% Account Ready</span>
+              </span>
+
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-black uppercase bg-blue-100 text-[#1A73E8] border border-blue-300 flex items-center gap-1 shadow-2xs whitespace-nowrap">
+                <CreditCard size={11} />
+                {(employerProfile.subscription_status || 'Standard Plan').toUpperCase()}
+              </span>
             </div>
           </div>
+        </div>
 
-          {/* Completeness Badge */}
-          <div className="text-center bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 shrink-0 min-w-[120px]">
-            <span className="block text-[10px] font-black uppercase text-slate-300 tracking-wider">Completeness</span>
-            <span className={`text-2xl font-black font-mono mt-0.5 block ${
-              completionPercent === 100 ? 'text-emerald-400' : completionPercent >= 60 ? 'text-amber-400' : 'text-blue-400'
-            }`}>
-              {completionPercent}%
+        {/* 3 Dedicated Full-Width Rows for Mobile Number, Email & Tower/Address */}
+        <div className="flex flex-col gap-2 pt-1 relative z-10">
+          <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <Phone size={15} className="text-[#34A853] shrink-0" />
+              <span className="text-slate-500 font-bold">Mobile Number:</span>
+            </div>
+            <span className="font-mono text-sm font-black text-slate-900 break-all">+91 {phone}</span>
+          </div>
+
+          <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <Mail size={15} className="text-amber-600 shrink-0" />
+              <span className="text-slate-500 font-bold">Email Address:</span>
+            </div>
+            <span className="text-sm font-black text-slate-900 break-all sm:text-right">{email || 'Not Provided'}</span>
+          </div>
+
+          <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <Home size={15} className="text-[#1A73E8] shrink-0" />
+              <span className="text-slate-500 font-bold">Tower / Unit Address:</span>
+            </div>
+            <span className="text-sm font-black text-slate-900 break-words sm:text-right">
+              {[towerBlock ? `Tower ${towerBlock}` : '', address, city ? `(${city})` : ''].filter(Boolean).join(', ') || 'Address not provided'}
             </span>
           </div>
         </div>
 
         {/* Animated Progress Bar */}
-        <div className="space-y-2 relative z-10 pt-2 border-t border-white/10">
-          <div className="flex justify-between items-center text-xs font-bold text-slate-300">
+        <div className="space-y-3 relative z-10 pt-4 border-t border-slate-200/80">
+          <div className="flex justify-between items-center text-xs font-black text-slate-700">
             <span>{t('profileCompletenessTitle') || "Account Readiness"}</span>
             <span>{completedCount} of {completionSteps.length} steps completed</span>
           </div>
-          <div className="h-2.5 bg-white/10 rounded-full overflow-hidden p-0.5">
+          <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
             <div 
               className={`h-full rounded-full transition-all duration-700 ${
-                completionPercent === 100 ? 'bg-gradient-to-r from-emerald-400 to-teal-300' : 'bg-gradient-to-r from-blue-500 to-indigo-400'
+                completionPercent === 100 ? 'bg-gradient-to-r from-[#34A853] to-emerald-400' : 'bg-gradient-to-r from-[#1A73E8] to-blue-400'
               }`}
               style={{ width: `${completionPercent}%` }}
             />
           </div>
 
-          {/* Step Badges */}
-          <div className="flex flex-wrap gap-1.5 pt-2">
+          {/* Step Badges - Dynamically Responsive Flex Wrap to Fit Exact Text Size */}
+          <div className="flex flex-wrap gap-2 pt-2">
             {completionSteps.map((step) => (
-              <span 
+              <div 
                 key={step.key} 
-                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
+                className={`py-2 px-3.5 rounded-xl text-xs font-black inline-flex items-center gap-2 border transition-all ${
                   step.done 
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                    : 'bg-white/5 text-slate-400 border border-white/10'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs' 
+                    : 'bg-white text-slate-400 border-slate-200'
                 }`}
               >
-                {step.done ? <Check size={11} className="text-emerald-400" /> : <Lock size={11} />}
-                <span>{step.label}</span>
-              </span>
+                <span className="whitespace-nowrap">{step.label}</span>
+                {step.done ? <CheckCircle2 size={14} className="text-[#34A853] shrink-0" /> : <Lock size={14} className="text-slate-400 shrink-0" />}
+              </div>
             ))}
           </div>
         </div>
@@ -438,10 +647,10 @@ export default function EmployerAccountPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-xs font-bold">
           
-          {/* Full Name */}
-          <div className="space-y-1">
+          {/* Employer Full Name Row */}
+          <div className="sm:col-span-2 space-y-1">
             <label className="text-slate-500 text-[10px] uppercase flex justify-between">
               <span>{t('employerFullNameLabel') || "Employer Full Name"}</span>
               <span className="text-[9px] text-slate-400 lowercase font-normal">{t('lettersOnlyLabel') || "(letters only)"}</span>
@@ -455,38 +664,29 @@ export default function EmployerAccountPage() {
             />
           </div>
 
-          {/* Primary Phone */}
-          <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase flex justify-between">
-              <span>{t('primaryPhoneLabel') || "Primary 10-Digit Mobile"}</span>
-              <span className={`text-[9px] font-bold ${phone.length === 10 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {phone.length === 10 ? (t('digitsValidText') || '✓ 10 Digits Valid') : `${phone.length}/10 digits`}
-              </span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">+91</span>
-              <input 
-                type="text" 
-                maxLength={10}
-                value={phone} 
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                placeholder="9876543210"
-                className={`w-full p-2.5 pl-12 bg-slate-50 border rounded-xl text-slate-800 font-bold focus:bg-white focus:outline-none font-mono ${
-                  phone.length === 10 ? 'border-emerald-300 focus:border-emerald-500' : 'border-amber-300 focus:border-amber-500'
-                }`}
-              />
-            </div>
+          {/* Primary Phone (Inbuilt Inline Section) */}
+          <div className="sm:col-span-2">
+            <ChangeMobileInlineSection
+              currentPhone={phone}
+              label={t('primaryPhoneLabel') || "Primary 10-Digit Mobile"}
+              onSuccess={(newP) => {
+                setPhone(newP);
+                setEmployerProfile((prev: any) => ({ ...prev, phone: `+91 ${newP}` }));
+                showToast('Mobile number updated successfully!', 'success');
+              }}
+            />
           </div>
 
-          {/* Primary Email */}
-          <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">{t('primaryEmailLabel') || "Primary Email Address"}</label>
-            <input 
-              type="email" 
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="lakhan.sah@gmail.com"
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+          {/* Primary Email (Inbuilt Inline Section) */}
+          <div className="sm:col-span-2">
+            <ChangeEmailInlineSection
+              currentEmail={email}
+              label={t('primaryEmailLabel') || "Primary Email Address"}
+              onSuccess={(newE) => {
+                setEmail(newE);
+                setEmployerProfile((prev: any) => ({ ...prev, email: newE }));
+                showToast('Email address updated successfully!', 'success');
+              }}
             />
           </div>
 
@@ -506,12 +706,22 @@ export default function EmployerAccountPage() {
             </div>
           </div>
 
-          {/* Society Community */}
+          {/* Society Community & Link to Dedicated Relocation Page */}
           <div className="space-y-1">
-            <label className="text-slate-500 text-[10px] uppercase">{t('gatedSocietyLabel') || "Gated Society Community"}</label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-slate-500 text-[10px] uppercase font-bold truncate">{t('gatedSocietyLabel') || "Gated Society Community"}</label>
+              <Link
+                href="/employer/account/relocate"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-[#1A73E8] border border-blue-200/90 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all hover:scale-[1.02] active:scale-95 group whitespace-nowrap shrink-0 shadow-2xs"
+              >
+                <RefreshCw size={11} className="group-hover:rotate-180 transition-transform duration-500 text-[#1A73E8]" />
+                <span>Request Transfer</span>
+                <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform text-[#1A73E8]" />
+              </Link>
+            </div>
             <input 
               type="text" 
-              value={employerProfile.society_name} 
+              value={employerProfile.society_name || 'Society Not Selected'} 
               disabled
               className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold opacity-80"
             />
@@ -539,6 +749,69 @@ export default function EmployerAccountPage() {
               placeholder="e.g. Apt 802, 8th Floor"
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
             />
+          </div>
+
+          {/* Tax Invoicing & Billing Address Details */}
+          <div className="sm:col-span-2 pt-3 border-t border-slate-100 space-y-3">
+            <h4 className="text-[11px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+              <FileText size={14} className="text-[#1A73E8]" />
+              <span>Tax Invoicing & Official Billing Details</span>
+            </h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* City Input */}
+              <div className="space-y-1">
+                <label className="text-slate-500 text-[10px] uppercase">City</label>
+                <input 
+                  type="text" 
+                  value={city} 
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="e.g. Kolkata / Bengaluru"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+                />
+              </div>
+
+              {/* State Input */}
+              <div className="space-y-1">
+                <label className="text-slate-500 text-[10px] uppercase">State</label>
+                <input 
+                  type="text" 
+                  value={stateName} 
+                  onChange={(e) => setStateName(e.target.value)}
+                  placeholder="e.g. West Bengal"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+                />
+              </div>
+
+              {/* Pincode Input */}
+              <div className="space-y-1">
+                <label className="text-slate-500 text-[10px] uppercase">Pincode</label>
+                <input 
+                  type="text" 
+                  maxLength={6}
+                  value={pincode} 
+                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="e.g. 700001"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
+                />
+              </div>
+            </div>
+
+            {/* GSTIN Input */}
+            <div className="space-y-1">
+              <label className="text-slate-500 text-[10px] uppercase flex justify-between">
+                <span>GSTIN / Tax ID (Optional for GST Tax Invoice)</span>
+                <span className="text-[9px] text-slate-400 lowercase font-normal">(for business input credit)</span>
+              </label>
+              <input 
+                type="text" 
+                maxLength={15}
+                value={gstin} 
+                onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                placeholder="e.g. 19AAAAA0000A1Z5"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono uppercase"
+              />
+            </div>
           </div>
 
           {/* Worker Verification Requirement Preference */}
@@ -887,6 +1160,18 @@ export default function EmployerAccountPage() {
         )}
       </div>
 
+      {/* 🛡️ POWERED BY YGAYATRA BRAND FOOTER */}
+      <div className="pt-8 pb-2 flex flex-col items-center justify-center gap-1.5 opacity-75 hover:opacity-100 transition-opacity select-none">
+        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+          Powered By
+        </span>
+        <img 
+          src="/ygayatra.png" 
+          alt="Ygayatra" 
+          className="h-6 sm:h-7 object-contain grayscale hover:grayscale-0 transition-all opacity-80 hover:opacity-100" 
+        />
+      </div>
+
       {/* DELETION CONFIRMATION MODAL */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
@@ -943,6 +1228,7 @@ export default function EmployerAccountPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

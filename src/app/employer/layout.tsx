@@ -91,6 +91,8 @@ export default function EmployerDashboardLayout({ children }: { children: React.
 
       const { data: { session } } = await supabase.auth.getSession();
       let activeUserId = session?.user?.id;
+      let profileData: any = null;
+      let empProf: any = null;
 
       if (session?.user) {
         setUser(session.user);
@@ -100,7 +102,8 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           .eq('id', session.user.id)
           .maybeSingle();
 
-        let empProf = profile?.employer_profiles 
+        profileData = profile;
+        empProf = profile?.employer_profiles 
           ? (Array.isArray(profile.employer_profiles) ? profile.employer_profiles[0] : profile.employer_profiles)
           : null;
 
@@ -130,9 +133,9 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           }
           setEmployerProfile({
             company_name: empProf?.company_name || empProf?.name || profile?.full_name || '',
-            email: profile?.email || session.user.email || empProf?.email || '',
+            email: profile?.email || session.user.email || empProf?.email || session.user.user_metadata?.email || '',
             society_name: empProf?.society_name || empProf?.billing_address || '',
-            phone: profile?.phone || empProf?.phone || '',
+            phone: profile?.phone || empProf?.phone || session.user.phone || session.user.user_metadata?.phone || '',
             subscription_status: empProf?.subscription_status || 'Free',
             address: empProf?.billing_address || empProf?.address || ''
           });
@@ -140,22 +143,28 @@ export default function EmployerDashboardLayout({ children }: { children: React.
       }
 
       // Fetch ONLY this Employer's Own Jobs from Supabase Database
-      let jobsQuery = supabase
-        .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let dbJobsData: any[] = [];
 
       if (activeUserId) {
-        jobsQuery = jobsQuery.or(`employer_id.eq.${activeUserId},user_id.eq.${activeUserId}`);
+        const { data: byEmpId, error: empIdErr } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('employer_id', activeUserId)
+          .order('created_at', { ascending: false });
+
+        if (!empIdErr && byEmpId) {
+          dbJobsData = byEmpId;
+        }
       } else {
-        // Fallback filter for demo employer name if not logged into auth
-        jobsQuery = jobsQuery.or(`employer_name.eq."Lakhan Lal Sah",employer_id.eq."emp_demo"`);
+        const { data: dbJobs } = await supabase
+          .from('jobs')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (dbJobs) dbJobsData = dbJobs;
       }
 
-      const { data: dbJobs, error: jobsErr } = await jobsQuery;
-
-      if (dbJobs) {
-        const mappedJobs = dbJobs.map((j: any) => ({
+      if (dbJobsData && dbJobsData.length > 0) {
+        const mappedJobs = dbJobsData.map((j: any) => ({
           id: j.id,
           title: j.title || 'Job Requisition',
           category: j.category || 'general',
@@ -214,17 +223,43 @@ export default function EmployerDashboardLayout({ children }: { children: React.
     try {
       if (user?.id) {
         await supabase.from('jobs').insert([{
+          employer_id: user.id,
           title: jobData.title,
           category: jobData.category,
           salary_offered: jobData.salary,
+          salary: jobData.salary,
           status: 'pending',
           description: jobData.description,
-          employer_name: employerProfile.company_name,
+          employer_name: employerProfile.company_name || 'Employer Household',
           society_name: targetSociety
         }]);
       }
     } catch (err) {
       console.error("Supabase job insert error:", err);
+    }
+
+    // Trigger Job Posted Email to Employer via API Route
+    try {
+      const empEmail = employerProfile.email || user?.email;
+      if (empEmail) {
+        fetch('/api/notifications/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'job-posted',
+            toEmail: empEmail,
+            data: {
+              employerName: employerProfile.company_name,
+              jobTitle: jobData.title,
+              category: jobData.category,
+              salary: jobData.salary,
+              societyName: targetSociety
+            }
+          })
+        }).catch((err: any) => console.warn("Job posted email notice:", err));
+      }
+    } catch (emailErr) {
+      console.warn("Job email trigger notice:", emailErr);
     }
 
     setPostedJobs(prev => [newJob, ...prev]);
@@ -373,11 +408,20 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           <header className="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-xs">
             <div className="px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Link href="/" className="text-slate-400 hover:text-slate-700">
-                  <ArrowLeft size={18} />
-                </Link>
-                <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
-                <span className="font-black text-xs text-slate-800">{t('headerEmployer')}</span>
+                {(() => {
+                  const isDashboardHome = pathname === '/employer' || pathname === '/employer/dashboard';
+                  const logoHref = isDashboardHome ? '/?browse=true' : '/employer/dashboard';
+                  const logoTitle = isDashboardHome ? 'Go to Sevikaa Public Homepage' : 'Return to Employer Dashboard Home';
+                  return (
+                    <Link href={logoHref} className="flex items-center gap-2 group cursor-pointer" title={logoTitle}>
+                      {!isDashboardHome && (
+                        <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
+                      )}
+                      <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain transition-transform group-hover:scale-105" />
+                      <span className="font-black text-xs text-slate-800">{t('headerEmployer')}</span>
+                    </Link>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center gap-2">
@@ -429,7 +473,15 @@ export default function EmployerDashboardLayout({ children }: { children: React.
                   <GlobalLanguageSelector />
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 flex gap-2">
+                <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                  <Link
+                    href="/?browse=true"
+                    onClick={() => setShowMobileMenu(false)}
+                    className="w-full py-2.5 px-4 bg-blue-50 hover:bg-blue-100 text-[#1A73E8] border border-blue-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>🌐 Visit Public Homepage</span>
+                  </Link>
+
                   <button
                     onClick={() => { setShowMobileMenu(false); handleLogout(); }}
                     className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"

@@ -1,14 +1,15 @@
 import { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sevikaa.in';
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+  const baseUrl = (!envUrl || envUrl.includes('localhost')) ? 'https://www.sevikaa.in' : envUrl;
   
   const routes = [
     '',
     '/about',
     '/how-it-works',
     '/pricing',
-    '/safety',
+    '/societies',
     '/contact',
     '/faq',
     '/terms',

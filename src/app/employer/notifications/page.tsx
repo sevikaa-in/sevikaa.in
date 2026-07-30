@@ -77,12 +77,12 @@ export default function EmployerNotificationsPage() {
 
         // 2. Fetch real interview applications for this employer's jobs
         if (user?.id) {
-          const { data: dbApps } = await supabase
-            .from('job_applications')
+          const { data: dbApps, error: appErr } = await supabase
+            .from('applications')
             .select('*, jobs!inner(*)')
             .eq('jobs.employer_id', user.id);
 
-          if (dbApps && dbApps.length > 0) {
+          if (!appErr && dbApps && dbApps.length > 0) {
             dbApps.forEach((a: any) => {
               if (a.status === 'interview_scheduled') {
                 notifList.push({

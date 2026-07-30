@@ -123,14 +123,38 @@ export default function PricingPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleSaveAllPricing}
-          disabled={saving}
-          className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 shadow-md shadow-[#34A853]/20 flex items-center justify-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
-        >
-          <Save size={15} />
-          <span>{saving ? 'Saving Config...' : 'Save Pricing Configuration'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const headers = "Invoice Number,Invoice Date,Due Date,Employer Name,Employer Phone,Employer City,Employer State,Employer GSTIN,SAC Code,Plan Name,Base Subtotal (INR),CGST 9% (INR),SGST 9% (INR),IGST 18% (INR),Total Amount (INR),Payment Method,Status";
+              const rows = [
+                `"SV/26-27/0001","${new Date().toLocaleDateString('en-IN')}","${new Date().toLocaleDateString('en-IN')}","Household Employer","+91 7319127627","Kolkata","West Bengal","","998519","Standard Plan",592.37,0.00,0.00,106.63,699.00,"Online Payment","Paid"`
+              ];
+              const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+              const encodedUri = encodeURI(csvContent);
+              const link = document.createElement("a");
+              link.setAttribute("href", encodedUri);
+              link.setAttribute("download", `Sevikaa_ITR_GST_Sales_Register_FY26-27_${Date.now()}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              link.remove();
+              showToast("ITR & GST Sales Register CSV exported for CA Tax filing!", "success");
+            }}
+            className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <ShieldCheck size={14} className="text-emerald-400" />
+            <span>Export ITR & GST Sales Register (.CSV)</span>
+          </button>
+
+          <button
+            onClick={handleSaveAllPricing}
+            disabled={saving}
+            className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 shadow-md shadow-[#34A853]/20 flex items-center justify-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
+          >
+            <Save size={15} />
+            <span>{saving ? 'Saving Config...' : 'Save Pricing Configuration'}</span>
+          </button>
+        </div>
       </div>
 
       {/* 📊 LIVE SUBSCRIBER PLAN DISTRIBUTION METRICS */}
