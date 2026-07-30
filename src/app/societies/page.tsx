@@ -702,38 +702,7 @@ export default function PublicSocietiesPage() {
       )}
     </main>
 
-    {/* 8. REGULATORY FOOTER POLICIES (MATCHING HOME PAGE) */}
-      <footer className="bg-[#202124] text-white py-12 px-4 mt-16 w-full shrink-0">
-        <div className="max-w-6xl mx-auto space-y-8 text-center">
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-xs font-bold text-gray-400">
-            <Link href="/about" className="hover:text-white transition-colors">About Us</Link>
-            <Link href="/how-it-works" className="hover:text-white transition-colors">How It Works</Link>
-            <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-            <Link href="/safety" className="hover:text-white transition-colors">Safety</Link>
-            <Link href="/contact" className="hover:text-white transition-colors">Contact Us</Link>
-            <Link href="/faq" className="hover:text-white transition-colors">FAQ</Link>
-          </div>
-          <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] text-gray-500 border-t border-gray-800 pt-6">
-            <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms &amp; Conditions</Link>
-            <span className="text-gray-700">|</span>
-            <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy Policy</Link>
-            <span className="text-gray-700">|</span>
-            <Link href="/refunds" className="hover:text-gray-300 transition-colors">Refund &amp; Cancellation</Link>
-            <span className="text-gray-700">|</span>
-            <Link href="/shipping" className="hover:text-gray-300 transition-colors">Shipping &amp; Delivery</Link>
-            <span className="text-gray-700">|</span>
-            <Link href="/sitemap.xml" className="hover:text-gray-300 transition-colors">Sitemap</Link>
-          </div>
-          <div className="space-y-1 pt-2">
-            <p className="text-[10px] text-gray-500 font-bold max-w-md mx-auto leading-normal">
-              Sevikaa is proudly owned and operated by YugaYatra Retail (OPC) Private Limited, a Government-Registered and DPIIT-Recognized Startup committed to building trusted digital platforms for India.
-            </p>
-            <p className="text-[9px] text-gray-600 font-semibold pt-1">
-              © {new Date().getFullYear()} Sevikaa. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+    <PublicFooter />
     </div>
   );
 }

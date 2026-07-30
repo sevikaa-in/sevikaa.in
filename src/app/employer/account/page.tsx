@@ -832,7 +832,7 @@ export default function EmployerAccountPage() {
         <div className="pt-3 border-t border-slate-100 flex justify-end">
           <button
             onClick={onSave}
-            disabled={saveLoading || phone.length !== 10 || !companyName.trim()}
+            disabled={saveLoading || !companyName.trim() || (phone.trim().length > 0 && phone.replace(/\D/g, '').slice(-10).length !== 10)}
             className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:cursor-not-allowed"
           >
             <Save size={14} />
