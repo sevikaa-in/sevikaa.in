@@ -120,8 +120,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'OTP code has expired. Please request a new code.' }, { status: 400 });
       }
 
-      const enteredOtp = (otp || '').trim();
-      if (enteredOtp !== storedData.otp.trim() && enteredOtp !== '123456') {
+      if ((otp || '').trim() !== storedData.otp.trim()) {
         return NextResponse.json({ error: 'Incorrect verification code. Please check and try again.' }, { status: 400 });
       }
 
