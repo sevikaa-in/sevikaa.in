@@ -129,7 +129,7 @@ export default function PricingPage() {
               </div>
 
               <Link
-                href="/employer/dashboard"
+                href="/?role=employer&step=login"
                 className="w-full py-3 text-center text-xs font-black rounded-2xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all active:scale-[0.98] block"
               >
                 Get Started Free
