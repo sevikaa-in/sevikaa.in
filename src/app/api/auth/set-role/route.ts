@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       helplinePhone,
       scheduledSlot: scheduledSlotStr
     });
-    res.cookies.set('sevikaa_user_role', role, { path: '/', maxAge: 86400, sameSite: 'lax' });
+    res.cookies.set('sevikaa_user_role', role, { path: '/', maxAge: 2592000, sameSite: 'lax' });
     return res;
   } catch (err: any) {
     console.error("Set role API error:", err);

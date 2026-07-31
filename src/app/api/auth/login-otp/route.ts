@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
       if (userObj?.role) {
         res.cookies.set('sevikaa_user_role', userObj.role, {
           path: '/',
-          maxAge: 86400,
+          maxAge: 2592000,
           sameSite: 'lax'
         });
       }
@@ -298,7 +298,7 @@ export async function POST(req: NextRequest) {
       if (userObj?.id) {
         res.cookies.set('sevikaa_user_id', userObj.id, {
           path: '/',
-          maxAge: 86400,
+          maxAge: 2592000,
           sameSite: 'lax'
         });
       }

@@ -112,7 +112,7 @@ export default function PricingPage() {
                   <span className="bg-slate-100 text-slate-600 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
                     Free Trial
                   </span>
-                  <h3 className="text-lg font-black text-slate-900 mt-3">Free Tier</h3>
+                  <h3 className="text-lg font-black text-slate-900 mt-3">Free Starter Plan</h3>
                   <div className="text-3xl font-black text-slate-900 mt-1">
                     <sup>₹</sup>0<span className="text-xs text-slate-400 font-semibold"> / Lifetime</span>
                   </div>

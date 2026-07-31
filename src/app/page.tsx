@@ -193,22 +193,22 @@ export default function Home() {
               if (meData.success && meData.profile) {
                 const dbRole = meData.profile.role;
                 if (dbRole === 'super-admin') {
-                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400`;
+                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=2592000; SameSite=Lax`;
                   router.push('/super-admin/dashboard');
                   return;
                 }
                 if (dbRole === 'admin') {
-                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400`;
+                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=2592000; SameSite=Lax`;
                   router.push('/admin/dashboard');
                   return;
                 }
                 if (dbRole === 'employer' || meData.employerProfile) {
-                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
+                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=2592000; SameSite=Lax`;
                   router.push('/employer');
                   return;
                 }
                 if (dbRole === 'worker' || meData.workerProfile) {
-                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
+                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=2592000; SameSite=Lax`;
                   router.push('/worker');
                   return;
                 }
@@ -231,7 +231,7 @@ export default function Home() {
           // 1. Check existing employer_profiles
           const employerProfile = await findEmployerProfile(session.user.id, session.user.phone, session.user.email);
           if (employerProfile) {
-            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=2592000; SameSite=Lax`;
             router.push('/employer');
             return;
           }
@@ -239,7 +239,7 @@ export default function Home() {
           // 2. Check existing worker_profiles
           const workerProfile = await findWorkerProfile(session.user.id, session.user.phone, session.user.email);
           if (workerProfile) {
-            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=2592000; SameSite=Lax`;
             router.push('/worker');
             return;
           }
@@ -399,6 +399,13 @@ export default function Home() {
 
   const handleReset = async () => {
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('sevikaa_user');
+        localStorage.removeItem('sevikaa_user_id');
+        document.cookie = "sevikaa_user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        document.cookie = "sevikaa_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      }
+
       const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -406,10 +413,16 @@ export default function Home() {
         await supabase.auth.signOut();
       }
       setUser(null);
+      setTargetRole(null);
       setView('landing');
-      window.history.pushState({}, '', '/');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
     } catch (err) {
       console.error("Sign out error:", err);
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
     }
   };
 
