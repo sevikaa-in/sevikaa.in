@@ -99,7 +99,6 @@ export async function GET(req: NextRequest) {
           `SELECT p.id, p.email, p.phone, p.status, p.created_at,
                   COALESCE(
                     NULLIF(TRIM(ep.company_name), ''),
-                    NULLIF(TRIM(ep.profile_name), ''),
                     CONCAT('Employer ', RIGHT(COALESCE(p.phone, 'Lead'), 4))
                   ) AS company_name,
                   ep.society_name, ep.address, ep.tower_block, ep.city, ep.state, ep.pincode,
