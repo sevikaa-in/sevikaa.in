@@ -4,19 +4,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Apply to all routes
         source: '/(.*)',
         headers: [
           {
             key: 'Permissions-Policy',
-            // Explicitly allow camera, microphone & geolocation on this origin
-            value: 'camera=(*), microphone=(), geolocation=()',
+            value: 'camera=(self), microphone=(self), geolocation=(self)',
           },
         ],
       },
     ];
   },
-
   async redirects() {
     return [
       {

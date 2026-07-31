@@ -188,43 +188,37 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
 
   // Web Camera Live Stream state & ref
   const videoRef = useRef<HTMLVideoElement>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string>('');
 
   const startCamera = async () => {
     setCameraError('');
     if (typeof window === 'undefined' || !navigator?.mediaDevices?.getUserMedia) {
-      setCameraError("Camera is not available in this browser. Please use 'Upload Photo / File'.");
+      nativeCameraInputRef.current?.click();
       return;
     }
 
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } },
+        video: { facingMode: { ideal: 'user' } },
         audio: false
       });
+
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         videoRef.current.play().catch(e => console.warn("Video play notice:", e));
       }
     } catch (err: any) {
-      console.warn("User facing camera prompt failed, trying fallback:", err);
-      try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        });
-        setStream(mediaStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-          videoRef.current.play().catch(e => console.warn("Video play notice:", e));
-        }
-      } catch (fallbackErr: any) {
-        console.warn("Camera access denied or unavailable:", fallbackErr);
-        setCameraError("Camera permission was denied. Please allow camera access in browser settings or upload from file explorer.");
-      }
+      console.warn("Camera permission notice:", err);
+      // Fallback: trigger native camera input automatically
+      nativeCameraInputRef.current?.click();
     }
+  };
+
+  const handlePrimaryCameraClick = () => {
+    startCamera();
   };
 
   const captureSelfie = () => {
@@ -531,20 +525,30 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                   </button>
                 ) : (
                   <>
-                    {/* Primary Option: Open Live Laptop/Device Camera Stream */}
+                    {/* Hidden input for native camera capture fallback */}
+                    <input 
+                      ref={nativeCameraInputRef}
+                      type="file" 
+                      accept="image/*" 
+                      capture="user" 
+                      className="hidden" 
+                      onChange={handleSelfieFileUpload} 
+                    />
+
+                    {/* Button 1: Smart Primary Camera Button */}
                     <button
                       type="button"
-                      onClick={startCamera}
-                      className="py-3.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm flex-1"
+                      onClick={handlePrimaryCameraClick}
+                      className="py-3.5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm flex-1"
                     >
-                      <Video size={16} />
-                      <span>Open Live Camera</span>
+                      <Camera size={16} />
+                      <span>Take Photo / Open Camera</span>
                     </button>
 
-                    {/* Secondary Option: File Explorer / Gallery */}
-                    <label className="py-3.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs border border-slate-200">
+                    {/* Button 2: Choose from Gallery */}
+                    <label className="py-3.5 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs border border-slate-200">
                       <Upload size={14} />
-                      <span>Choose File / Gallery</span>
+                      <span>Choose from Gallery</span>
                       <input 
                         type="file" 
                         accept="image/*" 

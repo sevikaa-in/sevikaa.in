@@ -6,12 +6,13 @@ import { WorkerOnboardingChoiceModal } from './WorkerOnboardingChoiceModal';
 
 interface NewUserRoleSelectorProps {
   userId: string;
+  initialRole?: 'worker' | 'employer' | null;
   onRoleSelected: (selectedRole: 'worker' | 'employer') => void;
 }
 
-export const NewUserRoleSelector: React.FC<NewUserRoleSelectorProps> = ({ userId, onRoleSelected }) => {
+export const NewUserRoleSelector: React.FC<NewUserRoleSelectorProps> = ({ userId, initialRole, onRoleSelected }) => {
   const [loadingRole, setLoadingRole] = useState<'worker' | 'employer' | null>(null);
-  const [showWorkerChoice, setShowWorkerChoice] = useState(false);
+  const [showWorkerChoice, setShowWorkerChoice] = useState(initialRole === 'worker');
   const [assistedInfo, setAssistedInfo] = useState<{ phone: string; slot: string } | null>(null);
   const [error, setError] = useState('');
 

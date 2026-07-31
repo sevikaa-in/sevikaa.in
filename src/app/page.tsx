@@ -244,18 +244,8 @@ export default function Home() {
             return;
           }
 
-          // 4. Brand-new user with no completed sub-profile: route to onboarding setup
-          const currentSearchParams = new URLSearchParams(window.location.search);
-          const urlRole = currentSearchParams.get('role');
-          const hasExplicitStartingRole = urlRole === 'employer' || urlRole === 'worker' || targetRole === 'employer' || targetRole === 'worker';
-
-          if (hasExplicitStartingRole) {
-            const selectedStartingRole = (urlRole === 'employer' || targetRole === 'employer') ? 'employer' : 'worker';
-            setTargetRole(selectedStartingRole);
-            setView(selectedStartingRole === 'employer' ? 'employer-funnel' : 'worker-funnel');
-          } else {
-            setView('new-user-role-select');
-          }
+          // 4. Brand-new user with no completed sub-profile: route to role & onboarding method selection
+          setView('new-user-role-select');
         } else {
           setView('landing');
           const searchParams = new URLSearchParams(window.location.search);
@@ -377,18 +367,8 @@ export default function Home() {
         return;
       }
 
-      // 4. Brand new user with no completed sub-profile: route to onboarding setup or role selector
-      const searchParams = new URLSearchParams(window.location.search);
-      const urlRole = searchParams.get('role');
-      const hasExplicitStartingRole = urlRole === 'employer' || urlRole === 'worker' || targetRole === 'employer' || targetRole === 'worker';
-
-      if (hasExplicitStartingRole) {
-        const selectedStartingRole = (urlRole === 'employer' || targetRole === 'employer') ? 'employer' : 'worker';
-        setTargetRole(selectedStartingRole);
-        setView(selectedStartingRole === 'employer' ? 'employer-funnel' : 'worker-funnel');
-      } else {
-        setView('new-user-role-select');
-      }
+      // 4. Brand new user with no completed sub-profile: route to role & onboarding method selection
+      setView('new-user-role-select');
     } catch (err) {
       console.error("Profile check error:", err);
       setView('new-user-role-select');
@@ -494,6 +474,7 @@ export default function Home() {
           {view === 'new-user-role-select' && effectiveUserId && (
             <NewUserRoleSelector 
               userId={effectiveUserId} 
+              initialRole={targetRole}
               onRoleSelected={handlePostOtpRoleSelected} 
             />
           )}

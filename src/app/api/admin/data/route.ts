@@ -96,10 +96,18 @@ export async function GET(req: NextRequest) {
     if (tab === 'employers' || tab === 'overview' || tab === 'tele-onboarding') {
       try {
         const eRes = await queryDb(
-          `SELECT ep.*, p.email, p.phone, p.status
-           FROM public.employer_profiles ep
-           LEFT JOIN public.profiles p ON p.id = ep.user_id OR p.id = ep.id
-           ORDER BY ep.created_at DESC
+          `SELECT p.id, p.email, p.phone, p.status, p.created_at,
+                  COALESCE(
+                    NULLIF(TRIM(ep.company_name), ''),
+                    NULLIF(TRIM(ep.profile_name), ''),
+                    CONCAT('Employer ', RIGHT(COALESCE(p.phone, 'Lead'), 4))
+                  ) AS company_name,
+                  ep.society_name, ep.address, ep.tower_block, ep.city, ep.state, ep.pincode,
+                  ep.alternate_phone, ep.gstin, ep.verification_requirement
+           FROM public.profiles p
+           LEFT JOIN public.employer_profiles ep ON ep.user_id = p.id OR ep.id = p.id
+           WHERE (p.role = 'employer' OR ep.id IS NOT NULL)
+           ORDER BY p.created_at DESC
            LIMIT $1 OFFSET $2`,
           [limit, offset]
         );
