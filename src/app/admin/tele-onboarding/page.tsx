@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAdminDashboard } from '../layout';
 import { 
   PhoneCall, Users, ShieldCheck, Search, RefreshCw, MessageSquare, 
@@ -11,6 +12,11 @@ import {
 
 export default function TeleOnboardingPage() {
   const { showToast } = useAdminDashboard();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'workers' | 'employers'>('workers');
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,6 +61,37 @@ export default function TeleOnboardingPage() {
   const [smsSent, setSmsSent] = useState(false);
   const [uploadingAsset, setUploadingAsset] = useState<string | null>(null);
   const [previewMedia, setPreviewMedia] = useState<{ url: string; title: string; type: 'image' | 'video' } | null>(null);
+
+  // Call Status & Notes (persisted in localStorage)
+  const CALL_STATUS_OPTIONS = [
+    { value: 'not_called',    label: 'Not Called',      color: 'bg-slate-100 text-slate-600 border-slate-200' },
+    { value: 'no_answer',     label: 'No Answer',       color: 'bg-orange-50 text-orange-700 border-orange-200' },
+    { value: 'called_back',   label: 'Callback Set',    color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { value: 'completed',     label: 'Completed ✓',     color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { value: 'wrong_number',  label: 'Wrong Number ✕',  color: 'bg-red-50 text-red-700 border-red-200' },
+  ];
+  const [callStatuses, setCallStatuses] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('tele_call_statuses') || '{}'); } catch { return {}; }
+  });
+  const [callNotes, setCallNotes] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('tele_call_notes') || '{}'); } catch { return {}; }
+  });
+  const [callStatusFilter, setCallStatusFilter] = useState<string>('all');
+  const [editCallNotes, setEditCallNotes] = useState('');
+
+  const getCallStatus = (leadId: string) => callStatuses[leadId] || 'not_called';
+  const getCallStatusMeta = (val: string) => CALL_STATUS_OPTIONS.find(o => o.value === val) || CALL_STATUS_OPTIONS[0];
+
+  const setCallStatus = (leadId: string, status: string) => {
+    const updated = { ...callStatuses, [leadId]: status };
+    setCallStatuses(updated);
+    localStorage.setItem('tele_call_statuses', JSON.stringify(updated));
+  };
+  const saveCallNote = (leadId: string, note: string) => {
+    const updated = { ...callNotes, [leadId]: note };
+    setCallNotes(updated);
+    localStorage.setItem('tele_call_notes', JSON.stringify(updated));
+  };
 
   // Master Societies List for searchable scrollable assignment
   const [allSocieties, setAllSocieties] = useState<any[]>([]);
@@ -102,7 +139,8 @@ export default function TeleOnboardingPage() {
   const workerLeads = workersList.filter(w => {
     const matchesSearch = (w.name || w.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (w.phone || '').includes(searchTerm);
-    return matchesSearch;
+    const matchesStatus = callStatusFilter === 'all' || getCallStatus(w.id) === callStatusFilter;
+    return matchesSearch && matchesStatus;
   }).sort((a, b) => {
     const aIncomplete = !a.skills || a.skills.length === 0 || a.status === 'pending_review' || a.status === 'incomplete';
     const bIncomplete = !b.skills || b.skills.length === 0 || b.status === 'pending_review' || b.status === 'incomplete';
@@ -115,7 +153,8 @@ export default function TeleOnboardingPage() {
   const employerLeads = employersList.filter(e => {
     const matchesSearch = (e.company_name || e.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (e.phone || '').includes(searchTerm);
-    return matchesSearch;
+    const matchesStatus = callStatusFilter === 'all' || getCallStatus(e.id) === callStatusFilter;
+    return matchesSearch && matchesStatus;
   }).sort((a, b) => {
     const aIncomplete = !a.society_name || !a.address || a.status === 'pending_review' || a.status === 'incomplete';
     const bIncomplete = !b.society_name || !b.address || b.status === 'pending_review' || b.status === 'incomplete';
@@ -137,6 +176,8 @@ export default function TeleOnboardingPage() {
   const handleOpenLeadSheet = (lead: any) => {
     setSelectedLead(lead);
     setIsSheetOpen(true);
+    setSmsSent(false);
+    setEditCallNotes(callNotes[lead.id] || '');
     setEditPhone(lead.phone || '');
     setEditEmail(lead.email || '');
 
@@ -387,6 +428,26 @@ export default function TeleOnboardingPage() {
             />
           </div>
         </div>
+
+        {/* Call Status Filter Chips */}
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">
+          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mr-1">Filter by Call Status:</span>
+          <button
+            onClick={() => setCallStatusFilter('all')}
+            className={`py-1.5 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
+              callStatusFilter === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+            }`}
+          >All Leads</button>
+          {CALL_STATUS_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setCallStatusFilter(opt.value)}
+              className={`py-1.5 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
+                callStatusFilter === opt.value ? 'ring-2 ring-offset-1 ring-slate-400 ' + opt.color : opt.color + ' hover:opacity-80'
+              }`}
+            >{opt.label}</button>
+          ))}
+        </div>
       </div>
 
       {/* PAGINATED LEADS GRID */}
@@ -404,7 +465,10 @@ export default function TeleOnboardingPage() {
       ) : (
         <div className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {currentLeads.map((lead) => (
+            {currentLeads.map((lead) => {
+              const callMeta = getCallStatusMeta(getCallStatus(lead.id));
+              const note = callNotes[lead.id];
+              return (
               <div
                 key={lead.id}
                 onClick={() => handleOpenLeadSheet(lead)}
@@ -429,14 +493,25 @@ export default function TeleOnboardingPage() {
                     </p>
                   </div>
 
-                  <a
-                    href={`tel:${lead.phone}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-xs transition-transform active:scale-95 flex items-center gap-1 text-xs font-bold"
-                  >
-                    <PhoneCall size={13} /> Call
-                  </a>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <a
+                      href={`tel:${lead.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-xs transition-transform active:scale-95 flex items-center gap-1 text-xs font-bold"
+                    >
+                      <PhoneCall size={13} /> Call
+                    </a>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${callMeta.color}`}>
+                      {callMeta.label}
+                    </span>
+                  </div>
                 </div>
+
+                {note && (
+                  <p className="text-[10px] text-slate-500 font-medium bg-slate-50 rounded-xl px-2.5 py-1.5 border border-slate-100 line-clamp-2 italic">
+                    📝 {note}
+                  </p>
+                )}
 
                 <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold border-t border-slate-100 pt-2.5">
                   <span className="truncate max-w-[150px]">
@@ -447,13 +522,14 @@ export default function TeleOnboardingPage() {
                   </span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* PAGINATION CONTROLS FOOTER */}
           <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
             <span className="text-xs font-semibold text-slate-600">
-              Showing Page <span className="font-bold text-slate-900">{page}</span> ({currentLeads.length} leads loaded)
+              Page <span className="font-bold text-slate-900">{page}</span> of <span className="font-bold text-slate-900">{currentLeads.length < limit ? page : '...'}</span> &nbsp;·&nbsp; {currentLeads.length} leads on this page
             </span>
 
             <div className="flex items-center gap-2">
@@ -477,30 +553,28 @@ export default function TeleOnboardingPage() {
         </div>
       )}
 
-      {/* 👑 RIGHT-SIDE OVERLAY SHEET */}
-      {isSheetOpen && selectedLead && (
-        <div className="fixed inset-0 z-[100] flex justify-end animate-fade-in">
-          {/* Soft Backdrop */}
+      {/* 👑 TELE-ONBOARDING PORTAL MODAL WINDOW */}
+      {mounted && isSheetOpen && selectedLead && createPortal(
+        <div 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 sm:p-6 animate-fade-in"
+          onClick={() => setIsSheetOpen(false)}
+        >
           <div 
-            onClick={() => setIsSheetOpen(false)} 
-            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity cursor-pointer" 
-          />
-
-          {/* Right-Side Overlay Sheet Content */}
-          <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl border-l border-slate-200 p-6 sm:p-7 space-y-5 flex flex-col justify-between overflow-y-auto z-10 animate-slide-in-right">
+            className="w-full max-w-3xl max-h-[85vh] bg-white shadow-2xl rounded-3xl flex flex-col border border-slate-100 animate-scale-up overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             
-            <div className="space-y-5">
-              {/* Sheet Top Header Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <span className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider">Active Telephonic Onboarding Interview</span>
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <span>{editName || selectedLead.company_name || selectedLead.full_name || selectedLead.profile_name || 'Unnamed Lead'}</span>
-                    <span className="text-xs font-mono font-bold text-[#1A73E8] bg-blue-50 px-2.5 py-0.5 rounded-xl border border-blue-200">
-                      {formatPhone(editPhone)}
-                    </span>
-                  </h3>
-                </div>
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Active Telephonic Onboarding Interview</span>
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <span>{editName || selectedLead.company_name || selectedLead.full_name || selectedLead.profile_name || 'Unnamed Lead'}</span>
+                  <span className="text-xs font-mono font-bold text-[#1A73E8] bg-blue-50 px-2.5 py-0.5 rounded-xl border border-blue-200">
+                    {formatPhone(editPhone)}
+                  </span>
+                </h3>
+              </div>
 
                 <div className="flex items-center gap-2">
                   <button
@@ -513,14 +587,17 @@ export default function TeleOnboardingPage() {
                     <span>Switch Role to {activeTab === 'workers' ? 'Employer 🏡' : 'Worker 👷'}</span>
                   </button>
 
-                  <button
-                    onClick={() => setIsSheetOpen(false)}
-                    className="text-slate-400 hover:text-slate-600 font-bold text-sm p-1.5 rounded-full hover:bg-slate-100 cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
+              <button
+                onClick={() => setIsSheetOpen(false)}
+                className="p-2 hover:bg-slate-200/60 rounded-xl transition-colors text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+            {/* Modal Body - Scrollable Area */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-slate-50/30">
 
               {/* Quick Action Dialing & SMS Bar */}
               <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70">
@@ -540,6 +617,39 @@ export default function TeleOnboardingPage() {
                   <span>{smsSent ? 'SMS Upload Link Sent ✓' : 'Send 1-Click Upload SMS Link'}</span>
                 </button>
               </div>
+
+              {/* 📞 CALL LOG — Status & Notes */}
+              {selectedLead && (
+                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 space-y-3 shadow-xs">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">📞 Call Log &amp; Outreach Notes</span>
+
+                  {/* Quick Status Buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    {CALL_STATUS_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setCallStatus(selectedLead.id, opt.value)}
+                        className={`py-1.5 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
+                          getCallStatus(selectedLead.id) === opt.value
+                            ? 'ring-2 ring-offset-1 ring-slate-400 ' + opt.color
+                            : opt.color + ' hover:opacity-80'
+                        }`}
+                      >{opt.label}</button>
+                    ))}
+                  </div>
+
+                  {/* Notes Textarea */}
+                  <textarea
+                    rows={2}
+                    value={editCallNotes}
+                    onChange={(e) => setEditCallNotes(e.target.value)}
+                    onBlur={() => saveCallNote(selectedLead.id, editCallNotes)}
+                    placeholder="Add call notes (e.g. 'Prefers morning shift, callback Tuesday 11am')..."
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-[#1A73E8] resize-none"
+                  />
+                </div>
+              )}
 
               {/* FORM INPUTS & VERIFICATION VAULT */}
               {activeTab === 'workers' ? (
@@ -1254,13 +1364,20 @@ export default function TeleOnboardingPage() {
               )}
             </div>
 
-            {/* Sheet Bottom Save Bar */}
-            <div className="flex justify-end pt-4 border-t border-slate-100">
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 shrink-0 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsSheetOpen(false)}
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Modal
+              </button>
               <button
                 type="button"
                 disabled={savingLead}
                 onClick={handleSaveLead}
-                className="py-3 px-6 bg-[#1A73E8] hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {savingLead ? (
                   <>
@@ -1277,7 +1394,8 @@ export default function TeleOnboardingPage() {
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MEDIA PREVIEW LIGHTBOX MODAL */}

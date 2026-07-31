@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAdminDashboard } from '../layout';
 import { 
   Users, Building, PhoneCall, CheckCircle2, Search, RefreshCw, Briefcase, 
@@ -11,6 +12,11 @@ import {
 
 export default function AssistedJobMatcherPage() {
   const { showToast } = useAdminDashboard();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Data States
   const [workersList, setWorkersList] = useState<any[]>([]);
@@ -594,33 +600,32 @@ export default function AssistedJobMatcherPage() {
         </div>
       )}
 
-      {/* 👁️ JOB DETAILS INSPECTION CENTERED MODAL WINDOW */}
-      {inspectingJob && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+      {/* 👁️ JOB DETAILS INSPECTION PORTAL MODAL */}
+      {mounted && inspectingJob && createPortal(
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 sm:p-6 animate-fade-in" onClick={() => setInspectingJob(null)}>
           <div 
-            onClick={() => setInspectingJob(null)} 
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity cursor-pointer" 
-          />
-
-          <div className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 sm:p-7 space-y-5 flex flex-col justify-between overflow-y-auto z-10 animate-scale-up">
+            className="w-full max-w-2xl max-h-[85vh] bg-white shadow-2xl rounded-3xl flex flex-col border border-slate-100 animate-scale-up overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             
-            <div className="space-y-5">
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-[#1A73E8] tracking-wider">Telephonic Job Specification Inspection</span>
-                  <h3 className="text-lg font-extrabold text-slate-900">{inspectingJob.title || inspectingJob.category || 'Job Requisition'}</h3>
-                </div>
-                <button
-                  onClick={() => setInspectingJob(null)}
-                  className="text-slate-400 hover:text-slate-600 font-bold text-sm p-1 rounded-full cursor-pointer"
-                >
-                  ✕
-                </button>
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-[#1A73E8] tracking-wider">Telephonic Job Specification Inspection</span>
+                <h3 className="text-base font-black text-slate-900">{inspectingJob.title || inspectingJob.category || 'Job Requisition'}</h3>
               </div>
+              <button
+                onClick={() => setInspectingJob(null)}
+                className="p-2 hover:bg-slate-200/60 rounded-xl transition-colors text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
+            {/* Modal Body - Scrollable Area */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-slate-50/30">
               {/* Employer Info + Direct Call Action */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <span className="text-xs font-extrabold text-slate-900 block">{inspectingJob.employer_name || inspectingJob.company_name || 'Household Owner'}</span>
@@ -633,7 +638,7 @@ export default function AssistedJobMatcherPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                   <p className="text-xs text-slate-600 font-medium truncate max-w-[250px]">
                     📍 {inspectingJob.society_name || 'Jaypee Greens'}, {inspectingJob.locality || 'Noida'}
                   </p>
@@ -651,22 +656,22 @@ export default function AssistedJobMatcherPage() {
                 <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">📋 Job &amp; Household Requirements</h4>
                 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                  <div className="p-3.5 bg-white rounded-2xl border border-slate-100 space-y-1 shadow-xs">
                     <span className="text-[10px] text-slate-400 font-bold block uppercase">👨‍👩‍👧‍👦 Family Members</span>
                     <span className="font-bold text-slate-900">{inspectingJob.family_members || '4 Members (2 Adults, 2 Kids)'}</span>
                   </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                  <div className="p-3.5 bg-white rounded-2xl border border-slate-100 space-y-1 shadow-xs">
                     <span className="text-[10px] text-slate-400 font-bold block uppercase">🏠 Residence Type</span>
                     <span className="font-bold text-slate-900">{inspectingJob.flat_type || '3BHK Apartment'}</span>
                   </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                  <div className="p-3.5 bg-white rounded-2xl border border-slate-100 space-y-1 shadow-xs">
                     <span className="text-[10px] text-slate-400 font-bold block uppercase">🍳 Dietary Preference</span>
                     <span className="font-bold text-slate-900">{inspectingJob.dietary_pref || 'Pure Vegetarian Household'}</span>
                   </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                  <div className="p-3.5 bg-white rounded-2xl border border-slate-100 space-y-1 shadow-xs">
                     <span className="text-[10px] text-slate-400 font-bold block uppercase">⏰ Shift Timings</span>
                     <span className="font-bold text-slate-900">{inspectingJob.shift_hours || inspectingJob.work_timing || 'Full Day (8:00 AM – 4:00 PM)'}</span>
                   </div>
@@ -674,15 +679,22 @@ export default function AssistedJobMatcherPage() {
 
                 <div className="space-y-1 border-t border-slate-100 pt-3">
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">📝 Full Description</span>
-                  <p className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-slate-800 leading-relaxed font-medium">
+                  <p className="p-3.5 bg-white rounded-2xl border border-slate-100 text-slate-800 leading-relaxed font-medium shadow-xs">
                     {inspectingJob.description || 'Looking for an experienced domestic service worker for daily duties.'}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Targeted Application Action */}
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 shrink-0 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setInspectingJob(null)}
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Modal
+              </button>
               <button
                 type="button"
                 disabled={submittingJobId === inspectingJob.id || appliedJobIds.includes(inspectingJob.id)}
@@ -690,7 +702,7 @@ export default function AssistedJobMatcherPage() {
                   handleApplyForWorker(inspectingJob);
                   setInspectingJob(null);
                 }}
-                className={`w-full py-3 px-4 rounded-2xl text-xs font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer ${
+                className={`py-2.5 px-5 rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer ${
                   appliedJobIds.includes(inspectingJob.id)
                     ? 'bg-emerald-600 text-white cursor-default'
                     : 'bg-[#1A73E8] hover:bg-blue-700 text-white'
@@ -716,7 +728,8 @@ export default function AssistedJobMatcherPage() {
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

@@ -172,11 +172,10 @@ Backend Variable Key:
 15. SEVKAA_ASSISTED_APPLICATION
 --------------------------------------------------------------------------------
 MSG91 Template Text (COPY & PASTE EXACTLY):
-Verified candidate ##alphanumeric1## applied for ##alphanumeric2## at ##alphanumeric3## on Sevikaa. Tap link to review: ##url##
+Sevikaa: Verified candidate ##alphanumeric1## applied for your ##alphanumeric2## post. Tap link to review profile: ##url##
 
 Backend Variable Keys:
 - ##alphanumeric1##  =>  'worker_name' (e.g. "Pooja Sharma")
 - ##alphanumeric2##  =>  'category' (e.g. "Cook")
-- ##alphanumeric3##  =>  'society' (e.g. "Jaypee Greens")
 - ##url##            =>  'url' (e.g. "https://www.sevikaa.in/employer/workers")
 ================================================================================

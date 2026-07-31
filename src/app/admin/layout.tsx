@@ -1017,7 +1017,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                 { id: 'employers',   label: 'Employer Audits',      href: '/admin/employers',   icon: <ShieldCheck size={16} />,      badge: counts.pendingEmployers },
                 { id: 'jobs',        label: 'Job Moderation',       href: '/admin/jobs',        icon: <Briefcase size={16} />,        badge: counts.pendingJobs },
                 { id: 'reviews',     label: 'Reviews Moderation',   href: '/admin/reviews',     icon: <Star size={16} />,             badge: counts.pendingReviews },
-                { id: 'assisted-jobs',  label: 'Assisted Job Matcher ⚡',     href: '/admin/assisted-jobs',  icon: <Sparkles size={16} />,         badge: counts.interviewsToday },
+                { id: 'assisted-jobs',  label: 'Assisted Job Matcher', href: '/admin/assisted-jobs',  icon: <Sparkles size={16} />,         badge: 0 },
                 { id: 'disputes',    label: 'Disputes Resolution',  href: '/admin/disputes',    icon: <ShieldAlert size={16} />,      badge: counts.activeDisputes },
                 { id: 'enquiries',   label: 'Support Enquiries',    href: '/admin/enquiries',   icon: <HelpCircle size={16} />,       badge: 0 }
               ].map((tab) => {

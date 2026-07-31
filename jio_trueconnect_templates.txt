@@ -180,18 +180,21 @@ Sample Backend variables:
 - {#alphanumeric#} (Job Title)  =>  Expected key in code: 'job_title' (e.g. "Housemaid")
 
 
-[❌ REJECTED x2 -> 🔄 DELETE & RECREATE] 2. SEVKAA_JOB_APPLIED
+[❌ REJECTED -> 🔄 RE-SUBMIT WITH BRAND PREFIX AT START] 2. SEVKAA_JOB_APPLIED
 --------------------------------------------------------------------------------
-Rejection History:
-  - Attempt 1 (28-07-2026): "Template should have Entity / Trade / Brand Name"
-    Text: "Job application submitted for {#alphanumeric#}."
-  - Attempt 2 (29-07-2026): "Template should have Entity / Trade / Brand Name"
-    Text: (Edit button was Read-only — text was never actually changed)
+DLT Category: Service Implicit
+DLT Header: SEVKAA
 
-NEW TEMPLATE MESSAGE (Delete old → Create new with this text):
-Your Sevikaa job application for {#alphanumeric#} has been submitted successfully.
+Rejection Reason Fix:
+Place the Brand Name "Sevikaa:" or "Sevikaa Alert:" at the VERY START of the message text.
 
-Sample Content (fill in the placeholder field on the portal):
+EXACT TEMPLATE MESSAGE TO COPY & PASTE IN JIO DLT PORTAL:
+Sevikaa: Your job application for {#alphanumeric#} has been submitted successfully.
+
+Alternative Option:
+Sevikaa Alert: Your job application for {#alphanumeric#} has been submitted successfully.
+
+Sample Content (fill in the placeholder field on Jio DLT portal):
 - {#alphanumeric#} = Full Time Cook
 
 Sample Backend variables:
@@ -227,18 +230,26 @@ Sample Backend variables:
 [🆕 READY FOR JIO DLT REGISTRATION] 5. SEVKAA_ASSISTED_APPLICATION
 --------------------------------------------------------------------------------
 DLT Status: Ready for Jio DLT Registration 🔄
-Template Message:
-Verified candidate {#alphanumeric#} applied for {#alphanumeric#} at {#alphanumeric#} on Sevikaa. Tap link to review: {#url#}
+DLT Category: Service Implicit
+DLT Header: SEVKAA
 
-Sample Content (fill in the placeholder field on the portal):
-- {#alphanumeric#} = Pooja Sharma
-- {#alphanumeric#} = Cook
-- {#alphanumeric#} = Jaypee Greens
+Template Message:
+Sevikaa: Verified candidate {#alphanumeric#} applied for your {#alphanumeric#} post. Tap link to review profile: {#url#}
+
+Character Count Breakdown (160-char Single SMS Limit):
+- Static Text: 76 characters
+- Worker Name ({#alphanumeric#}): ~12 characters (e.g. Pooja Sharma)
+- Category ({#alphanumeric#}): ~5 characters (e.g. Cook)
+- Applicants URL ({#url#}): ~42 characters (https://www.sevikaa.in/employer/workers)
+- Total SMS Length: ~135 characters (SAVED 25 CHARACTERS & WELL WITHIN SINGLE SMS LIMIT ✅)
+
+Sample Content (fill in the placeholder field on Jio DLT portal):
+- First {#alphanumeric#} = Pooja Sharma
+- Second {#alphanumeric#} = Cook
 - {#url#} = https://www.sevikaa.in/employer/workers
 
 Sample Backend variables:
 - First {#alphanumeric#} (Worker Name)   =>  'worker_name' (e.g. "Pooja Sharma")
 - Second {#alphanumeric#} (Category)     =>  'category' (e.g. "Cook")
-- Third {#alphanumeric#} (Society Name)  =>  'society' (e.g. "Jaypee Greens")
 - {#url#} (Applicants URL)              =>  'url' (e.g. "https://www.sevikaa.in/employer/workers")
 ================================================================================
