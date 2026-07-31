@@ -79,11 +79,11 @@ export async function POST(req: NextRequest) {
       } else {
         await queryDb(
           `INSERT INTO public.worker_profiles 
-             (id, user_id, full_name, phone, email, gender, age, expected_salary, experience_years, emergency_contact, profile_picture_url, aadhaar_front_url, aadhaar_back_url, video_url, skills, status)
+             (id, user_id, full_name, gender, age, expected_salary, experience_years, emergency_contact, profile_picture_url, aadhaar_front_url, aadhaar_back_url, video_url, skills, status)
            VALUES 
-             ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+             ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
-            userId, displayName, phone || null, email || null, gender || 'female', 
+            userId, displayName, gender || 'female', 
             numAge, salary, expYears, emergency_contact || null, 
             profile_picture_url || null, aadhaar_front_url || null, 
             aadhaar_back_url || null, video_url || null, skillsArr, status || 'pending_review'

@@ -63,9 +63,19 @@ export async function POST(req: NextRequest) {
         }
       }
     } else {
-      const wpCheck = await queryDb(`SELECT id, full_name, phone FROM public.worker_profiles WHERE user_id = $1 OR id = $1 LIMIT 1`, [userId]);
       let workerName = 'Worker Candidate';
       let workerPhone = '';
+
+      try {
+        const pRes = await queryDb(`SELECT phone FROM public.profiles WHERE id = $1 LIMIT 1`, [userId]);
+        if (pRes && pRes.rows.length > 0 && pRes.rows[0].phone) {
+          workerPhone = pRes.rows[0].phone;
+        }
+      } catch (pErr) {
+        console.warn("Profiles phone fetch notice:", pErr);
+      }
+
+      const wpCheck = await queryDb(`SELECT id, full_name FROM public.worker_profiles WHERE user_id = $1 OR id = $1 LIMIT 1`, [userId]);
 
       if (!wpCheck || wpCheck.rows.length === 0) {
         try {

@@ -413,6 +413,8 @@ export async function sendSMSWithTemplates(params: {
         INTERVIEW_SCHEDULED: 'Interview scheduled on {{date}} at {{time}}.\nCheck Sevikaa for complete details.',
         WORKER_VERIFIED: 'Congratulations!\nYour Sevikaa profile has been verified successfully.',
         NEW_APPLICATION: 'A new worker has applied for {{job_title}} on Sevikaa. Login to review.',
+        SEVKAA_ASSISTED_APPLICATION: 'Sevikaa: Verified candidate {{candidate_name}} applied for your {{job_title}} post. Tap link to review profile: {{url}}',
+        ASSISTED_APPLICATION: 'Sevikaa: Verified candidate {{candidate_name}} applied for your {{job_title}} post. Tap link to review profile: {{url}}',
         SUBSCRIPTION_ACTIVATED: 'Your Sevikaa subscription {{plan_name}} is now active.\nThank you.',
         PAYMENT_SUCCESS: 'Sevikaa: Payment of Rs.{{amount}} received successfully. Transaction ID {{transaction_id}}. Thank you for using Sevikaa.',
         SECURITY_ALERT: 'A security-sensitive action was detected on your Sevikaa account.\nIf this wasn\'t you, contact support immediately.'

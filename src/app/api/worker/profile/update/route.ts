@@ -54,10 +54,10 @@ export async function POST(req: NextRequest) {
       } else {
         await queryDb(
           `INSERT INTO public.worker_profiles 
-             (id, user_id, full_name, phone, email, gender, age, expected_salary, experience_years, status)
+             (id, user_id, full_name, gender, age, expected_salary, experience_years, status)
            VALUES 
-             ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [userId, displayName, phone || null, email || null, gender || 'female', numAge, salary, expYears, status || 'pending_verification']
+             ($1, $1, $2, $3, $4, $5, $6, $7)`,
+          [userId, displayName, gender || 'female', numAge, salary, expYears, status || 'pending_verification']
         );
       }
     } catch (dbErr) {
