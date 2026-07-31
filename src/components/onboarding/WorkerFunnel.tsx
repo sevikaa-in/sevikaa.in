@@ -53,9 +53,6 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
   // Step 1 State: Selfie
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [cameraError, setCameraError] = useState<string>('');
 
   // Step 2 State: Basic Details & Languages
   const [fullName, setFullName] = useState('');
@@ -186,82 +183,6 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
         setSelfiePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const startCamera = async () => {
-    setCameraError('');
-    if (typeof window === 'undefined' || !navigator?.mediaDevices?.getUserMedia) {
-      setCameraError("Camera is not available in this browser. You can take a live photo or select an image file below.");
-      return;
-    }
-
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
-        audio: false
-      });
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.play().catch(e => console.warn("Video play notice:", e));
-      }
-    } catch (err: any) {
-      console.warn("User facing camera prompt failed, trying fallback:", err);
-      try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        });
-        setStream(mediaStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-          videoRef.current.play().catch(e => console.warn("Video play notice:", e));
-        }
-      } catch (fallbackErr: any) {
-        console.warn("Camera access denied or unavailable:", fallbackErr);
-        setCameraError("Camera permission was blocked. Tap 'Enable Camera' to allow permission or upload from gallery.");
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (step === 1 && !selfiePreview && !stream) {
-      startCamera();
-    }
-
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [step, selfiePreview]);
-
-  const captureSelfie = () => {
-    if (videoRef.current && stream) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        // Mirror the canvas capture context so the captured photo matches the mirrored webcam view
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const file = new File([blob], "selfie.jpg", { type: "image/jpeg" });
-            setSelfieFile(file);
-            setSelfiePreview(URL.createObjectURL(file));
-            
-            // Turn off camera tracks once photo is captured
-            stream.getTracks().forEach(track => track.stop());
-            setStream(null);
-          }
-        }, 'image/jpeg');
-      }
     }
   };
 
@@ -488,20 +409,15 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
               <div className="relative w-48 h-48 rounded-full overflow-hidden border-4 border-white shadow-md bg-gray-100 flex items-center justify-center mb-4">
                 {selfiePreview ? (
                   <img src={selfiePreview} alt="Selfie preview" className="w-full h-full object-cover" />
-                ) : cameraError ? (
-                  <p className="text-xs text-red-500 font-bold p-4 leading-normal">{cameraError}</p>
                 ) : (
-                  <video 
-                    ref={videoRef} 
-                    autoPlay 
-                    playsInline 
-                    muted 
-                    className="w-full h-full object-cover scale-x-[-1]" 
-                  />
+                  <div className="flex flex-col items-center justify-center text-slate-400 space-y-1">
+                    <Camera size={36} />
+                    <span className="text-[10px] font-bold text-slate-400">No Photo Selected</span>
+                  </div>
                 )}
               </div>
 
-              <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-2.5 w-full">
                 {selfiePreview ? (
                   <button
                     type="button"
@@ -510,20 +426,12 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                   >
                     Retake Photo
                   </button>
-                ) : cameraError ? (
-                  <div className="flex flex-wrap justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={startCamera}
-                      className="py-3 px-5 bg-[#1A73E8] hover:bg-[#155cb4] text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                    >
-                      <Camera size={14} />
-                      <span>Enable Web Camera</span>
-                    </button>
-
-                    <label className="py-3 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
-                      <Camera size={14} />
-                      <span>Take Live Photo (Mobile Camera)</span>
+                ) : (
+                  <>
+                    {/* Primary Option: Mobile Device Camera */}
+                    <label className="py-3.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm flex-1">
+                      <Camera size={16} />
+                      <span>Take Photo (Device Camera)</span>
                       <input 
                         type="file" 
                         accept="image/*" 
@@ -532,16 +440,19 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                         onChange={handleSelfieFileUpload} 
                       />
                     </label>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={captureSelfie}
-                    className="py-3 px-6 bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-blue-100"
-                  >
-                    <Camera size={14} />
-                    <span>Capture Photo</span>
-                  </button>
+
+                    {/* Secondary Option: Gallery / File Upload */}
+                    <label className="py-3.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs border border-slate-200">
+                      <Upload size={14} />
+                      <span>Upload from Gallery</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleSelfieFileUpload} 
+                      />
+                    </label>
+                  </>
                 )}
               </div>
             </div>
