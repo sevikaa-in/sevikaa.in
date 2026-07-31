@@ -54,7 +54,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onNext, onBa
       <div className="w-full text-center mb-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-100/80 text-blue-700 text-xs font-bold mb-3 shadow-sm">
           <Globe className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
-          <span>Step 1 of 2 • Language Preference</span>
+          <span>Language Preference</span>
         </div>
         
         <div className="flex flex-col items-center justify-center">

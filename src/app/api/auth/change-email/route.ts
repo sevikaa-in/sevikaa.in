@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
           `UPDATE public.profiles SET email = $1 WHERE id = $2 RETURNING id`,
           [cleanNewEmail, user.id]
         );
-        if (updateRes.rowCount === 0) {
+        if (!updateRes || updateRes.rowCount === 0) {
           const userRole = user.user_metadata?.role || 'employer';
           await queryDb(
             `INSERT INTO public.profiles (id, email, phone, role, status) VALUES ($1, $2, $3, $4, 'approved')`,
