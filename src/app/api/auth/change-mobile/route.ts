@@ -302,7 +302,7 @@ export async function POST(request: NextRequest) {
           `UPDATE public.profiles SET phone = $1 WHERE id = $2 RETURNING id`,
           [cleanNewPhone, user.id]
         );
-        if (updateRes.rowCount === 0) {
+        if (!updateRes || updateRes.rowCount === 0) {
           const userRole = user.user_metadata?.role || 'employer';
           const userEmail = user.email || 'sah.debashish@gmail.com';
           await queryDb(
