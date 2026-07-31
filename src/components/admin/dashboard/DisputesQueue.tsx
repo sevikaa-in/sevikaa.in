@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { ShieldAlert, Sparkles, User, AlertCircle, Search, HelpCircle, CheckCircle, ChevronRight } from 'lucide-react';
+import { ShieldAlert, Sparkles, User, AlertCircle, Search, HelpCircle, CheckCircle, ChevronRight, Clock, ExternalLink } from 'lucide-react';
 
 interface DisputesQueueProps {
   loading: boolean;
@@ -9,6 +9,18 @@ interface DisputesQueueProps {
   disputes: any[];
   onResolveDispute: (id: string) => void;
   onSelectDispute: (dispute: any) => void;
+}
+
+// ⏱️ SLA Timer helper
+function getElapsedLabel(createdAt: string | undefined): { label: string; urgent: boolean } {
+  if (!createdAt) return { label: 'Unknown age', urgent: false };
+  const ms = Date.now() - new Date(createdAt).getTime();
+  const mins = Math.floor(ms / 60000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  if (days > 0) return { label: `${days}d ${hours % 24}h ago`, urgent: days >= 2 };
+  if (hours > 0) return { label: `${hours}h ${mins % 60}m ago`, urgent: hours >= 24 };
+  return { label: `${mins}m ago`, urgent: false };
 }
 
 export const DisputesQueue: React.FC<DisputesQueueProps> = ({
@@ -54,7 +66,7 @@ export const DisputesQueue: React.FC<DisputesQueueProps> = ({
     <div className="bg-white border border-slate-100 p-5 rounded-[20px] shadow-sm space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-50 pb-3">
         <div>
-          <h4 className="text-xs font-black text-slate-800">Reports & Disputes Resolution</h4>
+          <h4 className="text-xs font-black text-slate-800">Reports &amp; Disputes Resolution</h4>
           <p className="text-[10px] text-gray-400 font-bold">Investigate safety flags, dispute reports, and resolve escalations</p>
         </div>
 
@@ -80,58 +92,95 @@ export const DisputesQueue: React.FC<DisputesQueueProps> = ({
         </div>
       ) : (
         <div className="space-y-4 divide-y divide-slate-50">
-          {paginated.map((item) => (
-            <div key={item.id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/20 transition-all duration-200 space-y-3">
-              <div
-                onClick={() => onSelectDispute(item)}
-                className="flex justify-between items-start cursor-pointer group"
-              >
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="block text-xs font-black text-slate-800 group-hover:text-[#1A73E8] transition-colors">Target: {item.reported_user}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
-                      item.priority === 'High' ? 'bg-red-50 text-[#EA4335]' : 'bg-slate-100 text-gray-400'
-                    }`}>
-                      {item.priority} Urgency
-                    </span>
+          {paginated.map((item) => {
+            const { label: ageLabel, urgent } = getElapsedLabel(item.created_at || item.createdAt);
+            return (
+              <div key={item.id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/20 transition-all duration-200 space-y-3">
+                <div
+                  onClick={() => onSelectDispute(item)}
+                  className="flex justify-between items-start cursor-pointer group"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="block text-xs font-black text-slate-800 group-hover:text-[#1A73E8] transition-colors">Target: {item.reported_user}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                        item.priority === 'High' ? 'bg-red-50 text-[#EA4335]' : 'bg-slate-100 text-gray-400'
+                      }`}>
+                        {item.priority} Urgency
+                      </span>
+                      {/* ⏱️ SLA Timer */}
+                      <span className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-black ${
+                        urgent ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-500'
+                      }`}>
+                        <Clock size={8} />
+                        {ageLabel}
+                      </span>
+                    </div>
+                    <span className="block text-[9px] text-gray-400 font-bold">Reporter: {item.reporter}</span>
                   </div>
-                  <span className="block text-[9px] text-gray-400 font-bold mt-1">Reporter: {item.reporter}</span>
+                  <ChevronRight size={14} className="text-gray-400 group-hover:text-slate-800 transition-colors" />
                 </div>
-                <ChevronRight size={14} className="text-gray-400 group-hover:text-slate-800 transition-colors" />
-              </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100/50 space-y-1">
-                <span className="block text-[9px] font-bold text-slate-400 uppercase">Reason & Details:</span>
-                <p className="text-[10px] text-gray-500 font-bold leading-normal">"{item.reason}"</p>
-                {item.evidence && (
-                  <span className="block text-[8px] text-[#1A73E8] font-bold mt-1.5">Attached evidence: {item.evidence}</span>
-                )}
-              </div>
+                {/* 🔗 Profile Jump Links */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {item.reported_user_id && (
+                    <a
+                      href={`/admin/workers?highlight=${item.reported_user_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 py-1 px-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200/60 rounded-lg text-[9px] font-bold transition-colors cursor-pointer"
+                    >
+                      <ExternalLink size={9} /> View Accused Profile
+                    </a>
+                  )}
+                  {item.reporter_id && (
+                    <a
+                      href={`/admin/workers?highlight=${item.reporter_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 py-1 px-2.5 bg-blue-50 hover:bg-blue-100 text-[#1A73E8] border border-blue-200/60 rounded-lg text-[9px] font-bold transition-colors cursor-pointer"
+                    >
+                      <ExternalLink size={9} /> View Reporter Profile
+                    </a>
+                  )}
+                  <span className="text-[9px] text-slate-400 font-medium italic ml-auto">Tap row to investigate →</span>
+                </div>
 
-              {/* Action Toolbar */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onResolveDispute(item.id)}
-                  className="flex-1 py-1.5 bg-[#34A853] hover:bg-[#34A853]/90 text-white rounded-xl text-[10px] font-black uppercase active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <CheckCircle size={12} />
-                  <span>Resolve & Dismiss</span>
-                </button>
-                <button
-                  onClick={() => {}}
-                  className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold active:scale-95 transition-all cursor-pointer border border-slate-200/20"
-                >
-                  Escalate
-                </button>
-                <button
-                  onClick={() => {}}
-                  className="py-1.5 px-3 border border-[#EA4335]/20 hover:bg-[#EA4335]/5 text-[#EA4335] text-[10px] font-bold rounded-xl active:scale-95 transition-all cursor-pointer"
-                >
-                  Suspend User
-                </button>
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100/50 space-y-1">
+                  <span className="block text-[9px] font-bold text-slate-400 uppercase">Reason &amp; Details:</span>
+                  <p className="text-[10px] text-gray-500 font-bold leading-normal">"{item.reason}"</p>
+                  {item.evidence && (
+                    <span className="block text-[8px] text-[#1A73E8] font-bold mt-1.5">Attached evidence: {item.evidence}</span>
+                  )}
+                </div>
+
+                {/* Action Toolbar */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onResolveDispute(item.id)}
+                    className="flex-1 py-1.5 bg-[#34A853] hover:bg-[#34A853]/90 text-white rounded-xl text-[10px] font-black uppercase active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <CheckCircle size={12} />
+                    <span>Resolve &amp; Dismiss</span>
+                  </button>
+                  <button
+                    onClick={() => {}}
+                    className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold active:scale-95 transition-all cursor-pointer border border-slate-200/20"
+                  >
+                    Escalate
+                  </button>
+                  <button
+                    onClick={() => {}}
+                    className="py-1.5 px-3 border border-[#EA4335]/20 hover:bg-[#EA4335]/5 text-[#EA4335] text-[10px] font-bold rounded-xl active:scale-95 transition-all cursor-pointer"
+                  >
+                    Suspend User
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

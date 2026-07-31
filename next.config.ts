@@ -1,6 +1,22 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async headers() {
+    return [
+      {
+        // Apply to all routes
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            // Explicitly allow camera, microphone & geolocation on this origin
+            value: 'camera=(*), microphone=(), geolocation=()',
+          },
+        ],
+      },
+    ];
+  },
+
   async redirects() {
     return [
       {
@@ -48,3 +64,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
