@@ -18,9 +18,9 @@ export default function EmployerPricingPage() {
   const plans = [
     {
       id: 'free',
-      name: t('planFree') || 'Free Trial',
+      name: t('planFree') || 'Free Plan',
       price: '0',
-      period: 'Trial',
+      period: 'Starter',
       validity: '7 Days',
       jobPosts: '1 Job Post',
       contactUnlocks: '0 Unlocks (View Bios Only)',

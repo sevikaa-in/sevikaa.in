@@ -205,6 +205,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
   const startCamera = async () => {
     setCameraError('');
     if (typeof window === 'undefined' || !navigator?.mediaDevices?.getUserMedia) {
+      setCameraError('Live webcam view unavailable on this browser. Use native device camera or gallery below.');
       nativeCameraInputRef.current?.click();
       return;
     }
@@ -222,8 +223,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
       }
     } catch (err: any) {
       console.warn("Camera permission notice:", err);
-      // Fallback: trigger native camera input automatically
-      nativeCameraInputRef.current?.click();
+      setCameraError('Camera permission blocked or unavailable. Tap "Take Photo with Device Camera" or select from gallery.');
     }
   };
 
@@ -590,7 +590,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                   </button>
                 ) : (
                   <>
-                    {/* Hidden input for native camera capture fallback */}
+                    {/* Hidden input for native camera capture */}
                     <input 
                       ref={nativeCameraInputRef}
                       type="file" 
@@ -600,20 +600,30 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                       onChange={handleSelfieFileUpload} 
                     />
 
-                    {/* Button 1: Smart Primary Camera Button */}
+                    {/* Button 1: Live Web Viewfinder */}
                     <button
                       type="button"
                       onClick={handlePrimaryCameraClick}
-                      className="py-3.5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm flex-1"
+                      className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm flex-1"
                     >
-                      <Camera size={16} />
-                      <span>Take Photo / Open Camera</span>
+                      <Camera size={15} />
+                      <span>Live Viewfinder</span>
                     </button>
 
-                    {/* Button 2: Choose from Gallery */}
-                    <label className="py-3.5 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs border border-slate-200">
+                    {/* Button 2: Native Device Camera */}
+                    <button
+                      type="button"
+                      onClick={() => nativeCameraInputRef.current?.click()}
+                      className="py-3 px-4 bg-[#1A73E8] hover:bg-blue-700 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm flex-1"
+                    >
+                      <Camera size={15} />
+                      <span>Take Photo (Camera)</span>
+                    </button>
+
+                    {/* Button 3: Choose from Gallery */}
+                    <label className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs border border-slate-200 flex-1">
                       <Upload size={14} />
-                      <span>Choose from Gallery</span>
+                      <span>Photo Gallery</span>
                       <input 
                         type="file" 
                         accept="image/*" 

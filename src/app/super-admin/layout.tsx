@@ -164,7 +164,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
   // Pricing configuration - Worker Free Forever & Tiered Employer Plans
   const [pricing, setPricing] = useState<any>({
     workerRegistration: '0',
-    freePlan: { price: '0', validityDays: 'Unlimited', jobPostsLimit: '1', contactUnlocksLimit: '0', name: 'Free Trial' },
+    freePlan: { price: '0', validityDays: 'Unlimited', jobPostsLimit: '1', contactUnlocksLimit: '0', name: 'Free Plan' },
     basicPlan: { price: '299', validityDays: '30', jobPostsLimit: '3', contactUnlocksLimit: '10', name: 'Basic Plan' },
     premiumPlan: { price: '699', validityDays: '60', jobPostsLimit: '10', contactUnlocksLimit: '50', name: 'Standard (Recommended)' },
     proPlan: { price: '1499', validityDays: '90', jobPostsLimit: 'Unlimited', contactUnlocksLimit: 'Unlimited', name: 'Pro Enterprise' },
@@ -1038,8 +1038,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         const { error: updateErr } = await supabase
           .from('jobs')
           .update({ 
-            status: newStatus,
-            admin_note: noteText
+            status: newStatus
           })
           .eq('id', jobId);
         if (updateErr) throw updateErr;

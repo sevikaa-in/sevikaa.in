@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import React from 'react';
 import { LanguageProvider } from "../context/LanguageContext";
+import { TopNavigationLoader } from "../components/common/TopNavigationLoader";
 import Script from "next/script";
 
 const geistSans = Geist({
@@ -46,6 +48,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-gray-50 text-[#202124]">
         <LanguageProvider>
+          <React.Suspense fallback={null}>
+            <TopNavigationLoader />
+          </React.Suspense>
           {children}
         </LanguageProvider>
       </body>

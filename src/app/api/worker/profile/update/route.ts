@@ -22,14 +22,15 @@ export async function POST(req: NextRequest) {
     const numAge = parseInt(age) || 28;
     const currentStep = parseInt(onboarding_step) || 1;
 
-    // 1. Update public.profiles
+    // 1. Update public.profiles (phone, email, status)
     try {
       await queryDb(
         `UPDATE public.profiles 
          SET phone = COALESCE($1, phone),
-             email = COALESCE($2, email)
-         WHERE id = $3`,
-        [phone || null, email || null, userId]
+             email = COALESCE($2, email),
+             status = COALESCE($3, status)
+         WHERE id = $4`,
+        [phone || null, email || null, status || null, userId]
       );
     } catch (pErr) {
       console.warn("Profiles update notice:", pErr);

@@ -110,7 +110,7 @@ export default function PricingPage() {
               <div className="space-y-4">
                 <div>
                   <span className="bg-slate-100 text-slate-600 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
-                    Free Trial
+                    Free Plan
                   </span>
                   <h3 className="text-lg font-black text-slate-900 mt-3">Free Starter Plan</h3>
                   <div className="text-3xl font-black text-slate-900 mt-1">

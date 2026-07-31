@@ -10,15 +10,19 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
     const cacheKey = `superadmin_data_${tab}_p${page}_l${limit}`;
 
-    // 1. Check Server Memory Cache
-    const cachedResponse = memoryCache.get<any>(cacheKey);
-    if (cachedResponse) {
-      return NextResponse.json(cachedResponse, {
-        headers: {
-          'X-Cache': 'HIT-MEMORY',
-          'Cache-Control': 'private, max-age=30, stale-while-revalidate=60'
-        }
-      });
+    const bypassCache = searchParams.get('fresh') === 'true' || searchParams.get('nocache') === 'true';
+
+    // 1. Check Server Memory Cache (if not bypassing)
+    if (!bypassCache) {
+      const cachedResponse = memoryCache.get<any>(cacheKey);
+      if (cachedResponse) {
+        return NextResponse.json(cachedResponse, {
+          headers: {
+            'X-Cache': 'HIT-MEMORY',
+            'Cache-Control': 'private, max-age=30, stale-while-revalidate=60'
+          }
+        });
+      }
     }
 
     const offset = (page - 1) * limit;

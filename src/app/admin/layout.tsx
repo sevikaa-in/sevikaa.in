@@ -314,7 +314,8 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       return;
     }
 
-    const processApiData = (apiData: any) => {
+    try {
+      const processApiData = async (apiData: any) => {
       if (!apiData || !apiData.success) return;
       const { workers, employers, societies, jobs, counts } = apiData;
 
@@ -391,151 +392,14 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         }));
       }
 
-      if (employers && employers.length > 0) {
-        setEmployersList(employers.map((e: any) => ({
-          id: e.id,
-          user_id: e.user_id || e.id,
-          name: e.company_name || e.name || 'Employer Household',
-          company_name: e.company_name || e.name || 'Individual Household',
-          billing_address: e.billing_address || 'Locality Not Specified',
-          society_name: e.society_name || 'General Locality',
-          phone: e.phone || '',
-          email: e.email || '',
-          subscription_status: e.subscription_status || 'free',
-          status: e.status || 'active',
-          created_at: e.created_at
-        })));
-      }
 
-      if (jobs && jobs.length > 0) {
-        setPendingJobsList(jobs.map((j: any) => ({
-          id: j.id,
-          user_id: j.user_id,
-          title: j.title || 'General Job Requirement',
-          category: j.category || 'General',
-          salary_offered: j.salary_offered || j.salary || 0,
-          salary: j.salary_offered || j.salary || 0,
-          society_name: j.society_name || 'General Locality',
-          employer: j.employer_name || 'Employer Household',
-          employer_name: j.employer_name || 'Employer Household',
-          phone: j.phone || '',
-          email: j.email || '',
-          status: j.status || 'pending',
-          created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
-        })));
-      }
-    };
 
-    try {
-      // 1. Fetch real database metrics & records via server API endpoint
-      try {
-        const targetTab = currentTab || pathname.split('/').pop() || 'overview';
-        const cacheKey = `adm_${targetTab}_p${pageVal}`;
-
-        if (!(globalThis as any).__admClientCache) {
-          (globalThis as any).__admClientCache = new Map<string, any>();
-        }
-        const clientCache: Map<string, any> = (globalThis as any).__admClientCache;
-
-        if (clientCache.has(cacheKey)) {
-          const cachedApiData = clientCache.get(cacheKey);
-          processApiData(cachedApiData);
-          setLoading(false);
-          return;
-        }
-
-        const apiRes = await fetch(`/api/admin/data?tab=${targetTab}&page=${pageVal}&limit=20`);
-        if (apiRes.ok) {
-          const apiData = await apiRes.json();
-          if (apiData.success) {
-            clientCache.set(cacheKey, apiData);
-            processApiData(apiData);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (apiFetchErr) {
-        console.warn("Admin server data API notice:", apiFetchErr);
-      }
-
-      const { data: profilesList } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          email,
-          phone,
-          status,
-          role,
-          worker_profiles (
-            full_name,
-            skills,
-            languages_spoken,
-            availability_slots,
-            age,
-            gender,
-            profile_picture_url,
-            video_url,
-            aadhaar_front_url,
-            aadhaar_back_url,
-            experience_years,
-            emergency_contact,
-            expected_salary
-          )
-        `)
-        .eq('role', 'worker');
-
-      if (profilesList) {
-        const mappedWorkers = profilesList.map((p: any) => ({
-          id: p.id,
-          name: p.worker_profiles?.full_name || 'N/A',
-          full_name: p.worker_profiles?.full_name || 'N/A',
-          skills: p.worker_profiles?.skills || [],
-          languages_spoken: p.worker_profiles?.languages_spoken || [],
-          status: p.status,
-          age: p.worker_profiles?.age || 0,
-          gender: p.worker_profiles?.gender || 'N/A',
-          profile_picture_url: p.worker_profiles?.profile_picture_url || '',
-          video_url: p.worker_profiles?.video_url || '',
-          aadhaar_front_url: p.worker_profiles?.aadhaar_front_url || '',
-          aadhaar_back_url: p.worker_profiles?.aadhaar_back_url || '',
-          experience_years: p.worker_profiles?.experience_years || 0,
-          emergency_contact: p.worker_profiles?.emergency_contact || '',
-          expected_salary: p.worker_profiles?.expected_salary || 0,
-          email: p.email || '',
-          phone: p.phone || '',
-          badges: { 
-            mobile: p.phone ? 'Verified' : 'Pending', 
-            aadhaar: p.status === 'approved' || p.status === 'live' ? 'Verified' : 'Pending', 
-            police: 'Pending', 
-            interview: p.status === 'approved' || p.status === 'live' ? 'Verified' : 'Pending', 
-            video: p.worker_profiles?.video_url ? 'Verified' : 'Pending', 
-            profile: p.status === 'live' ? 'Verified' : 'Pending' 
-          }
-        }));
-        setWorkersList(mappedWorkers);
-        if (mappedWorkers.length > 0) {
-          setSelectedWorker(mappedWorkers[0]);
-        }
-
-        const pendingWorkers = mappedWorkers.filter((w: any) => w.status === 'pending_review' || w.status === 'admin_interview');
-        setInterviewsList(pendingWorkers.map((w: any, index: number) => ({
-          id: w.id,
-          workerName: w.name,
-          category: w.skills?.[0] || 'General',
-          time: `Slot ${index + 1}: Morning`,
-          status: w.status === 'admin_interview' ? 'Completed' : 'Today',
-          result: w.status === 'approved' ? 'Pass' : '',
-          resultNotes: '',
-          worker: w
-        })));
-      }
-
-      const { data: employers } = await supabase
+      const { data: sbEmployers } = await supabase
         .from('employer_profiles')
         .select('*, profiles(email, phone, status, created_at)');
       let mappedEmployers: any[] = [];
-      if (employers) {
-        mappedEmployers = employers.map((e: any) => ({
+      if (sbEmployers) {
+        mappedEmployers = sbEmployers.map((e: any) => ({
           ...e,
           email: e.profiles?.email || '',
           phone: e.profiles?.phone || '',
@@ -632,16 +496,17 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           };
         }));
       }
+    };
 
       setCounts({
-        pendingWorkers: profilesList?.filter((p: any) => p.status === 'pending_review' || p.status === 'admin_interview' || p.status === 'deletion_requested').length || 7,
-        pendingEmployers: mappedEmployers.filter((e: any) => e.status === 'pending_review' || e.status === 'deletion_requested').length || 0,
-        pendingJobs: pendingJobs?.filter((j: any) => {
+        pendingWorkers: workersList?.filter((w: any) => w.status === 'pending_review' || w.status === 'admin_interview' || w.status === 'deletion_requested').length || 0,
+        pendingEmployers: employersList?.filter((e: any) => e.status === 'pending_review' || e.status === 'deletion_requested').length || 0,
+        pendingJobs: pendingJobsList?.filter((j: any) => {
           const s = (j.status || 'pending').toLowerCase();
           return s === 'pending' || s === 'pending_review';
         }).length || 0,
-        pendingReviews: pendingReviews?.length || 0,
-        interviewsToday: profilesList?.filter((p: any) => p.status === 'admin_interview').length || 1,
+        pendingReviews: pendingReviewsList?.length || 0,
+        interviewsToday: workersList?.filter((w: any) => w.status === 'admin_interview').length || 0,
         activeDisputes: 0
       });
 
@@ -776,20 +641,18 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
     try {
       if (!isPlaceholder) {
-        const payload: any = { status: newStatus };
-        if (adminNote) payload.admin_note = adminNote;
-
         const { error: updateErr } = await supabase
           .from('profiles')
-          .update(payload)
+          .update({ status: newStatus })
           .eq('id', workerId);
         if (updateErr) throw updateErr;
 
-        if (adminNote) {
-          await supabase
-            .from('worker_profiles')
-            .update({ admin_note: adminNote })
-            .or(`user_id.eq.${workerId},id.eq.${workerId}`);
+        if (newStatus === 'changes_requested') {
+          fetch('/api/admin/worker/send-upload-sms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: workerId })
+          }).catch(err => console.warn('Send upload SMS error:', err));
         }
       }
 

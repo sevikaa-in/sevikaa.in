@@ -10,15 +10,19 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
     const cacheKey = `admin_data_${tab}_p${page}_l${limit}`;
 
-    // 1. Check Server Memory Cache
-    const cachedResponse = memoryCache.get<any>(cacheKey);
-    if (cachedResponse) {
-      return NextResponse.json(cachedResponse, {
-        headers: {
-          'X-Cache': 'HIT-MEMORY',
-          'Cache-Control': 'private, max-age=30, stale-while-revalidate=60'
-        }
-      });
+    const bypassCache = searchParams.get('fresh') === 'true' || searchParams.get('nocache') === 'true';
+
+    // 1. Check Server Memory Cache (if not bypassing)
+    if (!bypassCache) {
+      const cachedResponse = memoryCache.get<any>(cacheKey);
+      if (cachedResponse) {
+        return NextResponse.json(cachedResponse, {
+          headers: {
+            'X-Cache': 'HIT-MEMORY',
+            'Cache-Control': 'private, max-age=30, stale-while-revalidate=60'
+          }
+        });
+      }
     }
 
     const offset = (page - 1) * limit;
@@ -84,7 +88,7 @@ export async function GET(req: NextRequest) {
            LEFT JOIN public.societies s ON s.id = wp.preferred_society_id
            WHERE (p.role = 'worker' OR wp.id IS NOT NULL)
              AND ($3::text IS NULL OR p.phone LIKE $3 OR wp.full_name ILIKE $3)
-             AND ($4::text = '' OR p.status = $4 OR ($4 = 'approved' AND p.status IN ('approved', 'live', 'active', 'completed')))
+             AND ($4::text = '' OR p.status = $4 OR ($4 = 'approved' AND p.status IN ('approved', 'live', 'active', 'completed')) OR ($4 = 'suspended' AND p.status IN ('suspended', 'rejected', 'deactivated', 'changes_requested')))
            ORDER BY p.created_at DESC
            LIMIT $1 OFFSET $2`,
           [limit, offset, searchPattern, statusFilter]
@@ -99,10 +103,12 @@ export async function GET(req: NextRequest) {
           `SELECT p.id, p.email, p.phone, p.status, p.created_at,
                   COALESCE(
                     NULLIF(TRIM(ep.company_name), ''),
+                    NULLIF(TRIM(ep.name), ''),
                     CONCAT('Employer ', RIGHT(COALESCE(p.phone, 'Lead'), 4))
                   ) AS company_name,
-                  ep.society_name, ep.address, ep.tower_block, ep.city, ep.state, ep.pincode,
-                  ep.alternate_phone, ep.gstin, ep.verification_requirement
+                  NULL AS society_name, ep.billing_address AS address, NULL AS tower_block,
+                  ep.city, ep.state, ep.pincode, NULL AS alternate_phone, ep.gstin,
+                  NULL AS verification_requirement
            FROM public.profiles p
            LEFT JOIN public.employer_profiles ep ON ep.user_id = p.id OR ep.id = p.id
            WHERE (p.role = 'employer' OR ep.id IS NOT NULL)

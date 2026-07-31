@@ -75,7 +75,7 @@ export default function PricingPage() {
     setSaving(true);
     const updatedPricing = {
       workerRegistration: '0',
-      freePlan: { price: '0', validityDays: 'Unlimited', jobPostsLimit: '1', contactUnlocksLimit: '0', name: 'Free Trial' },
+      freePlan: { price: '0', validityDays: 'Unlimited', jobPostsLimit: '1', contactUnlocksLimit: '0', name: 'Free Plan' },
       basicPlan: { price: basicPrice, validityDays: basicValidity, jobPostsLimit: basicJobs, contactUnlocksLimit: basicUnlocks, name: 'Basic Plan' },
       premiumPlan: { price: premiumPrice, validityDays: premiumValidity, jobPostsLimit: premiumJobs, contactUnlocksLimit: premiumUnlocks, name: 'Standard (Recommended)' },
       proPlan: { price: proPrice, validityDays: proValidity, jobPostsLimit: proJobs, contactUnlocksLimit: proUnlocks, name: 'Pro Enterprise' }

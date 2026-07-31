@@ -345,7 +345,7 @@ export async function POST(req: NextRequest) {
           console.warn("Lead profile upsert notice:", profUpsertErr.detail || profUpsertErr.message);
         }
 
-        // 2. Create worker_profiles stub if not exists (required for tele-onboarding lead)
+        // 2. Create worker_profiles or employer_profiles stub if not exists (required for tele-onboarding lead)
         if (userRole === 'worker') {
           try {
             await queryDb(
@@ -356,6 +356,17 @@ export async function POST(req: NextRequest) {
             );
           } catch (wpStubErr: any) {
             console.warn("Worker profile stub notice:", wpStubErr.detail || wpStubErr.message);
+          }
+        } else if (userRole === 'employer') {
+          try {
+            await queryDb(
+              `INSERT INTO public.employer_profiles (id, user_id, company_name, created_at)
+               VALUES ($1, $1, $2, NOW())
+               ON CONFLICT (user_id) DO NOTHING`,
+              [resolvedId, 'Employer Candidate']
+            );
+          } catch (epStubErr: any) {
+            console.warn("Employer profile stub notice:", epStubErr.detail || epStubErr.message);
           }
         }
       }

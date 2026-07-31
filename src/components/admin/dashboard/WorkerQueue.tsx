@@ -49,12 +49,17 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
                           (w.phone || '').includes(searchTerm) ||
                           (w.email || '').toLowerCase().includes(searchTerm.toLowerCase());
     
-    const isLeadIncomplete = !w.skills || w.skills.length === 0 || w.name === 'Registered Candidate' || w.full_name === 'Verified Worker';
+    const isLeadIncomplete = !w.skills || w.skills.length === 0 || w.name === 'Registered Candidate' || w.full_name === 'Verified Worker' || w.full_name === 'Worker Candidate';
+    
     const matchesStatus = filterStatus === 'all' 
       ? true 
       : filterStatus === 'incomplete_lead' 
         ? isLeadIncomplete 
-        : w.status === filterStatus;
+        : filterStatus === 'suspended'
+          ? (w.status === 'suspended' || w.status === 'rejected' || w.status === 'deactivated' || w.status === 'changes_requested')
+          : filterStatus === 'deletion_requested'
+            ? (w.status === 'deletion_requested' || w.status === 'pending_deletion')
+            : w.status === filterStatus;
     
     return matchesSearch && matchesStatus;
   });
