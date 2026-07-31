@@ -1,11 +1,9 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { supabase } from '../../lib/supabaseClient';
-import { UserCheck, ArrowRight, Shield, AlertCircle } from 'lucide-react';
-
-import { useEffect } from 'react';
+import { UserCheck, ArrowRight, Shield, AlertCircle, Search, ChevronDown, Check } from 'lucide-react';
 
 interface EmployerFunnelProps {
   userId: string;
@@ -21,6 +19,19 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
   const [societiesList, setSocietiesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [societyDropdownOpen, setSocietyDropdownOpen] = useState(false);
+  const [societySearch, setSocietySearch] = useState('');
+  const societyDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (societyDropdownRef.current && !societyDropdownRef.current.contains(e.target as Node)) {
+        setSocietyDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchSocieties = async () => {
@@ -84,7 +95,9 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
           userId: activeUserId,
           full_name: fullName,
           company_name: companyName || fullName,
-          billing_address: `${billingAddress}, ${preferredSociety}`,
+          billing_address: billingAddress,
+          society_name: preferredSociety,
+          preferredSociety: preferredSociety,
           status: 'active'
         })
       });
@@ -178,7 +191,7 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
             >
               <option value="">-- Choose Society --</option>
               {societiesList.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id || s.name} value={s.name || s.id}>{s.name}</option>
               ))}
             </select>
           </div>

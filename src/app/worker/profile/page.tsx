@@ -14,14 +14,7 @@ import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInline
 const SKILL_CATEGORIES = [
   { id: 'cook', key: 'cook', label: 'Cook / Chef', defaultLabel: 'Cook / Chef', icon: '🍳' },
   { id: 'maid', key: 'maid', label: 'Housekeeping / Maid', defaultLabel: 'Housekeeping / Maid', icon: '🧹' },
-  { id: 'nanny', key: 'nanny', label: 'Childcare / Nanny', defaultLabel: 'Childcare / Nanny', icon: '👶' },
-  { id: 'eldercare', key: 'eldercare', label: 'Elder Care', defaultLabel: 'Elder Care', icon: '👴' },
-  { id: 'driver', key: 'driver', label: 'Family Driver', defaultLabel: 'Family Driver', icon: '🚗' },
-  { id: 'petcare', key: 'petcare', label: 'Pet Care', defaultLabel: 'Pet Care', icon: '🐶' },
-  { id: 'allrounder', key: 'allrounder', label: 'All Rounder / Multi-tasker', defaultLabel: 'All Rounder / Multi-tasker', icon: '🛠️' },
-  { id: 'laundry', key: 'laundry', label: 'Laundry & Ironing', defaultLabel: 'Laundry & Ironing', icon: '👕' },
-  { id: 'gardener', key: 'gardener', label: 'Gardener', defaultLabel: 'Gardener', icon: '🌿' },
-  { id: 'security', key: 'security', label: 'Security Guard', defaultLabel: 'Security Guard', icon: '🛡️' }
+  { id: 'nanny', key: 'nanny', label: 'Childcare / Nanny', defaultLabel: 'Childcare / Nanny', icon: '👶' }
 ];
 
 const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Hinglish', 'Kannada', 'Tamil', 'Telugu', 'Assamese', 'Nepali', 'Bengali', 'Marathi', 'Malayalam', 'Odia', 'Gujarati', 'Punjabi'];

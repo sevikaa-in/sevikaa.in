@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       try {
         const uRes = await queryDb(
           `SELECT id, phone FROM public.profiles 
-           WHERE id = $1 OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '\\D', 'g'), 10) = $2 LIMIT 1`,
+           WHERE id = $1 OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $2 LIMIT 1`,
           [userId || null, targetPhone]
         );
         if (uRes && uRes.rows.length > 0) {

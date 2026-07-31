@@ -29,13 +29,7 @@ const SHIFT_TIMES = [
 const CATEGORY_OPTIONS = [
   { id: 'cook', labelKey: 'categoryCook', icon: '🍳', subtitleKey: 'categoryCookSub', defaultTitleKey: 'defaultTitleCook' },
   { id: 'maid', labelKey: 'categoryMaid', icon: '🧹', subtitleKey: 'categoryMaidSub', defaultTitleKey: 'defaultTitleMaid' },
-  { id: 'nanny', labelKey: 'categoryNanny', icon: '👶', subtitleKey: 'categoryNannySub', defaultTitleKey: 'defaultTitleNanny' },
-  { id: 'eldercare', labelKey: 'categoryElderCare', icon: '👴', subtitleKey: 'categoryElderCareSub', defaultTitleKey: 'defaultTitleElderCare' },
-  { id: 'driver', labelKey: 'categoryDriver', icon: '🚗', subtitleKey: 'categoryDriverSub', defaultTitleKey: 'defaultTitleDriver' },
-  { id: 'petcare', labelKey: 'categoryPetCare', icon: '🐶', subtitleKey: 'categoryPetCareSub', defaultTitleKey: 'defaultTitlePetCare' },
-  { id: 'allrounder', labelKey: 'categoryAllRounder', icon: '🛠️', subtitleKey: 'categoryAllRounderSub', defaultTitleKey: 'defaultTitleAllRounder' },
-  { id: 'gardener', labelKey: 'categoryGardener', icon: '🌿', subtitleKey: 'categoryGardenerSub', defaultTitleKey: 'defaultTitleGardener' },
-  { id: 'security', labelKey: 'categorySecurity', icon: '🛡️', subtitleKey: 'categorySecuritySub', defaultTitleKey: 'defaultTitleSecurity' }
+  { id: 'nanny', labelKey: 'categoryNanny', icon: '👶', subtitleKey: 'categoryNannySub', defaultTitleKey: 'defaultTitleNanny' }
 ];
 
 export default function EmployerPostJobPage() {

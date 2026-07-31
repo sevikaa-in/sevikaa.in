@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Update role in public.profiles
-    await queryDb(`UPDATE public.profiles SET role = $1, updated_at = NOW() WHERE id = $2`, [targetRole, userId]);
+    await queryDb(`UPDATE public.profiles SET role = $1 WHERE id = $2`, [targetRole, userId]);
 
     // 3. Handle profile table sync
     if (targetRole === 'employer') {
@@ -42,9 +42,9 @@ export async function POST(req: NextRequest) {
     } else {
       // Create worker_profiles record if missing
       await queryDb(
-        `INSERT INTO public.worker_profiles (id, user_id, full_name, created_at, updated_at) 
-         VALUES ($1, $1, $2, NOW(), NOW()) 
-         ON CONFLICT (id) DO UPDATE SET updated_at = NOW()`,
+        `INSERT INTO public.worker_profiles (id, user_id, full_name, created_at) 
+         VALUES ($1, $1, $2, NOW()) 
+         ON CONFLICT (id) DO NOTHING`,
         [userId, user.full_name || 'Registered Candidate']
       );
       // Clean up stub from employer_profiles if present

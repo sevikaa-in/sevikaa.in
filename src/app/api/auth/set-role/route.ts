@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       if (!wpCheck || wpCheck.rows.length === 0) {
         try {
           await queryDb(
-            `INSERT INTO public.worker_profiles (id, user_id, full_name, languages_spoken, status) VALUES ($1, $1, $2, $3, 'pending_review')`,
+            `INSERT INTO public.worker_profiles (id, user_id, full_name, languages_spoken) VALUES ($1, $1, $2, $3)`,
             [userId, 'Worker Candidate', [resolvedLangName]]
           );
         } catch (wpErr) {
@@ -99,57 +99,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // If Assisted mode, auto-schedule 15-min IST daytime slot into interview queue
-      if (onboarding_mode === 'assisted') {
-        try {
-          // Calculate IST slot (8 AM - 6 PM IST)
-          const now = new Date();
-          const countRes = await queryDb(`SELECT COUNT(*) as cnt FROM public.interviews WHERE DATE(created_at) = CURRENT_DATE`);
-          const slotIndex = parseInt(countRes?.rows[0]?.cnt || '0', 10);
-          
-          let scheduleTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-          const offsetMinutes = (slotIndex % 32) * 15;
-          scheduleTime = new Date(scheduleTime.getTime() + offsetMinutes * 60 * 1000);
 
-          const istHours = (scheduleTime.getUTCHours() + 5 + Math.floor((scheduleTime.getUTCMinutes() + 30) / 60)) % 24;
-          if (istHours < 8 || istHours >= 18) {
-            scheduleTime.setUTCDate(scheduleTime.getUTCDate() + (istHours >= 18 ? 1 : 0));
-            scheduleTime.setUTCHours(4, 30, 0, 0); // 10:00 AM IST
-          }
-
-          const formattedDate = scheduleTime.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-          const formattedTime = scheduleTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-          scheduledSlotStr = `${formattedDate} at ${formattedTime}`;
-
-          // Insert or update interview record
-          await queryDb(
-            `INSERT INTO public.interviews (
-              id, worker_id, worker_name, category, scheduled_date, scheduled_time, status
-            ) VALUES ($1, $2, $3, $4, $5, $6, 'Scheduled')
-            ON CONFLICT (id) DO UPDATE SET scheduled_date = EXCLUDED.scheduled_date, scheduled_time = EXCLUDED.scheduled_time, status = 'Scheduled'`,
-            [userId, userId, workerName, 'Assisted Telephonic Verification', scheduleTime.toISOString().split('T')[0], formattedTime]
-          );
-
-          // Dispatch DLT SMS if phone exists
-          if (workerPhone) {
-            fetch(`${req.nextUrl.origin}/api/notifications/trigger`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                type: 'interview_scheduled',
-                userId,
-                name: workerName,
-                phone: workerPhone,
-                scheduledDate: formattedDate,
-                scheduledTime: formattedTime,
-                note: `Sevikaa Telephonic Onboarding. Helpline: ${helplinePhone}`
-              })
-            }).catch(smsErr => console.warn("Automated DLT SMS dispatch notice:", smsErr));
-          }
-        } catch (queueErr) {
-          console.warn("Assisted onboarding queue scheduling notice:", queueErr);
-        }
-      }
     }
 
     const res = NextResponse.json({

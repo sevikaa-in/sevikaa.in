@@ -263,15 +263,7 @@ export async function POST(request: NextRequest) {
         console.warn("Direct SQL employer_profiles update notice:", empDbErr);
       }
 
-      // 3. Direct SQL Update into public.worker_profiles
-      try {
-        await queryDb(
-          `UPDATE public.worker_profiles SET email = $1, updated_at = NOW() WHERE user_id = $2`,
-          [cleanNewEmail, user.id]
-        );
-      } catch (wrkDbErr) {
-        console.warn("Direct SQL worker_profiles update notice:", wrkDbErr);
-      }
+      // 3. Worker profiles store email on public.profiles (no action needed on worker_profiles table)
 
       // 4. Update auth.users via Admin API
       try {

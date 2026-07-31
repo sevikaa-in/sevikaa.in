@@ -264,8 +264,6 @@ export default function EmployerWorkersPage() {
             { id: 'cook', label: t('roleCooks') || '🍳 Cooks' },
             { id: 'maid', label: t('roleMaids') || '🧹 Maids' },
             { id: 'nanny', label: t('roleNannies') || '👶 Nannies' },
-            { id: 'driver', label: t('roleDrivers') || '🚗 Drivers' },
-            { id: 'caregiver', label: t('roleCaregivers') || '👵 Caregivers' },
           ].map(tab => (
             <button
               key={tab.id}

@@ -5,7 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { supabase } from '../../lib/supabaseClient';
 import { 
   Camera, Calendar, ClipboardCheck, ArrowLeft, ArrowRight,
-  Shield, Check, User, IndianRupee, Upload, Video, AlertCircle 
+  Shield, Check, User, IndianRupee, Upload, Video, AlertCircle, Clock, Search, ChevronDown 
 } from 'lucide-react';
 
 interface WorkerFunnelProps {
@@ -63,15 +63,27 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
   // Step 3 State: Skills & Availability Grid
   const [skills, setSkills] = useState<string[]>([]);
   const [experience, setExperience] = useState('');
-  const [availability, setAvailability] = useState<Record<string, string[]>>({}); // day -> slots[]
-  const [fullDay, setFullDay] = useState(false);
-  const [liveIn, setLiveIn] = useState(false);
+  const [selectedShifts, setSelectedShifts] = useState<string[]>(['full_day']);
 
   // Step 4 State: Salary & Society Preferences
   const [expectedSalary, setExpectedSalary] = useState('12000');
   const [preferredSociety, setPreferredSociety] = useState('');
   const [preferredAreasInput, setPreferredAreasInput] = useState('');
   const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
+  const [societyDropdownOpen, setSocietyDropdownOpen] = useState(false);
+  const [societySearch, setSocietySearch] = useState('');
+  const societyDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (societyDropdownRef.current && !societyDropdownRef.current.contains(e.target as Node)) {
+        setSocietyDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Step 5 State: Documents & Video Intro
   const [aadhaarFrontFile, setAadhaarFrontFile] = useState<File | null>(null);
@@ -91,15 +103,13 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
     );
   };
 
-  const toggleAvailabilityCell = (day: string, slotId: string) => {
-    setAvailability(prev => {
-      const daySlots = prev[day] || [];
-      const updated = daySlots.includes(slotId) 
-        ? daySlots.filter(s => s !== slotId) 
-        : [...daySlots, slotId];
-      return { ...prev, [day]: updated };
-    });
+  const toggleShift = (shiftId: string) => {
+    setSelectedShifts(prev => 
+      prev.includes(shiftId) ? prev.filter(s => s !== shiftId) : [...prev, shiftId]
+    );
   };
+
+
 
   const handleAddArea = () => {
     if (preferredAreasInput.trim() && !preferredAreas.includes(preferredAreasInput.trim())) {
@@ -267,22 +277,11 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
     };
   }, []);
 
-  // Sync step navigation with browser history for mobile hardware back button support
+  // Sync URL with current step whenever step changes
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.history.replaceState({ step }, '', `?role=worker&step=${step}`);
-
-    const handlePopState = (e: PopStateEvent) => {
-      if (e.state && typeof e.state.step === 'number') {
-        setStep(e.state.step);
-      } else {
-        setStep(1);
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [step]);
 
   // Form Validations per step
   const validateStep = () => {
@@ -300,12 +299,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
     if (step === 3) {
       if (skills.length === 0) return setError('Please select at least one job category'), false;
       if (!experience || parseInt(experience) < 0) return setError('Please enter your experience in years'), false;
-      
-      // Strict Availability check: must have selected at least 1 cell in calendar grid OR checked Full Day OR Live-In
-      const hasGridSlot = Object.values(availability).some(slots => Array.isArray(slots) && slots.length > 0);
-      if (!hasGridSlot && !fullDay && !liveIn) {
-        return setError('Please select your available days/time slots in the weekly calendar grid or check Full Day / Live-in'), false;
-      }
+      if (selectedShifts.length === 0) return setError('Please select at least one preferred shift timing'), false;
     }
     if (step === 4) {
       if (!expectedSalary || parseInt(expectedSalary) <= 0) return setError('Please specify expected salary'), false;
@@ -314,24 +308,78 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
     return true;
   };
 
+  // Load existing profile data & resume step on mount (only on initial load, never during navigation)
+  useEffect(() => {
+    const activeId = userId || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_user_id') : '');
+    if (!activeId) return;
+
+    const loadDraftProfile = async () => {
+      try {
+        const meRes = await fetch(`/api/auth/me?userId=${activeId}`);
+        if (meRes.ok) {
+          const data = await meRes.json();
+          if (data.success && data.workerProfile) {
+            const wp = data.workerProfile;
+            if (wp.full_name) setFullName(wp.full_name);
+            if (wp.gender) setGender(wp.gender);
+            if (wp.age) setAge(String(wp.age));
+            if (wp.languages_spoken && Array.isArray(wp.languages_spoken)) setSelectedLanguages(wp.languages_spoken);
+            if (wp.skills && Array.isArray(wp.skills)) setSkills(wp.skills);
+            if (wp.experience_years) setExperience(String(wp.experience_years));
+            if (wp.expected_salary) setExpectedSalary(String(wp.expected_salary));
+            if (wp.profile_picture_url) setSelfiePreview(wp.profile_picture_url);
+            
+            // Only resume from saved step on FRESH load (when URL has no step param or step=1)
+            // Never override manual back/forward navigation
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlStep = parseInt(urlParams.get('step') || '1');
+            if (urlStep <= 1 && wp.onboarding_step && wp.onboarding_step > 1 && wp.onboarding_step <= 5) {
+              setStep(wp.onboarding_step);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Draft profile load notice:", err);
+      }
+    };
+
+    loadDraftProfile();
+  }, [userId]);
+
   const handleNext = () => {
     if (validateStep()) {
       const nextStep = step + 1;
-      setStep(nextStep);
-      if (typeof window !== 'undefined') {
-        window.history.pushState({ step: nextStep }, '', `?role=worker&step=${nextStep}`);
+      const activeId = userId || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_user_id') : '');
+      if (activeId) {
+        // Auto-save current step data to DB in background
+        fetch('/api/worker/profile/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: activeId,
+            full_name: fullName,
+            gender,
+            age: parseInt(age) || 28,
+            languages: selectedLanguages,
+            languages_spoken: selectedLanguages,
+            skills,
+            experience: parseInt(experience) || 0,
+            expectedSalary: parseInt(expectedSalary) || 12000,
+            primary_society_id: preferredSociety,
+            preferred_areas: preferredAreas,
+            onboarding_step: nextStep
+          })
+        }).catch(err => console.warn("Step auto-save notice:", err));
       }
+      setStep(nextStep);
     }
   };
 
   const handleBack = () => {
     setError('');
+    setSocietyDropdownOpen(false);
     if (step > 1) {
-      if (typeof window !== 'undefined' && window.history.state?.step > 1) {
-        window.history.back();
-      } else {
-        setStep(prev => prev - 1);
-      }
+      setStep(prev => prev - 1);
     } else {
       if (onCancel) onCancel();
     }
@@ -363,40 +411,55 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
 
       if (profileErr) throw profileErr;
 
-      // 2. Upload storage documents if present
+      // 2. Upload storage documents if present — get full public URLs
       let profilePicUrl = '';
       let aadhaarFrontUrl = '';
+      let aadhaarBackUrl = '';
       let videoUrl = '';
 
-      if (selfieFile) {
-        const { data: selfieData, error: selfieErr } = await supabase.storage
-          .from('worker-selfies')
-          .upload(`${userId}/selfie-${Date.now()}.png`, selfieFile);
-        if (selfieErr) throw selfieErr;
-        profilePicUrl = selfieData.path;
-      }
+      const getPublicUrl = (bucket: string, path: string) => {
+        const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+        return data.publicUrl || '';
+      };
 
-      if (aadhaarFrontFile) {
-        const { data: docData, error: docErr } = await supabase.storage
-          .from('worker-documents')
-          .upload(`${userId}/aadhaar-front.png`, aadhaarFrontFile, { upsert: true });
-        if (docErr) throw docErr;
-        aadhaarFrontUrl = docData.path;
-      }
+      try {
+        if (selfieFile) {
+          const storagePath = `${userId}/selfie.jpg`;
+          const { data: selfieData, error: selfieErr } = await supabase.storage
+            .from('worker-selfies')
+            .upload(storagePath, selfieFile, { upsert: true, contentType: selfieFile.type });
+          if (selfieData) profilePicUrl = getPublicUrl('worker-selfies', storagePath);
+          else if (selfieErr) console.warn('Selfie upload error:', selfieErr.message);
+        }
 
-      if (aadhaarBackFile) {
-        const { data: docBackData, error: docBackErr } = await supabase.storage
-          .from('worker-documents')
-          .upload(`${userId}/aadhaar-back.png`, aadhaarBackFile, { upsert: true });
-        if (docBackErr) throw docBackErr;
-      }
+        if (aadhaarFrontFile) {
+          const storagePath = `${userId}/aadhaar-front.${aadhaarFrontFile.name.split('.').pop() || 'png'}`;
+          const { data: docData, error: docErr } = await supabase.storage
+            .from('worker-documents')
+            .upload(storagePath, aadhaarFrontFile, { upsert: true, contentType: aadhaarFrontFile.type });
+          if (docData) aadhaarFrontUrl = getPublicUrl('worker-documents', storagePath);
+          else if (docErr) console.warn('Aadhaar front upload error:', docErr.message);
+        }
 
-      if (videoFile) {
-        const { data: vidData, error: vidErr } = await supabase.storage
-          .from('worker-videos')
-          .upload(`${userId}/intro-video.mp4`, videoFile, { upsert: true });
-        if (vidErr) throw vidErr;
-        videoUrl = vidData.path;
+        if (aadhaarBackFile) {
+          const storagePath = `${userId}/aadhaar-back.${aadhaarBackFile.name.split('.').pop() || 'png'}`;
+          const { data: backData, error: backErr } = await supabase.storage
+            .from('worker-documents')
+            .upload(storagePath, aadhaarBackFile, { upsert: true, contentType: aadhaarBackFile.type });
+          if (backData) aadhaarBackUrl = getPublicUrl('worker-documents', storagePath);
+          else if (backErr) console.warn('Aadhaar back upload error:', backErr.message);
+        }
+
+        if (videoFile) {
+          const storagePath = `${userId}/intro-video.${videoFile.name.split('.').pop() || 'mp4'}`;
+          const { data: vidData, error: vidErr } = await supabase.storage
+            .from('worker-videos')
+            .upload(storagePath, videoFile, { upsert: true, contentType: videoFile.type });
+          if (vidData) videoUrl = getPublicUrl('worker-videos', storagePath);
+          else if (vidErr) console.warn('Video upload error:', vidErr.message);
+        }
+      } catch (storageErr) {
+        console.warn("Storage upload skipped/failed, proceeding to DB save:", storageErr);
       }
 
       // 3. Upsert into worker_profiles via server API to bypass client RLS
@@ -411,9 +474,18 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
           gender,
           age: parseInt(age) || 28,
           languages: selectedLanguages,
+          languages_spoken: selectedLanguages,
           skills,
+          experience: parseInt(experience) || 0,
           expectedSalary: parseInt(expectedSalary) || 15000,
-          profile_picture_url: profilePicUrl,
+          profile_picture_url: profilePicUrl || undefined,
+          aadhaar_front_url: aadhaarFrontUrl || undefined,
+          aadhaar_back_url: aadhaarBackUrl || undefined,
+          video_url: videoUrl || undefined,
+          primary_gated_society: preferredSociety,
+          primary_society_id: preferredSociety,
+          preferred_areas: preferredAreas,
+          onboarding_step: 5,
           status: 'pending_review'
         })
       });
@@ -433,14 +505,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
       <div className="flex flex-col gap-2 mb-6">
         <div className="flex justify-between items-center">
           <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-            {step === 1 ? 'STEP 1 OF 5 • SELFIE' : (
-              <>
-                Step {step} of 5: {step === 2 && 'Personal info'}
-                {step === 3 && 'Availability'}
-                {step === 4 && 'Preferences'}
-                {step === 5 && 'Verification'}
-              </>
-            )}
+            {`STEP ${step} OF 5`} &bull; {step === 1 && 'PHOTO'}{step === 2 && 'LANGUAGE & INFO'}{step === 3 && 'SKILLS & SHIFTS'}{step === 4 && 'PREFERENCES'}{step === 5 && 'VERIFICATION'}
           </div>
           <div className="flex gap-1.5">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -623,7 +688,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
             <div className="space-y-1.5 pt-1">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('languagesTitle')}</label>
               <div className="flex flex-wrap gap-2">
-                {['English', 'Hindi', 'Kannada', 'Tamil', 'Telugu', 'Assamese', 'Nepali'].map((lang) => {
+                {['Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Marathi', 'Bengali', 'Gujarati', 'Punjabi', 'Malayalam', 'Assamese', 'Nepali', 'Odia'].map((lang) => {
                   const isSelected = selectedLanguages.includes(lang);
                   return (
                     <button
@@ -651,25 +716,25 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
             <h2 className="text-lg font-bold text-[#202124]">{t('skillsTitle')}</h2>
 
             <div className="grid grid-cols-3 gap-2">
-              {['maid', 'cook', 'nanny'].map((cat) => {
-                const isSelected = skills.includes(cat);
+              {[
+                { id: 'maid', label: 'House Maid', icon: '🧹' },
+                { id: 'cook', label: 'Cook / Chef', icon: '🍳' },
+                { id: 'nanny', label: 'Babysitter / Nanny', icon: '👶' }
+              ].map((cat) => {
+                const isSelected = skills.includes(cat.id);
                 return (
                   <button
-                    key={cat}
+                    key={cat.id}
                     type="button"
-                    onClick={() => toggleSkill(cat)}
-                    className={`p-3 rounded-xl border-2 transition-all duration-200 font-bold text-xs flex flex-col items-center gap-1.5 capitalize active:scale-95 cursor-pointer ${
+                    onClick={() => toggleSkill(cat.id)}
+                    className={`p-3 rounded-xl border-2 transition-all duration-200 font-bold text-xs flex flex-col items-center gap-1.5 capitalize active:scale-95 cursor-pointer text-center ${
                       isSelected 
                         ? 'border-[#1A73E8] bg-[#1A73E8]/10 text-[#1A73E8] shadow-sm shadow-blue-50' 
                         : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                   >
-                    <span className="text-lg">
-                      {cat === 'maid' && '🧹'}
-                      {cat === 'cook' && '🍳'}
-                      {cat === 'nanny' && '👶'}
-                    </span>
-                    <span>{t(cat).split(' ')[0]}</span>
+                    <span className="text-lg">{cat.icon}</span>
+                    <span className="text-[11px] leading-tight">{cat.label}</span>
                   </button>
                 );
               })}
@@ -687,52 +752,44 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                  <Calendar size={14} />
-                  <span>Availability Grid</span>
-                </label>
-                <div className="flex gap-3">
-                  <label className="flex items-center gap-1 text-[11px] font-bold text-gray-600 cursor-pointer">
-                    <input type="checkbox" checked={fullDay} onChange={(e) => setFullDay(e.target.checked)} className="rounded" />
-                    <span>Full Day</span>
-                  </label>
-                  <label className="flex items-center gap-1 text-[11px] font-bold text-gray-600 cursor-pointer">
-                    <input type="checkbox" checked={liveIn} onChange={(e) => setLiveIn(e.target.checked)} className="rounded" />
-                    <span>Live-in</span>
-                  </label>
-                </div>
-              </div>
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                <Clock size={14} />
+                <span>Preferred Work Shifts</span>
+              </label>
 
-              {/* Mobile Friendly Interactive Weekly Slot Grid */}
-              <div className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50 text-[10px] w-full max-w-full">
-                <div className="grid grid-cols-8 bg-gray-100 border-b border-gray-200 text-center py-1 font-bold text-gray-500">
-                  <div>Slot</div>
-                  {DAYS.map(d => <div key={d}>{d}</div>)}
-                </div>
-                {SLOTS.map((slot) => (
-                  <div key={slot.id} className="grid grid-cols-8 border-b border-gray-200 items-center last:border-0 min-h-[38px] text-center">
-                    <div className="font-bold text-gray-400 py-1 border-r border-gray-200 truncate px-0.5 leading-tight" title={slot.label}>
-                      {slot.label.split(' ')[0]}
-                    </div>
-                    {DAYS.map((day) => {
-                      const isSelected = availability[day]?.includes(slot.id);
-                      return (
-                        <div
-                          key={day}
-                          onClick={() => toggleAvailabilityCell(day, slot.id)}
-                          className={`h-full border-r border-gray-200 last:border-r-0 flex items-center justify-center cursor-pointer transition-all active:scale-90 select-none ${
-                            isSelected ? 'bg-[#34A853] text-white' : 'hover:bg-gray-100'
-                          }`}
-                        >
-                          {isSelected && <Check size={10} strokeWidth={4} />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'full_day', label: 'Full Day (8–12 Hours)', icon: '🕒', sub: '8 AM – 7 PM' },
+                  { id: 'early_morning', label: 'Early Morning', icon: '☀️', sub: '6 AM – 9 AM' },
+                  { id: 'morning', label: 'Morning Shift', icon: '🌅', sub: '9 AM – 12 PM' },
+                  { id: 'afternoon', label: 'Afternoon Shift', icon: '🌤️', sub: '12 PM – 3 PM' },
+                  { id: 'evening', label: 'Evening Shift', icon: '🌆', sub: '3 PM – 6 PM' },
+                  { id: 'night', label: 'Night Shift', icon: '🌙', sub: '6 PM – 9 PM' },
+                  { id: 'live_in', label: 'Live-In (24x7)', icon: '🏠', sub: 'Full residence' },
+                  { id: 'part_time', label: 'Part-Time Flexible', icon: '⚡', sub: 'Hourly visits' }
+                ].map((slot) => {
+                  const isSelected = selectedShifts.includes(slot.id);
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      onClick={() => toggleShift(slot.id)}
+                      className={`p-3 rounded-2xl border-2 transition-all duration-200 text-left flex flex-col justify-between active:scale-95 cursor-pointer ${
+                        isSelected 
+                          ? 'border-[#34A853] bg-[#34A853]/10 text-emerald-800 shadow-sm' 
+                          : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className="text-lg">{slot.icon}</span>
+                        {isSelected && <Check size={14} className="text-[#34A853]" strokeWidth={3} />}
+                      </div>
+                      <div className="font-bold text-xs">{slot.label}</div>
+                      <div className="text-[10px] text-gray-400 font-medium">{slot.sub}</div>
+                    </button>
+                  );
+                })}
               </div>
-              <p className="text-[10px] text-gray-400 text-center font-medium">Tap cells to toggle your weekly schedule slots</p>
             </div>
           </div>
         )}
@@ -754,18 +811,70 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 relative" ref={societyDropdownRef}>
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('societyTitle')}</label>
-              <select
-                value={preferredSociety}
-                onChange={(e) => setPreferredSociety(e.target.value)}
-                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200 cursor-pointer"
+              
+              {/* Dropdown trigger button styled with Sevikaa theme */}
+              <button
+                type="button"
+                onClick={() => setSocietyDropdownOpen(prev => !prev)}
+                className="w-full py-3.5 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/15 focus:outline-none transition-all duration-200 cursor-pointer flex items-center justify-between shadow-xs"
               >
-                <option value="">-- Choose Society --</option>
-                {societiesList.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+                <span className={preferredSociety ? 'text-slate-900 font-bold' : 'text-slate-400 font-medium'}>
+                  {societiesList.find(s => s.id === preferredSociety || s.name === preferredSociety)?.name || preferredSociety || '-- Choose Society --'}
+                </span>
+                <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${societyDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Custom Searchable Popover Dropdown */}
+              {societyDropdownOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden flex flex-col p-2 space-y-2 animate-in fade-in duration-150">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={societySearch}
+                      onChange={(e) => setSocietySearch(e.target.value)}
+                      placeholder="Search society by name..."
+                      autoFocus
+                      className="w-full py-2.5 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                    {societiesList.filter(s => s.name?.toLowerCase().includes(societySearch.toLowerCase().trim())).length > 0 ? (
+                      societiesList
+                        .filter(s => s.name?.toLowerCase().includes(societySearch.toLowerCase().trim()))
+                        .map((s) => {
+                          const isSelected = preferredSociety === s.id || preferredSociety === s.name;
+                          return (
+                            <button
+                              key={s.id || s.name}
+                              type="button"
+                              onClick={() => {
+                                setPreferredSociety(s.name || s.id);
+                                setSocietyDropdownOpen(false);
+                                setSocietySearch('');
+                              }}
+                              className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold text-left transition-all flex items-center justify-between cursor-pointer ${
+                                isSelected
+                                  ? 'bg-blue-50 text-[#1A73E8]'
+                                  : 'hover:bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              <span>{s.name}</span>
+                              {isSelected && <Check size={14} className="text-[#1A73E8]" strokeWidth={3} />}
+                            </button>
+                          );
+                        })
+                    ) : (
+                      <div className="py-4 text-center text-xs font-bold text-slate-400">
+                        No matching societies found
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

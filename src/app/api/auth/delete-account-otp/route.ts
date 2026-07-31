@@ -91,17 +91,11 @@ export async function POST(req: NextRequest) {
         await queryDb(
           `UPDATE public.profiles 
            SET status = 'pending_deletion' 
-           WHERE id = $1 OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '\\D', 'g'), 10) = $2`,
+           WHERE id = $1 OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $2`,
           [userId || null, targetPhone]
         );
 
         // Also update sub-profiles
-        await queryDb(
-          `UPDATE public.worker_profiles 
-           SET status = 'pending_deletion' 
-           WHERE user_id = $1 OR id = $1`,
-          [userId || null]
-        );
         await queryDb(
           `UPDATE public.employer_profiles 
            SET status = 'pending_deletion' 

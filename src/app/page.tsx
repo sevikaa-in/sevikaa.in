@@ -176,9 +176,18 @@ export default function Home() {
             const searchParams = new URLSearchParams(window.location.search);
             const roleParam = searchParams.get('role');
             const stepParam = searchParams.get('step');
+            const numericStep = parseInt(stepParam || '');
             if (roleParam === 'worker') {
               setTargetRole('worker');
-              setView(stepParam === 'login' ? 'login' : 'language');
+              if (stepParam === 'login' || stepParam === 'language') {
+                // Explicitly in the pre-login language/otp screen
+                setView(stepParam === 'login' ? 'login' : 'language');
+              } else if (!isNaN(numericStep) && numericStep >= 1) {
+                // Numeric step means user is in worker onboarding funnel
+                setView('worker-funnel');
+              } else {
+                setView('language');
+              }
             } else if (roleParam === 'employer') {
               setTargetRole('employer');
               setView('login');
@@ -251,9 +260,17 @@ export default function Home() {
           const searchParams = new URLSearchParams(window.location.search);
           const roleParam = searchParams.get('role');
           const stepParam = searchParams.get('step');
+          const numericStep = parseInt(stepParam || '');
           if (roleParam === 'worker') {
             setTargetRole('worker');
-            setView(stepParam === 'login' ? 'login' : 'language');
+            if (stepParam === 'login' || stepParam === 'language') {
+              setView(stepParam === 'login' ? 'login' : 'language');
+            } else if (!isNaN(numericStep) && numericStep >= 1) {
+              // Numeric step → user was in worker funnel, send to login
+              setView('login');
+            } else {
+              setView('language');
+            }
           } else if (roleParam === 'employer') {
             setTargetRole('employer');
             setView('login');
@@ -321,11 +338,16 @@ export default function Home() {
 
       // 2. Server-side profile check via /api/auth/me
       try {
-        const meRes = await fetch(`/api/auth/me?userId=${sessionUser.id}`);
+        const meParams = new URLSearchParams({ userId: sessionUser.id });
+        if (sessionUser.phone) meParams.set('phone', sessionUser.phone);
+        if (sessionUser.email) meParams.set('email', sessionUser.email);
+        const meRes = await fetch(`/api/auth/me?${meParams.toString()}`);
         if (meRes.ok) {
           const meData = await meRes.json();
-          if (meData.success && meData.profile) {
-            const dbRole = meData.profile.role;
+          if (meData.success) {
+            const dbRole = meData.profile?.role;
+
+            // Check role from profiles table first
             if (dbRole === 'super-admin') {
               if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400`;
               router.push('/super-admin/dashboard');
@@ -336,6 +358,8 @@ export default function Home() {
               router.push('/admin/dashboard');
               return;
             }
+
+            // Even if profile row is missing, check for sub-profiles directly
             if (dbRole === 'employer' || meData.employerProfile) {
               if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
               router.push('/employer');
