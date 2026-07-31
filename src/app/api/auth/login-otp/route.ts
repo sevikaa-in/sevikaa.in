@@ -51,6 +51,30 @@ export async function POST(req: NextRequest) {
       const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
+      const targetKey = cleanPhone ? `phone:${cleanPhone}` : `email:${(email || '').toLowerCase().trim()}`;
+
+      // Persist OTP in memory & DB for serverless resilience
+      otpStore.set(targetKey, { otp: generatedOtp, expiresAt });
+
+      try {
+        await queryDb(
+          `CREATE TABLE IF NOT EXISTS public.otp_verifications (
+             target_key VARCHAR(150) PRIMARY KEY,
+             otp VARCHAR(10) NOT NULL,
+             expires_at BIGINT NOT NULL,
+             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+           )`
+        );
+        await queryDb(
+          `INSERT INTO public.otp_verifications (target_key, otp, expires_at)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (target_key) DO UPDATE
+           SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at`,
+          [targetKey, generatedOtp, expiresAt]
+        );
+      } catch (dbSaveErr) {
+        console.warn("DB OTP save notice:", dbSaveErr);
+      }
 
       if (cleanPhone) {
         try {
@@ -59,11 +83,6 @@ export async function POST(req: NextRequest) {
         } catch (smsErr) {
           console.warn("SMS send notice:", smsErr);
         }
-
-        otpStore.set(`phone:${cleanPhone}`, {
-          otp: generatedOtp,
-          expiresAt
-        });
 
         return NextResponse.json({
           success: true,
@@ -85,11 +104,6 @@ export async function POST(req: NextRequest) {
           getMagicLinkOrLoginOtpEmailHtml(generatedOtp, false)
         );
 
-        otpStore.set(`email:${email.toLowerCase().trim()}`, {
-          otp: generatedOtp,
-          expiresAt
-        });
-
         return NextResponse.json({
           success: true,
           method: 'email',
@@ -109,7 +123,26 @@ export async function POST(req: NextRequest) {
     if (action === 'verify') {
       const cleanPhone = (phone || '').replace(/\D/g, '').slice(-10);
       const targetKey = cleanPhone ? `phone:${cleanPhone}` : `email:${(email || '').toLowerCase().trim()}`;
-      const storedData = otpStore.get(targetKey);
+      
+      let storedData = otpStore.get(targetKey);
+
+      // Fallback: Fetch from PostgreSQL database if serverless lambda restarted
+      if (!storedData) {
+        try {
+          const dbRes = await queryDb(
+            `SELECT otp, expires_at FROM public.otp_verifications WHERE target_key = $1`,
+            [targetKey]
+          );
+          if (dbRes && dbRes.rows.length > 0) {
+            storedData = {
+              otp: dbRes.rows[0].otp,
+              expiresAt: Number(dbRes.rows[0].expires_at)
+            };
+          }
+        } catch (dbFetchErr) {
+          console.warn("DB OTP lookup notice:", dbFetchErr);
+        }
+      }
 
       if (!storedData) {
         return NextResponse.json({ error: 'No active OTP request found. Please request a new code.' }, { status: 400 });
@@ -117,6 +150,7 @@ export async function POST(req: NextRequest) {
 
       if (Date.now() > storedData.expiresAt) {
         otpStore.delete(targetKey);
+        try { await queryDb(`DELETE FROM public.otp_verifications WHERE target_key = $1`, [targetKey]); } catch (e) {}
         return NextResponse.json({ error: 'OTP code has expired. Please request a new code.' }, { status: 400 });
       }
 
@@ -124,8 +158,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Incorrect verification code. Please check and try again.' }, { status: 400 });
       }
 
-      // OTP Verified successfully! Clear store entry
+      // OTP Verified successfully! Clear store entries
       otpStore.delete(targetKey);
+      try { await queryDb(`DELETE FROM public.otp_verifications WHERE target_key = $1`, [targetKey]); } catch (e) {}
 
       // Fetch or Create user profile in Supabase
       let userObj: { id: string; phone?: string; email?: string; role?: string } | null = null;
