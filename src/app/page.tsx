@@ -112,6 +112,9 @@ export default function Home() {
   // FAQ Accordion local state
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
+  // Fallback userId from localStorage in case user state is stale
+  const effectiveUserId = user?.id || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_user_id') || '' : '');
+
   // React to URL role query parameter changes (e.g. from header nav buttons)
   useEffect(() => {
     const roleParam = searchParams.get('role');
@@ -488,9 +491,9 @@ export default function Home() {
               role={targetRole}
             />
           )}
-          {view === 'new-user-role-select' && user && (
+          {view === 'new-user-role-select' && effectiveUserId && (
             <NewUserRoleSelector 
-              userId={user.id} 
+              userId={effectiveUserId} 
               onRoleSelected={handlePostOtpRoleSelected} 
             />
           )}
