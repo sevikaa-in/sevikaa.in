@@ -538,6 +538,13 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                 </button>
                 <button
                   onClick={() => {
+                    const isWorkerComplete = !!(worker.full_name || worker.name) &&
+                                              !!(worker.skills && worker.skills.length > 0) &&
+                                              !!(worker.profile_picture_url || worker.aadhaar_front_url || worker.video_url);
+                    if (!isWorkerComplete) {
+                      alert("⚠️ Restricted Action: Cannot approve an incomplete worker profile!\n\nPlease complete Candidate Name, Work Skills, and upload Selfie / Aadhaar in Tele-Onboarding before approving.");
+                      return;
+                    }
                     onUpdateStatus(worker.id, 'live');
                     onClose();
                   }}

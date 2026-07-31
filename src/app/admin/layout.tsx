@@ -10,7 +10,7 @@ import {
   Users, Briefcase, FileText, CheckCircle2, XCircle, Clock, Video, 
   MessageSquare, Star, ArrowRight, ShieldCheck, LogOut, Settings,
   LayoutDashboard, Menu, X, Search, ChevronLeft, Calendar, HelpCircle, 
-  MapPin, ShieldAlert, Sparkles, RefreshCw
+  MapPin, ShieldAlert, Sparkles, RefreshCw, PhoneCall
 } from 'lucide-react';
 
 interface AdminContextProps {
@@ -59,6 +59,7 @@ interface AdminContextProps {
   handleResolveDispute: (disputeId: string) => void;
   handleLogInterviewResult: (id: string, result: 'Pass' | 'Fail' | 'Re-interview', resultNotes: string) => void;
   handleLogout: () => Promise<void>;
+  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 const AdminDashboardContext = createContext<AdminContextProps | undefined>(undefined);
@@ -982,7 +983,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       setPendingReviewsList, setInterviewsList, setDisputesList, setCounts,
       dateRange, setDateRange, searchQuery, setSearchQuery, fetchDashboardData,
       handleUpdateBadge, handleUpdateWorkerStatus, handleModerateJob, handleModerateReview,
-      handleResolveDispute, handleLogInterviewResult, handleLogout
+      handleResolveDispute, handleLogInterviewResult, handleLogout, showToast
     }}>
       <div className="flex min-h-screen bg-[#F8F9FA] text-[#202124] font-sans antialiased">
         
@@ -1010,12 +1011,13 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             {/* Navigation Links */}
             <nav className="p-3 space-y-1">
               {[
-                { id: 'overview',    label: 'Operations Center',   href: '/admin',            icon: <LayoutDashboard size={16} />, badge: 0 },
-                { id: 'workers',     label: 'Worker Verification',  href: '/admin/workers',     icon: <Users size={16} />,           badge: counts.pendingWorkers },
+                { id: 'overview',        label: 'Operations Center',   href: '/admin',                 icon: <LayoutDashboard size={16} />, badge: 0 },
+                { id: 'tele-onboarding', label: 'Tele-Onboarding Hub', href: '/admin/tele-onboarding',  icon: <PhoneCall size={16} />,       badge: 0 },
+                { id: 'workers',         label: 'Worker Verification',  href: '/admin/workers',          icon: <Users size={16} />,           badge: counts.pendingWorkers },
                 { id: 'employers',   label: 'Employer Audits',      href: '/admin/employers',   icon: <ShieldCheck size={16} />,      badge: counts.pendingEmployers },
                 { id: 'jobs',        label: 'Job Moderation',       href: '/admin/jobs',        icon: <Briefcase size={16} />,        badge: counts.pendingJobs },
                 { id: 'reviews',     label: 'Reviews Moderation',   href: '/admin/reviews',     icon: <Star size={16} />,             badge: counts.pendingReviews },
-                { id: 'interviews',  label: 'Interviews Panel',     href: '/admin/interviews',  icon: <Calendar size={16} />,         badge: counts.interviewsToday },
+                { id: 'assisted-jobs',  label: 'Assisted Job Matcher ⚡',     href: '/admin/assisted-jobs',  icon: <Sparkles size={16} />,         badge: counts.interviewsToday },
                 { id: 'disputes',    label: 'Disputes Resolution',  href: '/admin/disputes',    icon: <ShieldAlert size={16} />,      badge: counts.activeDisputes },
                 { id: 'enquiries',   label: 'Support Enquiries',    href: '/admin/enquiries',   icon: <HelpCircle size={16} />,       badge: 0 }
               ].map((tab) => {

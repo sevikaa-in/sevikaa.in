@@ -49,7 +49,12 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
                           (w.phone || '').includes(searchTerm) ||
                           (w.email || '').toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = filterStatus === 'all' || w.status === filterStatus;
+    const isLeadIncomplete = !w.skills || w.skills.length === 0 || w.name === 'Registered Candidate' || w.full_name === 'Verified Worker';
+    const matchesStatus = filterStatus === 'all' 
+      ? true 
+      : filterStatus === 'incomplete_lead' 
+        ? isLeadIncomplete 
+        : w.status === filterStatus;
     
     return matchesSearch && matchesStatus;
   });
@@ -122,7 +127,7 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
 
       {/* Filter Tabs */}
       <div className="flex overflow-x-auto whitespace-nowrap gap-1 pb-2 scrollbar-hide">
-        {['all', 'pending_review', 'admin_interview', 'live', 'suspended', 'deletion_requested'].map((status) => (
+        {['all', 'incomplete_lead', 'pending_review', 'admin_interview', 'live', 'suspended', 'deletion_requested'].map((status) => (
           <button
             key={status}
             onClick={() => {
@@ -131,11 +136,11 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
             }}
             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all active:scale-95 cursor-pointer ${
               filterStatus === status 
-                ? status === 'deletion_requested' ? 'bg-amber-600 text-white shadow-sm' : 'bg-[#1A73E8] text-white shadow-sm' 
-                : status === 'deletion_requested' ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-slate-50 text-gray-500 hover:bg-slate-100/75'
+                ? status === 'incomplete_lead' ? 'bg-amber-500 text-white shadow-sm' : status === 'deletion_requested' ? 'bg-amber-600 text-white shadow-sm' : 'bg-[#1A73E8] text-white shadow-sm' 
+                : status === 'incomplete_lead' ? 'bg-amber-50 text-amber-900 border border-amber-200/80 hover:bg-amber-100' : status === 'deletion_requested' ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-slate-50 text-gray-500 hover:bg-slate-100/75'
             }`}
           >
-            {status === 'deletion_requested' ? '⚠️ Deletion Pending' : status.replace('_', ' ')}
+            {status === 'incomplete_lead' ? '⚡ Dropped Leads (OTP Verified)' : status === 'deletion_requested' ? '⚠️ Deletion Pending' : status.replace('_', ' ')}
           </button>
         ))}
       </div>

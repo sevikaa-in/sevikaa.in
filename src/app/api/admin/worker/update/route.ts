@@ -48,6 +48,10 @@ export async function POST(req: NextRequest) {
         [userId]
       );
 
+      const primarySoc = body.primary_gated_society || body.primary_society_id || '';
+      const secondarySoc = body.secondary_gated_society || '';
+      const prefAreas = [primarySoc, secondarySoc].filter(Boolean);
+
       if (checkRes && checkRes.rows.length > 0) {
         await queryDb(
           `UPDATE public.worker_profiles 
@@ -62,13 +66,14 @@ export async function POST(req: NextRequest) {
                aadhaar_back_url = COALESCE($9, aadhaar_back_url),
                video_url = COALESCE($10, video_url),
                skills = COALESCE($11, skills),
-               languages_spoken = COALESCE($12, languages_spoken)
-           WHERE user_id = $13 OR id = $13`,
+               languages_spoken = COALESCE($12, languages_spoken),
+               preferred_areas = CASE WHEN $13::text[] IS NOT NULL AND array_length($13::text[], 1) > 0 THEN $13::text[] ELSE preferred_areas END
+           WHERE user_id = $14 OR id = $14`,
           [
             displayName, gender || null, numAge, salary, expYears, 
             emergency_contact || null, profile_picture_url || null, 
             aadhaar_front_url || null, aadhaar_back_url || null, 
-            video_url || null, skillsArr, langsArr, userId
+            video_url || null, skillsArr, langsArr, prefAreas, userId
           ]
         );
       } else {

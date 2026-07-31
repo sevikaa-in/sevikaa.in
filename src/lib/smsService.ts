@@ -407,6 +407,7 @@ export async function sendSMSWithTemplates(params: {
         REGISTER_OTP: 'Welcome to Sevikaa.\nYour registration verification code is {{otp}}.\nValid for 10 minutes.',
         FORGOT_PASSWORD_OTP: 'Your Sevikaa password reset code is {{otp}}.\nValid for 10 minutes.',
         CHANGE_MOBILE_OTP: 'Verify your new mobile number on Sevikaa using OTP {{otp}}. Valid for 10 minutes. Team Sevikaa.',
+        DELETE_ACCOUNT_OTP: 'Your OTP to request account deletion on Sevikaa is {{otp}}. Valid for 10 minutes. Do not share with anyone.',
         JOB_APPLIED: 'Your Sevikaa job application for {{job_title}} has been submitted successfully.',
         JOB_ACCEPTED: 'Congratulations! Your application for {{job_title}} has been accepted by {{company}} on Sevikaa.',
         INTERVIEW_SCHEDULED: 'Interview scheduled on {{date}} at {{time}}.\nCheck Sevikaa for complete details.',

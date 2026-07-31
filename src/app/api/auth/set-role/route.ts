@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const resolvedLangName = langNameMap[langCode] || 'Hindi';
 
     // 1. Fetch dynamic helpline phone
-    let helplinePhone = process.env.NEXT_PUBLIC_ADMIN_HELPLINE_PHONE || '+91 917096093039';
+    let helplinePhone = process.env.NEXT_PUBLIC_ADMIN_HELPLINE_PHONE || '+91 7096093039';
     try {
       const settingRes = await queryDb(`SELECT value FROM public.admin_settings WHERE key = 'helpline_phone' LIMIT 1`);
       if (settingRes && settingRes.rows.length > 0 && settingRes.rows[0].value) {
@@ -51,11 +51,12 @@ export async function POST(req: NextRequest) {
     // 3. Initialize sub-profile stub if not exists
     if (role === 'employer') {
       const epCheck = await queryDb(`SELECT id FROM public.employer_profiles WHERE user_id = $1 OR id = $1 LIMIT 1`, [userId]);
+      const initialStatus = onboarding_mode === 'assisted' ? 'pending_review' : 'active';
       if (!epCheck || epCheck.rows.length === 0) {
         try {
           await queryDb(
-            `INSERT INTO public.employer_profiles (id, user_id, company_name, status) VALUES ($1, $1, $2, 'active')`,
-            [userId, 'Employer']
+            `INSERT INTO public.employer_profiles (id, user_id, company_name, status) VALUES ($1, $1, $2, $3)`,
+            [userId, 'Household Owner', initialStatus]
           );
         } catch (epErr) {
           console.warn("Employer profile stub insert notice:", epErr);

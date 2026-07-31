@@ -9,12 +9,14 @@ export default function VerifyUploadPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [userId, setUserId] = useState('');
+  const [userRole, setUserRole] = useState<'worker' | 'employer'>('worker');
   const [workerName, setWorkerName] = useState('');
 
   // Existing assets from server
   const [existingSelfie, setExistingSelfie] = useState('');
   const [existingAadhaarFront, setExistingAadhaarFront] = useState('');
   const [existingAadhaarBack, setExistingAadhaarBack] = useState('');
+  const [existingResidencyProof, setExistingResidencyProof] = useState('');
 
   // New Upload file states
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
@@ -46,11 +48,13 @@ export default function VerifyUploadPage() {
         const data = await res.json();
         if (data.success) {
           setUserId(data.userId);
+          if (data.role) setUserRole(data.role);
           setWorkerName(data.workerName || 'Verification Candidate');
           if (data.existingAssets) {
             setExistingSelfie(data.existingAssets.profile_picture_url || '');
             setExistingAadhaarFront(data.existingAssets.aadhaar_front_url || '');
             setExistingAadhaarBack(data.existingAssets.aadhaar_back_url || '');
+            setExistingResidencyProof(data.existingAssets.residency_proof_url || '');
           }
         } else {
           setError(data.error || 'Upload link is invalid or expired.');

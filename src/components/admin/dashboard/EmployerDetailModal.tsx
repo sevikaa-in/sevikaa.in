@@ -530,6 +530,14 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 </button>
                 <button
                   onClick={() => {
+                    const isEmployerComplete = !!(employer.company_name || employer.name) && 
+                                               !!(employer.society_name) && 
+                                               !!(employer.address) && 
+                                               !!(employer.residency_proof_url || employer.avatar_url || employer.profile_photo_url || employer.aadhaar_front_url);
+                    if (!isEmployerComplete) {
+                      alert("⚠️ Restricted Action: Cannot approve an incomplete profile!\n\nPlease complete Employer Name, Gated Society, Flat Address, and upload Residency Proof / Selfie in Tele-Onboarding before approving.");
+                      return;
+                    }
                     onApproveEmployer(employer.id);
                     onClose();
                   }}

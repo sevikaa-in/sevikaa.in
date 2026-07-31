@@ -7,7 +7,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { 
   User, ShieldAlert, ChevronDown, ChevronUp, Trash2, 
   Save, Phone, CreditCard, Home, MapPin, AlertTriangle, Mail, Building, ShieldCheck, Sparkles, Bell, Check, Zap, History, X,
-  Upload, Camera, FileText, Lock, CheckCircle2, IdCard, Eye, Search, RefreshCw, ArrowRight
+  Upload, Camera, FileText, Lock, CheckCircle2, IdCard, Eye, Search, RefreshCw, ArrowRight, Loader2
 } from 'lucide-react';
 import { ChangeMobileInlineSection } from '@/components/profile/ChangeMobileInlineSection';
 import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInlineSection';
@@ -245,6 +245,12 @@ export default function EmployerAccountPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletionReason, setDeletionReason] = useState('Already hired domestic worker');
   const [customReason, setCustomReason] = useState('');
+  const [deleteOtpStep, setDeleteOtpStep] = useState<'reason' | 'otp'>('reason');
+  const [deleteOtp, setDeleteOtp] = useState('');
+  const [isSendingDeleteOtp, setIsSendingDeleteOtp] = useState(false);
+  const [isVerifyingDeleteOtp, setIsVerifyingDeleteOtp] = useState(false);
+  const [deleteOtpNotice, setDeleteOtpNotice] = useState('');
+  const [deleteOtpError, setDeleteOtpError] = useState('');
 
   // Profile completeness calculation
   const isAadhaarDone = (aadhaarFrontUploaded && aadhaarBackUploaded) || employerProfile.status === 'live' || employerProfile.status === 'approved';
@@ -376,6 +382,59 @@ export default function EmployerAccountPage() {
     setShowDeleteModal(false);
   };
 
+  const handleSendDeleteOtp = async () => {
+    setIsSendingDeleteOtp(true);
+    setDeleteOtpError('');
+    setDeleteOtpNotice('');
+    try {
+      const finalReason = deletionReason === 'Other' ? customReason : deletionReason;
+      const res = await fetch('/api/auth/delete-account-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send', phone, reason: finalReason })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to send deletion OTP');
+      }
+      setDeleteOtpNotice(data.message);
+      setDeleteOtpStep('otp');
+    } catch (err: any) {
+      setDeleteOtpError(err.message || 'Error sending OTP. Please try again.');
+    } finally {
+      setIsSendingDeleteOtp(false);
+    }
+  };
+
+  const handleVerifyDeleteOtp = async () => {
+    if (!deleteOtp || deleteOtp.trim().length !== 6) {
+      setDeleteOtpError('Please enter the valid 6-digit OTP code.');
+      return;
+    }
+    setIsVerifyingDeleteOtp(true);
+    setDeleteOtpError('');
+    try {
+      const finalReason = deletionReason === 'Other' ? customReason : deletionReason;
+      const res = await fetch('/api/auth/delete-account-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', phone, otp: deleteOtp.trim(), reason: finalReason })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Invalid OTP code');
+      }
+      await onSubmitDeletionRequest();
+      setShowDeleteModal(false);
+      alert(t('deletionSubmittedAlert') || "Your household account deletion request has been verified via OTP and submitted to Sevikaa Admin for final verdict.");
+      window.location.href = '/login';
+    } catch (err: any) {
+      setDeleteOtpError(err.message || 'Verification failed. Please try again.');
+    } finally {
+      setIsVerifyingDeleteOtp(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl pb-24 mx-auto">
       
@@ -481,7 +540,7 @@ export default function EmployerAccountPage() {
             {/* Camera Upload Button Overlay */}
             <label className="absolute bottom-0 right-0 p-1.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95 border-2 border-white">
               <Camera size={12} />
-              <input type="file" accept="image/jpeg,image/png" onChange={handlePhotoChange} className="hidden" />
+              <input type="file" accept="image/*" capture="user" onChange={handlePhotoChange} className="hidden" />
             </label>
           </div>
 
@@ -888,7 +947,7 @@ export default function EmployerAccountPage() {
           <div className="flex flex-col space-y-2">
             <div className="flex items-center gap-3">
               <label className="cursor-pointer flex-1">
-                <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleResidencyProofChange} />
+                <input type="file" accept="image/*,application/pdf" capture="user" className="hidden" onChange={handleResidencyProofChange} />
                 <div className="w-full py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-xs">
                   <Upload size={14} />
                   <span>{(residencyProofUploaded || residencyProofUrl || employerProfile.residency_proof_url) ? (t('changeMaintenanceBtn') || "Change Maintenance Bill / Rent Agreement") : (t('uploadMaintenanceBtn') || "Upload Maintenance Bill / Rent Agreement")}</span>
@@ -1172,59 +1231,143 @@ export default function EmployerAccountPage() {
         />
       </div>
 
-      {/* DELETION CONFIRMATION MODAL */}
+      {/* DELETION CONFIRMATION MODAL WITH OTP VERIFICATION */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-sm shadow-2xl space-y-4 animate-scale-up border border-slate-100 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-start justify-between">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl space-y-4 animate-scale-up border border-slate-100 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <AlertTriangle size={20} className="text-amber-600" />
+                <AlertTriangle size={20} className="text-red-600" />
                 <h3 className="text-sm font-black text-slate-900">{t('requestDeletionModalTitle') || "Request Account Deletion"}</h3>
               </div>
-              <button onClick={() => setShowDeleteModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-
-            <p className="text-xs text-slate-600 font-medium">
-              {t('requestDeletionModalSub') || "Please state your reason for deleting your household account."}
-            </p>
-
-            <div className="space-y-2 text-xs font-bold text-slate-700">
-              <label className="text-[10px] text-slate-400 uppercase">{t('reasonLabel') || "Reason for Offboarding"}</label>
-              <select 
-                value={deletionReason} 
-                onChange={(e) => setDeletionReason(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-              >
-                <option value="Already hired domestic worker">{t('reasonHired') || "Already hired domestic worker"}</option>
-                <option value="Moving to a non-partner society">{t('reasonMoving') || "Moving to a non-partner society"}</option>
-                <option value="No longer requiring domestic help">{t('reasonNoLonger') || "No longer requiring domestic help"}</option>
-                <option value="Other">{t('reasonOther') || "Other Reason"}</option>
-              </select>
-
-              {deletionReason === 'Other' && (
-                <textarea 
-                  placeholder="Specify reason..." 
-                  value={customReason}
-                  onChange={(e) => setCustomReason(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                />
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
               <button 
-                onClick={() => setShowDeleteModal(false)}
-                className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                onClick={() => { setShowDeleteModal(false); setDeleteOtpStep('reason'); }}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
               >
-                {t('cancelBtn') || "Cancel"}
-              </button>
-              <button 
-                onClick={onSubmitDeletionRequest}
-                className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-md"
-              >
-                {t('submitDeletionBtn') || "Submit Deletion Request"}
+                ✕
               </button>
             </div>
+
+            {deleteOtpError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs font-bold text-red-700">
+                {deleteOtpError}
+              </div>
+            )}
+
+            {deleteOtpNotice && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-bold text-emerald-800">
+                {deleteOtpNotice}
+              </div>
+            )}
+
+            {deleteOtpStep === 'reason' ? (
+              <>
+                <div className="bg-red-50/70 border border-red-200/80 rounded-2xl p-3.5 space-y-1">
+                  <span className="text-[10px] font-black uppercase text-red-700 tracking-wider block">⚠️ Permanent Action Security Notice</span>
+                  <p className="text-xs text-red-900 font-semibold leading-relaxed">
+                    Submitting this request will verify your identity via OTP and queue your household account for permanent deletion by Sevikaa Admin.
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-xs font-bold text-slate-700">
+                  <label className="text-[10px] text-slate-400 uppercase">{t('reasonLabel') || "Reason for Offboarding"}</label>
+                  <select 
+                    value={deletionReason} 
+                    onChange={(e) => setDeletionReason(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  >
+                    <option value="Already hired domestic worker">{t('reasonHired') || "Already hired domestic worker"}</option>
+                    <option value="Moving to a non-partner society">{t('reasonMoving') || "Moving to a non-partner society"}</option>
+                    <option value="No longer requiring domestic help">{t('reasonNoLonger') || "No longer requiring domestic help"}</option>
+                    <option value="Other">{t('reasonOther') || "Other Reason"}</option>
+                  </select>
+
+                  {deletionReason === 'Other' && (
+                    <textarea 
+                      placeholder="Specify reason..." 
+                      value={customReason}
+                      onChange={(e) => setCustomReason(e.target.value)}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                    />
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button 
+                    onClick={() => setShowDeleteModal(false)}
+                    className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                  >
+                    {t('cancelBtn') || "Cancel"}
+                  </button>
+                  <button 
+                    disabled={isSendingDeleteOtp}
+                    onClick={handleSendDeleteOtp}
+                    className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5"
+                  >
+                    {isSendingDeleteOtp ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Sending OTP...</span>
+                      </>
+                    ) : (
+                      <span>🔒 Send 6-Digit OTP to Confirm</span>
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-2">
+                  <p className="text-xs text-slate-600 font-medium">
+                    Enter the 6-digit verification code sent to your registered mobile number:
+                  </p>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={deleteOtp}
+                    onChange={(e) => setDeleteOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter 6-Digit OTP"
+                    className="w-full text-center tracking-[0.5em] text-lg font-black p-3 bg-white border-2 border-red-400 rounded-2xl text-slate-900 focus:outline-none font-mono"
+                  />
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <button
+                    type="button"
+                    disabled={isSendingDeleteOtp}
+                    onClick={handleSendDeleteOtp}
+                    className="text-xs text-[#1A73E8] font-bold hover:underline"
+                  >
+                    Resend OTP Code
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDeleteOtpStep('reason')}
+                      className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isVerifyingDeleteOtp || deleteOtp.length !== 6}
+                      onClick={handleVerifyDeleteOtp}
+                      className="py-2 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5"
+                    >
+                      {isVerifyingDeleteOtp ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Verifying...</span>
+                        </>
+                      ) : (
+                        <span>🚨 Verify &amp; Submit Deletion</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

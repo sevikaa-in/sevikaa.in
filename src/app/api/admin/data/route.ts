@@ -60,27 +60,40 @@ export async function GET(req: NextRequest) {
       console.warn("Admin counts query notice:", e);
     }
 
-    // 3. Tab-based Paginated Fetching (Include 'interviews' tab for worker names)
-    if (tab === 'workers' || tab === 'interviews' || tab === 'overview') {
+    const search = searchParams.get('q') || searchParams.get('search') || '';
+    const searchPattern = search.trim() ? `%${search.trim()}%` : null;
+    const statusFilter = searchParams.get('status') || '';
+
+    // 3. Tab-based Paginated Fetching (Include 'interviews' and 'tele-onboarding' tabs)
+    if (tab === 'workers' || tab === 'interviews' || tab === 'overview' || tab === 'tele-onboarding') {
       try {
         const wRes = await queryDb(
-          `SELECT p.id, p.email, p.phone, p.status, p.created_at,
-                  COALESCE(wp.full_name, 'Verified Worker') AS full_name,
+          `SELECT p.id, p.email, p.phone, p.status, p.created_at, wp.full_name AS profile_name,
+                  COALESCE(
+                    NULLIF(NULLIF(TRIM(wp.full_name), 'Worker Candidate'), ''),
+                    NULLIF(TRIM(wp.full_name), ''),
+                    CONCAT('Candidate ', RIGHT(COALESCE(p.phone, 'Lead'), 4))
+                  ) AS full_name,
                   wp.skills, wp.languages_spoken, wp.age, wp.gender,
                   wp.expected_salary, wp.experience_years, wp.profile_picture_url,
-                  wp.video_url, wp.aadhaar_front_url, wp.aadhaar_back_url
+                  wp.video_url, wp.aadhaar_front_url, wp.aadhaar_back_url,
+                  COALESCE(s.name, (wp.preferred_areas[1])) AS primary_gated_society,
+                  (CASE WHEN array_length(wp.preferred_areas, 1) > 1 THEN wp.preferred_areas[2] ELSE NULL END) AS secondary_gated_society
            FROM public.profiles p
            LEFT JOIN public.worker_profiles wp ON wp.user_id = p.id OR wp.id = p.id
-           WHERE p.role = 'worker' OR wp.id IS NOT NULL
+           LEFT JOIN public.societies s ON s.id = wp.preferred_society_id
+           WHERE (p.role = 'worker' OR wp.id IS NOT NULL)
+             AND ($3::text IS NULL OR p.phone LIKE $3 OR wp.full_name ILIKE $3)
+             AND ($4::text = '' OR p.status = $4 OR ($4 = 'approved' AND p.status IN ('approved', 'live', 'active', 'completed')))
            ORDER BY p.created_at DESC
            LIMIT $1 OFFSET $2`,
-          [limit, offset]
+          [limit, offset, searchPattern, statusFilter]
         );
         if (wRes?.rows) workers = wRes.rows;
       } catch (e) { console.warn("Admin workers fetch notice:", e); }
     }
 
-    if (tab === 'employers' || tab === 'overview') {
+    if (tab === 'employers' || tab === 'overview' || tab === 'tele-onboarding') {
       try {
         const eRes = await queryDb(
           `SELECT ep.*, p.email, p.phone, p.status
@@ -107,7 +120,18 @@ export async function GET(req: NextRequest) {
     if (tab === 'jobs' || tab === 'overview') {
       try {
         const jRes = await queryDb(
-          `SELECT * FROM public.jobs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+          `SELECT j.*,
+                  COALESCE(NULLIF(TRIM(ep.name), ''), NULLIF(TRIM(ep.company_name), ''), CONCAT('Employer ', RIGHT(COALESCE(p.phone, 'Lead'), 4))) AS employer_name,
+                  p.phone AS employer_phone,
+                  p.phone AS phone,
+                  COALESCE(s.name, 'Gated Community') AS society_name,
+                  COALESCE(ep.billing_address, s.city, 'Noida') AS locality
+           FROM public.jobs j
+           LEFT JOIN public.profiles p ON p.id = j.employer_id
+           LEFT JOIN public.employer_profiles ep ON ep.user_id = j.employer_id OR ep.id = j.employer_id
+           LEFT JOIN public.societies s ON s.id = j.society_id
+           ORDER BY j.created_at DESC
+           LIMIT $1 OFFSET $2`,
           [limit, offset]
         );
         if (jRes?.rows) jobs = jRes.rows;

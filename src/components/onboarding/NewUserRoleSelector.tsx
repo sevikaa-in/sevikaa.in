@@ -47,7 +47,7 @@ export const NewUserRoleSelector: React.FC<NewUserRoleSelectorProps> = ({ userId
   const handleWorkerChoiceSelected = (mode: 'assisted' | 'self', helplinePhone?: string, scheduledSlot?: string) => {
     if (mode === 'assisted') {
       setAssistedInfo({
-        phone: helplinePhone || '+91 917096093039',
+        phone: helplinePhone || '+91 7096093039',
         slot: scheduledSlot || 'the scheduled daytime slot'
       });
     } else {

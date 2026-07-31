@@ -160,4 +160,23 @@ Character Count Breakdown (160-char Single SMS Limit):
 
 Backend Variable Key:
 - ##url##  =>  'url' / 'upload_url' (e.g. "https://www.sevikaa.in/verify-upload?t=a8f2k9x1")
+14. SEVKAA_DELETE_ACCOUNT_OTP
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Your OTP to request account deletion on Sevikaa is ##number##. Valid for 10 minutes. Do not share with anyone.
+
+Backend Variable Key:
+- ##number##  =>  'otp' (e.g. "987654")
+
+
+15. SEVKAA_ASSISTED_APPLICATION
+--------------------------------------------------------------------------------
+MSG91 Template Text (COPY & PASTE EXACTLY):
+Verified candidate ##alphanumeric1## applied for ##alphanumeric2## at ##alphanumeric3## on Sevikaa. Tap link to review: ##url##
+
+Backend Variable Keys:
+- ##alphanumeric1##  =>  'worker_name' (e.g. "Pooja Sharma")
+- ##alphanumeric2##  =>  'category' (e.g. "Cook")
+- ##alphanumeric3##  =>  'society' (e.g. "Jaypee Greens")
+- ##url##            =>  'url' (e.g. "https://www.sevikaa.in/employer/workers")
 ================================================================================

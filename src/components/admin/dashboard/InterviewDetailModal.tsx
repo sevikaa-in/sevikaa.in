@@ -55,6 +55,7 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
   const [editLanguages, setEditLanguages] = useState('');
   const [isSocietyDropdownOpen, setIsSocietyDropdownOpen] = useState(false);
   const [allSocieties, setAllSocieties] = useState<any[]>([]);
+  const [adminUploadingAsset, setAdminUploadingAsset] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -186,29 +187,18 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
     const activePhone = worker?.phone;
     if (!activePhone) return;
     try {
-      const tokenRes = await fetch('/api/worker/upload-token', {
+      const res = await fetch('/api/admin/worker/send-upload-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: worker.id || interview.id })
+        body: JSON.stringify({ userId: worker.id || interview.id, phone: activePhone })
       });
-      const tokenData = await tokenRes.json();
-      if (tokenData.success && tokenData.uploadUrl) {
-        await fetch('/api/notifications/trigger', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'interview_scheduled',
-            userId: worker.id || interview.id,
-            name: workerName,
-            phone: activePhone,
-            note: `Upload Link: ${tokenData.uploadUrl}`
-          })
-        });
+      const data = await res.json();
+      if (data.success) {
         setUploadLinkSent(true);
         setTimeout(() => setUploadLinkSent(false), 4000);
       }
     } catch (e) {
-      console.error("Failed sending upload link SMS:", e);
+      console.error("Failed sending 1-click upload link SMS:", e);
     }
   };
 
@@ -241,6 +231,29 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
     navigator.clipboard.writeText(worker.phone);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleAdminDirectUpload = async (assetType: 'profile_picture_url' | 'aadhaar_front_url' | 'aadhaar_back_url', file: File) => {
+    setAdminUploadingAsset(assetType);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', worker?.id || interview?.id);
+      formData.append('assetType', assetType);
+
+      const res = await fetch('/api/admin/worker/upload-asset', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success && data.publicUrl && interview?.worker) {
+        interview.worker[assetType] = data.publicUrl;
+      }
+    } catch (err) {
+      console.error("Direct admin upload error:", err);
+    } finally {
+      setAdminUploadingAsset(null);
+    }
   };
 
   // Reset notes when interview selection changes
@@ -661,19 +674,25 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                       >
                         <FileText size={11} /> Inspect Selfie
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSendUploadLinkSms()}
-                        className="w-full py-1 px-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/70 rounded-lg text-[8.5px] font-extrabold cursor-pointer transition-all"
-                      >
-                        Request Retake
-                      </button>
                     </div>
                   ) : (
-                    <div className="space-y-2 my-auto">
+                    <div className="space-y-2 my-auto w-full">
                       <span className="px-2 py-0.5 bg-slate-100 text-gray-400 rounded-full text-[9px] font-black inline-block">
                         Not Uploaded
                       </span>
+                      <label className="w-full py-1.5 px-2 bg-[#34A853] hover:bg-emerald-700 text-white rounded-xl text-[9.5px] font-black transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95">
+                        <span>{adminUploadingAsset === 'profile_picture_url' ? 'Uploading...' : '💬 WhatsApp File'}</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleAdminDirectUpload('profile_picture_url', e.target.files[0]);
+                            }
+                          }} 
+                        />
+                      </label>
                     </div>
                   )}
                 </div>
@@ -693,19 +712,25 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                       >
                         <FileText size={11} /> Inspect Front
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSendUploadLinkSms()}
-                        className="w-full py-1 px-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/70 rounded-lg text-[8.5px] font-extrabold cursor-pointer transition-all"
-                      >
-                        Request Retake
-                      </button>
                     </div>
                   ) : (
-                    <div className="space-y-2 my-auto">
+                    <div className="space-y-2 my-auto w-full">
                       <span className="px-2 py-0.5 bg-slate-100 text-gray-400 rounded-full text-[9px] font-black inline-block">
                         Not Uploaded
                       </span>
+                      <label className="w-full py-1.5 px-2 bg-[#34A853] hover:bg-emerald-700 text-white rounded-xl text-[9.5px] font-black transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95">
+                        <span>{adminUploadingAsset === 'aadhaar_front_url' ? 'Uploading...' : '💬 WhatsApp File'}</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleAdminDirectUpload('aadhaar_front_url', e.target.files[0]);
+                            }
+                          }} 
+                        />
+                      </label>
                     </div>
                   )}
                 </div>
@@ -725,19 +750,25 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                       >
                         <FileText size={11} /> Inspect Back
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSendUploadLinkSms()}
-                        className="w-full py-1 px-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/70 rounded-lg text-[8.5px] font-extrabold cursor-pointer transition-all"
-                      >
-                        Request Retake
-                      </button>
                     </div>
                   ) : (
-                    <div className="space-y-2 my-auto">
+                    <div className="space-y-2 my-auto w-full">
                       <span className="px-2 py-0.5 bg-slate-100 text-gray-400 rounded-full text-[9px] font-black inline-block">
                         Not Uploaded
                       </span>
+                      <label className="w-full py-1.5 px-2 bg-[#34A853] hover:bg-emerald-700 text-white rounded-xl text-[9.5px] font-black transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95">
+                        <span>{adminUploadingAsset === 'aadhaar_back_url' ? 'Uploading...' : '💬 WhatsApp File'}</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleAdminDirectUpload('aadhaar_back_url', e.target.files[0]);
+                            }
+                          }} 
+                        />
+                      </label>
                     </div>
                   )}
                 </div>
@@ -773,6 +804,21 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* 💬 Official WhatsApp Reception Notice Banner */}
+              <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs text-emerald-900 font-medium">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">💬</span>
+                  <span>Candidates can also send selfie &amp; Aadhaar photos to official Sevikaa WhatsApp: <strong>+91 7096093039</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSendUploadLinkSms}
+                  className="px-2.5 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg text-[9.5px] font-black hover:bg-emerald-100 transition-colors shadow-2xs whitespace-nowrap"
+                >
+                  {uploadLinkSent ? 'SMS Sent ✓' : 'Send SMS Link'}
+                </button>
               </div>
             </div>
           </div>

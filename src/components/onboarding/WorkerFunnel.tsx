@@ -191,22 +191,37 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
 
   const startCamera = async () => {
     setCameraError('');
-    if (!navigator?.mediaDevices?.getUserMedia) {
-      setCameraError("Camera is not available on this device. You can upload a photo file below.");
+    if (typeof window === 'undefined' || !navigator?.mediaDevices?.getUserMedia) {
+      setCameraError("Camera is not available in this browser. You can take a live photo or select an image file below.");
       return;
     }
 
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        video: { facingMode: 'user' },
+        audio: false
       });
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        videoRef.current.play().catch(e => console.warn("Video play notice:", e));
       }
     } catch (err: any) {
-      console.warn("Camera access permission notice:", err.name);
-      setCameraError("Camera access denied or unavailable. Please upload a photo from your gallery below.");
+      console.warn("User facing camera prompt failed, trying fallback:", err);
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+        setStream(mediaStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          videoRef.current.play().catch(e => console.warn("Video play notice:", e));
+        }
+      } catch (fallbackErr: any) {
+        console.warn("Camera access denied or unavailable:", fallbackErr);
+        setCameraError("Camera permission was blocked. Tap 'Enable Camera' to allow permission or upload from gallery.");
+      }
     }
   };
 
@@ -215,7 +230,6 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
       startCamera();
     }
 
-    // Cleanup: Stop the camera stream when moving to other steps or unmounting
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -497,14 +511,28 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
                     Retake Photo
                   </button>
                 ) : cameraError ? (
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="py-3 px-6 bg-[#1A73E8] hover:bg-[#155cb4] text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-blue-100"
-                  >
-                    <Camera size={14} />
-                    <span>Enable Camera</span>
-                  </button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="py-3 px-5 bg-[#1A73E8] hover:bg-[#155cb4] text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <Camera size={14} />
+                      <span>Enable Web Camera</span>
+                    </button>
+
+                    <label className="py-3 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                      <Camera size={14} />
+                      <span>Take Live Photo (Mobile Camera)</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="user" 
+                        className="hidden" 
+                        onChange={handleSelfieFileUpload} 
+                      />
+                    </label>
+                  </div>
                 ) : (
                   <button
                     type="button"

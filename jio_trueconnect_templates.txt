@@ -214,4 +214,31 @@ Sample Content (fill in the placeholder field on the portal):
 
 Sample Backend variables:
 - {#url#} (Upload URL)  =>  Expected key in code: 'url' / 'upload_url' (e.g. "https://www.sevikaa.in/verify-upload?t=a8f2k9x1")
+[🆕 READY FOR JIO DLT REGISTRATION] 4. SEVKAA_DELETE_ACCOUNT_OTP
+--------------------------------------------------------------------------------
+DLT Status: Ready for Jio DLT Registration 🔄
+Template Message:
+Your OTP to request account deletion on Sevikaa is {#number#}. Valid for 10 minutes. Do not share with anyone.
+
+Sample Backend variables:
+- {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "987654")
+
+
+[🆕 READY FOR JIO DLT REGISTRATION] 5. SEVKAA_ASSISTED_APPLICATION
+--------------------------------------------------------------------------------
+DLT Status: Ready for Jio DLT Registration 🔄
+Template Message:
+Verified candidate {#alphanumeric#} applied for {#alphanumeric#} at {#alphanumeric#} on Sevikaa. Tap link to review: {#url#}
+
+Sample Content (fill in the placeholder field on the portal):
+- {#alphanumeric#} = Pooja Sharma
+- {#alphanumeric#} = Cook
+- {#alphanumeric#} = Jaypee Greens
+- {#url#} = https://www.sevikaa.in/employer/workers
+
+Sample Backend variables:
+- First {#alphanumeric#} (Worker Name)   =>  'worker_name' (e.g. "Pooja Sharma")
+- Second {#alphanumeric#} (Category)     =>  'category' (e.g. "Cook")
+- Third {#alphanumeric#} (Society Name)  =>  'society' (e.g. "Jaypee Greens")
+- {#url#} (Applicants URL)              =>  'url' (e.g. "https://www.sevikaa.in/employer/workers")
 ================================================================================

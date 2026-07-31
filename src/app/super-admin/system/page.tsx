@@ -1,16 +1,61 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSuperAdminDashboard } from '../layout';
 import { 
   Activity, Database, CreditCard, MessageSquare, HardDrive, 
-  CheckCircle2, AlertTriangle, RefreshCw, Key, ShieldCheck, Server
+  CheckCircle2, AlertTriangle, RefreshCw, Key, ShieldCheck, Server, Phone, Save
 } from 'lucide-react';
 
 export default function SystemPage() {
   const { showToast } = useSuperAdminDashboard();
   const [testing, setTesting] = useState(false);
   const [lastPingTime, setLastPingTime] = useState<string>('Just now');
+
+  const [helplinePhone, setHelplinePhone] = useState('+91 7096093039');
+  const [whatsappNumber, setWhatsappNumber] = useState('+91 7096093039');
+  const [supportEmail, setSupportEmail] = useState('support@sevikaa.in');
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/super-admin/settings');
+        const data = await res.json();
+        if (data.success && data.settings) {
+          if (data.settings.helpline_phone) setHelplinePhone(data.settings.helpline_phone);
+          if (data.settings.whatsapp_number) setWhatsappNumber(data.settings.whatsapp_number);
+          if (data.settings.support_email) setSupportEmail(data.settings.support_email);
+        }
+      } catch (e) {}
+    };
+    fetchSettings();
+  }, []);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const res = await fetch('/api/super-admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          helpline_phone: helplinePhone,
+          whatsapp_number: whatsappNumber,
+          support_email: supportEmail
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Official Communication & Helpline numbers updated live across India!", "success");
+      } else {
+        throw new Error(data.error || 'Failed to save');
+      }
+    } catch (err: any) {
+      showToast(err.message || "Error saving settings", "error");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const handleRunDiagnostics = () => {
     setTesting(true);
@@ -164,6 +209,64 @@ export default function SystemPage() {
               <span className="text-slate-400 block text-[9px]">Public CDN Status</span>
               <span className="text-[#34A853] font-mono font-black">Active</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 📞 OFFICIAL HELPLINE & WHATSAPP COMMUNICATION NUMBERS PANEL */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-emerald-50 text-[#34A853] rounded-xl">
+              <Phone size={18} />
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Official Helpline &amp; WhatsApp Reception Numbers</h4>
+              <p className="text-[10.5px] text-slate-400 font-semibold">Assign official numbers displayed to candidates &amp; employers across India</p>
+            </div>
+          </div>
+          <button
+            onClick={handleSaveSettings}
+            disabled={savingSettings}
+            className="py-2 px-4 bg-[#34A853] hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <Save size={14} />
+            <span>{savingSettings ? 'Saving...' : 'Save Communication Settings'}</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-bold text-slate-700">
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase text-slate-400 font-black">Official Call Helpline Phone</label>
+            <input
+              type="text"
+              value={helplinePhone}
+              onChange={(e) => setHelplinePhone(e.target.value)}
+              placeholder="+91 7096093039"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-[#34A853]"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase text-slate-400 font-black">Official WhatsApp Reception Number</label>
+            <input
+              type="text"
+              value={whatsappNumber}
+              onChange={(e) => setWhatsappNumber(e.target.value)}
+              placeholder="+91 7096093039"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-[#34A853]"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase text-slate-400 font-black">Official Support Email</label>
+            <input
+              type="email"
+              value={supportEmail}
+              onChange={(e) => setSupportEmail(e.target.value)}
+              placeholder="support@sevikaa.in"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-[#34A853]"
+            />
           </div>
         </div>
       </div>

@@ -161,6 +161,12 @@ export default function WorkerProfilePage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletionReason, setDeletionReason] = useState('Moving to another city');
   const [customReason, setCustomReason] = useState('');
+  const [deleteOtpStep, setDeleteOtpStep] = useState<'reason' | 'otp'>('reason');
+  const [deleteOtp, setDeleteOtp] = useState('');
+  const [isSendingDeleteOtp, setIsSendingDeleteOtp] = useState(false);
+  const [isVerifyingDeleteOtp, setIsVerifyingDeleteOtp] = useState(false);
+  const [deleteOtpNotice, setDeleteOtpNotice] = useState('');
+  const [deleteOtpError, setDeleteOtpError] = useState('');
   const [activeInlinePreview, setActiveInlinePreview] = useState<'front' | 'back' | 'video' | null>(null);
 
   // Profile completeness check
@@ -314,10 +320,57 @@ export default function WorkerProfilePage() {
     });
   };
 
-  const onSubmitDeletionRequest = async () => {
-    const finalReason = deletionReason === 'Other' ? customReason : deletionReason;
-    await handleRequestAccountDeletion(finalReason);
-    setShowDeleteModal(false);
+  const handleSendDeleteOtp = async () => {
+    setIsSendingDeleteOtp(true);
+    setDeleteOtpError('');
+    setDeleteOtpNotice('');
+    try {
+      const finalReason = deletionReason === 'Other' ? customReason : deletionReason;
+      const res = await fetch('/api/auth/delete-account-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send', phone, reason: finalReason })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to send deletion OTP');
+      }
+      setDeleteOtpNotice(data.message);
+      setDeleteOtpStep('otp');
+    } catch (err: any) {
+      setDeleteOtpError(err.message || 'Error sending OTP. Please try again.');
+    } finally {
+      setIsSendingDeleteOtp(false);
+    }
+  };
+
+  const handleVerifyDeleteOtp = async () => {
+    if (!deleteOtp || deleteOtp.trim().length !== 6) {
+      setDeleteOtpError('Please enter the valid 6-digit OTP code.');
+      return;
+    }
+    setIsVerifyingDeleteOtp(true);
+    setDeleteOtpError('');
+    try {
+      const finalReason = deletionReason === 'Other' ? customReason : deletionReason;
+      const res = await fetch('/api/auth/delete-account-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', phone, otp: deleteOtp.trim(), reason: finalReason })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Invalid OTP code');
+      }
+      await handleRequestAccountDeletion(finalReason);
+      setShowDeleteModal(false);
+      alert(t('deletionSubmittedAlert') || "Your account deletion request has been verified via OTP and submitted to Sevikaa Admin for final verdict.");
+      window.location.href = '/login';
+    } catch (err: any) {
+      setDeleteOtpError(err.message || 'Verification failed. Please try again.');
+    } finally {
+      setIsVerifyingDeleteOtp(false);
+    }
   };
 
   return (
@@ -1024,60 +1077,6 @@ export default function WorkerProfilePage() {
           />
         </div>
       </div>
-
-      {/* DELETION CONFIRMATION MODAL */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-scale-up border border-slate-100">
-            <div className="flex items-center gap-3 text-red-600 border-b border-slate-100 pb-3">
-              <AlertTriangle size={24} />
-              <h3 className="text-sm font-black text-slate-900">Request Profile Deletion</h3>
-            </div>
-
-            <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              Please select the primary reason for offboarding your Sevikaa worker profile:
-            </p>
-
-            <select
-              value={deletionReason}
-              onChange={(e) => setDeletionReason(e.target.value)}
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-red-500"
-            >
-              <option value="Moving to another city">Moving to another city</option>
-              <option value="Found permanent full-time employment">Found permanent full-time employment</option>
-              <option value="No longer available for domestic work">No longer available for domestic work</option>
-              <option value="Other">Other reason</option>
-            </select>
-
-            {deletionReason === 'Other' && (
-              <textarea
-                rows={2}
-                value={customReason}
-                onChange={(e) => setCustomReason(e.target.value)}
-                placeholder="Specify your reason..."
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 focus:outline-none focus:border-red-500"
-              />
-            )}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(false)}
-                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={onSubmitDeletionRequest}
-                className="py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-black shadow-md"
-              >
-                Confirm Offboarding Request
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
