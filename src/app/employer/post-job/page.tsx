@@ -167,17 +167,24 @@ export default function EmployerPostJobPage() {
         </p>
       </div>
 
-      {/* 🔒 EMPLOYER VERIFICATION REQUIRED BANNER */}
+      {/* 🔒 EMPLOYER VERIFICATION REQUIRED / INACTIVE FORM BANNER */}
       {!isEmployerVerified && (
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-3xl flex items-start gap-3 text-amber-900">
-          <ShieldAlert size={18} className="text-amber-600 shrink-0 mt-0.5" />
+        <div className="bg-amber-50 border-2 border-amber-300/80 p-5 rounded-3xl flex items-start gap-3.5 text-amber-900 shadow-sm animate-pulse">
+          <div className="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+            <Lock size={20} />
+          </div>
           <div className="space-y-1 flex-1">
-            <p className="text-xs font-black">{t('employerVerificationRequired') || "Employer ID Verification Required"}</p>
-            <p className="text-[11px] font-medium leading-relaxed">
-              {t('employerVerificationBannerText') || "You must upload your Aadhaar Card and a live selfie in Account Settings → Identity Verification before posting job requisitions."}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 bg-amber-200 text-amber-900 font-black rounded text-[9px] uppercase tracking-wider">
+                Form Inactive
+              </span>
+              <p className="text-xs font-black text-amber-950">{t('employerVerificationRequired') || "Job Posting Locked — Admin Profile Approval Pending"}</p>
+            </div>
+            <p className="text-[11.5px] font-semibold text-amber-900/90 leading-relaxed">
+              {t('employerVerificationBannerText') || "Your employer account is currently pending admin verification. Once the admin approves your profile from Tele-Onboarding, this job posting form will activate automatically."}
             </p>
-            <p className="text-[10.5px] text-amber-700 font-bold mt-1">
-              {t('employerVerificationFooterText') || "✦ Verification is free and takes less than 2 minutes. Admin approves within 24 hours."}
+            <p className="text-[10.5px] text-amber-800 font-extrabold mt-1 flex items-center gap-1">
+              <span>✦ Status:</span> <span className="bg-amber-100 px-2 py-0.5 rounded font-mono text-amber-900 uppercase text-[9.5px]">{employerProfile.status || 'pending_review'}</span> &bull; Unlocks upon admin approval
             </p>
           </div>
         </div>
@@ -232,7 +239,7 @@ export default function EmployerPostJobPage() {
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="space-y-6">
+      <form onSubmit={onSubmit} className={`space-y-6 ${!isEmployerVerified ? 'opacity-50 pointer-events-none select-none filter blur-[0.2px]' : ''}`}>
         
         {/* Step 1: Category Selection */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">

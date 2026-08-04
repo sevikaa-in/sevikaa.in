@@ -10,12 +10,13 @@ interface DocumentInspectorProps {
 
 const getPublicUrl = (bucketName: string, path: string) => {
   if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) {
-    return path;
+  const trimmed = path.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
   }
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  if (!supabaseUrl) return `/${path}`;
-  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${path}`;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lxfwvyugikydllqmsaow.supabase.co';
+  const cleanPath = trimmed.replace(new RegExp(`^${bucketName}\/`), '');
+  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${cleanPath}`;
 };
 
 export const DocumentInspector: React.FC<DocumentInspectorProps> = ({

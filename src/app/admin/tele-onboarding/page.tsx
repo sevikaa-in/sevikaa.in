@@ -7,8 +7,11 @@ import {
   PhoneCall, Users, ShieldCheck, Search, RefreshCw, MessageSquare, 
   ArrowRight, CheckCircle2, UserCheck, AlertTriangle, Building, MapPin, 
   FileText, ShieldAlert, Sparkles, X, Loader2, Save, Repeat, Home,
-  ChevronLeft, ChevronRight, Clock, Briefcase
+  ChevronLeft, ChevronRight, Clock, Briefcase, Calendar
 } from 'lucide-react';
+import { useAdminData, prefetchAdminData, invalidateAdminCache } from '@/hooks/useAdminData';
+import { formatWorkerShift, ALL_SHIFT_OPTIONS, normalizeShiftOption } from '@/utils/formatWorkerShift';
+import { resolveMediaUrl } from '@/utils/resolveMediaUrl';
 
 export default function TeleOnboardingPage() {
   const { showToast } = useAdminDashboard();
@@ -18,24 +21,56 @@ export default function TeleOnboardingPage() {
     setMounted(true);
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'workers' | 'employers'>('workers');
+  const [activeTab, setActiveTab] = useState<'workers' | 'employers' | 'interviews'>('workers');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [interviewSubFilter, setInterviewSubFilter] = useState<'all' | 'today' | 'tomorrow'>('all');
 
-  // PAGINATION STATES
+  // PAGINATION & SWR CACHING STATES
   const [page, setPage] = useState(1);
   const [limit] = useState(12);
   const [workersList, setWorkersList] = useState<any[]>([]);
   const [employersList, setEmployersList] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [interviewsList, setInterviewsList] = useState<any[]>([]);
+
+  // Current page cache key & Next page prefetch key
+  const currentKey = `tele_onboarding_p${page}_l${limit}`;
+  const nextKey = `tele_onboarding_p${page + 1}_l${limit}`;
+
+  const fetchLeadsForPage = async (p: number) => {
+    const res = await fetch(`/api/admin/data?tab=tele-onboarding&page=${p}&limit=${limit}`);
+    return await res.json();
+  };
+
+  const { data: pageData, loading, mutate: mutateCurrentPage } = useAdminData(
+    currentKey,
+    () => fetchLeadsForPage(page),
+    {
+      prefetchNextKey: nextKey,
+      prefetchNextFetcher: () => fetchLeadsForPage(page + 1)
+    }
+  );
+
+  useEffect(() => {
+    if (pageData && pageData.success) {
+      setWorkersList(pageData.workers || []);
+      setEmployersList(pageData.employers || []);
+      setInterviewsList(pageData.interviews || []);
+    }
+  }, [pageData]);
+
+  const fetchPaginatedLeads = async (targetPage = page) => {
+    invalidateAdminCache(`tele_onboarding_p${targetPage}`);
+    mutateCurrentPage();
+  };
 
   // Form states for editing lead inside Right Slide-Over Sheet
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editAge, setEditAge] = useState('');
-  const [editGender, setEditGender] = useState('Female');
+  const [editGender, setEditGender] = useState('');
   const [editSkills, setEditSkills] = useState<string[]>([]);
   const [editSalary, setEditSalary] = useState('');
   const [editExperience, setEditExperience] = useState('0');
@@ -43,6 +78,8 @@ export default function TeleOnboardingPage() {
   const [editBio, setEditBio] = useState('');
   const [editSociety, setEditSociety] = useState('');
   const [editSecondarySociety, setEditSecondarySociety] = useState('');
+  const [editSecondarySocieties, setEditSecondarySocieties] = useState<string[]>([]);
+  const [secondarySearchQuery, setSecondarySearchQuery] = useState('');
   const [editTower, setEditTower] = useState('');
   const [editFlat, setEditFlat] = useState('');
   const [editLanguages, setEditLanguages] = useState<string[]>(['Hindi']);
@@ -82,15 +119,36 @@ export default function TeleOnboardingPage() {
   const getCallStatus = (leadId: string) => callStatuses[leadId] || 'not_called';
   const getCallStatusMeta = (val: string) => CALL_STATUS_OPTIONS.find(o => o.value === val) || CALL_STATUS_OPTIONS[0];
 
-  const setCallStatus = (leadId: string, status: string) => {
+  const setCallStatus = async (leadId: string, status: string) => {
     const updated = { ...callStatuses, [leadId]: status };
     setCallStatuses(updated);
     localStorage.setItem('tele_call_statuses', JSON.stringify(updated));
+
+    try {
+      await fetch('/api/admin/interview/note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: leadId, status, note: callNotes[leadId] || '' })
+      });
+    } catch (e) {
+      console.warn("DB status save notice:", e);
+    }
   };
-  const saveCallNote = (leadId: string, note: string) => {
+
+  const saveCallNote = async (leadId: string, note: string) => {
     const updated = { ...callNotes, [leadId]: note };
     setCallNotes(updated);
     localStorage.setItem('tele_call_notes', JSON.stringify(updated));
+
+    try {
+      await fetch('/api/admin/interview/note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: leadId, note, status: callStatuses[leadId] || '' })
+      });
+    } catch (e) {
+      console.warn("DB note save notice:", e);
+    }
   };
 
   // Master Societies List for searchable scrollable assignment
@@ -114,26 +172,10 @@ export default function TeleOnboardingPage() {
     fetchSocietiesList();
   }, []);
 
-  // Fetch paginated leads directly
-  const fetchPaginatedLeads = async (targetPage = page, targetTab = activeTab) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/admin/data?tab=tele-onboarding&page=${targetPage}&limit=${limit}`);
-      const data = await res.json();
-      if (data.success) {
-        setWorkersList(data.workers || []);
-        setEmployersList(data.employers || []);
-      }
-    } catch (err) {
-      console.warn("Failed fetching paginated leads", err);
-    } finally {
-      setLoading(false);
-    }
+  const refreshLeads = async () => {
+    invalidateAdminCache(`tele_onboarding_p${page}`);
+    mutateCurrentPage();
   };
-
-  useEffect(() => {
-    fetchPaginatedLeads(page, activeTab);
-  }, [page, activeTab]);
 
   // Filter worker leads (Includes both incomplete & verified candidates)
   const workerLeads = workersList.filter(w => {
@@ -172,6 +214,15 @@ export default function TeleOnboardingPage() {
     return cleaned ? `+91 ${cleaned}` : 'N/A';
   };
 
+  const isWorkerLead = (lead: any) => {
+    if (!lead) return activeTab !== 'employers';
+    if (lead.role === 'worker') return true;
+    if (lead.role === 'employer') return false;
+    if (activeTab === 'workers') return true;
+    if (activeTab === 'employers') return false;
+    return !!(lead.skills || lead.expected_salary !== undefined || lead.experience_years !== undefined || lead.preferred_shift || !lead.company_name);
+  };
+
   // Open Right Slide-Over Sheet for a selected lead
   const handleOpenLeadSheet = (lead: any) => {
     setSelectedLead(lead);
@@ -181,19 +232,28 @@ export default function TeleOnboardingPage() {
     setEditPhone(lead.phone || '');
     setEditEmail(lead.email || '');
 
-    if (activeTab === 'workers') {
+    if (isWorkerLead(lead)) {
       const candidateRawName = lead.full_name || lead.profile_name || lead.name || '';
       const isFallbackName = !candidateRawName || candidateRawName.startsWith('Candidate ') || candidateRawName === 'Registered Candidate' || candidateRawName === 'Worker Candidate' || candidateRawName === 'Verified Worker';
       setEditName(isFallbackName ? '' : candidateRawName);
-      setEditAge(lead.age ? String(lead.age) : '20');
-      setEditGender(lead.gender || 'Female');
+      setEditAge(lead.age ? String(lead.age) : '');
+      const rawGen = lead.gender ? (lead.gender.charAt(0).toUpperCase() + lead.gender.slice(1).toLowerCase()) : '';
+      setEditGender(rawGen);
       setEditSkills(Array.isArray(lead.skills) ? lead.skills : []);
-      setEditSalary(lead.expected_salary ? String(lead.expected_salary) : '20000');
-      setEditExperience(lead.experience_years ? String(lead.experience_years) : '0');
-      setEditShiftSlot(lead.work_timing || lead.shift_slot || 'Full Day (8–12 Hours)');
+      setEditSalary(lead.expected_salary ? String(lead.expected_salary) : '');
+      setEditExperience(lead.experience_years !== null && lead.experience_years !== undefined ? String(lead.experience_years) : '0');
+      setEditShiftSlot(formatWorkerShift(lead.preferred_shift || lead.work_timing || lead.shift_slot, lead.availability_slots));
       setEditBio(lead.bio || '');
-      setEditSociety(lead.primary_gated_society || '');
-      setEditSecondarySociety(lead.secondary_gated_society || '');
+      const primarySocName = lead.primary_gated_society || lead.preferred_society_name || lead.society_name || lead.society || (Array.isArray(lead.preferred_areas) ? lead.preferred_areas[0] : '');
+      const secSocName = lead.secondary_gated_society || lead.secondary_society_name || (Array.isArray(lead.preferred_areas) && lead.preferred_areas.length > 1 ? lead.preferred_areas.slice(1).join(', ') : '');
+      setEditSociety(primarySocName || '');
+      setEditSecondarySociety(secSocName || '');
+      setSecondarySearchQuery('');
+
+      const parsedSecList = secSocName 
+        ? secSocName.split(',').map((s: string) => s.trim()).filter(Boolean) 
+        : (Array.isArray(lead.preferred_areas) && lead.preferred_areas.length > 1 ? lead.preferred_areas.slice(1) : []);
+      setEditSecondarySocieties(parsedSecList);
 
       const parsedLangs = Array.isArray(lead.languages_spoken) 
         ? lead.languages_spoken 
@@ -220,7 +280,7 @@ export default function TeleOnboardingPage() {
     if (!selectedLead) return;
     setSavingLead(true);
     try {
-      if (activeTab === 'workers') {
+      if (isWorkerLead(selectedLead)) {
         const res = await fetch('/api/admin/worker/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -233,10 +293,12 @@ export default function TeleOnboardingPage() {
             expected_salary: editSalary ? Number(editSalary) : null,
             experience_years: editExperience ? Number(editExperience) : 0,
             work_timing: editShiftSlot,
+            preferred_shift: editShiftSlot,
             bio: editBio,
             languages_spoken: editLanguages,
             primary_gated_society: editSociety,
-            secondary_gated_society: editSecondarySociety,
+            secondary_gated_society: editSecondarySocieties.join(', '),
+            preferred_areas: [editSociety, ...editSecondarySocieties].filter(Boolean),
             status: 'admin_interview'
           })
         });
@@ -267,7 +329,7 @@ export default function TeleOnboardingPage() {
         showToast("Employer details & uploaded verification documents saved successfully!", "success");
       }
       setIsSheetOpen(false);
-      fetchPaginatedLeads(page, activeTab);
+      refreshLeads();
     } catch (err: any) {
       showToast(err.message || 'Error saving lead', 'error');
     } finally {
@@ -276,10 +338,10 @@ export default function TeleOnboardingPage() {
   };
 
   // Switch Role (Worker <-> Employer)
-  const handleSwitchUserRole = async () => {
+  const handleSwitchRole = async () => {
     if (!selectedLead) return;
-    const targetRole = activeTab === 'workers' ? 'employer' : 'worker';
-    const confirmMsg = `Are you sure you want to switch ${selectedLead.name || selectedLead.phone} from ${activeTab === 'workers' ? 'Worker' : 'Employer'} to ${targetRole.toUpperCase()}?`;
+    const targetRole = isWorkerLead(selectedLead) ? 'employer' : 'worker';
+    const confirmMsg = `Are you sure you want to switch ${selectedLead.name || selectedLead.phone} from ${isWorkerLead(selectedLead) ? 'Worker' : 'Employer'} to ${targetRole.toUpperCase()}?`;
     if (!confirm(confirmMsg)) return;
 
     setSwitchingRole(true);
@@ -294,7 +356,7 @@ export default function TeleOnboardingPage() {
 
       showToast(`Successfully switched user to ${targetRole.toUpperCase()}!`, "success");
       setIsSheetOpen(false);
-      fetchPaginatedLeads(page, activeTab);
+      refreshLeads();
     } catch (err: any) {
       showToast(err.message || 'Error switching role', 'error');
     } finally {
@@ -351,14 +413,7 @@ export default function TeleOnboardingPage() {
   const masterServices = [
     { label: 'Cook / Chef', icon: '🍳' },
     { label: 'Housekeeping / Maid', icon: '🧹' },
-    { label: 'Childcare / Nanny', icon: '👶' },
-    { label: 'Elder Care', icon: '👵' },
-    { label: 'Family Driver', icon: '🚘' },
-    { label: 'Pet Care', icon: '🐶' },
-    { label: 'All Rounder / Multi-tasker', icon: '🛠️' },
-    { label: 'Laundry & Ironing', icon: '👕' },
-    { label: 'Gardener', icon: '🪴' },
-    { label: 'Security Guard', icon: '🛡️' },
+    { label: 'Childcare / Nanny', icon: '👶' }
   ];
 
   const masterLanguages = [
@@ -369,6 +424,90 @@ export default function TeleOnboardingPage() {
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl pb-16">
       
+      {/* 🌟 LIGHT & BRIGHT LIVE MOVING CAROUSEL TICKER BANNER (VERY TOP OF PAGE) */}
+      <div className="bg-gradient-to-r from-blue-50/90 via-white to-purple-50/90 p-4 rounded-3xl shadow-sm border-2 border-slate-200/90 overflow-hidden relative space-y-2.5">
+        {/* CSS Keyframes for Marquee */}
+        <style jsx>{`
+          @keyframes marqueeStrip {
+            0% { transform: translateX(0%); }
+            100% { transform: translateX(-50%); }
+          }
+          .animate-marquee-strip {
+            display: flex;
+            width: max-content;
+            animation: marqueeStrip 32s linear infinite;
+          }
+          .animate-marquee-strip:hover {
+            animation-play-state: paused;
+          }
+        `}</style>
+
+        <div className="flex items-center justify-between gap-3 relative z-10 px-1">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#34A853] animate-pulse shrink-0" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+              <Sparkles size={14} className="text-amber-500" />
+              <span>Live Tele-Interview Bridge Stream (Today &amp; Tomorrow Calls)</span>
+            </h3>
+          </div>
+          <span className="text-[10px] font-bold text-slate-600 bg-white/80 px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+            Hover to Pause ⏸️
+          </span>
+        </div>
+
+        {interviewsList.length === 0 ? (
+          <div className="py-3 px-4 bg-white/90 rounded-2xl border border-slate-200 text-center text-xs font-semibold text-slate-600 shadow-2xs">
+            ⚡ No scheduled tele-interviews yet. When household employers accept candidate applications and schedule interview times, they will stream here live in real-time.
+          </div>
+        ) : (
+          <div className="overflow-hidden relative w-full py-1">
+            <div className="animate-marquee-strip flex items-center gap-3">
+              {[...interviewsList, ...interviewsList].map((item, idx) => (
+                <div 
+                  key={`${item.id}_${idx}`}
+                  className="bg-white border-2 border-slate-200/90 hover:border-[#1A73E8] p-3 rounded-2xl shrink-0 flex items-center gap-3 min-w-[360px] text-xs transition-all shadow-xs"
+                >
+                  <div className="bg-blue-50 text-[#1A73E8] p-2 rounded-xl border border-blue-200/80 font-bold shrink-0 text-[10px] text-center min-w-[78px]">
+                    <Clock size={12} className="mx-auto mb-0.5 text-[#1A73E8]" />
+                    <span>{item.scheduled_time || 'Today 4:00 PM'}</span>
+                  </div>
+
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-slate-900 truncate max-w-[120px]">{item.worker_name}</span>
+                      <span className="text-[9px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded uppercase">{item.job_category || 'MAID'}</span>
+                    </div>
+                    <p className="text-[10.5px] font-mono text-slate-600 font-medium truncate">
+                      📱 {item.worker_phone}
+                    </p>
+                    <p className="text-[10.5px] text-slate-600 truncate font-medium">
+                      🏡 {item.employer_name} • {item.society_name}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <a
+                      href={`tel:${item.worker_phone}`}
+                      className="py-1 px-2.5 bg-[#34A853] hover:bg-emerald-600 text-white rounded-xl text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-95 whitespace-nowrap cursor-pointer"
+                      title="Dial Worker Candidate"
+                    >
+                      <PhoneCall size={10} /> Worker
+                    </a>
+                    <a
+                      href={`tel:${item.employer_phone}`}
+                      className="py-1 px-2.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-95 whitespace-nowrap cursor-pointer"
+                      title="Dial Household Employer"
+                    >
+                      <Building size={10} /> Employer
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* 👑 HEADER BANNER */}
       <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-2xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -382,7 +521,7 @@ export default function TeleOnboardingPage() {
             </p>
           </div>
           <button
-            onClick={() => fetchPaginatedLeads(page, activeTab)}
+            onClick={() => refreshLeads()}
             className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs transition-colors"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Leads
@@ -391,7 +530,7 @@ export default function TeleOnboardingPage() {
 
         {/* Category Switcher & Search Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => { setActiveTab('workers'); setPage(1); }}
               className={`py-2 px-4 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
@@ -414,6 +553,18 @@ export default function TeleOnboardingPage() {
             >
               <Building size={15} />
               <span>🏡 Household Employers ({employerLeads.length})</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('interviews'); setPage(1); }}
+              className={`py-2 px-4 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'interviews'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Calendar size={15} />
+              <span>📞 Scheduled Tele-Interviews ({interviewsList.length})</span>
             </button>
           </div>
 
@@ -450,8 +601,130 @@ export default function TeleOnboardingPage() {
         </div>
       </div>
 
-      {/* PAGINATED LEADS GRID */}
-      {loading ? (
+      {/* 📞 TAB CONTENT: SCHEDULED INTERVIEWS VIEW OR REGULAR LEADS GRID */}
+      {activeTab === 'interviews' ? (
+        <div className="space-y-4">
+          {/* Sub Filter Chips for Today vs Tomorrow */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200/90 shadow-2xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 mr-1">Filter Calls:</span>
+              <button
+                onClick={() => setInterviewSubFilter('all')}
+                className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  interviewSubFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >All Calls ({interviewsList.length})</button>
+
+              <button
+                onClick={() => setInterviewSubFilter('today')}
+                className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  interviewSubFilter === 'today' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >Today Only ({interviewsList.filter(i => i.date_group === 'today' || (i.scheduled_time && i.scheduled_time.toLowerCase().includes('today'))).length})</button>
+
+              <button
+                onClick={() => setInterviewSubFilter('tomorrow')}
+                className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  interviewSubFilter === 'tomorrow' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >Tomorrow Only ({interviewsList.filter(i => i.date_group === 'tomorrow' || (i.scheduled_time && i.scheduled_time.toLowerCase().includes('tomorrow'))).length})</button>
+            </div>
+            <span className="text-xs text-slate-400 font-medium">Auto-synchronized with Employer Job Requisitions</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {interviewsList
+              .filter(item => {
+                const matchesSearch = (item.worker_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                      (item.employer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                      (item.worker_phone || '').includes(searchTerm) ||
+                                      (item.employer_phone || '').includes(searchTerm) ||
+                                      (item.society_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+                const isToday = item.date_group === 'today' || (item.scheduled_time && item.scheduled_time.toLowerCase().includes('today'));
+                const isTomorrow = item.date_group === 'tomorrow' || (item.scheduled_time && item.scheduled_time.toLowerCase().includes('tomorrow'));
+                const matchesSub = interviewSubFilter === 'all' || (interviewSubFilter === 'today' && isToday) || (interviewSubFilter === 'tomorrow' && isTomorrow);
+                return matchesSearch && matchesSub;
+              })
+              .map((item) => {
+                const callMeta = getCallStatusMeta(getCallStatus(item.id));
+                const note = callNotes[item.id] || '';
+                return (
+                  <div 
+                    key={item.id}
+                    className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-4 hover:border-purple-300 transition-all relative"
+                  >
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-700 font-bold flex items-center justify-center border border-purple-200 shrink-0">
+                          <Calendar size={18} />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200 inline-block mb-0.5">
+                            {item.scheduled_time || 'Scheduled Call'}
+                          </span>
+                          <h4 className="text-sm font-bold text-slate-900">{item.job_title || 'Domestic Workforce Call'}</h4>
+                          <span className="text-[10px] text-slate-500 font-semibold">{item.job_category} • ₹{item.salary_offered}/mo</span>
+                        </div>
+                      </div>
+
+                      <select
+                        value={getCallStatus(item.id)}
+                        onChange={(e) => setCallStatus(item.id, e.target.value)}
+                        className={`text-xs font-bold py-1.5 px-3 rounded-xl border focus:outline-none cursor-pointer ${callMeta.color}`}
+                      >
+                        {CALL_STATUS_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Dual Cards: Worker side & Employer side */}
+                    <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/70">
+                      {/* Worker Box */}
+                      <div className="space-y-1 pr-2 border-r border-slate-200">
+                        <span className="text-[9.5px] font-extrabold uppercase text-slate-400 tracking-wider block">👷 Worker Candidate</span>
+                        <p className="text-xs font-bold text-slate-900 truncate">{item.worker_name}</p>
+                        <p className="text-xs font-mono font-bold text-emerald-700">{formatPhone(item.worker_phone)}</p>
+                        <a
+                          href={`tel:${item.worker_phone}`}
+                          className="mt-1.5 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10.5px] font-bold inline-flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+                        >
+                          <PhoneCall size={11} /> Dial Worker
+                        </a>
+                      </div>
+
+                      {/* Employer Box */}
+                      <div className="space-y-1 pl-1">
+                        <span className="text-[9.5px] font-extrabold uppercase text-slate-400 tracking-wider block">🏡 Household Employer</span>
+                        <p className="text-xs font-bold text-slate-900 truncate">{item.employer_name}</p>
+                        <p className="text-xs font-mono font-bold text-[#1A73E8]">{formatPhone(item.employer_phone)}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{item.society_name} ({item.address})</p>
+                        <a
+                          href={`tel:${item.employer_phone}`}
+                          className="mt-1.5 py-1.5 px-3 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-bold inline-flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+                        >
+                          <Building size={11} /> Dial Employer
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Telephonic Notes Field */}
+                    <div className="space-y-1 pt-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">Tele-Bridge Call Notes &amp; Outcome:</label>
+                      <input
+                        type="text"
+                        placeholder="Type tele-call result (e.g. Worker agreed to 4 PM call, employer confirmed salary)..."
+                        value={note}
+                        onChange={(e) => saveCallNote(item.id, e.target.value)}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-purple-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      ) : loading ? (
         <div className="p-12 bg-white rounded-3xl border border-slate-100 text-center space-y-3 shadow-2xs">
           <Loader2 size={32} className="text-[#1A73E8] animate-spin mx-auto" />
           <h4 className="text-sm font-bold text-slate-800">Fetching Paginated Leads...</h4>
@@ -580,11 +853,11 @@ export default function TeleOnboardingPage() {
                   <button
                     type="button"
                     disabled={switchingRole}
-                    onClick={handleSwitchUserRole}
-                    className="py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    onClick={handleSwitchRole}
+                    className="py-1.5 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 rounded-xl text-xs font-semibold border border-amber-300/60 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
-                    <Repeat size={13} className={switchingRole ? 'animate-spin' : ''} />
-                    <span>Switch Role to {activeTab === 'workers' ? 'Employer 🏡' : 'Worker 👷'}</span>
+                    <Repeat size={12} className={switchingRole ? 'animate-spin' : ''} />
+                    <span>Switch Role to {isWorkerLead(selectedLead) ? 'Employer 🏡' : 'Worker 👷'}</span>
                   </button>
 
               <button
@@ -652,7 +925,7 @@ export default function TeleOnboardingPage() {
               )}
 
               {/* FORM INPUTS & VERIFICATION VAULT */}
-              {activeTab === 'workers' ? (
+              {isWorkerLead(selectedLead) ? (
                 /* WORKER CANDIDATE PROFILE FORM MATCHING USER SCREENSHOTS */
                 <div className="space-y-5 text-xs font-medium text-slate-700">
                   
@@ -700,6 +973,7 @@ export default function TeleOnboardingPage() {
                         onChange={(e) => setEditGender(e.target.value)}
                         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#1A73E8]"
                       >
+                        <option value="">Select Gender</option>
                         <option value="Female">Female</option>
                         <option value="Male">Male</option>
                         <option value="Other">Other</option>
@@ -759,11 +1033,12 @@ export default function TeleOnboardingPage() {
                       onChange={(e) => setEditShiftSlot(e.target.value)}
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#1A73E8]"
                     >
-                      <option value="Full Day (8–12 Hours)">Full Day (8–12 Hours)</option>
-                      <option value="Part Time (2–4 Hours)">Part Time (2–4 Hours)</option>
-                      <option value="Live-In (24 Hours)">Live-In (24 Hours)</option>
-                      <option value="Morning Shift (6 AM – 12 PM)">Morning Shift (6 AM – 12 PM)</option>
-                      <option value="Evening Shift (4 PM – 9 PM)">Evening Shift (4 PM – 9 PM)</option>
+                      {ALL_SHIFT_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                      {!ALL_SHIFT_OPTIONS.includes(editShiftSlot) && (
+                        <option value={editShiftSlot}>{editShiftSlot}</option>
+                      )}
                     </select>
                   </div>
 
@@ -832,52 +1107,115 @@ export default function TeleOnboardingPage() {
                       )}
                     </div>
 
-                    {/* Secondary Society */}
-                    <div className="space-y-1 relative">
-                      <label className="text-[10px] text-slate-400 uppercase font-bold flex items-center justify-between">
-                        <span>Secondary Gated Society</span>
-                        {editSecondarySociety && <span className="text-[9px] text-[#1A73E8] font-bold">Assigned ✓</span>}
-                      </label>
+                    {/* Secondary Societies (Multi-Select Chips capped at Max 5) */}
+                    <div className="space-y-1.5 relative">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
+                          <span>Secondary Workplaces ({editSecondarySocieties.length}/5 Max)</span>
+                        </label>
+                        {editSecondarySocieties.length < 5 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const slotsAvailable = 5 - editSecondarySocieties.length;
+                              if (slotsAvailable <= 0) return;
+                              const remaining = allSocieties
+                                .map(s => s.name)
+                                .filter(name => name && name !== editSociety && !editSecondarySocieties.includes(name))
+                                .slice(0, slotsAvailable);
+                              if (remaining.length === 0) {
+                                showToast("All nearby partner societies are already assigned!", "info");
+                                return;
+                              }
+                              const updated = [...editSecondarySocieties, ...remaining];
+                              setEditSecondarySocieties(updated);
+                              showToast(`Added ${remaining.length} nearby societies (Max 5 total)!`, 'success');
+                            }}
+                            className="text-[9.5px] font-bold text-[#1A73E8] hover:underline cursor-pointer flex items-center gap-1 bg-blue-50/80 px-2 py-0.5 rounded-lg border border-blue-100"
+                          >
+                            <Sparkles size={11} />
+                            <span>+ Fill Up to 5 Societies</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Active Chips */}
+                      {editSecondarySocieties.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-50 border border-slate-200 rounded-xl">
+                          {editSecondarySocieties.map((secName) => (
+                            <span 
+                              key={secName}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10.5px] font-bold flex items-center gap-1.5 shadow-2xs"
+                            >
+                              <span>{secName}</span>
+                              <button
+                                type="button"
+                                onClick={() => setEditSecondarySocieties(editSecondarySocieties.filter(s => s !== secName))}
+                                className="hover:text-red-600 cursor-pointer font-extrabold text-slate-400 hover:scale-110 transition-transform"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
                       <input
                         type="text"
-                        value={editSecondarySociety}
+                        value={secondarySearchQuery}
                         onFocus={() => setShowSecondarySocietyMenu(true)}
                         onChange={(e) => {
-                          setEditSecondarySociety(e.target.value);
+                          setSecondarySearchQuery(e.target.value);
                           setShowSecondarySocietyMenu(true);
                         }}
-                        placeholder="Search secondary society..."
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#1A73E8]"
+                        placeholder={editSecondarySocieties.length >= 5 ? "Max 5 secondary societies reached" : "Search & click to add secondary society (Max 5)..."}
+                        disabled={editSecondarySocieties.length >= 5}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#1A73E8] disabled:opacity-60"
                       />
 
-                      {showSecondarySocietyMenu && (
+                      {showSecondarySocietyMenu && editSecondarySocieties.length < 5 && (
                         <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-scale-up">
                           <div className="p-2 border-b border-slate-100 flex items-center justify-between bg-slate-50 text-[10px] font-bold text-slate-500">
-                            <span>Secondary Society ({allSocieties.length} Total)</span>
+                            <span>Click to Add Secondary Society (Max 5 Total)</span>
                             <button type="button" onClick={() => setShowSecondarySocietyMenu(false)} className="text-slate-400 hover:text-slate-700">✕ Close</button>
                           </div>
 
                           <div className="max-h-48 overflow-y-auto divide-y divide-slate-50 text-xs">
                             {allSocieties
-                              .filter(s => (s.name || '').toLowerCase().includes(editSecondarySociety.toLowerCase()) || (s.locality || '').toLowerCase().includes(editSecondarySociety.toLowerCase()))
+                              .filter(s => (s.name || '').toLowerCase() !== (editSociety || '').toLowerCase() && (s.name || '').toLowerCase().includes(secondarySearchQuery.toLowerCase()))
                               .slice(0, 50)
-                              .map((soc, idx) => (
-                                <button
-                                  key={soc.id || idx}
-                                  type="button"
-                                  onClick={() => {
-                                    setEditSecondarySociety(soc.name);
-                                    setShowSecondarySocietyMenu(false);
-                                  }}
-                                  className="w-full p-2.5 text-left hover:bg-blue-50 transition-colors flex items-center justify-between group cursor-pointer"
-                                >
-                                  <div>
-                                    <span className="font-bold text-slate-800 group-hover:text-[#1A73E8] block">{soc.name}</span>
-                                    <span className="text-[10px] text-slate-400">{soc.locality || soc.city || 'Gated Society'}</span>
-                                  </div>
-                                  <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1A73E8]">Assign ➔</span>
-                                </button>
-                              ))}
+                              .map((soc, idx) => {
+                                const isAssigned = editSecondarySocieties.includes(soc.name);
+                                return (
+                                  <button
+                                    key={soc.id || idx}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isAssigned) {
+                                        setEditSecondarySocieties(editSecondarySocieties.filter(s => s !== soc.name));
+                                      } else {
+                                        if (editSecondarySocieties.length >= 5) {
+                                          showToast('Maximum 5 secondary workplace societies allowed to prevent job notification fatigue.', 'info');
+                                          return;
+                                        }
+                                        setEditSecondarySocieties([...editSecondarySocieties, soc.name]);
+                                      }
+                                      setShowSecondarySocietyMenu(false);
+                                    }}
+                                    className={`w-full p-2.5 text-left transition-colors flex items-center justify-between group cursor-pointer ${
+                                      isAssigned ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-blue-50 text-slate-800'
+                                    }`}
+                                  >
+                                    <div>
+                                      <span className="font-bold block">{soc.name}</span>
+                                      <span className="text-[10px] text-slate-400">{soc.locality || soc.city || 'Gated Society'}</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold">
+                                      {isAssigned ? 'Added ✓' : '+ Add ➔'}
+                                    </span>
+                                  </button>
+                                );
+                              })}
                           </div>
                         </div>
                       )}
@@ -958,10 +1296,10 @@ export default function TeleOnboardingPage() {
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Selfie Photo</span>
                         {selectedLead.profile_picture_url ? (
                           <div 
-                            onClick={() => setPreviewMedia({ url: selectedLead.profile_picture_url, title: `${editName || 'Candidate'} - Selfie Photo`, type: 'image' })}
+                            onClick={() => setPreviewMedia({ url: resolveMediaUrl('worker-selfies', selectedLead.profile_picture_url), title: `${editName || 'Candidate'} - Selfie Photo`, type: 'image' })}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            <img src={selectedLead.profile_picture_url} alt="Selfie" className="w-full h-full object-cover" />
+                            <img src={resolveMediaUrl('worker-selfies', selectedLead.profile_picture_url)} alt="Selfie" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>
@@ -978,10 +1316,10 @@ export default function TeleOnboardingPage() {
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Aadhaar Front</span>
                         {selectedLead.aadhaar_front_url ? (
                           <div 
-                            onClick={() => setPreviewMedia({ url: selectedLead.aadhaar_front_url, title: `${editName || 'Candidate'} - Aadhaar Front Card`, type: 'image' })}
+                            onClick={() => setPreviewMedia({ url: resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url), title: `${editName || 'Candidate'} - Aadhaar Front Card`, type: 'image' })}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            <img src={selectedLead.aadhaar_front_url} alt="Aadhaar Front" className="w-full h-full object-cover" />
+                            <img src={resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url)} alt="Aadhaar Front" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>
@@ -998,10 +1336,10 @@ export default function TeleOnboardingPage() {
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Aadhaar Back</span>
                         {selectedLead.aadhaar_back_url ? (
                           <div 
-                            onClick={() => setPreviewMedia({ url: selectedLead.aadhaar_back_url, title: `${editName || 'Candidate'} - Aadhaar Back Card`, type: 'image' })}
+                            onClick={() => setPreviewMedia({ url: resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url), title: `${editName || 'Candidate'} - Aadhaar Back Card`, type: 'image' })}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            <img src={selectedLead.aadhaar_back_url} alt="Aadhaar Back" className="w-full h-full object-cover" />
+                            <img src={resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url)} alt="Aadhaar Back" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>
@@ -1018,7 +1356,7 @@ export default function TeleOnboardingPage() {
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">15s Intro Video</span>
                         {selectedLead.video_url ? (
                           <div 
-                            onClick={() => setPreviewMedia({ url: selectedLead.video_url, title: `${editName || 'Candidate'} - 15s Intro Video`, type: 'video' })}
+                            onClick={() => setPreviewMedia({ url: resolveMediaUrl('worker-videos', selectedLead.video_url), title: `${editName || 'Candidate'} - 15s Intro Video`, type: 'video' })}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex flex-col items-center justify-center text-white space-y-1 shadow-2xs"
                           >
                             <span className="w-8 h-8 rounded-full bg-[#1A73E8] flex items-center justify-center font-bold text-xs shadow-md">▶</span>
@@ -1043,22 +1381,22 @@ export default function TeleOnboardingPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                       <label className="p-2 bg-white border border-slate-200 hover:bg-emerald-50 text-emerald-800 rounded-xl text-[9.5px] font-bold text-center cursor-pointer shadow-2xs">
                         <span>{uploadingAsset === 'profile_picture_url' ? 'Uploading...' : '+ Selfie'}</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && handleAdminDirectUpload('profile_picture_url', e.target.files[0])} />
+                        <input type="file" accept="image/*,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleAdminDirectUpload('profile_picture_url', f); }} />
                       </label>
 
                       <label className="p-2 bg-white border border-slate-200 hover:bg-emerald-50 text-emerald-800 rounded-xl text-[9.5px] font-bold text-center cursor-pointer shadow-2xs">
                         <span>{uploadingAsset === 'aadhaar_front_url' ? 'Uploading...' : '+ Aadhaar Front'}</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && handleAdminDirectUpload('aadhaar_front_url', e.target.files[0])} />
+                        <input type="file" accept="image/*,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleAdminDirectUpload('aadhaar_front_url', f); }} />
                       </label>
 
                       <label className="p-2 bg-white border border-slate-200 hover:bg-emerald-50 text-emerald-800 rounded-xl text-[9.5px] font-bold text-center cursor-pointer shadow-2xs">
                         <span>{uploadingAsset === 'aadhaar_back_url' ? 'Uploading...' : '+ Aadhaar Back'}</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && handleAdminDirectUpload('aadhaar_back_url', e.target.files[0])} />
+                        <input type="file" accept="image/*,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleAdminDirectUpload('aadhaar_back_url', f); }} />
                       </label>
 
                       <label className="p-2 bg-white border border-slate-200 hover:bg-blue-50 text-[#1A73E8] rounded-xl text-[9.5px] font-bold text-center cursor-pointer shadow-2xs">
                         <span>{uploadingAsset === 'video_url' ? 'Uploading...' : '🎥 + Intro Video'}</span>
-                        <input type="file" accept="video/*" className="hidden" onChange={(e) => e.target.files && handleAdminDirectUpload('video_url', e.target.files[0])} />
+                        <input type="file" accept="video/*,.mp4,.webm,.mov" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleAdminDirectUpload('video_url', f); }} />
                       </label>
                     </div>
                   </div>
@@ -1340,22 +1678,22 @@ export default function TeleOnboardingPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                       <label className="p-2 bg-white border border-slate-200 hover:bg-emerald-50 text-emerald-800 rounded-xl text-[9.5px] font-bold text-center cursor-pointer shadow-2xs">
                         <span>{uploadingAsset === 'profile_picture_url' ? 'Uploading...' : '+ Selfie'}</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && handleAdminDirectUpload('profile_picture_url', e.target.files[0])} />
+                        <input type="file" accept="image/*,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleAdminDirectUpload('profile_picture_url', f); }} />
                       </label>
 
                       <label className="p-2 bg-white border border-slate-200 hover:bg-emerald-50 text-emerald-800 rounded-xl text-[9.5px] font-bold text-center cursor-pointer shadow-2xs">
                         <span>{uploadingAsset === 'aadhaar_front_url' ? 'Uploading...' : '+ Aadhaar Front'}</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && handleAdminDirectUpload('aadhaar_front_url', e.target.files[0])} />
+                        <input type="file" accept="image/*,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleAdminDirectUpload('aadhaar_front_url', f); }} />
                       </label>
 
                       <label className="p-2 bg-white border border-slate-200 hover:bg-emerald-50 text-emerald-800 rounded-xl text-[9.5px] font-bold text-center cursor-pointer shadow-2xs">
                         <span>{uploadingAsset === 'aadhaar_back_url' ? 'Uploading...' : '+ Aadhaar Back'}</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && handleAdminDirectUpload('aadhaar_back_url', e.target.files[0])} />
+                        <input type="file" accept="image/*,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleAdminDirectUpload('aadhaar_back_url', f); }} />
                       </label>
 
                       <label className="p-2 bg-white border border-slate-200 hover:bg-emerald-50 text-emerald-800 rounded-xl text-[9.5px] font-bold text-center cursor-pointer shadow-2xs">
                         <span>{uploadingAsset === 'residency_proof_url' ? 'Uploading...' : '🏡 + Residency Proof'}</span>
-                        <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => e.target.files && handleAdminDirectUpload('residency_proof_url', e.target.files[0])} />
+                        <input type="file" accept="image/*,.pdf,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleAdminDirectUpload('residency_proof_url', f); }} />
                       </label>
                     </div>
                   </div>
@@ -1398,10 +1736,10 @@ export default function TeleOnboardingPage() {
         document.body
       )}
 
-      {/* MEDIA PREVIEW LIGHTBOX MODAL */}
-      {previewMedia && (
-        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-[110] flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl p-5 max-w-2xl w-full shadow-2xl space-y-3 border border-slate-100 animate-scale-up">
+      {/* MEDIA PREVIEW LIGHTBOX MODAL (PORTALED AT TOP Z-INDEX ABOVE ALL OPEN MODALS) */}
+      {previewMedia && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[99999] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-5 max-w-3xl w-full shadow-2xl space-y-3 border border-slate-100 animate-scale-up relative z-[99999]">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-bold text-slate-900">{previewMedia.title}</h3>
               <button 
@@ -1412,19 +1750,19 @@ export default function TeleOnboardingPage() {
               </button>
             </div>
 
-            <div className="bg-slate-900 rounded-2xl p-2 flex items-center justify-center min-h-[300px] max-h-[70vh] overflow-hidden">
+            <div className="bg-slate-900 rounded-2xl p-2 flex items-center justify-center min-h-[350px] max-h-[75vh] overflow-hidden">
               {previewMedia.type === 'video' ? (
                 <video 
                   src={previewMedia.url} 
                   controls 
                   autoPlay 
-                  className="max-h-[65vh] w-auto rounded-xl object-contain" 
+                  className="max-h-[70vh] w-auto rounded-xl object-contain" 
                 />
               ) : (
                 <img 
                   src={previewMedia.url} 
                   alt={previewMedia.title} 
-                  className="max-h-[65vh] w-auto rounded-xl object-contain" 
+                  className="max-h-[70vh] w-auto rounded-xl object-contain" 
                 />
               )}
             </div>
@@ -1432,13 +1770,14 @@ export default function TeleOnboardingPage() {
             <div className="flex justify-end">
               <button
                 onClick={() => setPreviewMedia(null)}
-                className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="py-2.5 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
               >
                 Close Preview
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

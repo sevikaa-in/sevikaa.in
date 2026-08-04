@@ -6,7 +6,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { supabase } from '@/lib/supabaseClient';
 import { 
   MapPin, Search, Building2, CheckCircle2, ShieldCheck, Plus, 
-  Sparkles, Briefcase, Users, Star, Compass, Send, X, Check, ArrowRight, ShieldAlert
+  Sparkles, Briefcase, Users, Star, Compass, Send, X, Check, ArrowRight, ShieldAlert, Home, Clock
 } from 'lucide-react';
 
 // Haversine formula to compute exact distance in km between two GPS coordinates
@@ -43,12 +43,8 @@ export default function WorkerSocietiesPage() {
   const [isLocating, setIsLocating] = useState(false);
 
   // Dynamic primary and secondary workplace selection
-  const [primarySocietyId, setPrimarySocietyId] = useState<string>(
-    workerProfile.society_id || societiesList[0]?.id || 'soc_1'
-  );
-  const [secondarySocietyIds, setSecondarySocietyIds] = useState<string[]>(
-    societiesList[1]?.id ? [societiesList[1].id] : []
-  );
+  const [primarySocietyId, setPrimarySocietyId] = useState<string>('');
+  const [secondarySocietyIds, setSecondarySocietyIds] = useState<string[]>([]);
 
   // Request Unlisted Society Modal
   const [showRequestModal, setShowRequestModal] = useState(false);
@@ -56,7 +52,6 @@ export default function WorkerSocietiesPage() {
   const [newSocietyLocality, setNewSocietyLocality] = useState('');
   const [newSocietyTower, setNewSocietyTower] = useState('');
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-
   // Request browser GPS coordinates
   const handleRequestLiveLocation = () => {
     if (!navigator.geolocation) {
@@ -79,81 +74,78 @@ export default function WorkerSocietiesPage() {
     );
   };
 
-  // Build 100% dynamic societies list with real live job metrics & database fields
+  // Build 100% dynamic societies list with real database fields & live job metrics
   const allSocieties = useMemo(() => {
     if (!societiesList || societiesList.length === 0) {
-      return [
-        {
-          id: 'soc_dlf',
-          name: 'DLF Westend Heights',
-          locality: 'Akshayanagar, DLF City Phase 5, Bengaluru',
-          distance: '0.3 km away',
-          activeJobsCount: availableJobs?.filter((j: any) => j.society_name?.includes('DLF')).length || 4,
-          activeWorkersCount: 52,
-          securityType: 'Physical Gate Security',
-          totalFlats: 850
-        },
-        {
-          id: 'soc_prestige',
-          name: 'Prestige Song of the South',
-          locality: 'Begur Main Road, Akshayanagar, Bengaluru',
-          distance: '0.8 km away',
-          activeJobsCount: availableJobs?.filter((j: any) => j.society_name?.includes('Prestige')).length || 3,
-          activeWorkersCount: 38,
-          securityType: 'Physical Gate Security',
-          totalFlats: 1200
-        },
-        {
-          id: 'soc_snn',
-          name: 'SNN Raj Serenity',
-          locality: 'Yelenahalli Main Rd, Begur, Bengaluru',
-          distance: '1.2 km away',
-          activeJobsCount: availableJobs?.filter((j: any) => j.society_name?.includes('SNN')).length || 2,
-          activeWorkersCount: 29,
-          securityType: 'Physical Gate Security',
-          totalFlats: 650
-        }
-      ];
+      return [];
     }
 
-    return societiesList.map((soc: any, idx: number) => {
-      // Calculate live active jobs dynamically from availableJobs state
-      const liveCount = availableJobs?.filter((job: any) => 
+    return societiesList.map((soc: any) => {
+      const liveJobs = Number(soc.active_jobs_count) || (availableJobs?.filter((job: any) => 
         job.society_id === soc.id || 
-        (job.society_name && soc.name && job.society_name.toLowerCase().includes(soc.name.toLowerCase()))
-      ).length || (idx === 0 ? 5 : idx === 1 ? 3 : 0);
+        (job.society_name && soc.name && (
+          job.society_name.toLowerCase().includes(soc.name.toLowerCase()) ||
+          soc.name.toLowerCase().includes(job.society_name.toLowerCase())
+        )) ||
+        (job.description && soc.name && job.description.toLowerCase().includes(soc.name.toLowerCase()))
+      ).length) || 0;
 
-      const formattedLocality = [soc.area, soc.city, soc.pincode].filter(Boolean).join(', ') || soc.locality || 'Bengaluru, Karnataka';
-      
-      // Determine Geo-Coordinates for society (from DB or Geo-Map fallback)
-      const socGeo = (soc.latitude && soc.longitude) 
-        ? { lat: Number(soc.latitude), lng: Number(soc.longitude) } 
-        : SOCIETY_GEO_MAP[soc.name] || { lat: 12.8720 + idx * 0.005, lng: 77.6105 + idx * 0.004 };
-
-      let calculatedDistKm: number | null = null;
-      if (userGeoLocation) {
-        calculatedDistKm = calculateHaversineKm(userGeoLocation.lat, userGeoLocation.lng, socGeo.lat, socGeo.lng);
-      } else {
-        const baseGeo = SOCIETY_GEO_MAP['DLF Westend Heights'];
-        calculatedDistKm = calculateHaversineKm(baseGeo.lat, baseGeo.lng, socGeo.lat, socGeo.lng);
-      }
-
-      const distanceStr = userGeoLocation 
-        ? `📍 ${calculatedDistKm} km (GPS)` 
-        : `${calculatedDistKm} km away`;
+      const formattedLocality = [soc.area, soc.city, soc.pincode].filter(Boolean).join(', ') || soc.locality || 'Bengaluru';
+      const distanceStr = soc.distance ? `${soc.distance} away` : 'Near you';
 
       return {
         id: soc.id,
         name: soc.name,
         locality: formattedLocality,
         distance: distanceStr,
-        activeJobsCount: liveCount,
-        activeWorkersCount: soc.workers_count || (30 + idx * 8),
+        activeJobsCount: liveJobs,
+        employersCount: Number(soc.employers_count) || Number(soc.employersCount) || 0,
+        activeWorkersCount: Number(soc.workers_count) || 0,
         securityType: soc.gate_security || 'Physical Gate Security',
-        totalFlats: soc.total_flats || (500 + idx * 200)
+        totalFlats: Number(soc.total_flats) || 0
       };
     });
-  }, [societiesList, availableJobs, userGeoLocation]);
+  }, [societiesList, availableJobs]);
+
+  // Sync primary & secondary societies dynamically when workerProfile or allSocieties changes
+  React.useEffect(() => {
+    if (!allSocieties || allSocieties.length === 0) return;
+
+    // Match primary society by ID or Name
+    const pMatch = allSocieties.find(s => 
+      (workerProfile.society_id && s.id === workerProfile.society_id) ||
+      (workerProfile.society && (
+        s.name.toLowerCase().trim() === workerProfile.society.toLowerCase().trim() ||
+        s.name.toLowerCase().includes(workerProfile.society.toLowerCase().trim()) ||
+        workerProfile.society.toLowerCase().includes(s.name.toLowerCase().trim())
+      ))
+    );
+    
+    if (pMatch) {
+      setPrimarySocietyId(pMatch.id);
+    } else {
+      setPrimarySocietyId('');
+    }
+
+    // Match secondary societies from workerProfile
+    const rawSec = workerProfile.secondary_societies || workerProfile.secondary_gated_society || (Array.isArray(workerProfile.preferred_areas) && workerProfile.preferred_areas.length > 1 ? workerProfile.preferred_areas.slice(1) : []);
+    const secList = Array.isArray(rawSec) ? rawSec : (typeof rawSec === 'string' ? rawSec.split(',').map((s: string) => s.trim()) : []);
+    
+    if (secList.length > 0) {
+      const sMatches = allSocieties
+        .filter(s => s.id !== pMatch?.id && secList.some((secName: string) => 
+          typeof secName === 'string' && secName.trim() !== '' && (
+            secName.toLowerCase().includes(s.name.toLowerCase()) || 
+            s.name.toLowerCase().includes(secName.toLowerCase())
+          )
+        ))
+        .map(s => s.id);
+      
+      setSecondarySocietyIds(sMatches);
+    } else {
+      setSecondarySocietyIds([]);
+    }
+  }, [workerProfile, allSocieties]);
 
   // Dynamic High Hiring Threshold (Top 25% percentile of societies by active jobs, min 3)
   const highHiringThreshold = useMemo(() => {
@@ -185,7 +177,8 @@ export default function WorkerSocietiesPage() {
 
   const handleSetPrimary = async (society: any) => {
     setPrimarySocietyId(society.id);
-    setSecondarySocietyIds(prev => prev.filter(id => id !== society.id));
+    const newSecondary = secondarySocietyIds.filter(id => id !== society.id);
+    setSecondarySocietyIds(newSecondary);
     
     setWorkerProfile((prev: any) => ({
       ...prev,
@@ -193,22 +186,36 @@ export default function WorkerSocietiesPage() {
       society_id: society.id
     }));
 
-    // Update real Supabase database if logged in
+    // Save directly to PostgreSQL database
     try {
-      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!isPlaceholder) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.id) {
-          await supabase
-            .from('worker_profiles')
-            .update({
-              preferred_society_id: society.id,
-              preferred_society_name: society.name
-            })
-            .eq('id', session.user.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      let activeUserId = session?.user?.id || workerProfile.user_id || workerProfile.id || workerProfile.phone;
+      
+      if (!activeUserId && typeof window !== 'undefined') {
+        const storedUser = localStorage.getItem('sevikaa_user');
+        if (storedUser) {
+          try {
+            const u = JSON.parse(storedUser);
+            activeUserId = u.id || u.user_id || u.phone;
+          } catch (e) {}
         }
       }
+      activeUserId = activeUserId || 'w_user';
+
+      const secSocietyNames = newSecondary.map(id => allSocieties.find(s => s.id === id)?.name).filter(Boolean);
+      await fetch('/api/worker/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: activeUserId,
+          full_name: workerProfile.full_name || workerProfile.name || undefined,
+          primary_gated_society: society.name,
+          primary_society_name: society.name,
+          primary_society_id: society.id,
+          secondary_gated_society: secSocietyNames.join(', '),
+          preferred_areas: [society.name, ...secSocietyNames]
+        })
+      });
     } catch (err) {
       console.error("Database update error:", err);
     }
@@ -216,22 +223,93 @@ export default function WorkerSocietiesPage() {
     showToast(`Primary workplace updated to ${society.name}!`, 'success');
   };
 
-  const handleToggleSecondary = (society: any) => {
+  const handleToggleSecondary = async (society: any) => {
     if (society.id === primarySocietyId) {
       showToast(`${society.name} is already your Primary workplace!`, 'info');
       return;
     }
 
+    let updatedSecIds: string[];
     if (secondarySocietyIds.includes(society.id)) {
-      setSecondarySocietyIds(prev => prev.filter(id => id !== society.id));
+      updatedSecIds = secondarySocietyIds.filter(id => id !== society.id);
+      setSecondarySocietyIds(updatedSecIds);
       showToast(`Removed ${society.name} from secondary workplaces.`, 'info');
     } else {
-      if (secondarySocietyIds.length >= 3) {
-        showToast('You can select up to 3 secondary workplace societies.', 'warning');
+      if (secondarySocietyIds.length >= 5) {
+        showToast('You can select up to 5 secondary workplace societies.', 'warning');
         return;
       }
-      setSecondarySocietyIds(prev => [...prev, society.id]);
+      updatedSecIds = [...secondarySocietyIds, society.id];
+      setSecondarySocietyIds(updatedSecIds);
       showToast(`Added ${society.name} to secondary workplaces!`, 'success');
+    }
+
+    const secSocietyNames = updatedSecIds
+      .map(id => allSocieties.find(s => s.id === id)?.name || (id !== society.id ? id : null))
+      .filter(Boolean) as string[];
+
+    setWorkerProfile((prev: any) => ({
+      ...prev,
+      secondary_societies: secSocietyNames
+    }));
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      let activeUserId = session?.user?.id || workerProfile.user_id || workerProfile.id || workerProfile.phone;
+      
+      if (!activeUserId && typeof window !== 'undefined') {
+        const storedUser = localStorage.getItem('sevikaa_user');
+        if (storedUser) {
+          try {
+            const u = JSON.parse(storedUser);
+            activeUserId = u.id || u.user_id || u.phone;
+          } catch (e) {}
+        }
+      }
+      activeUserId = activeUserId || 'w_user';
+
+      const primarySocObj = allSocieties.find(s => s.id === primarySocietyId);
+      const primaryName = primarySocObj?.name || workerProfile.society || '';
+      await fetch('/api/worker/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: activeUserId,
+          full_name: workerProfile.full_name || workerProfile.name || undefined,
+          primary_gated_society: primaryName,
+          primary_society_name: primaryName,
+          primary_society_id: primarySocietyId || primarySocObj?.id,
+          secondary_gated_society: secSocietyNames.join(', '),
+          preferred_areas: [primaryName, ...secSocietyNames]
+        })
+      });
+    } catch (err) {
+      console.error("Database secondary society update error:", err);
+    }
+  };
+
+  const handleSelectShift = async (shiftLabel: string) => {
+    setWorkerProfile((prev: any) => ({
+      ...prev,
+      preferred_shift: shiftLabel,
+      preferredShift: shiftLabel
+    }));
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const activeUserId = session?.user?.id || workerProfile.user_id || workerProfile.id || workerProfile.phone || 'w_user';
+      await fetch('/api/worker/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: activeUserId,
+          preferred_shift: shiftLabel,
+          preferredShift: shiftLabel
+        })
+      });
+      showToast(`Preferred shift slot saved: ${shiftLabel}!`, 'success');
+    } catch (err) {
+      console.error("Error saving shift slot:", err);
     }
   };
 
@@ -266,8 +344,8 @@ export default function WorkerSocietiesPage() {
     }
   };
 
-  const primarySocietyObj = allSocieties.find(s => s.id === primarySocietyId) || allSocieties[0];
-  const totalSelectedCount = 1 + secondarySocietyIds.length;
+  const primarySocietyObj = allSocieties.find(s => s.id === primarySocietyId);
+  const totalSelectedCount = (primarySocietyId ? 1 : 0) + secondarySocietyIds.length;
 
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl pb-20">
@@ -275,16 +353,16 @@ export default function WorkerSocietiesPage() {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <span className="bg-blue-50 text-[#1A73E8] text-[9.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200/60 inline-flex items-center gap-1">
+          <span className="bg-blue-50 text-[#1A73E8] text-[9.5px] font-semibold uppercase px-2.5 py-0.5 rounded-full border border-blue-200/60 inline-flex items-center gap-1">
             <Compass size={11} />
             {t('workerSocietiesEyebrow') || "Workplace Proximity Network"}
           </span>
         </div>
-        <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+        <h2 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
           <MapPin size={18} className="text-[#1A73E8]" />
           <span>{t('preferredSocietiesTitle') || "Preferred Working Societies"}</span>
         </h2>
-        <p className="text-xs text-slate-500 font-semibold mt-0.5 leading-relaxed">
+        <p className="text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
           {t('preferredSocietiesSub') || "Select gated communities near you to receive instant job alerts and priority matching from resident employers."}
         </p>
       </div>
@@ -297,29 +375,30 @@ export default function WorkerSocietiesPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 whitespace-nowrap">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${primarySocietyObj ? 'bg-emerald-400 animate-pulse' : 'bg-amber-300'}`} />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-100 whitespace-nowrap">
                 {t('activeCoverageBadge') || "Active Workplace Coverage"}
               </span>
             </div>
-            <h3 className="text-sm font-black text-white leading-snug flex items-center gap-2 flex-wrap">
-              <span>{primarySocietyObj.name}</span>
-              <span className="bg-white/20 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-white/30 shrink-0">
-                {t('primaryBadge') || "Primary"}
-              </span>
+            <h3 className="text-sm font-bold text-white leading-snug flex items-center gap-2 flex-wrap">
+              <span>{primarySocietyObj ? primarySocietyObj.name : 'No Primary Workplace Selected'}</span>
+              {primarySocietyObj && (
+                <span className="bg-white/20 text-white text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full border border-white/30 shrink-0">
+                  {t('primaryBadge') || "Primary"}
+                </span>
+              )}
             </h3>
           </div>
 
-          {/* Compact Stat Pills Bar */}
-          <div className="bg-white/15 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/20 shrink-0 flex items-center justify-between gap-3 text-center shadow-xs">
-            <div className="flex items-center gap-1.5 whitespace-nowrap">
-              <span className="text-[9.5px] text-blue-100 font-bold uppercase">{t('statSelectedCount') || "Selected"}:</span>
-              <span className="text-xs font-black text-emerald-300">{totalSelectedCount}</span>
+          <div className="flex items-center gap-2 shrink-0 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/20">
+            <div className="text-center px-1">
+              <span className="text-[9px] font-semibold uppercase tracking-wider text-blue-100 block">SELECTED</span>
+              <span className="text-xs font-bold text-white">{totalSelectedCount}</span>
             </div>
-            <div className="w-px h-3.5 bg-white/25" />
-            <div className="flex items-center gap-1.5 whitespace-nowrap">
-              <span className="text-[9.5px] text-blue-100 font-bold uppercase">{t('statLiveJobs') || "Live Jobs"}:</span>
-              <span className="text-xs font-black text-amber-300">{primarySocietyObj.activeJobsCount}</span>
+            <div className="h-6 w-px bg-white/20" />
+            <div className="text-center px-1">
+              <span className="text-[9px] font-semibold uppercase tracking-wider text-blue-100 block">LIVE JOBS</span>
+              <span className="text-xs font-bold text-white">{primarySocietyObj ? primarySocietyObj.activeJobsCount : 0}</span>
             </div>
           </div>
         </div>
@@ -335,7 +414,7 @@ export default function WorkerSocietiesPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t('searchSocietyPlaceholder') || "Search society name, locality, or landmark..."}
-            className="w-full p-2.5 pl-10 pr-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8] shadow-xs"
+            className="w-full p-2.5 pl-10 pr-4 bg-white border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 focus:outline-none focus:border-[#1A73E8] shadow-xs"
           />
           {searchQuery && (
             <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600">
@@ -349,7 +428,7 @@ export default function WorkerSocietiesPage() {
           type="button"
           onClick={handleRequestLiveLocation}
           disabled={isLocating}
-          className={`w-full py-2.5 px-3.5 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs border ${
+          className={`w-full py-2.5 px-3.5 rounded-2xl text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs border ${
             userGeoLocation 
               ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
               : 'bg-[#1A73E8]/10 text-[#1A73E8] hover:bg-[#1A73E8]/15 border-blue-200/60'
@@ -360,12 +439,12 @@ export default function WorkerSocietiesPage() {
         </button>
 
         {/* Smooth Touch-Scrollable Filter Tabs */}
-        <div className="bg-slate-100 p-1.5 rounded-2xl text-xs font-bold text-slate-600 flex items-center gap-1.5 border border-slate-200/60 shadow-xs overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="bg-slate-100 p-1.5 rounded-2xl text-xs font-semibold text-slate-600 flex items-center gap-1.5 border border-slate-200/60 shadow-xs overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <button
             onClick={() => setActiveTab('all')}
             className={`py-2 px-3.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'all' 
-                ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+                ? 'bg-[#1A73E8] text-white font-semibold shadow-md shadow-blue-500/25' 
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
@@ -377,7 +456,7 @@ export default function WorkerSocietiesPage() {
             onClick={() => setActiveTab('selected')}
             className={`py-2 px-3.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'selected' 
-                ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+                ? 'bg-[#1A73E8] text-white font-semibold shadow-md shadow-blue-500/25' 
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
@@ -389,7 +468,7 @@ export default function WorkerSocietiesPage() {
             onClick={() => setActiveTab('high_hiring')}
             className={`py-2 px-3.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'high_hiring' 
-                ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+                ? 'bg-[#1A73E8] text-white font-semibold shadow-md shadow-blue-500/25' 
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
@@ -405,14 +484,14 @@ export default function WorkerSocietiesPage() {
           <div className="bg-white p-8 rounded-3xl border border-slate-100 text-center space-y-3 shadow-xs">
             <Building2 size={36} className="mx-auto text-slate-300" />
             <div>
-              <h4 className="text-xs font-black text-slate-800">{t('noSocietiesFoundTitle') || "No Societies Found"}</h4>
-              <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+              <h4 className="text-xs font-semibold text-slate-800">{t('noSocietiesFoundTitle') || "No Societies Found"}</h4>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
                 {t('noSocietiesFoundSub') || 'No gated community matches your search. Try a different keyword or request an unlisted society.'}
               </p>
             </div>
             <button
               onClick={() => setShowRequestModal(true)}
-              className="py-2 px-4 bg-[#1A73E8] text-white rounded-xl text-xs font-black shadow-md cursor-pointer hover:bg-blue-600 transition-all inline-flex items-center gap-1.5"
+              className="py-2 px-4 bg-[#1A73E8] text-white rounded-xl text-xs font-semibold shadow-md cursor-pointer hover:bg-blue-600 transition-all inline-flex items-center gap-1.5"
             >
               <Plus size={14} /> {t('requestNewSocietyBtn') || "Request New Society"}
             </button>
@@ -426,12 +505,15 @@ export default function WorkerSocietiesPage() {
             return (
               <div 
                 key={soc.id}
+                onClick={() => {
+                  if (!isPrimary) handleSetPrimary(soc);
+                }}
                 className={`p-4 rounded-3xl border transition-all space-y-3 ${
                   isPrimary 
                     ? 'bg-gradient-to-r from-blue-50/80 to-indigo-50/50 border-[#1A73E8] ring-2 ring-[#1A73E8]/20 shadow-md' 
                     : isSecondary
-                    ? 'bg-emerald-50/40 border-emerald-300 ring-1 ring-emerald-200 shadow-xs'
-                    : 'bg-white border-slate-200/80 hover:border-blue-300 shadow-xs'
+                    ? 'bg-emerald-50/40 border-emerald-300 ring-1 ring-emerald-200 shadow-xs cursor-pointer hover:border-emerald-400'
+                    : 'bg-white border-slate-200/80 hover:border-blue-300 shadow-xs cursor-pointer'
                 }`}
               >
                 {/* Header Row */}
@@ -448,19 +530,19 @@ export default function WorkerSocietiesPage() {
                     </div>
                     <div className="min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-xs font-black text-slate-900 leading-tight">{soc.name}</h4>
+                        <h4 className="text-xs font-semibold text-slate-900 leading-tight">{soc.name}</h4>
                         {isPrimary && (
-                          <span className="bg-[#1A73E8] text-white text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                          <span className="bg-[#1A73E8] text-white text-[8.5px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                             <Star size={9} fill="currentColor" /> {t('primaryWorkplaceBadge') || "Primary Workplace"}
                           </span>
                         )}
                         {isSecondary && (
-                          <span className="bg-emerald-100 text-emerald-800 text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-300 inline-flex items-center gap-1">
+                          <span className="bg-emerald-100 text-emerald-800 text-[8.5px] font-semibold uppercase px-2 py-0.5 rounded-full border border-emerald-300 inline-flex items-center gap-1">
                             <CheckCircle2 size={9} /> {t('secondaryWorkplaceBadge') || "Secondary Workplace"}
                           </span>
                         )}
                         {soc.activeJobsCount >= highHiringThreshold && (
-                          <span className="bg-amber-500 text-white text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
+                          <span className="bg-amber-500 text-white text-[8.5px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
                             <Sparkles size={9} /> 🔥 {t('highHiringBadge') || "High Hiring"}
                           </span>
                         )}
@@ -472,7 +554,7 @@ export default function WorkerSocietiesPage() {
                     </div>
                   </div>
 
-                  <span className="bg-slate-100 text-slate-700 text-[9.5px] font-black px-2.5 py-1 rounded-xl shrink-0 border border-slate-200">
+                  <span className="bg-slate-100 text-slate-700 text-[9.5px] font-semibold px-2.5 py-1 rounded-xl shrink-0 border border-slate-200">
                     {soc.distance}
                   </span>
                 </div>
@@ -480,22 +562,22 @@ export default function WorkerSocietiesPage() {
                 {/* Metrics Badges */}
                 <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100 text-center">
                   <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{t('metricLiveJobs') || "Live Jobs"}</span>
-                    <span className="text-xs font-black text-[#1A73E8] flex items-center justify-center gap-1 mt-0.5">
+                    <span className="text-[9px] text-slate-400 font-medium block uppercase">{t('metricLiveJobs') || "Live Jobs"}</span>
+                    <span className="text-xs font-semibold text-[#1A73E8] flex items-center justify-center gap-1 mt-0.5">
                       <Briefcase size={11} /> {soc.activeJobsCount} {t('metricOpenings') || "Openings"}
                     </span>
                   </div>
 
                   <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{t('metricRegisteredHelpers') || "Registered Helpers"}</span>
-                    <span className="text-xs font-black text-slate-800 flex items-center justify-center gap-1 mt-0.5">
-                      <Users size={11} className="text-slate-500" /> {soc.activeWorkersCount} {t('metricActiveWorkers') || "Active"}
+                    <span className="text-[9px] text-slate-400 font-medium block uppercase">RESIDENT EMPLOYERS</span>
+                    <span className="text-xs font-semibold text-slate-800 flex items-center justify-center gap-1 mt-0.5">
+                      <Home size={11} className="text-slate-500" /> {soc.employersCount} Households
                     </span>
                   </div>
 
                   <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{t('metricGateSecurity') || "Gate Security"}</span>
-                    <span className="text-[10px] font-black text-emerald-700 truncate block mt-0.5">
+                    <span className="text-[9px] text-slate-400 font-medium block uppercase">{t('metricGateSecurity') || "Gate Security"}</span>
+                    <span className="text-[10px] font-semibold text-emerald-700 truncate block mt-0.5">
                       ✓ {soc.securityType.split(' ')[0]} {t('gateSuffix') || "Gate"}
                     </span>
                   </div>
@@ -503,7 +585,7 @@ export default function WorkerSocietiesPage() {
 
                 {/* Selection Action Controls */}
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-slate-400 font-semibold">
+                  <span className="text-[10px] text-slate-400 font-medium">
                     {isPrimary 
                       ? (t('primaryNotifSub') || '⭐ Receiving priority hiring notifications') 
                       : isSecondary 
@@ -514,8 +596,11 @@ export default function WorkerSocietiesPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     {!isPrimary && (
                       <button
-                        onClick={() => handleSetPrimary(soc)}
-                        className="py-1.5 px-3 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSetPrimary(soc);
+                        }}
+                        className="py-1.5 px-3 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-semibold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1"
                       >
                         <Star size={11} /> {t('makePrimaryBtn') || "Make Primary"}
                       </button>
@@ -523,8 +608,11 @@ export default function WorkerSocietiesPage() {
 
                     {!isPrimary && (
                       <button
-                        onClick={() => handleToggleSecondary(soc)}
-                        className={`py-1.5 px-3 rounded-xl text-[10.5px] font-black transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSecondary(soc);
+                        }}
+                        className={`py-1.5 px-3 rounded-xl text-[10.5px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
                           isSecondary 
                             ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' 
                             : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
@@ -543,7 +631,7 @@ export default function WorkerSocietiesPage() {
 
       {/* ℹ️ COMPACT HELP NOTE */}
       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 text-center space-y-1">
-        <p className="text-xs font-bold text-slate-700">
+        <p className="text-xs font-semibold text-slate-700">
           {t('dontSeeSocietyTitle') || "Can't find your working society listed?"}
         </p>
         <p className="text-[11px] text-slate-500 font-medium">

@@ -138,7 +138,9 @@ export default function EmployerWorkersPage() {
   // Schedule Interview State
   const [selectedCandidateForInterview, setSelectedCandidateForInterview] = useState<Candidate | null>(null);
   const [interviewMode, setInterviewMode] = useState<'phone' | 'in_person'>('phone');
-  const [interviewSlot, setInterviewSlot] = useState('Today at 4:30 PM');
+  const [interviewDateOption, setInterviewDateOption] = useState<'today' | 'tomorrow' | 'custom'>('today');
+  const [customInterviewDate, setCustomInterviewDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [interviewTime, setInterviewTime] = useState('16:30');
   const [interviewNote, setInterviewNote] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
 
@@ -165,19 +167,42 @@ export default function EmployerWorkersPage() {
       const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
+      let formattedSlot = '';
+      const [hours, minutes] = (interviewTime || '16:30').split(':');
+      const dateObj = new Date();
+      if (interviewDateOption === 'tomorrow') {
+        dateObj.setDate(dateObj.getDate() + 1);
+      } else if (interviewDateOption === 'custom' && customInterviewDate) {
+        const [y, m, d] = customInterviewDate.split('-');
+        dateObj.setFullYear(parseInt(y), parseInt(m) - 1, parseInt(d));
+      }
+
+      const h = parseInt(hours || '16', 10);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const displayHour = h % 12 || 12;
+      const timeFormatted = `${displayHour}:${minutes || '00'} ${ampm}`;
+
+      if (interviewDateOption === 'today') {
+        formattedSlot = `Today at ${timeFormatted}`;
+      } else if (interviewDateOption === 'tomorrow') {
+        formattedSlot = `Tomorrow at ${timeFormatted}`;
+      } else {
+        formattedSlot = `${dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at ${timeFormatted}`;
+      }
+
       if (!isPlaceholder) {
         await supabase
           .from('applications')
           .update({
             status: 'interview_scheduled',
-            interview_time: interviewSlot,
+            interview_time: formattedSlot,
             interview_mode: interviewMode,
             interview_note: interviewNote
           })
           .eq('worker_id', selectedCandidateForInterview.id);
       }
 
-      showToast(`Interview scheduled with ${selectedCandidateForInterview.name}! SMS notification sent.`, 'success');
+      showToast(`Interview scheduled with ${selectedCandidateForInterview.name} for ${formattedSlot}!`, 'success');
     } catch (err: any) {
       console.error(err);
       showToast(`Failed to schedule interview: ${err.message}`, 'error');
@@ -570,20 +595,106 @@ export default function EmployerWorkersPage() {
                 </div>
               </div>
 
-              {/* Slot */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-400 uppercase font-black">{t('selectInterviewSlotLabel') || "Select Interview Slot"}</label>
-                <select
-                  value={interviewSlot}
-                  onChange={(e) => setInterviewSlot(e.target.value)}
-                  className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
-                >
-                  <option value="Today at 4:30 PM">{t('slotToday430') || "Today at 4:30 PM"}</option>
-                  <option value="Tomorrow Morning at 10:30 AM">{t('slotTomorrow1030') || "Tomorrow Morning at 10:30 AM"}</option>
-                  <option value="Tomorrow Afternoon at 2:00 PM">{t('slotTomorrow200') || "Tomorrow Afternoon at 2:00 PM"}</option>
-                  <option value="Tomorrow Evening at 5:00 PM">{t('slotTomorrow500') || "Tomorrow Evening at 5:00 PM"}</option>
-                  <option value="Saturday Morning at 11:00 AM">{t('slotSaturday1100') || "Saturday Morning at 11:00 AM"}</option>
-                </select>
+              {/* Fully Dynamic Date & Time Slot Picker */}
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 uppercase font-black">{t('selectInterviewSlotLabel') || "Select Dynamic Interview Date & Time"}</label>
+
+                {/* Date Selection Pills */}
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInterviewDateOption('today')}
+                    className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer text-center ${
+                      interviewDateOption === 'today'
+                        ? 'bg-blue-50 border-[#1A73E8] text-[#1A73E8]'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    ☀️ Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInterviewDateOption('tomorrow')}
+                    className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer text-center ${
+                      interviewDateOption === 'tomorrow'
+                        ? 'bg-blue-50 border-[#1A73E8] text-[#1A73E8]'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    🌅 Tomorrow
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInterviewDateOption('custom')}
+                    className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer text-center ${
+                      interviewDateOption === 'custom'
+                        ? 'bg-blue-50 border-[#1A73E8] text-[#1A73E8]'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    📅 Custom Date
+                  </button>
+                </div>
+
+                {/* Custom Date Input */}
+                {interviewDateOption === 'custom' && (
+                  <div className="pt-1">
+                    <input
+                      type="date"
+                      value={customInterviewDate}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setCustomInterviewDate(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
+                    />
+                  </div>
+                )}
+
+                {/* Dynamic Time Picker */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-black">Select Exact Time of Day:</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      value={interviewTime}
+                      onChange={(e) => setInterviewTime(e.target.value)}
+                      className="flex-1 py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
+                    />
+                    <span className="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-xl">
+                      {(() => {
+                        const [h, m] = (interviewTime || '16:30').split(':');
+                        const hr = parseInt(h || '16', 10);
+                        const ampm = hr >= 12 ? 'PM' : 'AM';
+                        const displayHr = hr % 12 || 12;
+                        return `${displayHr}:${m || '00'} ${ampm}`;
+                      })()}
+                    </span>
+                  </div>
+
+                  {/* Popular Time Chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    {['09:30', '11:00', '14:30', '16:30', '18:00'].map((tVal) => {
+                      const [h, m] = tVal.split(':');
+                      const hr = parseInt(h, 10);
+                      const ampm = hr >= 12 ? 'PM' : 'AM';
+                      const displayHr = hr % 12 || 12;
+                      const label = `${displayHr}:${m} ${ampm}`;
+                      return (
+                        <button
+                          key={tVal}
+                          type="button"
+                          onClick={() => setInterviewTime(tVal)}
+                          className={`py-1 px-2 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                            interviewTime === tVal
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               {/* Note */}

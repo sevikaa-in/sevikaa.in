@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { PrefetchLink } from '@/components/admin/PrefetchLink';
 import { supabase } from '@/lib/supabaseClient';
 import { enforceSingleAdminSession } from '@/lib/singleSessionEnforcer';
 import { ToastContainer, ToastItem } from '@/components/admin/dashboard/Toast';
@@ -1236,10 +1237,15 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
                 { id: 'system',     label: 'System & API Health',    href: '/super-admin/system',      icon: <Activity size={16} />,         badge: 0, badgeType: 'neutral' }
               ].map((tab) => {
                 const isActive = (tab.id === 'overview' && pathname === '/super-admin') || (tab.id !== 'overview' && pathname === tab.href);
+                const apiKey = `super_admin_data_${tab.id}_p1_l20`;
+                const apiFetcher = () => fetch(`/api/super-admin/data?tab=${tab.id}&page=1&limit=20`).then(r => r.json());
+
                 return (
-                  <Link
+                  <PrefetchLink
                     key={tab.id}
                     href={tab.href}
+                    apiKey={apiKey}
+                    apiFetcher={apiFetcher}
                     className={`w-full py-2.5 px-3 rounded-xl flex items-center gap-2.5 transition-all text-xs font-bold relative group cursor-pointer ${
                       isActive 
                         ? 'bg-[#1A73E8]/10 text-[#1A73E8] shadow-sm shadow-[#1A73E8]/5' 
@@ -1265,7 +1271,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
                         {tab.label}{tab.badge > 0 ? ` (${tab.badge})` : ''}
                       </div>
                     )}
-                  </Link>
+                  </PrefetchLink>
                 );
               })}
             </nav>

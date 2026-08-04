@@ -6,10 +6,12 @@ import { useLanguage } from '@/context/LanguageContext';
 import { 
   User, CheckCircle2, ShieldAlert, AlertTriangle, ChevronDown, ChevronUp, 
   Trash2, Save, Phone, IndianRupee, Briefcase, Languages, Clock,
-  Upload, Camera, FileText, Image, Star, ChevronRight, Lock, X, Video, ShieldCheck, MapPin, Eye, Play, Sparkles
+  Upload, Camera, FileText, Image, Star, ChevronRight, Lock, X, Video, ShieldCheck, MapPin, Eye, Play, Sparkles, Check
 } from 'lucide-react';
 import { ChangeMobileInlineSection } from '@/components/profile/ChangeMobileInlineSection';
 import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInlineSection';
+import { resolveMediaUrl } from '@/utils/resolveMediaUrl';
+import { secureUpload } from '@/utils/secureUpload';
 
 const SKILL_CATEGORIES = [
   { id: 'cook', key: 'cook', label: 'Cook / Chef', defaultLabel: 'Cook / Chef', icon: '🍳' },
@@ -30,9 +32,29 @@ const SHIFT_SLOT_OPTIONS = [
   { key: 'shiftPartTime', subKey: 'shiftPartTimeSub', label: 'Part-Time Flexible Hours', icon: '⚡', sub: 'Hourly or multi-client visits' },
 ];
 
+const EXPERIENCE_OPTIONS = [
+  { value: '0', label: 'Fresher (0 Years)' },
+  { value: '1', label: '1 Year Experience' },
+  { value: '2', label: '2 Years Experience' },
+  { value: '3', label: '3 Years Experience' },
+  { value: '4', label: '4 Years Experience' },
+  { value: '5', label: '5 Years Experience' },
+  { value: '6', label: '6 Years Experience' },
+  { value: '7', label: '7 Years Experience' },
+  { value: '8', label: '8 Years Experience' },
+  { value: '9', label: '9 Years Experience' },
+  { value: '10', label: '10+ Years Experience (Senior Expert)' },
+];
+
+const GENDER_OPTIONS = [
+  { value: 'female', label: 'Female' },
+  { value: 'male', label: 'Male' },
+  { value: 'other', label: 'Other' }
+];
+
 export default function WorkerProfilePage() {
   const { 
-    workerProfile, setWorkerProfile, badges, saveLoading, deletionRequested, 
+    user, workerProfile, setWorkerProfile, badges, saveLoading, deletionRequested, 
     handleSaveProfile, handleRequestAccountDeletion, showToast
   } = useWorkerDashboard();
   const { t } = useLanguage();
@@ -41,9 +63,11 @@ export default function WorkerProfilePage() {
   const [name, setName] = useState(workerProfile.name || '');
   const [expectedSalary, setExpectedSalary] = useState(workerProfile.expectedSalary || '');
   const [experience, setExperience] = useState(workerProfile.experience || '');
+  const [isExpDropdownOpen, setIsExpDropdownOpen] = useState(false);
   const [phone, setPhone] = useState(workerProfile.phone?.replace(/\D/g, '').slice(-10) || '');
   const [email, setEmail] = useState(workerProfile.email || '');
   const [gender, setGender] = useState(workerProfile.gender || 'female');
+  const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
   const [age, setAge] = useState(String(workerProfile.age || '28'));
   const [preferredShift, setPreferredShift] = useState(workerProfile.preferredShift || 'Full Day (8–12 Hours)');
   const [isShiftDropdownOpen, setIsShiftDropdownOpen] = useState(false);
@@ -73,6 +97,7 @@ export default function WorkerProfilePage() {
   const [aadhaarBackUploaded, setAadhaarBackUploaded] = useState(!!workerProfile.aadhaar_back_url);
   const [photoSelfieUploaded, setPhotoSelfieUploaded] = useState(!!workerProfile.profile_picture_url);
   const [videoUploaded, setVideoUploaded] = useState(!!workerProfile.video_url);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   React.useEffect(() => {
     if (workerProfile.name) setName(workerProfile.name);
@@ -86,6 +111,7 @@ export default function WorkerProfilePage() {
     if (workerProfile.gender) setGender(workerProfile.gender);
     if (workerProfile.age) setAge(String(workerProfile.age));
     if (workerProfile.bio) setBio(workerProfile.bio);
+    if (workerProfile.preferredShift) setPreferredShift(workerProfile.preferredShift);
     if (workerProfile.emergencyContact) {
       const cleanE = workerProfile.emergencyContact.replace(/\D/g, '').slice(-10);
       if (cleanE) setEmergencyContact(cleanE);
@@ -125,28 +151,52 @@ export default function WorkerProfilePage() {
     }
   }, [workerProfile]);
 
-  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const getActiveUserId = () => {
+    if (workerProfile?.user_id) return workerProfile.user_id;
+    if (workerProfile?.id) return workerProfile.id;
+    if (user?.id) return user.id;
+    if (typeof window !== 'undefined') {
+      const localId = localStorage.getItem('sevikaa_user_id');
+      if (localId) return localId;
+      try {
+        const u = JSON.parse(localStorage.getItem('sevikaa_user') || '{}');
+        if (u.id) return u.id;
+      } catch (e) {}
+    }
+    return null;
+  };
+
+  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ''; // Reset input to release file handle immediately & prevent File Explorer freeze
     if (!file) return;
-    if (!['video/mp4', 'video/webm'].includes(file.type)) {
-      showToast('Intro Video: Only MP4 or WebM video files allowed.', 'error');
+    if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type)) {
+      showToast('Intro Video: Only MP4, WebM, or MOV files allowed.', 'error');
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
       showToast(`Intro Video size must be under 50MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setIntroVideoUrl(result);
-        setVideoUploaded(true);
-        if (typeof window !== 'undefined') localStorage.setItem('sevikaa_worker_video', result);
-        showToast('60-second intro video uploaded successfully!', 'success');
-      }
-    };
-    reader.readAsDataURL(file);
+    const activeUserId = getActiveUserId();
+    if (!activeUserId) {
+      showToast('Worker session missing. Please re-login.', 'error');
+      return;
+    }
+    showToast('Uploading video intro…', 'info');
+    try {
+      const { publicUrl } = await secureUpload(file, activeUserId, 'video_url', {
+        onProgress: (pct) => setUploadProgress(p => ({ ...p, video: pct }))
+      });
+      setIntroVideoUrl(publicUrl);
+      setVideoUploaded(true);
+      setUploadProgress(p => ({ ...p, video: 0 }));
+      handleSaveProfile({ ...workerProfile, introVideoUrl: publicUrl, video_url: publicUrl });
+      showToast('60-second intro video uploaded and saved!', 'success');
+    } catch (err: any) {
+      setUploadProgress(p => ({ ...p, video: 0 }));
+      showToast(`Video upload failed: ${err.message}`, 'error');
+    }
   };
 
   // Discrete Danger Zone State
@@ -226,51 +276,73 @@ export default function WorkerProfilePage() {
     return true;
   };
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     if (!validateFile(file, ALLOWED_SELFIE_TYPES, SELFIE_MAX_MB, 'Profile photo')) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setProfilePhoto(result);
-        if (typeof window !== 'undefined') localStorage.setItem('sevikaa_worker_photo', result);
-      }
-    };
-    reader.readAsDataURL(file);
+    const activeUserId = getActiveUserId();
+    if (!activeUserId) { showToast('Session missing. Please re-login.', 'error'); return; }
+    showToast('Uploading profile photo…', 'info');
+    try {
+      const { publicUrl } = await secureUpload(file, activeUserId, 'profile_picture_url', {
+        onProgress: (pct) => setUploadProgress(p => ({ ...p, photo: pct }))
+      });
+      setProfilePhoto(publicUrl);
+      setPhotoSelfieUploaded(true);
+      setUploadProgress(p => ({ ...p, photo: 0 }));
+      handleSaveProfile({ ...workerProfile, profilePicUrl: publicUrl, profile_picture_url: publicUrl });
+      showToast('Profile photo uploaded and saved!', 'success');
+    } catch (err: any) {
+      setUploadProgress(p => ({ ...p, photo: 0 }));
+      showToast(`Photo upload failed: ${err.message}`, 'error');
+    }
   };
 
-  const handleAadhaarFrontChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAadhaarFrontChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     if (!validateFile(file, ALLOWED_AADHAAR_TYPES, AADHAAR_MAX_MB, 'Aadhaar front')) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setAadhaarFrontUrl(result);
-        setAadhaarFrontUploaded(true);
-        if (typeof window !== 'undefined') localStorage.setItem('sevikaa_worker_aadhaar_front', result);
-      }
-    };
-    reader.readAsDataURL(file);
+    const activeUserId = getActiveUserId();
+    if (!activeUserId) { showToast('Session missing. Please re-login.', 'error'); return; }
+    showToast('Uploading Aadhaar front…', 'info');
+    try {
+      const { publicUrl } = await secureUpload(file, activeUserId, 'aadhaar_front_url', {
+        onProgress: (pct) => setUploadProgress(p => ({ ...p, aadhaarFront: pct }))
+      });
+      setAadhaarFrontUrl(publicUrl);
+      setAadhaarFrontUploaded(true);
+      setUploadProgress(p => ({ ...p, aadhaarFront: 0 }));
+      handleSaveProfile({ ...workerProfile, aadhaarFrontUrl: publicUrl, aadhaar_front_url: publicUrl });
+      showToast('Aadhaar Front uploaded and saved!', 'success');
+    } catch (err: any) {
+      setUploadProgress(p => ({ ...p, aadhaarFront: 0 }));
+      showToast(`Aadhaar front upload failed: ${err.message}`, 'error');
+    }
   };
 
-  const handleAadhaarBackChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAadhaarBackChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     if (!validateFile(file, ALLOWED_AADHAAR_TYPES, AADHAAR_MAX_MB, 'Aadhaar back')) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setAadhaarBackUrl(result);
-        setAadhaarBackUploaded(true);
-        if (typeof window !== 'undefined') localStorage.setItem('sevikaa_worker_aadhaar_back', result);
-      }
-    };
-    reader.readAsDataURL(file);
+    const activeUserId = getActiveUserId();
+    if (!activeUserId) { showToast('Session missing. Please re-login.', 'error'); return; }
+    showToast('Uploading Aadhaar back…', 'info');
+    try {
+      const { publicUrl } = await secureUpload(file, activeUserId, 'aadhaar_back_url', {
+        onProgress: (pct) => setUploadProgress(p => ({ ...p, aadhaarBack: pct }))
+      });
+      setAadhaarBackUrl(publicUrl);
+      setAadhaarBackUploaded(true);
+      setUploadProgress(p => ({ ...p, aadhaarBack: 0 }));
+      handleSaveProfile({ ...workerProfile, aadhaarBackUrl: publicUrl, aadhaar_back_url: publicUrl });
+      showToast('Aadhaar Back uploaded and saved!', 'success');
+    } catch (err: any) {
+      setUploadProgress(p => ({ ...p, aadhaarBack: 0 }));
+      showToast(`Aadhaar back upload failed: ${err.message}`, 'error');
+    }
   };
 
   const [saveDocsLoading, setSaveDocsLoading] = useState(false);
@@ -609,17 +681,37 @@ export default function WorkerProfilePage() {
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
+              <div className="relative">
                 <label className="block text-xs font-black text-slate-700 mb-1">Gender</label>
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8] cursor-pointer"
+                <button
+                  type="button"
+                  onClick={() => setIsGenderDropdownOpen(!isGenderDropdownOpen)}
+                  className="w-full p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 flex items-center justify-between transition-all cursor-pointer capitalize"
                 >
-                  <option value="female">Female</option>
-                  <option value="male">Male</option>
-                  <option value="other">Other</option>
-                </select>
+                  <span>{gender || 'Female'}</span>
+                  <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isGenderDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isGenderDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-xl z-50 p-1.5 space-y-1 animate-scale-up">
+                    {GENDER_OPTIONS.map((g) => (
+                      <button
+                        key={g.value}
+                        type="button"
+                        onClick={() => {
+                          setGender(g.value);
+                          setIsGenderDropdownOpen(false);
+                        }}
+                        className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                          gender === g.value ? 'bg-blue-50 text-[#1A73E8]' : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>{g.label}</span>
+                        {gender === g.value && <Check size={14} className="text-[#1A73E8]" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -649,31 +741,91 @@ export default function WorkerProfilePage() {
                 </div>
               </div>
 
-              <div>
+              <div className="relative">
                 <label className="block text-xs font-black text-slate-700 mb-1">Total Experience</label>
-                <input 
-                  type="text" 
-                  value={experience}
-                  onChange={(e) => setExperience(e.target.value)}
-                  placeholder="e.g. 4 Years"
-                  className="w-full p-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 focus:outline-none transition-colors"
-                />
+                <button
+                  type="button"
+                  onClick={() => setIsExpDropdownOpen(!isExpDropdownOpen)}
+                  className="w-full p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 flex items-center justify-between transition-all cursor-pointer"
+                >
+                  <span>
+                    {EXPERIENCE_OPTIONS.find(o => o.value === String(experience).replace(/\D/g, ''))?.label || (experience ? `${experience} Years Experience` : 'Fresher (0 Years)')}
+                  </span>
+                  <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isExpDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isExpDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-xl z-50 p-1.5 max-h-60 overflow-y-auto space-y-1 animate-scale-up">
+                    {EXPERIENCE_OPTIONS.map((opt) => {
+                      const isSelected = String(experience).replace(/\D/g, '') === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setExperience(opt.value);
+                            setIsExpDropdownOpen(false);
+                          }}
+                          className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                            isSelected 
+                              ? 'bg-blue-50 text-[#1A73E8]' 
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {isSelected && <Check size={14} className="text-[#1A73E8]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div>
+            <div className="relative">
               <label className="block text-xs font-black text-slate-700 mb-1">Preferred Shift Slot</label>
-              <select
-                value={preferredShift}
-                onChange={(e) => setPreferredShift(e.target.value)}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#1A73E8] cursor-pointer"
+              <button
+                type="button"
+                onClick={() => setIsShiftDropdownOpen(!isShiftDropdownOpen)}
+                className="w-full p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 flex items-center justify-between transition-all cursor-pointer"
               >
-                {SHIFT_SLOT_OPTIONS.map(slot => (
-                  <option key={slot.key} value={slot.label}>
-                    {slot.icon} {slot.label}
-                  </option>
-                ))}
-              </select>
+                <span className="flex items-center gap-2 truncate">
+                  {SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift)?.icon || '🕒'} {preferredShift}
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 shrink-0 ${isShiftDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isShiftDropdownOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-xl z-50 p-1.5 max-h-60 overflow-y-auto space-y-1 animate-scale-up">
+                  {SHIFT_SLOT_OPTIONS.map((slot) => {
+                    const isSelected = preferredShift === slot.label;
+                    return (
+                      <button
+                        key={slot.key}
+                        type="button"
+                        onClick={() => {
+                          setPreferredShift(slot.label);
+                          setIsShiftDropdownOpen(false);
+                        }}
+                        className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                          isSelected 
+                            ? 'bg-blue-50 text-[#1A73E8]' 
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-base shrink-0">{slot.icon}</span>
+                          <div className="truncate">
+                            <span className="block leading-tight">{slot.label}</span>
+                            <span className="text-[10px] text-slate-400 font-normal block">{slot.sub}</span>
+                          </div>
+                        </div>
+                        {isSelected && <Check size={14} className="text-[#1A73E8] shrink-0 ml-1" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div>
@@ -765,6 +917,19 @@ export default function WorkerProfilePage() {
                   );
                 })}
               </div>
+            </div>
+
+            {/* 💾 DEDICATED IN-CARD SAVE BUTTON FOR SKILLS & LANGUAGES */}
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={saveLoading}
+                className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Save size={14} />
+                <span>{saveLoading ? 'Saving...' : 'Save Skills & Languages'}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -961,7 +1126,7 @@ export default function WorkerProfilePage() {
                     <span>{activeInlinePreview === 'video' ? 'Hide Video' : 'Play Video'}</span>
                   </button>
                   <label className="cursor-pointer">
-                    <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleVideoChange} />
+                    <input type="file" accept="video/*,.mp4,.webm,.mov" className="hidden" onChange={handleVideoChange} />
                     <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
                       <Upload size={11} />
                       <span>Change</span>
@@ -978,7 +1143,7 @@ export default function WorkerProfilePage() {
                 </div>
               ) : (
                 <label className="cursor-pointer shrink-0">
-                  <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleVideoChange} />
+                  <input type="file" accept="video/*,.mp4,.webm,.mov" className="hidden" onChange={handleVideoChange} />
                   <div className="py-2 px-3.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
                     <Upload size={11} /><span>Upload Video</span>
                   </div>
@@ -999,7 +1164,7 @@ export default function WorkerProfilePage() {
                 </div>
                 <div className="flex justify-center bg-black rounded-xl p-1 min-h-[220px] max-h-[360px] overflow-hidden">
                   {(introVideoUrl || workerProfile.video_url) ? (
-                    <video src={introVideoUrl || workerProfile.video_url || ''} controls autoPlay className="max-h-[340px] w-full object-contain rounded-lg" />
+                    <video src={resolveMediaUrl('worker-videos', introVideoUrl || workerProfile.video_url)} controls autoPlay className="max-h-[340px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <Video size={32} className="mx-auto text-purple-400 opacity-60 mb-2" />

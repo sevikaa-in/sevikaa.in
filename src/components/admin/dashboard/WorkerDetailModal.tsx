@@ -4,9 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, Check, Camera, FileText, Video, RotateCw, ZoomIn, ZoomOut, 
-  ShieldCheck, Calendar, MapPin, Phone, Mail, User, ShieldAlert, Award, Globe
+  ShieldCheck, Calendar, MapPin, Phone, Mail, User, ShieldAlert, Award, Globe, Clock
 } from 'lucide-react';
 import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
+import { formatWorkerShift } from '@/utils/formatWorkerShift';
 
 interface WorkerDetailModalProps {
   isOpen: boolean;
@@ -18,12 +19,13 @@ interface WorkerDetailModalProps {
 
 const getPublicUrl = (bucketName: string, path: string) => {
   if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) {
-    return path;
+  const trimmed = path.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
   }
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  if (!supabaseUrl) return `/${path}`; // Fallback if env not set
-  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${path}`;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lxfwvyugikydllqmsaow.supabase.co';
+  const cleanPath = trimmed.replace(new RegExp(`^${bucketName}\/`), '');
+  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${cleanPath}`;
 };
 
 export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
@@ -196,10 +198,17 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               </div>
             </div>
 
-            <div className="border-t border-slate-100 pt-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-bold">
+            <div className="border-t border-slate-100 pt-3.5 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-bold">
               <div className="min-w-0">
                 <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Emergency Contact</span>
                 <span className="text-slate-700 font-semibold truncate block">{worker.emergency_contact || 'None Listed'}</span>
+              </div>
+              <div className="min-w-0">
+                <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Preferred Shift Slot</span>
+                <span className="text-[#1A73E8] font-extrabold flex items-center gap-1 min-w-0">
+                  <Clock size={11} className="text-[#1A73E8] shrink-0" />
+                  <span className="truncate">{formatWorkerShift(worker.preferred_shift || worker.work_timing || worker.preferredShift, worker.availability_slots)}</span>
+                </span>
               </div>
               <div className="min-w-0">
                 <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Preferred Sector / Society</span>

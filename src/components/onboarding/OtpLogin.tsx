@@ -19,8 +19,14 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
   const [step, setStep] = useState<'input' | 'verify'>('input');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(30);
+  const [resendTimer, setResendTimer] = useState(120);
   const [loginMethod, setLoginMethod] = useState<'mobile' | 'email'>('mobile');
+
+  const formatTimer = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -77,7 +83,7 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
 
       setLoading(false);
       setStep('verify');
-      setResendTimer(30);
+      setResendTimer(120);
     } catch (err: any) {
       setLoading(false);
       setError(err.message || 'Failed to dispatch OTP. Please try again.');
@@ -331,7 +337,7 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
             <div className="text-center text-xs pt-1">
               {resendTimer > 0 ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-full text-slate-500 font-semibold text-[11px]">
-                  Resend code in <strong className="text-slate-800">{resendTimer}s</strong>
+                  Resend code in <strong className="text-slate-800">{formatTimer(resendTimer)}</strong>
                 </span>
               ) : (
                 <button

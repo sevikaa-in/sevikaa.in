@@ -352,6 +352,18 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
       const activeId = userId || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_user_id') : '');
       if (activeId) {
         // Auto-save current step data to DB in background
+        const SHIFT_LABEL_MAP: Record<string, string> = {
+          full_day: 'Full Day (8–12 Hours)',
+          early_morning: 'Early Morning (6 AM – 9 AM)',
+          morning: 'Morning Shift (9 AM – 12 PM)',
+          afternoon: 'Afternoon Shift (12 PM – 3 PM)',
+          evening: 'Evening Shift (3 PM – 6 PM)',
+          night: 'Night Shift (6 PM – 9 PM)',
+          live_in: 'Live-In (24x7)',
+          part_time: 'Part-Time Flexible'
+        };
+        const formattedShiftString = selectedShifts.map((s: string) => SHIFT_LABEL_MAP[s] || s).join(', ');
+
         fetch('/api/worker/profile/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -365,6 +377,9 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
             skills,
             experience: parseInt(experience) || 0,
             expectedSalary: parseInt(expectedSalary) || 12000,
+            selectedShifts,
+            preferred_shift: formattedShiftString,
+            preferredShift: formattedShiftString,
             primary_society_id: preferredSociety,
             preferred_areas: preferredAreas,
             onboarding_step: nextStep
@@ -465,6 +480,18 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
       // 3. Upsert into worker_profiles via server API to bypass client RLS
       const activeUserId = userId || localStorage.getItem('sevikaa_user_id') || 'temp_worker';
 
+      const SHIFT_LABEL_MAP: Record<string, string> = {
+        full_day: 'Full Day (8–12 Hours)',
+        early_morning: 'Early Morning (6 AM – 9 AM)',
+        morning: 'Morning Shift (9 AM – 12 PM)',
+        afternoon: 'Afternoon Shift (12 PM – 3 PM)',
+        evening: 'Evening Shift (3 PM – 6 PM)',
+        night: 'Night Shift (6 PM – 9 PM)',
+        live_in: 'Live-In (24x7)',
+        part_time: 'Part-Time Flexible'
+      };
+      const formattedShiftString = selectedShifts.map((s: string) => SHIFT_LABEL_MAP[s] || s).join(', ');
+
       await fetch('/api/worker/profile/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -478,6 +505,9 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
           skills,
           experience: parseInt(experience) || 0,
           expectedSalary: parseInt(expectedSalary) || 15000,
+          selectedShifts,
+          preferred_shift: formattedShiftString,
+          preferredShift: formattedShiftString,
           profile_picture_url: profilePicUrl || undefined,
           aadhaar_front_url: aadhaarFrontUrl || undefined,
           aadhaar_back_url: aadhaarBackUrl || undefined,

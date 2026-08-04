@@ -246,20 +246,34 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             setDeletionRequested(true);
           }
 
+          const pSoc = wProf?.preferred_society_name || wProf?.society || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas[0]) || '';
+          const secSocList = wProf?.secondary_society_name 
+            ? wProf.secondary_society_name.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : (Array.isArray(wProf?.secondary_societies) 
+                ? wProf.secondary_societies 
+                : (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas.length > 1 
+                    ? wProf.preferred_areas.slice(1) 
+                    : []));
+
           setWorkerProfile({
+            id: wProf?.id || activeUser.id,
+            user_id: wProf?.user_id || activeUser.id,
             name: wProf?.full_name || wProf?.name || profile?.full_name || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_worker_name') : null) || 'Worker',
             category: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
             skills: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
             expectedSalary: String(wProf?.expected_salary || '15000'),
             experience: wProf?.experience_years ? `${wProf.experience_years} Years` : '0 Years',
-            society: wProf?.preferred_society_name || wProf?.society || 'DLF Westend Heights',
+            society: pSoc,
             society_id: wProf?.preferred_society_id || '',
-            secondary_societies: Array.isArray(wProf?.secondary_society_names) ? wProf.secondary_society_names : (wProf?.secondary_society_names ? [wProf.secondary_society_names] : ['Prestige Song of the South', 'SNN Raj Serenity']),
+            secondary_societies: secSocList,
             phone: profile?.phone || wProf?.phone || activeUser?.phone || '',
             email: profile?.email || wProf?.email || activeUser?.email || '',
             languages: wProf?.languages_spoken || [],
             gender: wProf?.gender || 'female',
             age: wProf?.age || 28,
+            bio: wProf?.bio || '',
+            preferredShift: wProf?.preferred_shift || 'Full Day (8–12 Hours)',
+            emergencyContact: wProf?.emergency_contact || '',
             status: profStatus,
             profile_picture_url: wProf?.profile_picture_url || wProf?.avatar_url || profile?.avatar_url || '',
             aadhaar_front_url: wProf?.aadhaar_front_url || '',
@@ -354,6 +368,9 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             emergencyContact: updatedData.emergencyContact,
             preferredShift: updatedData.preferredShift,
             profile_picture_url: updatedData.profilePicUrl || updatedData.profile_picture_url || null,
+            aadhaar_front_url: updatedData.aadhaarFrontUrl || updatedData.aadhaar_front_url || null,
+            aadhaar_back_url: updatedData.aadhaarBackUrl || updatedData.aadhaar_back_url || null,
+            video_url: updatedData.introVideoUrl || updatedData.video_url || null,
             status: isChangesRequested ? 'pending_review' : undefined
           })
         });
@@ -440,7 +457,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                         <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
                       )}
                       <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain transition-transform group-hover:scale-105" />
-                      <span className="font-black text-xs text-slate-800">{t('headerWorker')}</span>
+                      <span className="font-semibold text-xs text-slate-800">{t('headerWorker')}</span>
                     </Link>
                   );
                 })()}
@@ -449,12 +466,12 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
               <div className="flex items-center gap-2">
                 {/* Verification Pill */}
                 {workerProfile.status === 'live' || workerProfile.status === 'approved' ? (
-                  <div className="bg-emerald-50 text-[#34A853] border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-black flex items-center gap-1">
+                  <div className="bg-emerald-50 text-[#34A853] border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
                     <CheckCircle2 size={10} />
                     <span>{t('aadhaarVerifiedBadge')}</span>
                   </div>
                 ) : (
-                  <div className="bg-amber-50 text-amber-700 border border-amber-200/50 py-1 px-2.5 rounded-xl text-[10px] font-black flex items-center gap-1">
+                  <div className="bg-amber-50 text-amber-700 border border-amber-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
                     <Lock size={10} />
                     <span>{t('pendingAdminAudit')}</span>
                   </div>
@@ -493,10 +510,10 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                 <div ref={menuRef} className="absolute top-full left-0 right-0 bg-white border-b border-slate-200 p-4 space-y-4 shadow-2xl animate-fade-in z-[100]">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div>
-                      <h4 className="text-xs font-black text-slate-900">{workerProfile.name || 'Worker Candidate'}</h4>
-                      <p className="text-[10px] text-slate-400 font-semibold">{workerProfile.society}</p>
+                      <h4 className="text-xs font-semibold text-slate-900">{workerProfile.name || 'Worker Candidate'}</h4>
+                      <p className="text-[10px] text-slate-400 font-normal">{workerProfile.society}</p>
                     </div>
-                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                    <span className={`px-2 py-0.5 rounded text-[8px] font-semibold uppercase ${
                       deletionRequested 
                         ? 'bg-amber-100 text-amber-800' 
                         : (workerProfile.status === 'live' || workerProfile.status === 'approved')
@@ -508,7 +525,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
-                    <span className="text-xs font-bold text-slate-500">App Language:</span>
+                    <span className="text-xs font-medium text-slate-500">App Language:</span>
                     <GlobalLanguageSelector />
                   </div>
 
@@ -516,14 +533,14 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                     <Link
                       href="/?browse=true"
                       onClick={() => setShowMobileMenu(false)}
-                      className="w-full py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100 text-[#34A853] border border-emerald-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100 text-[#34A853] border border-emerald-200 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <span>🌐 Visit Public Homepage</span>
                     </Link>
 
                     <button
                       onClick={() => { setShowMobileMenu(false); handleLogout(); }}
-                      className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <LogOut size={14} />
                       <span>Log Out Session</span>
@@ -536,7 +553,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
 
           {/* Account Deletion Request Banner Notice */}
           {deletionRequested && (
-            <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-[11px] font-semibold text-amber-900 flex items-center gap-2">
+            <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-[11px] font-medium text-amber-900 flex items-center gap-2">
               <ShieldAlert size={14} className="text-amber-700 shrink-0" />
               <span>
                 <strong>Account Deletion Pending:</strong> Sevikaa Admin will call <strong>{workerProfile.phone}</strong> to confirm offboarding.
@@ -546,11 +563,11 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
 
           {/* Admin Requested Profile Updates Banner Notice */}
           {(workerProfile?.status === 'changes_requested' || workerProfile?.admin_note) && (
-            <div className="bg-amber-600 text-white px-4 py-3 text-xs font-bold flex items-center justify-between gap-3 shadow-md animate-fade-in">
+            <div className="bg-amber-600 text-white px-4 py-3 text-xs font-medium flex items-center justify-between gap-3 shadow-md animate-fade-in">
               <div className="flex items-center gap-2 min-w-0">
                 <ShieldAlert size={18} className="shrink-0 text-amber-200" />
                 <div className="min-w-0">
-                  <span className="block font-black uppercase text-[10px] tracking-wider text-amber-200">⚠️ Admin Requested Profile Updates</span>
+                  <span className="block font-semibold uppercase text-[10px] tracking-wider text-amber-200">⚠️ Admin Requested Profile Updates</span>
                   <p className="truncate text-xs text-white">
                     "{workerProfile.admin_note || 'Please review and update your profile details for verification.'}"
                   </p>
@@ -558,7 +575,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
               </div>
               <Link
                 href="/worker/profile"
-                className="py-1.5 px-3 bg-white text-amber-900 hover:bg-amber-50 rounded-xl text-[11px] font-black shrink-0 shadow-sm transition-all"
+                className="py-1.5 px-3 bg-white text-amber-900 hover:bg-amber-50 rounded-xl text-[11px] font-semibold shrink-0 shadow-sm transition-all"
               >
                 Update Profile →
               </Link>
@@ -571,7 +588,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           </main>
 
           {/* Sticky Mobile Bottom Navigation Bar */}
-          <nav className="sticky bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 py-3 px-2 flex justify-around items-center z-50 shadow-xl shrink-0">
+          <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2.5 px-2 flex justify-around items-center z-50 shadow-xl shrink-0">
             {navItems.map((item) => {
               const isActive = (item.id === 'overview' && pathname === '/worker') || (item.id !== 'overview' && pathname === item.href);
               return (
@@ -580,14 +597,14 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                   href={item.href}
                   className={`flex flex-col items-center justify-center gap-1 py-1 px-2.5 rounded-xl transition-all relative text-center cursor-pointer ${
                     isActive 
-                      ? 'text-[#1A73E8] font-black bg-blue-50/90 border border-blue-200/80 scale-105 shadow-xs' 
-                      : 'text-slate-600 font-bold hover:text-slate-900'
+                      ? 'text-[#1A73E8] font-bold bg-blue-50/90 border border-blue-200/80 scale-105 shadow-xs' 
+                      : 'text-slate-600 font-medium hover:text-slate-900'
                   }`}
                 >
                   <div className="shrink-0">{item.icon}</div>
                   <span className="text-center leading-tight text-xs">{item.label}</span>
                   {item.badge && item.badge > 0 ? (
-                    <span className="absolute -top-1 -right-1 bg-[#1A73E8] text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs">
+                    <span className="absolute -top-1 -right-1 bg-[#1A73E8] text-white text-[9px] font-semibold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs">
                       {item.badge}
                     </span>
                   ) : null}

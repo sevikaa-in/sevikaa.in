@@ -19,44 +19,71 @@ export default function EmployersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const onApproveEmployer = async (id: string) => {
-    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const previousState = [...employersList];
+    const previousSelected = selectedEmp;
+    setEmployersList(prev => prev.map(e => (e.id === id || e.user_id === id) ? { ...e, status: 'live', is_approved: true } : e));
+    if (selectedEmp?.id === id || selectedEmp?.user_id === id) {
+      setSelectedEmp((prev: any) => ({ ...prev, status: 'live', is_approved: true }));
+    }
+
     try {
-      if (!isPlaceholder) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ status: 'live' })
-          .eq('id', id);
-        if (error) throw error;
-      }
-      setEmployersList(prev => prev.map(e => e.id === id ? { ...e, status: 'live' } : e));
-      if (selectedEmp?.id === id) {
-        setSelectedEmp((prev: any) => ({ ...prev, status: 'live' }));
-      }
+      const res = await fetch('/api/admin/employer/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_approved: true, status: 'live' })
+      });
+      if (!res.ok) throw new Error('Server update failed');
       fetchDashboardData();
     } catch (err: any) {
-      console.error(err.message);
+      setEmployersList(previousState);
+      setSelectedEmp(previousSelected);
+      alert("⚠️ Network/Database Notice: Failed to approve employer profile on server. State restored.");
     }
   };
 
   const onRejectEmployer = async (id: string) => {
-    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const previousState = [...employersList];
+    const previousSelected = selectedEmp;
+    setEmployersList(prev => prev.map(e => (e.id === id || e.user_id === id) ? { ...e, status: 'rejected', is_approved: false } : e));
+    if (selectedEmp?.id === id || selectedEmp?.user_id === id) {
+      setSelectedEmp((prev: any) => ({ ...prev, status: 'rejected', is_approved: false }));
+    }
+
     try {
-      if (!isPlaceholder) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ status: 'rejected' })
-          .eq('id', id);
-        if (error) throw error;
-      }
-      setEmployersList(prev => prev.map(e => e.id === id ? { ...e, status: 'rejected' } : e));
-      if (selectedEmp?.id === id) {
-        setSelectedEmp((prev: any) => ({ ...prev, status: 'rejected' }));
-      }
+      const res = await fetch('/api/admin/employer/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_approved: false, status: 'rejected' })
+      });
+      if (!res.ok) throw new Error('Server update failed');
       fetchDashboardData();
     } catch (err: any) {
-      console.error(err.message);
+      setEmployersList(previousState);
+      setSelectedEmp(previousSelected);
+      alert("⚠️ Network/Database Notice: Failed to reject employer profile on server. State restored.");
+    }
+  };
+
+  const onUnapproveEmployer = async (id: string) => {
+    const previousState = [...employersList];
+    const previousSelected = selectedEmp;
+    setEmployersList(prev => prev.map(e => (e.id === id || e.user_id === id) ? { ...e, status: 'pending_review', is_approved: false } : e));
+    if (selectedEmp?.id === id || selectedEmp?.user_id === id) {
+      setSelectedEmp((prev: any) => ({ ...prev, status: 'pending_review', is_approved: false }));
+    }
+
+    try {
+      const res = await fetch('/api/admin/employer/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_approved: false, status: 'pending_review' })
+      });
+      if (!res.ok) throw new Error('Server update failed');
+      fetchDashboardData();
+    } catch (err: any) {
+      setEmployersList(previousState);
+      setSelectedEmp(previousSelected);
+      alert("⚠️ Network/Database Notice: Failed to unapprove employer profile on server. State restored.");
     }
   };
 
@@ -80,6 +107,7 @@ export default function EmployersPage() {
         employer={selectedEmp}
         onApproveEmployer={onApproveEmployer}
         onRejectEmployer={onRejectEmployer}
+        onUnapproveEmployer={onUnapproveEmployer}
       />
     </div>
   );

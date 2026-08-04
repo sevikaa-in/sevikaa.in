@@ -19,38 +19,88 @@ export async function POST(req: NextRequest) {
     }
 
     const displayName = full_name || 'Worker';
-    const numAge = parseInt(age) || 28;
-    const salary = parseInt(expected_salary) || 0;
-    const expYears = parseInt(experience_years) || 0;
+    const numAge = Math.max(18, Math.min(80, parseInt(age) || 28));
+    const parsedSalary = parseInt(expected_salary);
+    const salary = (parsedSalary && parsedSalary > 0) ? parsedSalary : 15000;
+    const expYears = Math.max(0, parseInt(experience_years) || 0);
+
+    let cleanGender = (gender || '').toLowerCase().trim();
+    if (!['male', 'female', 'other'].includes(cleanGender)) {
+      cleanGender = 'female';
+    }
     const skillsArr = Array.isArray(skills) ? skills : (skills ? [skills] : []);
     const langsArr = Array.isArray(languages_spoken) ? languages_spoken : (languages_spoken ? [languages_spoken] : []);
 
     const verificationNotes = asset_statuses ? JSON.stringify(asset_statuses) : null;
 
-    // 1. Update public.profiles
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let resolvedUserId = userId;
+
+    // 1. Ensure public.profiles entry exists to satisfy foreign key constraint
     try {
-      await queryDb(
-        `UPDATE public.profiles 
-         SET phone = COALESCE($1, phone),
-             email = COALESCE($2, email),
-             status = COALESCE($3, status)
-         WHERE id = $4`,
-        [phone || null, email || null, status || null, userId]
+      const existingP = await queryDb(
+        `SELECT id FROM public.profiles WHERE id::text = $1 OR phone = $1 OR email = $1 LIMIT 1`,
+        [userId]
       );
+
+      if (existingP?.rows?.[0]?.id) {
+        resolvedUserId = existingP.rows[0].id;
+        await queryDb(
+          `UPDATE public.profiles 
+           SET phone = COALESCE($1, phone),
+               email = COALESCE($2, email),
+               status = COALESCE($3, status)
+           WHERE id::text = $4`,
+          [phone || null, email || null, status || null, resolvedUserId]
+        );
+      } else {
+        if (!uuidRegex.test(resolvedUserId)) {
+          resolvedUserId = crypto.randomUUID();
+        }
+        await queryDb(
+          `INSERT INTO public.profiles (id, phone, email, role, status, created_at)
+           VALUES ($1::uuid, $2, $3, 'worker', COALESCE($4, 'live'), NOW())
+           ON CONFLICT (id) DO UPDATE SET 
+             phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
+             email = COALESCE(EXCLUDED.email, public.profiles.email)`,
+          [resolvedUserId, phone || null, email || null, status || null]
+        );
+      }
     } catch (pErr) {
       console.warn("Profiles update warning:", pErr);
     }
 
     // 2. Direct PostgreSQL update for public.worker_profiles
     try {
+      await queryDb(`
+        ALTER TABLE public.worker_profiles 
+        ADD COLUMN IF NOT EXISTS preferred_shift text,
+        ADD COLUMN IF NOT EXISTS bio text,
+        ADD COLUMN IF NOT EXISTS emergency_contact text;
+      `).catch(() => {});
+
       const checkRes = await queryDb(
-        `SELECT id FROM public.worker_profiles WHERE user_id = $1 OR id = $1 LIMIT 1`, 
-        [userId]
+        `SELECT id FROM public.worker_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`, 
+        [resolvedUserId]
       );
 
-      const primarySoc = body.primary_gated_society || body.primary_society_id || '';
-      const secondarySoc = body.secondary_gated_society || '';
-      const prefAreas = [primarySoc, secondarySoc].filter(Boolean);
+      const primarySoc = body.primary_gated_society || body.primary_society_name || body.society || '';
+      const secondarySoc = body.secondary_gated_society || body.secondary_society_name || '';
+      const prefAreas = Array.isArray(body.preferred_areas) && body.preferred_areas.length > 0 
+        ? body.preferred_areas 
+        : [primarySoc, secondarySoc].filter(Boolean);
+      const preferred_shift = body.preferred_shift || body.work_timing || body.preferredShift || null;
+
+      let pSocId = body.primary_society_id || body.society_id || null;
+      if (!pSocId && primarySoc) {
+        try {
+          const socRes = await queryDb(
+            `SELECT id FROM public.societies WHERE name ILIKE $1 OR name ILIKE $2 LIMIT 1`,
+            [primarySoc.trim(), `%${primarySoc.trim()}%`]
+          );
+          if (socRes?.rows?.[0]?.id) pSocId = socRes.rows[0].id;
+        } catch (sErr) { console.warn("Admin society lookup notice:", sErr); }
+      }
 
       if (checkRes && checkRes.rows.length > 0) {
         await queryDb(
@@ -67,26 +117,32 @@ export async function POST(req: NextRequest) {
                video_url = COALESCE($10, video_url),
                skills = COALESCE($11, skills),
                languages_spoken = COALESCE($12, languages_spoken),
-               preferred_areas = CASE WHEN $13::text[] IS NOT NULL AND array_length($13::text[], 1) > 0 THEN $13::text[] ELSE preferred_areas END
-           WHERE user_id = $14 OR id = $14`,
+               preferred_areas = CASE WHEN $13::text[] IS NOT NULL AND array_length($13::text[], 1) > 0 THEN $13::text[] ELSE preferred_areas END,
+               preferred_shift = COALESCE($15, preferred_shift),
+               preferred_society_name = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE preferred_society_name END,
+               secondary_society_name = CASE WHEN $17::text IS NOT NULL AND $17::text != '' THEN $17::text ELSE secondary_society_name END,
+               preferred_society_id = CASE WHEN $18::text IS NOT NULL AND $18::text != '' AND $18::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $18::uuid ELSE preferred_society_id END
+           WHERE user_id::text = $14 OR id::text = $14`,
           [
-            displayName, gender || null, numAge, salary, expYears, 
+            displayName, cleanGender, numAge, salary, expYears, 
             emergency_contact || null, profile_picture_url || null, 
             aadhaar_front_url || null, aadhaar_back_url || null, 
-            video_url || null, skillsArr, langsArr, prefAreas, userId
+            video_url || null, skillsArr, langsArr, prefAreas, resolvedUserId,
+            preferred_shift, primarySoc || null, secondarySoc || null, pSocId
           ]
         );
       } else {
         await queryDb(
           `INSERT INTO public.worker_profiles 
-             (id, user_id, full_name, gender, age, expected_salary, experience_years, emergency_contact, profile_picture_url, aadhaar_front_url, aadhaar_back_url, video_url, skills)
+             (id, user_id, full_name, gender, age, expected_salary, experience_years, emergency_contact, profile_picture_url, aadhaar_front_url, aadhaar_back_url, video_url, skills, preferred_shift, preferred_society_name, secondary_society_name, preferred_society_id, created_at)
            VALUES 
-             ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+             (gen_random_uuid(), CASE WHEN $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $1::uuid ELSE gen_random_uuid() END, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CASE WHEN $16::text IS NOT NULL AND $16::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $16::uuid ELSE NULL END, NOW())`,
           [
-            userId, displayName, gender || 'female', 
+            resolvedUserId, displayName, cleanGender, 
             numAge, salary, expYears, emergency_contact || null, 
             profile_picture_url || null, aadhaar_front_url || null, 
-            aadhaar_back_url || null, video_url || null, skillsArr
+            aadhaar_back_url || null, video_url || null, skillsArr, preferred_shift,
+            primarySoc || null, secondarySoc || null, pSocId
           ]
         );
       }

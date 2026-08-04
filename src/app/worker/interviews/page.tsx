@@ -70,6 +70,7 @@ export default function WorkerInterviewsPage() {
         await supabase
           .from('job_applications')
           .update({ 
+            status: 'rescheduled',
             reschedule_time: rescheduleTime,
             reschedule_note: rescheduleNote 
           })
@@ -81,7 +82,7 @@ export default function WorkerInterviewsPage() {
       setIsSubmittingReschedule(false);
       setSelectedAppForReschedule(null);
       setRescheduleNote('');
-      showToast("Reschedule request sent to employer! You will receive an SMS confirmation.", "success");
+      showToast("Reschedule request sent! Admin & Employer will review your new time slot.", "success");
     }
   };
 

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { 
   X, Check, Mail, Phone, MapPin, Calendar, CreditCard, 
   Briefcase, Sparkles, ShieldAlert, AlertTriangle, ShieldCheck,
-  ZoomIn, ZoomOut, RotateCw, Camera, FileText, Maximize2, Globe
+  ZoomIn, ZoomOut, RotateCw, Camera, FileText, Maximize2, Globe, RotateCcw
 } from 'lucide-react';
 import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
 import { supabase } from '../../../lib/supabaseClient';
@@ -16,6 +16,7 @@ interface EmployerDetailModalProps {
   employer: any;
   onApproveEmployer: (id: string) => void;
   onRejectEmployer: (id: string) => void;
+  onUnapproveEmployer?: (id: string) => void;
   onRequestChanges?: (id: string, note: string) => void;
 }
 
@@ -25,6 +26,7 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   employer,
   onApproveEmployer,
   onRejectEmployer,
+  onUnapproveEmployer,
   onRequestChanges
 }) => {
   const [mounted, setMounted] = useState(false);
@@ -79,15 +81,33 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
 
     const fetchJobs = async () => {
       setLoadingJobs(true);
+      const empId = employer.user_id || employer.id;
+      if (!empId) {
+        setJobs([]);
+        setLoadingJobs(false);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from('jobs')
           .select('*')
-          .eq('employer_id', employer.user_id);
-        if (error) throw error;
-        setJobs(data || []);
+          .or(`employer_id.eq.${empId},user_id.eq.${empId}`);
+        
+        if (!error && Array.isArray(data)) {
+          setJobs(data);
+        } else {
+          const res = await fetch('/api/admin/data?tab=jobs');
+          if (res.ok) {
+            const jData = await res.json();
+            if (jData && Array.isArray(jData.jobs)) {
+              const filtered = jData.jobs.filter((j: any) => j.employer_id === empId || j.user_id === empId);
+              setJobs(filtered);
+            }
+          }
+        }
       } catch (err) {
-        console.error("Error loading employer jobs:", err);
+        console.warn("Employer jobs fetch notice:", err);
       } finally {
         setLoadingJobs(false);
       }
@@ -249,14 +269,26 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Residential Gated Society</span>
                 <span className="flex items-center gap-1 text-slate-800 font-extrabold bg-slate-50 p-2 rounded-xl border border-slate-100">
                   <MapPin size={12} className="text-[#1A73E8] shrink-0" />
-                  <span>{employer.society_name || employer.preferred_society || 'DLF Westend Heights'}</span>
+                  <span>
+                    {(() => {
+                      if (employer.society_name && employer.society_name.trim()) return employer.society_name.trim();
+                      if (employer.preferred_society && employer.preferred_society.trim()) return employer.preferred_society.trim();
+                      const rawAddr = employer.billing_address || employer.address || '';
+                      if (rawAddr) {
+                        const parts = rawAddr.split(',').map((p: string) => p.trim());
+                        const societyPart = parts.find((p: string) => !/^(flat|apt|unit|house|no\.|building|\d+)/i.test(p));
+                        if (societyPart) return societyPart;
+                      }
+                      return 'N/A';
+                    })()}
+                  </span>
                 </span>
               </div>
               <div>
-                <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Full Billing Address</span>
+                <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Tower / Flat Number & Address</span>
                 <span className="flex items-start gap-1 text-slate-700 font-semibold bg-slate-50 p-2 rounded-xl border border-slate-100">
                   <MapPin size={12} className="mt-0.5 shrink-0 text-slate-400" />
-                  <span>{employer.billing_address || 'Bangalore, Karnataka'}</span>
+                  <span>{employer.tower_block ? `${employer.tower_block} • ` : ''}{employer.billing_address || employer.address || 'Bangalore, Karnataka'}</span>
                 </span>
               </div>
               <div className="col-span-1 sm:col-span-2">
@@ -522,30 +554,50 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <button
-                  onClick={onClose}
-                  className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
-                >
-                  Close Drawer
-                </button>
-                <button
-                  onClick={() => {
-                    const isEmployerComplete = !!(employer.company_name || employer.name) && 
-                                               !!(employer.society_name) && 
-                                               !!(employer.address) && 
-                                               !!(employer.residency_proof_url || employer.avatar_url || employer.profile_photo_url || employer.aadhaar_front_url);
-                    if (!isEmployerComplete) {
-                      alert("⚠️ Restricted Action: Cannot approve an incomplete profile!\n\nPlease complete Employer Name, Gated Society, Flat Address, and upload Residency Proof / Selfie in Tele-Onboarding before approving.");
-                      return;
-                    }
-                    onApproveEmployer(employer.id);
-                    onClose();
-                  }}
-                  className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#34A853]/20 flex items-center gap-1.5"
-                >
-                  <Check size={15} strokeWidth={3} />
-                  Approve Live Profile
-                </button>
+                {employer.status === 'live' || employer.status === 'approved' ? (
+                  <button
+                    onClick={() => {
+                      const empId = employer.id || employer.user_id;
+                      if (onUnapproveEmployer) {
+                        onUnapproveEmployer(empId);
+                      } else {
+                        fetch('/api/admin/employer/update', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            id: empId,
+                            is_approved: false,
+                            status: 'pending_review'
+                          })
+                        }).catch(() => {});
+                      }
+                      onClose();
+                    }}
+                    className="py-2.5 px-5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-amber-500/20 flex items-center gap-1.5"
+                  >
+                    <RotateCcw size={15} strokeWidth={2.5} />
+                    Unapprove / Set Pending
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const isEmployerComplete = !!(employer.company_name || employer.name) && 
+                                                 !!(employer.society_name) && 
+                                                 !!(employer.address) && 
+                                                 !!(employer.residency_proof_url || employer.avatar_url || employer.profile_photo_url || employer.aadhaar_front_url);
+                      if (!isEmployerComplete) {
+                        alert("⚠️ Restricted Action: Cannot approve an incomplete profile!\n\nPlease complete Employer Name, Gated Society, Flat Address, and upload Residency Proof / Selfie in Tele-Onboarding before approving.");
+                        return;
+                      }
+                      onApproveEmployer(employer.id);
+                      onClose();
+                    }}
+                    className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#34A853]/20 flex items-center gap-1.5"
+                  >
+                    <Check size={15} strokeWidth={3} />
+                    Approve Live Profile
+                  </button>
+                )}
               </div>
             </div>
           )}

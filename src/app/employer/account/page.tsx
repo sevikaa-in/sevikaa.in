@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { ChangeMobileInlineSection } from '@/components/profile/ChangeMobileInlineSection';
 import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInlineSection';
+import { secureUpload } from '@/utils/secureUpload';
 
 export default function EmployerAccountPage() {
   const { 
@@ -43,6 +44,7 @@ export default function EmployerAccountPage() {
   const [aadhaarFrontUrl, setAadhaarFrontUrl] = useState<string | null>(employerProfile.aadhaar_front_url || null);
   const [aadhaarBackUrl, setAadhaarBackUrl] = useState<string | null>(employerProfile.aadhaar_back_url || null);
   const idVerified = (residencyProofUploaded || residencyProofUrl || aadhaarFrontUploaded || aadhaarFrontUrl) && (aadhaarBackUploaded || aadhaarBackUrl);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   // Profile Photo State
   const [profilePhoto, setProfilePhoto] = useState<string | null>(employerProfile.avatar_url || null);
@@ -157,83 +159,119 @@ export default function EmployerAccountPage() {
     }
   }, [employerProfile]);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!['image/jpeg', 'image/png'].includes(file.type)) {
       showToast('Profile Photo: Only JPG or PNG files allowed.', 'error');
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      showToast(`Profile photo size must be under 3MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(`Profile photo size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setProfilePhoto(reader.result as string);
+    const userId = employerProfile?.user_id || employerProfile?.id;
+    if (!userId) { showToast('Session missing. Please re-login.', 'error'); return; }
+    showToast('Uploading profile photo…', 'info');
+    try {
+      const { publicUrl } = await secureUpload(file, userId, 'profile_picture_url', {
+        onProgress: (pct) => setUploadProgress(p => ({ ...p, photo: pct }))
+      });
+      setProfilePhoto(publicUrl);
+      setUploadProgress(p => ({ ...p, photo: 0 }));
+      handleSaveEmployerProfile({ ...employerProfile, avatar_url: publicUrl, profile_picture_url: publicUrl });
       showToast('Employer profile photo uploaded!', 'success');
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      setUploadProgress(p => ({ ...p, photo: 0 }));
+      showToast(`Photo upload failed: ${err.message}`, 'error');
+    }
   };
 
-  const handleResidencyProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleResidencyProofChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
       showToast('Residency Proof: Only JPG, PNG, or PDF files allowed.', 'error');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast(`File size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      showToast(`File size must be under 10MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setResidencyProofUrl(reader.result as string);
+    const userId = employerProfile?.user_id || employerProfile?.id;
+    if (!userId) { showToast('Session missing. Please re-login.', 'error'); return; }
+    showToast('Uploading residency proof…', 'info');
+    try {
+      const { publicUrl } = await secureUpload(file, userId, 'residency_proof_url', {
+        onProgress: (pct) => setUploadProgress(p => ({ ...p, residency: pct }))
+      });
+      setResidencyProofUrl(publicUrl);
       setResidencyProofUploaded(true);
-      showToast('Society Maintenance / Rent Agreement uploaded successfully!', 'success');
-    };
-    reader.readAsDataURL(file);
+      setUploadProgress(p => ({ ...p, residency: 0 }));
+      handleSaveEmployerProfile({ ...employerProfile, residency_proof_url: publicUrl });
+      showToast('Society Maintenance / Rent Agreement uploaded and saved!', 'success');
+    } catch (err: any) {
+      setUploadProgress(p => ({ ...p, residency: 0 }));
+      showToast(`Residency proof upload failed: ${err.message}`, 'error');
+    }
   };
 
-  const handleAadhaarFrontChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAadhaarFrontChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
       showToast('Aadhaar Front: Only JPG, PNG, or PDF files allowed.', 'error');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast(`Aadhaar Front file size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      showToast(`Aadhaar Front file size must be under 10MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAadhaarFrontUrl(reader.result as string);
+    const userId = employerProfile?.user_id || employerProfile?.id;
+    if (!userId) { showToast('Session missing. Please re-login.', 'error'); return; }
+    showToast('Uploading Aadhaar front…', 'info');
+    try {
+      const { publicUrl } = await secureUpload(file, userId, 'aadhaar_front_url', {
+        onProgress: (pct) => setUploadProgress(p => ({ ...p, aadhaarFront: pct }))
+      });
+      setAadhaarFrontUrl(publicUrl);
       setAadhaarFrontUploaded(true);
-      showToast('Aadhaar Front card uploaded successfully!', 'success');
-    };
-    reader.readAsDataURL(file);
+      setUploadProgress(p => ({ ...p, aadhaarFront: 0 }));
+      handleSaveEmployerProfile({ ...employerProfile, aadhaar_front_url: publicUrl });
+      showToast('Aadhaar Front uploaded and saved (private)!', 'success');
+    } catch (err: any) {
+      setUploadProgress(p => ({ ...p, aadhaarFront: 0 }));
+      showToast(`Aadhaar front upload failed: ${err.message}`, 'error');
+    }
   };
 
-  const handleAadhaarBackChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAadhaarBackChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
       showToast('Aadhaar Back: Only JPG, PNG, or PDF files allowed.', 'error');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast(`Aadhaar Back file size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      showToast(`Aadhaar Back file size must be under 10MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAadhaarBackUrl(reader.result as string);
+    const userId = employerProfile?.user_id || employerProfile?.id;
+    if (!userId) { showToast('Session missing. Please re-login.', 'error'); return; }
+    showToast('Uploading Aadhaar back…', 'info');
+    try {
+      const { publicUrl } = await secureUpload(file, userId, 'aadhaar_back_url', {
+        onProgress: (pct) => setUploadProgress(p => ({ ...p, aadhaarBack: pct }))
+      });
+      setAadhaarBackUrl(publicUrl);
       setAadhaarBackUploaded(true);
-      showToast('Aadhaar Back card uploaded successfully!', 'success');
-    };
-    reader.readAsDataURL(file);
+      setUploadProgress(p => ({ ...p, aadhaarBack: 0 }));
+      handleSaveEmployerProfile({ ...employerProfile, aadhaar_back_url: publicUrl });
+      showToast('Aadhaar Back uploaded and saved (private)!', 'success');
+    } catch (err: any) {
+      setUploadProgress(p => ({ ...p, aadhaarBack: 0 }));
+      showToast(`Aadhaar back upload failed: ${err.message}`, 'error');
+    }
   };
 
   // Communication & Notification Toggles

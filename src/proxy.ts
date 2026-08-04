@@ -24,9 +24,10 @@ export async function proxy(request: NextRequest) {
     default-src 'self';
     script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.googletagmanager.com https://checkout.razorpay.com https://api.razorpay.com https://cdn.razorpay.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' blob: data: https: https://www.google-analytics.com https://www.googletagmanager.com https://cdn.razorpay.com;
+    img-src 'self' blob: data: https: https://www.google-analytics.com https://www.googletagmanager.com https://cdn.razorpay.com https://res.cloudinary.com https://*.supabase.co;
+    media-src 'self' blob: data: https: https://res.cloudinary.com https://*.supabase.co;
     font-src 'self' https://fonts.gstatic.com data:;
-    connect-src 'self' https: wss: https://www.google-analytics.com https://region1.google-analytics.com https://lumberjack.razorpay.com https://api.razorpay.com https://cdn.razorpay.com;
+    connect-src 'self' https: wss: https://www.google-analytics.com https://region1.google-analytics.com https://lumberjack.razorpay.com https://api.razorpay.com https://cdn.razorpay.com https://res.cloudinary.com https://*.supabase.co;
     frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com;
     frame-ancestors 'none';
     object-src 'none';

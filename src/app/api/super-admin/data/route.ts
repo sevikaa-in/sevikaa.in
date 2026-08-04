@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
                   COALESCE(wp.full_name, 'Verified Worker') AS full_name,
                   wp.skills, wp.languages_spoken, wp.age, wp.gender,
                   wp.expected_salary, wp.experience_years, wp.profile_picture_url,
-                  wp.video_url, wp.aadhaar_front_url, wp.aadhaar_back_url
+                  wp.video_url, wp.aadhaar_front_url, wp.aadhaar_back_url, wp.preferred_shift, wp.availability_slots
            FROM public.profiles p
            LEFT JOIN public.worker_profiles wp ON wp.user_id = p.id OR wp.id = p.id
            WHERE p.role = 'worker' OR wp.id IS NOT NULL

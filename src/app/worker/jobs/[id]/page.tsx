@@ -532,6 +532,29 @@ export default function WorkerJobDetailsPage() {
           </div>
         )}
 
+        {/* 🔒 WORKER OR JOB VERIFICATION BANNER */}
+        {!isWorkerVerified ? (
+          <div className="bg-amber-50 border border-amber-300/80 p-4 rounded-2xl flex items-start gap-3 text-amber-900">
+            <Lock size={18} className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="text-xs font-black">Worker Profile Approval Pending</p>
+              <p className="text-[11px] font-semibold text-amber-800 leading-relaxed">
+                Your worker profile is pending admin approval. You can view all job details, salary, perks, schedule, and Google Maps directions, but applying will activate automatically upon admin profile approval.
+              </p>
+            </div>
+          </div>
+        ) : (job.status === 'pending' || job.status === 'unverified' || job.status === 'pending_review') ? (
+          <div className="bg-amber-50 border border-amber-300/80 p-4 rounded-2xl flex items-start gap-3 text-amber-900">
+            <Lock size={18} className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="text-xs font-black">Job Requisition Under Admin Audit</p>
+              <p className="text-[11px] font-semibold text-amber-800 leading-relaxed">
+                This employer job posting is currently being verified by Sevikaa Admin. Applying will open as soon as job audit completes.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         {/* Bottom Action Footer */}
         <div className="pt-5 border-t border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 w-full">
           <Link
@@ -544,24 +567,29 @@ export default function WorkerJobDetailsPage() {
 
           <button
             onClick={handleApply}
-            disabled={hasApplied || !isWorkerVerified || isApplying}
+            disabled={hasApplied || !isWorkerVerified || (job.status === 'pending' || job.status === 'unverified' || job.status === 'pending_review') || isApplying}
             className={`w-full sm:w-auto py-3.5 px-6 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 shadow-md active:scale-95 text-center ${
               hasApplied 
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-emerald-500/20' 
-                : !isWorkerVerified
-                  ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-amber-950 border border-amber-300/80 cursor-not-allowed'
+                : (!isWorkerVerified || job.status === 'pending' || job.status === 'unverified' || job.status === 'pending_review')
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300/80 cursor-not-allowed'
                   : 'bg-gradient-to-r from-[#1A73E8] to-blue-600 hover:from-blue-600 hover:to-indigo-600 text-white shadow-blue-500/25'
             }`}
           >
             {hasApplied ? (
               <>
-                <CheckCircle2 size={16} className="shrink-0" />
+                <CheckCircle2 size={16} className="shrink-0 text-white" />
                 <span>{t('applied')}</span>
               </>
             ) : !isWorkerVerified ? (
               <>
-                <Lock size={15} className="shrink-0" />
-                <span className="text-center">{t('pendingAuditBadge')}</span>
+                <Lock size={15} className="shrink-0 text-amber-700" />
+                <span className="text-center">🔒 Apply Locked — Verification Pending</span>
+              </>
+            ) : (job.status === 'pending' || job.status === 'unverified' || job.status === 'pending_review') ? (
+              <>
+                <Lock size={15} className="shrink-0 text-amber-700" />
+                <span className="text-center">⏳ Job Under Verification</span>
               </>
             ) : (
               <>

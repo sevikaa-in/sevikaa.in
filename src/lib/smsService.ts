@@ -353,19 +353,63 @@ export async function sendSMSWithTemplates(params: {
 }): Promise<{ success: boolean; messageId?: string; error?: string; providerUsed?: string }> {
   const { templateKey, phoneNumber, variables, language = 'en', userId } = params;
 
-  // 0. Check for pending DLT templates (bypassed until approved)
-  const PENDING_DLT_TEMPLATES = ['FORGOT_PASSWORD_OTP', 'NEW_APPLICATION', 'JOB_APPLIED'];
-  if (PENDING_DLT_TEMPLATES.includes(templateKey)) {
-    console.log(`[SMS PENDING DLT] Template "${templateKey}" is pending DLT/MSG91 approval. Bypassing dispatch gracefully.`);
+  const isOtpTemplate = templateKey.endsWith('_OTP') || templateKey.includes('OTP');
+
+  // For OTP templates: use ENV variables for DLT Template ID, do NOT query DB for template config
+  if (isOtpTemplate) {
+    const envDltId = process.env[`MSG91_TEMPLATE_ID_${templateKey}`];
+    const effectiveDltId = (envDltId && !envDltId.includes('placeholder')) ? envDltId : (process.env.MSG91_TEMPLATE_ID || null);
+
+    const FALLBACK_TEMPLATES: Record<string, string> = {
+      LOGIN_OTP: 'Your Sevikaa verification code is {{otp}}.\nValid for 10 minutes.\nDo not share this code with anyone.',
+      OTP_VERIFICATION: 'Your Sevikaa verification code is {{otp}}.\nValid for 10 minutes.\nDo not share this code with anyone.',
+      REGISTER_OTP: 'Welcome to Sevikaa.\nYour registration verification code is {{otp}}.\nValid for 10 minutes.',
+      FORGOT_PASSWORD_OTP: 'Your Sevikaa password reset code is {{otp}}.\nValid for 10 minutes.',
+      CHANGE_MOBILE_OTP: 'Verify your new mobile number on Sevikaa using OTP {{otp}}. Valid for 10 minutes. Team Sevikaa.',
+      DELETE_ACCOUNT_OTP: 'Your OTP to request account deletion on Sevikaa is {{otp}}. Valid for 10 minutes. Do not share with anyone.',
+    };
+
+    const templateMessage = FALLBACK_TEMPLATES[templateKey] || 'Your Sevikaa verification code is {{otp}}.\nValid for 10 minutes.';
+    const interpolatedMessage = interpolateVariables(templateMessage, variables);
+
+    const provider = getProviderInstance('msg91');
+    const sendResult = await provider.sendSMS({
+      phoneNumber,
+      message: interpolatedMessage,
+      senderId: 'SEVKAA',
+      dltTemplateId: effectiveDltId || undefined,
+      variables
+    });
+
+    // Audit log: only log basic dispatch info, no DLT template ID saved to DB
+    try {
+      await supabaseAdmin.from('sms_audit_logs').insert({
+        template_key: templateKey,
+        provider: 'msg91',
+        recipient_phone: phoneNumber,
+        message: interpolatedMessage,
+        variables: variables,
+        dlt_template_id: null, // No template ID saved to DB
+        sender_id: 'SEVKAA',
+        status: sendResult.success ? 'success' : 'failed',
+        error_message: sendResult.success ? null : sendResult.error,
+        message_id: sendResult.messageId || null,
+        sent_by: userId || null
+      });
+    } catch (logErr) {
+      console.warn('[SMS Audit Log Notice]:', logErr);
+    }
+
     return {
-      success: true,
-      messageId: `pending-dlt-bypass-${Date.now()}`,
-      providerUsed: 'msg91 (bypassed - pending DLT approval)'
+      success: sendResult.success,
+      messageId: sendResult.messageId,
+      error: sendResult.error,
+      providerUsed: 'msg91'
     };
   }
 
   let activeTemplate: any = null;
-  let providerUsed = 'msg91'; // Baseline provider set to MSG91
+  let providerUsed = 'msg91'; // MSG91 is the primary SMS provider
 
   try {
     // 1. Fetch template from DB
@@ -380,7 +424,9 @@ export async function sendSMSWithTemplates(params: {
 
     if (dbTemplate && dbTemplate.length > 0) {
       activeTemplate = dbTemplate[0];
-      providerUsed = activeTemplate.provider;
+      // Always use msg91 regardless of what the DB template says for provider
+      // (AWS credentials are SES/email-only — not configured for SNS SMS)
+      providerUsed = 'msg91';
     } else {
       // Look for english template as fallback if local language template is missing
       if (language !== 'en') {
@@ -394,7 +440,7 @@ export async function sendSMSWithTemplates(params: {
           .limit(1);
         if (enTemplate && enTemplate.length > 0) {
           activeTemplate = enTemplate[0];
-          providerUsed = activeTemplate.provider;
+          providerUsed = 'msg91'; // Always msg91
         }
       }
     }
@@ -458,31 +504,12 @@ export async function sendSMSWithTemplates(params: {
       variables
     });
 
-    // 7. Handle fallback provider if primary fails or isn't configured
+    // 7. Log failure — no AWS fallback (AWS creds are SES/email only, not SNS)
     if (!sendResult.success) {
-      console.warn(`Primary provider ${providerUsed} failed to send SMS: ${sendResult.error}. Engaging fallback...`);
-      // Determine fallback provider: if primary was AWS, fallback to TWILIO
-      const fallbackProviderKey = providerUsed === 'aws' ? 'twilio' : 'aws';
-      
-      try {
-        const fallbackProvider = getProviderInstance(fallbackProviderKey);
-        const fallbackResult = await fallbackProvider.sendSMS({
-          phoneNumber,
-          message: interpolatedMessage,
-          senderId: activeTemplate.sender_id || 'SEVKAA',
-          dltTemplateId: activeTemplate.dlt_template_id,
-          variables
-        });
-        
-        if (fallbackResult.success) {
-          sendResult = fallbackResult;
-          providerUsed = fallbackProviderKey;
-          console.log(`Fallback provider ${fallbackProviderKey} succeeded.`);
-        }
-      } catch (fallbackErr: any) {
-        console.error("Fallback provider execution error:", fallbackErr);
-      }
+      console.warn(`[SMS] MSG91 failed for ${templateKey}: ${sendResult.error}`);
+      // No further fallback — return failure so callers can handle gracefully
     }
+
 
     // 8. Log to audit table
     await supabaseAdmin.from('sms_audit_logs').insert({

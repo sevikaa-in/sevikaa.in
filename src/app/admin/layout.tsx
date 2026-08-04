@@ -3,9 +3,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { PrefetchLink } from '@/components/admin/PrefetchLink';
 import { supabase } from '@/lib/supabaseClient';
 import { enforceSingleAdminSession } from '@/lib/singleSessionEnforcer';
 import { ToastContainer, ToastItem } from '@/components/admin/dashboard/Toast';
+import { formatWorkerShift } from '@/utils/formatWorkerShift';
 import { 
   Users, Briefcase, FileText, CheckCircle2, XCircle, Clock, Video, 
   MessageSquare, Star, ArrowRight, ShieldCheck, LogOut, Settings,
@@ -315,201 +317,146 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     }
 
     try {
-      const processApiData = async (apiData: any) => {
-      if (!apiData || !apiData.success) return;
-      const { workers, employers, societies, jobs, counts } = apiData;
+      const targetTab = currentTab || 'overview';
+      const res = await fetch(`/api/admin/data?tab=${targetTab}&page=${pageVal}&limit=100`);
+      const apiData = await res.json();
 
-      if (counts) {
-        setCounts(counts);
-      }
+      if (apiData && apiData.success) {
+        const { workers, employers, societies, jobs, counts } = apiData;
 
-      if (workers && workers.length > 0) {
-        const mappedWorkers = workers.map((w: any) => {
-          const displayName = (w.full_name && w.full_name.trim() && w.full_name !== 'Verified Worker')
-            ? w.full_name.trim()
-            : (w.name && w.name.trim() && w.name !== 'Verified Worker')
-            ? w.name.trim()
-            : w.email
-            ? w.email.split('@')[0].charAt(0).toUpperCase() + w.email.split('@')[0].slice(1)
-            : w.phone
-            ? `Candidate (${w.phone.slice(-4)})`
-            : 'Registered Worker';
-
-          const displayCategory = (w.skills && Array.isArray(w.skills) && w.skills.length > 0)
-            ? w.skills.join(', ')
-            : 'Domestic Worker';
-
-          return {
-            id: w.id,
-            name: displayName,
-            full_name: displayName,
-            email: w.email || '',
-            phone: w.phone || '',
-            skills: w.skills || [],
-            displayCategory,
-            status: w.status || 'pending_review',
-            age: w.age || 28,
-            gender: w.gender || 'female',
-            profile_picture_url: w.profile_picture_url || '',
-            video_url: w.video_url || '',
-            aadhaar_front_url: w.aadhaar_front_url || '',
-            aadhaar_back_url: w.aadhaar_back_url || '',
-            experience_years: w.experience_years || 0,
-            expected_salary: w.expected_salary || 0,
-            created_at: w.created_at,
-            badges: {
-              mobile: w.phone ? 'Verified' : 'Pending',
-              aadhaar: w.aadhaar_front_url ? 'Verified' : 'Pending',
-              police: 'Pending',
-              interview: w.status === 'approved' || w.status === 'live' ? 'Verified' : 'Pending',
-              video: w.video_url ? 'Verified' : 'Pending',
-              profile: w.profile_picture_url ? 'Verified' : 'Pending'
-            }
-          };
-        });
-        setWorkersList(mappedWorkers);
-        if (mappedWorkers.length > 0) {
-          setSelectedWorker(mappedWorkers[0]);
+        if (counts) {
+          setCounts(counts);
         }
 
-        const pendingWorkers = mappedWorkers.filter((w: any) => w.status === 'pending_review' || w.status === 'admin_interview');
-        setInterviewsList(pendingWorkers.map((w: any, index: number) => {
-          const dateObj = w.created_at ? new Date(w.created_at) : new Date();
-          const timeString = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-          const isToday = dateObj.toDateString() === new Date().toDateString();
-          const slotTime = isToday ? `Today at ${timeString}` : `${dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} at ${timeString}`;
+        if (workers && Array.isArray(workers)) {
+          const mappedWorkers = workers.map((w: any) => {
+            const displayName = (w.full_name && w.full_name.trim() && w.full_name !== 'Verified Worker')
+              ? w.full_name.trim()
+              : (w.name && w.name.trim() && w.name !== 'Verified Worker')
+              ? w.name.trim()
+              : w.email
+              ? w.email.split('@')[0].charAt(0).toUpperCase() + w.email.split('@')[0].slice(1)
+              : w.phone
+              ? `Candidate (${w.phone.slice(-4)})`
+              : 'Registered Worker';
 
-          return {
-            id: w.id,
-            workerName: w.name,
-            category: w.displayCategory,
-            time: slotTime,
-            status: w.status === 'admin_interview' ? 'Completed' : 'Today',
-            result: w.status === 'approved' ? 'Pass' : '',
-            resultNotes: '',
-            worker: w
-          };
-        }));
+            const displayCategory = (w.skills && Array.isArray(w.skills) && w.skills.length > 0)
+              ? w.skills.join(', ')
+              : 'Domestic Worker';
+
+            return {
+              id: w.id,
+              name: displayName,
+              full_name: displayName,
+              email: w.email || '',
+              phone: w.phone || '',
+              skills: w.skills || [],
+              displayCategory,
+              status: w.status || 'pending_review',
+              age: w.age || 28,
+              gender: w.gender || 'female',
+              profile_picture_url: w.profile_picture_url || '',
+              video_url: w.video_url || '',
+              aadhaar_front_url: w.aadhaar_front_url || '',
+              aadhaar_back_url: w.aadhaar_back_url || '',
+              experience_years: w.experience_years || 0,
+              expected_salary: w.expected_salary || 0,
+              preferred_shift: formatWorkerShift(w.preferred_shift || w.work_timing, w.availability_slots),
+              work_timing: formatWorkerShift(w.preferred_shift || w.work_timing, w.availability_slots),
+              availability_slots: w.availability_slots || null,
+              emergency_contact: w.emergency_contact || '',
+              primary_gated_society: w.primary_gated_society || '',
+              secondary_gated_society: w.secondary_gated_society || '',
+              created_at: w.created_at,
+              badges: {
+                mobile: w.phone ? 'Verified' : 'Pending',
+                aadhaar: w.aadhaar_front_url ? 'Verified' : 'Pending',
+                police: 'Pending',
+                interview: w.status === 'approved' || w.status === 'live' ? 'Verified' : 'Pending',
+                video: w.video_url ? 'Verified' : 'Pending',
+                profile: w.profile_picture_url ? 'Verified' : 'Pending'
+              }
+            };
+          });
+          setWorkersList(mappedWorkers);
+          if (mappedWorkers.length > 0) {
+            setSelectedWorker(mappedWorkers[0]);
+          }
+
+          const pendingWorkers = mappedWorkers.filter((w: any) => w.status === 'pending_review' || w.status === 'admin_interview');
+          setInterviewsList(pendingWorkers.map((w: any, index: number) => {
+            const dateObj = w.created_at ? new Date(w.created_at) : new Date();
+            const timeString = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+            const isToday = dateObj.toDateString() === new Date().toDateString();
+            const slotTime = isToday ? `Today at ${timeString}` : `${dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} at ${timeString}`;
+
+            return {
+              id: w.id,
+              workerName: w.name,
+              category: w.displayCategory,
+              time: slotTime,
+              status: w.status === 'admin_interview' ? 'Completed' : 'Today',
+              result: w.status === 'approved' ? 'Pass' : '',
+              resultNotes: '',
+              worker: w
+            };
+          }));
+        }
+
+        if (employers && Array.isArray(employers)) {
+          const mappedEmployers = employers.map((e: any) => ({
+            ...e,
+            name: e.company_name || e.name || 'Employer Household',
+            email: e.email || '',
+            phone: e.phone || '',
+            status: e.status || 'pending_review',
+            signup_date: e.created_at || 'Today'
+          }));
+          setEmployersList(mappedEmployers);
+        }
+
+        if (jobs && Array.isArray(jobs)) {
+          const mappedJobs = jobs.map((j: any) => {
+            const empName = j.employer_name || j.company_name || 'Employer Household';
+            const empPhone = j.employer_phone || j.phone || '';
+            const empEmail = j.employer_email || j.email || '';
+            const salaryVal = j.salary_offered || j.salary || j.salary_range_min || 15000;
+
+            return {
+              id: j.id,
+              user_id: j.user_id || j.employer_id,
+              title: j.title || j.description || 'General Job Requirement',
+              category: j.category || 'Domestic Worker',
+              salary_offered: salaryVal,
+              salary: salaryVal,
+              society_name: j.society_name || 'Gated Community',
+              employer: empName,
+              employer_name: empName,
+              employer_email: empEmail,
+              employer_phone: empPhone,
+              phone: empPhone,
+              email: empEmail,
+              description: j.description || 'Job requisition awaiting admin moderation.',
+              status: j.status || 'pending',
+              admin_note: j.admin_note || undefined,
+              created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
+            };
+          });
+          setPendingJobsList(mappedJobs);
+        }
+
+        setCounts({
+          pendingWorkers: apiData.workers?.filter((w: any) => w.status === 'pending_review' || w.status === 'admin_interview' || w.status === 'deletion_requested').length || apiData.counts?.pendingWorkers || 0,
+          pendingEmployers: apiData.employers?.filter((e: any) => e.status === 'pending_review' || e.status === 'deletion_requested').length || apiData.counts?.pendingEmployers || 0,
+          pendingJobs: apiData.jobs?.filter((j: any) => {
+            const s = (j.status || 'pending').toLowerCase();
+            return s === 'pending' || s === 'pending_review';
+          }).length || apiData.counts?.pendingJobs || 0,
+          pendingReviews: 0,
+          interviewsToday: apiData.workers?.filter((w: any) => w.status === 'admin_interview').length || apiData.counts?.interviewsToday || 0,
+          activeDisputes: 0
+        });
       }
-
-
-
-      const { data: sbEmployers } = await supabase
-        .from('employer_profiles')
-        .select('*, profiles(email, phone, status, created_at)');
-      let mappedEmployers: any[] = [];
-      if (sbEmployers) {
-        mappedEmployers = sbEmployers.map((e: any) => ({
-          ...e,
-          email: e.profiles?.email || '',
-          phone: e.profiles?.phone || '',
-          status: e.profiles?.status || 'pending_review',
-          signup_date: e.profiles?.created_at || e.created_at
-        }));
-        setEmployersList(mappedEmployers);
-      }
-
-      const { data: pendingJobs } = await supabase
-        .from('jobs')
-        .select('*, employer:profiles(*, employer_profiles(*))')
-        .order('created_at', { ascending: false });
-
-      if (pendingJobs && pendingJobs.length > 0) {
-        setPendingJobsList(pendingJobs.map((j: any) => {
-          const empProfile = Array.isArray(j.employer?.employer_profiles) ? j.employer?.employer_profiles[0] : j.employer?.employer_profiles;
-          const empName = j.employer_name || empProfile?.name || empProfile?.company_name || j.employer?.email?.split('@')[0] || 'Employer Household';
-          const empPhone = j.employer_phone || j.employer?.phone || empProfile?.phone || '+91 98765 43210';
-          const empEmail = j.employer_email || j.employer?.email || 'employer@sevikaa.com';
-          const salaryVal = j.salary_offered || j.salary || j.salary_range_min || 0;
-
-          return {
-            id: j.id,
-            user_id: j.user_id,
-            title: j.title || 'General Job Requirement',
-            category: j.category || 'General',
-            salary_offered: salaryVal,
-            salary: salaryVal,
-            society_name: j.society_name || 'General Locality',
-            employer: empName,
-            employer_name: empName,
-            employer_email: empEmail,
-            employer_phone: empPhone,
-            phone: empPhone,
-            email: empEmail,
-            description: j.description || 'Job requisition awaiting admin moderation.',
-            status: j.status || 'pending',
-            admin_note: j.admin_note || j.adminNote || undefined,
-            shift_hours: j.shift_hours || j.shift || 'Full Day (8 AM - 4 PM)',
-            weekly_off: j.weekly_off || 'Sundays Off',
-            family_members: j.family_members || '4 Members',
-            flat_type: j.flat_type || '3BHK Apartment',
-            dietary_pref: j.dietary_pref || 'Vegetarian',
-            payment_terms: j.payment_terms || 'Monthly via UPI / Bank',
-            responsibilities: j.responsibilities || [],
-            qualifications: j.qualifications || [],
-            perks: j.perks || [],
-            created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
-          };
-        }));
-      }
-
-      const { data: pendingReviews } = await supabase
-        .from('reviews')
-        .select(`
-          id,
-          rating,
-          comment,
-          status,
-          created_at,
-          author:profiles!reviews_author_id_fkey(
-            email,
-            phone,
-            employer_profiles(name, company_name)
-          ),
-          target:profiles!reviews_target_id_fkey(
-            email,
-            phone,
-            worker_profiles(full_name, skills)
-          )
-        `)
-        .eq('status', 'pending');
-      if (pendingReviews) {
-        setPendingReviewsList(pendingReviews.map((r: any) => {
-          const authorData = Array.isArray(r.author) ? r.author[0] : r.author;
-          const targetData = Array.isArray(r.target) ? r.target[0] : r.target;
-          const authorProfile = authorData?.employer_profiles?.[0] || authorData?.employer_profiles;
-          const targetProfile = targetData?.worker_profiles?.[0] || targetData?.worker_profiles;
-          
-          return {
-            id: r.id,
-            rating: r.rating || 5,
-            comment: r.comment || '',
-            created_at: r.created_at,
-            reviewer: authorProfile?.name || 'Employer',
-            reviewer_email: authorData?.email || '',
-            reviewer_phone: authorData?.phone || '',
-            reviewer_company: authorProfile?.company_name || 'Individual Household',
-            target: targetProfile?.full_name || 'Worker',
-            target_email: targetData?.email || '',
-            target_phone: targetData?.phone || '',
-            target_skills: targetProfile?.skills || []
-          };
-        }));
-      }
-    };
-
-      setCounts({
-        pendingWorkers: workersList?.filter((w: any) => w.status === 'pending_review' || w.status === 'admin_interview' || w.status === 'deletion_requested').length || 0,
-        pendingEmployers: employersList?.filter((e: any) => e.status === 'pending_review' || e.status === 'deletion_requested').length || 0,
-        pendingJobs: pendingJobsList?.filter((j: any) => {
-          const s = (j.status || 'pending').toLowerCase();
-          return s === 'pending' || s === 'pending_review';
-        }).length || 0,
-        pendingReviews: pendingReviewsList?.length || 0,
-        interviewsToday: workersList?.filter((w: any) => w.status === 'admin_interview').length || 0,
-        activeDisputes: 0
-      });
-
     } catch (err: any) {
       console.error("Dashboard database fetch error:", err);
       setError(err.message || 'Database error');
@@ -885,10 +832,15 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                 { id: 'enquiries',   label: 'Support Enquiries',    href: '/admin/enquiries',   icon: <HelpCircle size={16} />,       badge: 0 }
               ].map((tab) => {
                 const isActive = (tab.id === 'overview' && pathname === '/admin') || (tab.id !== 'overview' && pathname === tab.href);
+                const apiKey = tab.id === 'tele-onboarding' ? 'tele_onboarding_p1_l12' : `admin_data_${tab.id}_p1_l20`;
+                const apiFetcher = () => fetch(tab.id === 'tele-onboarding' ? '/api/admin/data?tab=tele-onboarding&page=1&limit=12' : `/api/admin/data?tab=${tab.id}&page=1&limit=20`).then(r => r.json());
+
                 return (
-                  <Link
+                  <PrefetchLink
                     key={tab.id}
                     href={tab.href}
+                    apiKey={apiKey}
+                    apiFetcher={apiFetcher}
                     className={`w-full py-2.5 px-3 rounded-xl flex items-center gap-2.5 transition-all text-xs font-bold relative group cursor-pointer ${
                       isActive 
                         ? 'bg-[#1A73E8]/10 text-[#1A73E8] shadow-sm shadow-[#1A73E8]/5' 
@@ -917,7 +869,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                         {tab.label}{tab.badge > 0 ? ` (${tab.badge})` : ''}
                       </div>
                     )}
-                  </Link>
+                  </PrefetchLink>
                 );
               })}
             </nav>
