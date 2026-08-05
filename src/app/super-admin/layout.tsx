@@ -12,7 +12,7 @@ import {
   CheckCircle2, UserPlus, FileText, ChevronRight, Menu, X, Search,
   Settings, Server, Activity, ShieldAlert, Sparkles, ChevronLeft, 
   LayoutDashboard, ThumbsUp, ThumbsDown, Check, Trash2, Calendar, Star, Clock,
-  MessageSquare, CreditCard
+  MessageSquare, CreditCard, PhoneCall
 } from 'lucide-react';
 
 interface SuperAdminContextProps {
@@ -573,48 +573,82 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
             : 'Domestic Worker';
 
           return {
+            ...w,
             id: w.id,
             name: displayName,
             full_name: displayName,
             email: w.email || '',
             phone: w.phone || '',
             skills: w.skills || [],
+            languages_spoken: Array.isArray(w.languages_spoken) ? w.languages_spoken : (typeof w.languages_spoken === 'string' ? w.languages_spoken.split(',').map((s: string) => s.trim()).filter(Boolean) : ['Hindi']),
             displayCategory,
             status: w.status || 'pending_review',
             age: w.age || 28,
             gender: w.gender || 'female',
+            bio: w.bio || '',
+            primary_gated_society: w.primary_gated_society || w.preferred_society_name || w.society_name || w.society || '',
+            preferred_society_name: w.primary_gated_society || w.preferred_society_name || w.society_name || w.society || '',
+            secondary_gated_society: w.secondary_gated_society || w.secondary_society_name || '',
+            secondary_society_name: w.secondary_gated_society || w.secondary_society_name || '',
+            preferred_areas: Array.isArray(w.preferred_areas) && w.preferred_areas.length > 0 ? w.preferred_areas : [w.primary_gated_society || w.preferred_society_name, w.secondary_gated_society || w.secondary_society_name].filter(Boolean),
             profile_picture_url: w.profile_picture_url || '',
             video_url: w.video_url || '',
             aadhaar_front_url: w.aadhaar_front_url || '',
             aadhaar_back_url: w.aadhaar_back_url || '',
             experience_years: w.experience_years || 0,
             expected_salary: w.expected_salary || 0,
+            emergency_contact: w.emergency_contact || w.alternate_phone || w.alt_phone || '',
+            alternate_phone: w.alternate_phone || w.alt_phone || w.emergency_contact || '',
             created_at: w.created_at,
             badges: {
               mobile: w.phone ? 'Verified' : 'Pending',
-              aadhaar: w.aadhaar_front_url ? 'Verified' : 'Pending',
-              police: 'Pending',
-              interview: w.status === 'live' ? 'Verified' : 'Pending',
-              video: w.video_url ? 'Verified' : 'Pending',
-              profile: w.profile_picture_url ? 'Verified' : 'Pending'
+              aadhaar: w.is_aadhaar_verified === true ? 'Verified' : 'Pending',
+              police: w.is_police_verified === true ? 'Verified' : 'Pending',
+              interview: w.is_interview_verified === true || w.is_tele_onboarded === true ? 'Verified' : 'Pending',
+              video: w.is_video_verified === true ? 'Verified' : 'Pending',
+              profile: w.status === 'approved' || w.status === 'live' ? 'Verified' : 'Pending'
             }
           };
         }));
+        setSelectedWorker((prevSelected: any) => {
+          if (!prevSelected && workers.length > 0) return workers[0];
+          if (prevSelected) {
+            const updatedSelected = workers.find((w: any) => w.id === prevSelected.id);
+            return updatedSelected || prevSelected;
+          }
+          return null;
+        });
       }
 
       if (employers && employers.length > 0) {
         setEmployersList(employers.map((e: any) => ({
+          ...e,
           id: e.id,
           user_id: e.user_id || e.id,
           name: e.company_name || e.name || 'Employer Household',
           company_name: e.company_name || e.name || 'Individual Household',
-          billing_address: e.billing_address || 'Locality Not Specified',
-          society_name: e.society_name || 'General Locality',
+          billing_address: e.billing_address || e.address || 'Locality Not Specified',
+          society_name: e.society_name || e.preferred_society || 'General Locality',
           phone: e.phone || '',
           email: e.email || '',
+          alternate_phone: e.alternate_phone || e.alt_phone || '',
+          tower_block: e.tower_block || '',
+          city: e.city || '',
+          state: e.state || '',
+          pincode: e.pincode || '',
+          gstin: e.gstin || '',
+          verification_requirement: e.verification_requirement || e.verification_pref || '',
           subscription_status: e.subscription_status || 'free',
           status: e.status || 'active',
-          created_at: e.created_at
+          created_at: e.created_at,
+          badges: {
+            mobile: e.phone ? 'Verified' : 'Pending',
+            aadhaar_front: e.is_aadhaar_front_verified === true ? 'Verified' : 'Pending',
+            aadhaar_back: e.is_aadhaar_back_verified === true ? 'Verified' : 'Pending',
+            residency: e.is_residency_verified === true ? 'Verified' : 'Pending',
+            interview: e.is_interview_verified === true || e.is_tele_onboarded === true ? 'Verified' : 'Pending',
+            profile: e.status === 'approved' || e.status === 'active' ? 'Verified' : 'Pending'
+          }
         })));
       }
 
@@ -653,9 +687,18 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
 
       if (clientCache.has(cacheKey)) {
         const cachedApiData = clientCache.get(cacheKey);
-        processSuperAdminApiData(cachedApiData);
-        setLoading(false);
-        return;
+        if (cachedApiData && (
+          (cachedApiData.workers && cachedApiData.workers.length > 0) ||
+          (cachedApiData.employers && cachedApiData.employers.length > 0) ||
+          (cachedApiData.jobs && cachedApiData.jobs.length > 0) ||
+          (cachedApiData.societies && cachedApiData.societies.length > 0)
+        )) {
+          processSuperAdminApiData(cachedApiData);
+          setLoading(false);
+          return;
+        } else {
+          clientCache.delete(cacheKey);
+        }
       }
 
       // 2. Background Re-validation & SWR Cache Store
@@ -664,7 +707,14 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         if (apiRes.ok) {
           const apiData = await apiRes.json();
           if (apiData.success) {
-            clientCache.set(cacheKey, apiData);
+            if (
+              (apiData.workers && apiData.workers.length > 0) ||
+              (apiData.employers && apiData.employers.length > 0) ||
+              (apiData.jobs && apiData.jobs.length > 0) ||
+              (apiData.societies && apiData.societies.length > 0)
+            ) {
+              clientCache.set(cacheKey, apiData);
+            }
             processSuperAdminApiData(apiData);
             setLoading(false);
             return;
@@ -847,7 +897,15 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
           email: e.email || e.profiles?.email || '',
           subscription_status: e.subscription_status || 'free',
           status: e.status || e.profiles?.status || 'pending_review',
-          created_at: e.created_at
+          created_at: e.created_at,
+          badges: {
+            mobile: (e.phone || e.profiles?.phone) ? 'Verified' : 'Pending',
+            aadhaar_front: e.is_aadhaar_front_verified === true ? 'Verified' : 'Pending',
+            aadhaar_back: e.is_aadhaar_back_verified === true ? 'Verified' : 'Pending',
+            residency: e.is_residency_verified === true ? 'Verified' : 'Pending',
+            interview: e.is_interview_verified === true || e.is_tele_onboarded === true ? 'Verified' : 'Pending',
+            profile: (e.status || e.profiles?.status) === 'approved' || (e.status || e.profiles?.status) === 'active' ? 'Verified' : 'Pending'
+          }
         })));
       }
 
@@ -992,7 +1050,13 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
       if (!isPlaceholder) {
         try {
           const updateFields: any = {};
-          if (badgeKey === 'aadhaar') updateFields.is_aadhaar_verified = (status === 'Verified');
+          if (badgeKey === 'aadhaar_front') updateFields.is_aadhaar_front_verified = (status === 'Verified');
+          if (badgeKey === 'aadhaar_back') updateFields.is_aadhaar_back_verified = (status === 'Verified');
+          if (badgeKey === 'aadhaar') {
+            updateFields.is_aadhaar_front_verified = (status === 'Verified');
+            updateFields.is_aadhaar_back_verified = (status === 'Verified');
+            updateFields.is_aadhaar_verified = (status === 'Verified');
+          }
           if (badgeKey === 'police') updateFields.is_police_verified = (status === 'Verified');
           if (badgeKey === 'interview') updateFields.is_interview_verified = (status === 'Verified');
           await supabase.from('worker_profiles').update(updateFields).eq('user_id', selectedWorker.id);
@@ -1224,6 +1288,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
             <nav className="p-3 space-y-1">
               {[
                 { id: 'overview',   label: 'Overview Dashboard',    href: '/super-admin',             icon: <LayoutDashboard size={16} />, badge: 0, badgeType: 'neutral' },
+                { id: 'tele-onboarding', label: 'Tele-Onboarding Hub', href: '/super-admin/tele-onboarding', icon: <PhoneCall size={16} />, badge: 0, badgeType: 'neutral' },
                 { id: 'admins',     label: 'Admin Management',       href: '/super-admin/admins',      icon: <Settings size={16} />,         badge: 0, badgeType: 'neutral' },
                 { id: 'workers',    label: 'Worker Verification',    href: '/super-admin/workers',     icon: <UserPlus size={16} />,         badge: dbStats.pendingWorkers, badgeType: 'amber' },
                 { id: 'employers',  label: 'Employer Verification',  href: '/super-admin/employers',   icon: <CheckCircle2 size={16} />,     badge: 0, badgeType: 'amber' },

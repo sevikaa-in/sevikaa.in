@@ -15,38 +15,72 @@ import { queryDb } from '@/lib/db';
  *  - Aadhaar docs:    10 MB  (high-res scan / PDF)
  */
 
-const FOLDER_MAP: Record<string, string> = {
-  video_url:           'sevikaa/worker-videos',
-  profile_picture_url: 'sevikaa/worker-selfies',
-  aadhaar_front_url:   'sevikaa/worker-documents',
-  aadhaar_back_url:    'sevikaa/worker-documents',
-  residency_proof_url: 'sevikaa/employer-documents',
+const getFolderForAsset = (assetType: string, role?: string | null): string => {
+  const isEmployer = role === 'employer' || assetType.startsWith('employer_') || assetType === 'residency_proof_url';
+
+  if (isEmployer) {
+    switch (assetType) {
+      case 'profile_picture_url':
+      case 'avatar_url':
+        return 'sevikaa/employers/selfies';
+      case 'aadhaar_front_url':
+        return 'sevikaa/employers/aadhaar-front';
+      case 'aadhaar_back_url':
+        return 'sevikaa/employers/aadhaar-back';
+      case 'residency_proof_url':
+        return 'sevikaa/employers/residency-proofs';
+      default:
+        return 'sevikaa/employers/verification-docs';
+    }
+  } else {
+    switch (assetType) {
+      case 'video_url':
+        return 'sevikaa/workers/intro-videos';
+      case 'profile_picture_url':
+      case 'avatar_url':
+        return 'sevikaa/workers/selfies';
+      case 'aadhaar_front_url':
+        return 'sevikaa/workers/aadhaar-front';
+      case 'aadhaar_back_url':
+        return 'sevikaa/workers/aadhaar-back';
+      case 'police_verification_url':
+        return 'sevikaa/workers/police-verification';
+      default:
+        return 'sevikaa/workers/verification-docs';
+    }
+  }
 };
 
 const RESOURCE_TYPE_MAP: Record<string, 'video' | 'image' | 'raw'> = {
-  video_url:           'video',
-  profile_picture_url: 'image',
-  aadhaar_front_url:   'image',
-  aadhaar_back_url:    'image',
-  residency_proof_url: 'image',
+  video_url:                'video',
+  profile_picture_url:      'image',
+  avatar_url:               'image',
+  aadhaar_front_url:        'image',
+  aadhaar_back_url:         'image',
+  residency_proof_url:      'image',
+  police_verification_url:  'image',
 };
 
 // Size limits in bytes
 const SIZE_LIMITS: Record<string, number> = {
-  video_url:           50  * 1024 * 1024,  // 50 MB
-  profile_picture_url:  5  * 1024 * 1024,  //  5 MB
-  aadhaar_front_url:   10  * 1024 * 1024,  // 10 MB
-  aadhaar_back_url:    10  * 1024 * 1024,  // 10 MB
-  residency_proof_url: 10  * 1024 * 1024,  // 10 MB
+  video_url:                50 * 1024 * 1024,  // 50 MB
+  profile_picture_url:       5 * 1024 * 1024,  //  5 MB
+  avatar_url:                5 * 1024 * 1024,  //  5 MB
+  aadhaar_front_url:        10 * 1024 * 1024,  // 10 MB
+  aadhaar_back_url:         10 * 1024 * 1024,  // 10 MB
+  residency_proof_url:      10 * 1024 * 1024,  // 10 MB
+  police_verification_url:  10 * 1024 * 1024,  // 10 MB
 };
 
 // Allowed MIME types per asset
 const ALLOWED_MIME: Record<string, string[]> = {
-  video_url:           ['video/mp4', 'video/webm', 'video/quicktime'],
-  profile_picture_url: ['image/jpeg', 'image/png', 'image/webp'],
-  aadhaar_front_url:   ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
-  aadhaar_back_url:    ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
-  residency_proof_url: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+  video_url:                ['video/mp4', 'video/webm', 'video/quicktime'],
+  profile_picture_url:      ['image/jpeg', 'image/png', 'image/webp'],
+  avatar_url:               ['image/jpeg', 'image/png', 'image/webp'],
+  aadhaar_front_url:        ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+  aadhaar_back_url:         ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+  residency_proof_url:      ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+  police_verification_url:  ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
 };
 
 // Aadhaar & residency docs are stored PRIVATE — requires signed URL to view
@@ -58,14 +92,14 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null;
     const userId = formData.get('userId') as string | null;
     const assetType = formData.get('assetType') as string | null;
+    const role = formData.get('role') as string | null;
 
     if (!file || !userId || !assetType) {
       return NextResponse.json({ error: 'file, userId, and assetType are required' }, { status: 400 });
     }
 
-    if (!FOLDER_MAP[assetType]) {
-      return NextResponse.json({ error: 'Invalid assetType' }, { status: 400 });
-    }
+    const folder = getFolderForAsset(assetType, role);
+    const resourceType = RESOURCE_TYPE_MAP[assetType] || 'image';
 
     // Validate MIME type
     const allowedMimes = ALLOWED_MIME[assetType];
@@ -86,15 +120,14 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const folder = FOLDER_MAP[assetType];
-    const resourceType = RESOURCE_TYPE_MAP[assetType];
     const isPrivate = PRIVATE_ASSETS.has(assetType);
-    const publicId = `${folder}/${userId}_${assetType}_${Date.now()}`;
+    const fileName = `${userId}_${assetType}_${Date.now()}`;
 
     const uploadResult = await new Promise<any>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
-          public_id: publicId,
+          folder: folder,
+          public_id: fileName,
           resource_type: resourceType,
           overwrite: true,
           // PRIVATE for Aadhaar/sensitive docs — can only be viewed via signed URL
@@ -115,24 +148,28 @@ export async function POST(req: NextRequest) {
       uploadStream.end(buffer);
     });
 
-    // PRIVATE assets: store opaque cloudinary reference (not a direct URL)
-    // PUBLIC assets: store the direct CDN HTTPS URL
-    const storedValue = isPrivate
-      ? `cloudinary:${file.type === 'application/pdf' ? 'raw' : resourceType}:${uploadResult.public_id}`
-      : uploadResult.secure_url;
+    const storedValue = uploadResult.secure_url;
 
     // Persist URL/reference to the DB
-    if (assetType === 'residency_proof_url') {
-      await queryDb(
-        `UPDATE public.employer_profiles SET residency_proof_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
-        [storedValue, userId]
-      );
+    const isEmployerRole = role === 'employer' || assetType === 'residency_proof_url';
+    if (isEmployerRole) {
+      if (assetType === 'profile_picture_url' || assetType === 'avatar_url') {
+        await queryDb(
+          `UPDATE public.employer_profiles SET avatar_url = $1, profile_picture_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
+          [storedValue, userId]
+        );
+      } else {
+        await queryDb(
+          `UPDATE public.employer_profiles SET ${assetType} = $1 WHERE user_id::text = $2 OR id::text = $2`,
+          [storedValue, userId]
+        );
+      }
     } else {
       await queryDb(
         `UPDATE public.worker_profiles SET ${assetType} = $1 WHERE user_id::text = $2 OR id::text = $2`,
         [storedValue, userId]
       );
-      if (assetType === 'profile_picture_url') {
+      if (assetType === 'profile_picture_url' || assetType === 'avatar_url') {
         await queryDb(
           `UPDATE public.employer_profiles SET avatar_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
           [storedValue, userId]

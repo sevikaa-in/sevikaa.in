@@ -24,34 +24,91 @@ export default function SocietiesPage() {
 
   // Real Database Pending Requests State
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [relocationRequests, setRelocationRequests] = useState<any[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; title: string } | null>(null);
 
-  // Fetch pending society onboarding requests from Supabase
-  const fetchPendingRequests = React.useCallback(async () => {
-    try {
-      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // Fetch pending society onboarding requests & relocation requests from Supabase
+  React.useEffect(() => {
+    let isMounted = true;
 
-      const res = await fetch('/api/societies');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.societies) {
-          setPendingRequests(data.societies.filter((s: any) => s.status === 'pending_verification'));
-          return;
+    const loadRequests = async () => {
+      try {
+        const res = await fetch('/api/societies');
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (data.success && data.societies) {
+            setPendingRequests(data.societies.filter((s: any) => s.status === 'pending_verification'));
+          }
         }
+      } catch (err) {
+        console.error("Error fetching pending society requests:", err);
       }
-      setPendingRequests([]);
-    } catch (err) {
-      console.error("Error fetching pending society requests:", err);
-      setPendingRequests([]);
-    } finally {
-      setLoadingRequests(false);
-    }
+
+      try {
+        const relRes = await fetch('/api/admin/society-relocations');
+        if (relRes.ok && isMounted) {
+          const relData = await relRes.json();
+          if (relData.success && relData.requests) {
+            setRelocationRequests(relData.requests);
+          }
+        }
+      } catch (relErr) {
+        console.error("Error fetching relocation requests:", relErr);
+      } finally {
+        if (isMounted) setLoadingRequests(false);
+      }
+    };
+
+    loadRequests();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  React.useEffect(() => {
-    fetchPendingRequests();
-  }, [fetchPendingRequests]);
+  const handleApproveRelocation = async (reqItem: any) => {
+    try {
+      const res = await fetch('/api/admin/society-relocations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: reqItem.id,
+          employerId: reqItem.employer_id,
+          targetSociety: reqItem.target_society,
+          action: 'approve'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Approval failed');
+
+      setRelocationRequests(prev => prev.filter(r => r.id !== reqItem.id));
+      showToast(`Society transfer approved! Employer moved to "${reqItem.target_society}"`, 'success');
+    } catch (err: any) {
+      showToast(`Error approving relocation: ${err.message}`, 'error');
+    }
+  };
+
+  const handleRejectRelocation = async (reqItem: any) => {
+    try {
+      const res = await fetch('/api/admin/society-relocations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: reqItem.id,
+          employerId: reqItem.employer_id,
+          action: 'reject'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Rejection failed');
+
+      setRelocationRequests(prev => prev.filter(r => r.id !== reqItem.id));
+      showToast('Relocation request rejected.', 'info');
+    } catch (err: any) {
+      showToast(`Error rejecting relocation: ${err.message}`, 'error');
+    }
+  };
 
   const handleApproveRequest = async (reqItem: any) => {
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
@@ -491,6 +548,135 @@ export default function SocietiesPage() {
           </div>
         )}
       </div>
+
+      {/* 🔄 EMPLOYER SOCIETY RELOCATION REQUESTS QUEUE */}
+      <div className="bg-white p-5 rounded-2xl border border-blue-200/80 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-blue-100 pb-3">
+          <div className="space-y-0.5">
+            <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
+              <span>🔄 Employer Society Relocation Requests</span>
+              <span className="px-2 py-0.5 bg-blue-50 text-[#1A73E8] text-[10px] font-bold rounded-full border border-blue-200">
+                {relocationRequests.length} Pending Relocations
+              </span>
+            </h4>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Review and approve society transfer requests submitted by registered household employers. Inspect residency proof before approving.
+            </p>
+          </div>
+        </div>
+
+        {relocationRequests.length === 0 ? (
+          <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-xl">✨</span>
+            <p className="text-xs font-bold text-slate-700">No pending society relocation requests</p>
+            <p className="text-[11px] text-slate-400">When an employer requests a society transfer from their account, it will appear here for 1-click verification.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {relocationRequests.map((rel: any) => {
+              const empName = rel.employer_name || 'Employer Household';
+              const empPhone = rel.employer_phone || 'N/A';
+              const curSoc = rel.current_society || 'Current Society';
+              const tarSoc = rel.target_society || 'Target Society';
+              const reason = rel.reason || 'Moved to new gated community';
+              const proofUrl = rel.residency_proof_url;
+
+              return (
+                <div key={rel.id} className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/40 via-white to-slate-50 border border-slate-200/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-slate-900 text-sm">{empName}</span>
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-full border border-slate-200">
+                        📱 {empPhone}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs font-bold flex-wrap pt-0.5">
+                      <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
+                        🏠 {curSoc}
+                      </span>
+                      <span className="text-blue-600 font-black">➔</span>
+                      <span className="px-2.5 py-1 bg-blue-50 text-[#1A73E8] rounded-lg border border-blue-200 font-extrabold">
+                        🏢 {tarSoc}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Reason: <span className="text-slate-700 font-semibold">{reason}</span>
+                    </p>
+                  </div>
+
+                  {/* Actions & Proof Inspection */}
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap pt-2 md:pt-0">
+                    {proofUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDoc({ url: proofUrl, title: `${empName} - Residence Proof (${tarSoc})` })}
+                        className="py-2 px-3 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-xl text-[10.5px] font-bold border border-purple-200 transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                      >
+                        <span>📄 Inspect Proof</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 italic font-medium px-2 py-1 bg-slate-50 rounded-lg">No Proof Attached</span>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleApproveRelocation(rel)}
+                      className="py-2 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10.5px] font-black transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1"
+                    >
+                      <Check size={13} strokeWidth={3} />
+                      <span>Approve Transfer</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRejectRelocation(rel)}
+                      className="py-2 px-2.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-700 rounded-xl text-[10.5px] font-bold transition-all cursor-pointer"
+                    >
+                      <span>Reject</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Document Preview Lightbox Modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-5 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-black text-slate-900">{previewDoc.title}</h3>
+              <button
+                type="button"
+                onClick={() => setPreviewDoc(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-auto rounded-2xl bg-slate-900 flex items-center justify-center p-2">
+              {previewDoc.url.toLowerCase().endsWith('.pdf') ? (
+                <iframe src={previewDoc.url} className="w-full h-[60vh] rounded-xl" />
+              ) : (
+                <img src={previewDoc.url} alt="Residency Proof" className="max-w-full max-h-[60vh] object-contain rounded-xl" />
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPreviewDoc(null)}
+                className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter & Search Header */}
       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">

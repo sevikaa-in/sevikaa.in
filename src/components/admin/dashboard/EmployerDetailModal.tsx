@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
 import { supabase } from '../../../lib/supabaseClient';
+import { usePrivateUrl } from '@/hooks/usePrivateUrl';
 
 interface EmployerDetailModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ interface EmployerDetailModalProps {
   onRejectEmployer: (id: string) => void;
   onUnapproveEmployer?: (id: string) => void;
   onRequestChanges?: (id: string, note: string) => void;
+  onUpdateBadge?: (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => void;
 }
 
 export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
@@ -27,13 +29,20 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   onApproveEmployer,
   onRejectEmployer,
   onUnapproveEmployer,
-  onRequestChanges
+  onRequestChanges,
+  onUpdateBadge
 }) => {
   const [mounted, setMounted] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [requestReason, setRequestReason] = useState('');
+
+  // Resolved Document URLs (handles public URLs and signed private Cloudinary refs)
+  const avatarRes = usePrivateUrl(employer?.avatar_url || employer?.profile_photo_url);
+  const residencyRes = usePrivateUrl(employer?.residency_proof_url || employer?.maintenance_bill_url);
+  const aadhaarFrontRes = usePrivateUrl(employer?.aadhaar_front_url);
+  const aadhaarBackRes = usePrivateUrl(employer?.aadhaar_back_url);
 
   // Document inspection state
   const [activeDocTab, setActiveDocTab] = useState<'profile_photo' | 'selfie' | 'residency_proof' | 'aadhaar_front' | 'aadhaar_back'>('profile_photo');
@@ -249,17 +258,24 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 <span className="text-slate-800 font-extrabold mt-0.5 block">{employer.company_name || 'Individual Household'}</span>
               </div>
               <div>
-                <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider">Phone</span>
+                <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider">Primary Phone</span>
                 <span className="flex items-center gap-1 text-slate-700 mt-0.5 font-bold">
                   <Phone size={10} className="text-slate-400" />
                   {employer.phone || 'N/A'}
                 </span>
               </div>
-              <div className="col-span-2">
+              <div>
+                <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider">Alternate Contact</span>
+                <span className="flex items-center gap-1 text-slate-700 mt-0.5 font-bold">
+                  <Phone size={10} className="text-slate-400" />
+                  {employer.alternate_phone || employer.alt_phone || 'None Listed'}
+                </span>
+              </div>
+              <div>
                 <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider">Email Address</span>
                 <span className="flex items-center gap-1 text-slate-700 mt-0.5 font-bold">
                   <Mail size={10} className="text-slate-400" />
-                  {employer.email || 'N/A'}
+                  <span className="truncate">{employer.email || 'N/A'}</span>
                 </span>
               </div>
             </div>
@@ -288,14 +304,23 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Tower / Flat Number & Address</span>
                 <span className="flex items-start gap-1 text-slate-700 font-semibold bg-slate-50 p-2 rounded-xl border border-slate-100">
                   <MapPin size={12} className="mt-0.5 shrink-0 text-slate-400" />
-                  <span>{employer.tower_block ? `${employer.tower_block} • ` : ''}{employer.billing_address || employer.address || 'Bangalore, Karnataka'}</span>
+                  <span>{employer.tower_block ? `${employer.tower_block} • ` : ''}{employer.billing_address || employer.address || 'Bangalore'}, {employer.city || 'Kolkata'} {employer.pincode ? `(${employer.pincode})` : ''}</span>
                 </span>
               </div>
-              <div className="col-span-1 sm:col-span-2">
+              {employer.gstin && (
+                <div>
+                  <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Tax GSTIN / Business ID</span>
+                  <span className="flex items-center gap-1.5 text-slate-800 font-mono font-bold bg-slate-50 p-2 rounded-xl border border-slate-100">
+                    <FileText size={12} className="text-slate-400 shrink-0" />
+                    <span>{employer.gstin}</span>
+                  </span>
+                </div>
+              )}
+              <div className={employer.gstin ? 'col-span-1' : 'col-span-1 sm:col-span-2'}>
                 <span className="block text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Preferred Helper Verification Standard</span>
-                <span className="flex items-center gap-1.5 text-blue-900 font-black bg-blue-50/80 p-2.5 rounded-xl border border-blue-100">
+                <span className="flex items-center gap-1.5 text-blue-900 font-black bg-blue-50/80 p-2 rounded-xl border border-blue-100">
                   <ShieldCheck size={14} className="text-[#1A73E8] shrink-0" />
-                  <span>{employer.verification_pref || 'Aadhaar Card + Police Background Audit Required (Recommended)'}</span>
+                  <span className="truncate">{employer.verification_pref || employer.verification_requirement || 'Aadhaar Card + Police Audit Required'}</span>
                 </span>
               </div>
             </div>
@@ -344,9 +369,9 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
             {/* Viewer Canvas */}
             <div className="relative w-full h-[320px] bg-slate-900/5 rounded-2xl overflow-hidden flex items-center justify-center p-3 border border-slate-100">
               {activeDocTab === 'profile_photo' && (
-                employer.avatar_url || employer.profile_photo_url ? (
+                (avatarRes.url || employer.avatar_url || employer.profile_photo_url) ? (
                   <img 
-                    src={employer.avatar_url || employer.profile_photo_url} 
+                    src={avatarRes.url || employer.avatar_url || employer.profile_photo_url} 
                     alt="Employer Profile Photo" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -361,9 +386,9 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
               )}
 
               {activeDocTab === 'residency_proof' && (
-                employer.residency_proof_url || employer.maintenance_bill_url ? (
+                (residencyRes.url || employer.residency_proof_url || employer.maintenance_bill_url) ? (
                   <img 
-                    src={employer.residency_proof_url || employer.maintenance_bill_url} 
+                    src={residencyRes.url || employer.residency_proof_url || employer.maintenance_bill_url} 
                     alt="Society Residency Proof / Maintenance Receipt" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -378,9 +403,9 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
               )}
 
               {activeDocTab === 'aadhaar_front' && (
-                employer.aadhaar_front_url ? (
+                (aadhaarFrontRes.url || employer.aadhaar_front_url) ? (
                   <img 
-                    src={employer.aadhaar_front_url} 
+                    src={aadhaarFrontRes.url || employer.aadhaar_front_url} 
                     alt="Aadhaar Front" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -395,9 +420,9 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
               )}
 
               {activeDocTab === 'aadhaar_back' && (
-                employer.aadhaar_back_url ? (
+                (aadhaarBackRes.url || employer.aadhaar_back_url) ? (
                   <img 
-                    src={employer.aadhaar_back_url} 
+                    src={aadhaarBackRes.url || employer.aadhaar_back_url} 
                     alt="Aadhaar Back" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -410,6 +435,49 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                   </div>
                 )
               )}
+            </div>
+          </div>
+
+          {/* Platform Verification Badges */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">
+              Platform Verification Badges
+            </span>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { key: 'mobile', label: 'Mobile Phone Verification' },
+                { key: 'aadhaar_front', label: 'Aadhaar Front (Identity & Photo)' },
+                { key: 'aadhaar_back', label: 'Aadhaar Back (Address & Pin)' },
+                { key: 'residency', label: 'Society Residence Proof Verification' },
+                { key: 'interview', label: 'In-Person / Phone Admin Verification' },
+                { key: 'profile', label: 'Overall Profile Approval Status' }
+              ].map((badge) => {
+                const currentStatus = employer.badges?.[badge.key] || (
+                  badge.key === 'residency' ? (employer.is_residency_verified === true ? 'Verified' : 'Pending') :
+                  badge.key === 'aadhaar_front' ? (employer.is_aadhaar_front_verified === true ? 'Verified' : 'Pending') :
+                  badge.key === 'aadhaar_back' ? (employer.is_aadhaar_back_verified === true ? 'Verified' : 'Pending') :
+                  badge.key === 'mobile' ? (employer.phone ? 'Verified' : 'Pending') :
+                  badge.key === 'interview' ? (employer.is_interview_verified === true ? 'Verified' : 'Pending') :
+                  badge.key === 'profile' ? (employer.status === 'approved' || employer.status === 'active' ? 'Verified' : 'Pending') :
+                  'Pending'
+                );
+
+                return (
+                  <div key={badge.key} className="p-3 bg-slate-50/70 rounded-xl flex items-center justify-between border border-slate-100/50 gap-2">
+                    <span className="text-xs font-bold text-slate-700">{badge.label}</span>
+                    <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 ${
+                      currentStatus === 'Verified'
+                        ? 'bg-[#34A853] text-white shadow-2xs'
+                        : currentStatus === 'Rejected'
+                        ? 'bg-[#EA4335] text-white shadow-2xs'
+                        : 'bg-[#FBBC05] text-[#202124] shadow-2xs'
+                    }`}>
+                      {currentStatus === 'Verified' ? '✓ VERIFIED' : currentStatus === 'Rejected' ? '✕ REJECTED' : '⏳ PENDING'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -581,12 +649,23 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 ) : (
                   <button
                     onClick={() => {
-                      const isEmployerComplete = !!(employer.company_name || employer.name) && 
-                                                 !!(employer.society_name) && 
-                                                 !!(employer.address) && 
-                                                 !!(employer.residency_proof_url || employer.avatar_url || employer.profile_photo_url || employer.aadhaar_front_url);
-                      if (!isEmployerComplete) {
-                        alert("⚠️ Restricted Action: Cannot approve an incomplete profile!\n\nPlease complete Employer Name, Gated Society, Flat Address, and upload Residency Proof / Selfie in Tele-Onboarding before approving.");
+                      const hasName = !!(employer?.company_name || employer?.name)?.trim();
+                      const hasPhone = (employer?.phone || '').replace(/\D/g, '').length >= 10;
+                      const hasEmail = !!(employer?.email)?.trim();
+                      const hasSociety = !!(employer?.society_name)?.trim();
+                      const hasTower = !!(employer?.tower_block || employer?.tower)?.trim();
+                      const hasAddress = !!(employer?.address || employer?.billing_address)?.trim();
+                      const hasPhoto = !!(employer?.avatar_url || employer?.profile_photo_url);
+                      const hasResidency = !!(employer?.residency_proof_url || employer?.maintenance_bill_url);
+                      const hasAadhaarFront = !!employer?.aadhaar_front_url;
+                      const hasAadhaarBack = !!employer?.aadhaar_back_url;
+
+                      const steps = [hasName, hasPhone, hasEmail, hasSociety, hasTower, hasAddress, hasPhoto, hasResidency, hasAadhaarFront, hasAadhaarBack];
+                      const completedCount = steps.filter(Boolean).length;
+                      const is100PercentComplete = completedCount === 10;
+
+                      if (!is100PercentComplete) {
+                        alert(`⚠️ Restricted Action: Cannot approve an incomplete employer profile!\n\nProfile is currently ${completedCount * 10}% complete (${completedCount} of 10 steps).\n\nAll 10 profile steps (Employer Name, Mobile, Email, Gated Society, Tower/Block, Flat Address, Profile Photo, Residency Proof, Aadhaar Front, and Aadhaar Back) must be 100% complete before Admin approval.`);
                         return;
                       }
                       onApproveEmployer(employer.id);

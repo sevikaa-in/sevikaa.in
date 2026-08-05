@@ -9,10 +9,19 @@
  *  - Relative Supabase storage paths
  */
 
-export const resolveMediaUrl = (bucketName: string, path: string | null | undefined): string => {
-  if (!path) return '';
+export const resolveMediaUrl = (bucketName: string, path: string | null | undefined): string | undefined => {
+  if (!path) return undefined;
   const trimmed = path.trim();
-  if (!trimmed) return '';
+  if (!trimmed || 
+      trimmed === 'undefined' || 
+      trimmed === 'null' || 
+      trimmed === '[]' || 
+      trimmed === '{}' || 
+      trimmed === '[object Object]' || 
+      trimmed === 'none' || 
+      trimmed === 'n/a') {
+    return undefined;
+  }
 
   // Already a usable URL
   if (
@@ -24,16 +33,40 @@ export const resolveMediaUrl = (bucketName: string, path: string | null | undefi
     return trimmed;
   }
 
-  // Cloudinary private reference — caller should use resolvePrivateUrl() instead
-  // Return empty here so UI knows to fetch a signed URL
+  // Cloudinary reference fallback: cloudinary:<resourceType>:<publicId>
   if (trimmed.startsWith('cloudinary:')) {
-    return '';
+    const parts = trimmed.split(':');
+    if (parts.length >= 3) {
+      const resourceType = parts[1] || 'image';
+      const publicId = parts.slice(2).join(':');
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dkg0jbfvt';
+      return `https://res.cloudinary.com/${cloudName}/${resourceType}/upload/${publicId}`;
+    }
+    return undefined;
   }
 
   // Relative Supabase storage path fallback
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hcuvizvdsooeypetvmhm.supabase.co';
-  const cleanPath = trimmed.replace(new RegExp(`^${bucketName}\\/`), '');
-  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${cleanPath}`;
+  
+  // Check if path already starts with any known storage bucket
+  const knownBuckets = ['worker-documents', 'verification-documents', 'employer-documents', 'worker-videos', 'employer-avatars', 'worker-selfies', 'documents'];
+  for (const b of knownBuckets) {
+    if (trimmed.startsWith(`${b}/`)) {
+      const cleanPath = trimmed.slice(b.length + 1);
+      return `${supabaseUrl}/storage/v1/object/public/${b}/${cleanPath}`;
+    }
+  }
+
+  // Map verification-documents / employer-documents / employer-avatars buckets to actual Supabase worker-documents bucket
+  let effectiveBucket = bucketName;
+  if (effectiveBucket === 'verification-documents' || effectiveBucket === 'employer-documents' || effectiveBucket === 'employer-avatars') {
+    effectiveBucket = 'worker-documents';
+  }
+
+  const cleanPath = trimmed
+    .replace(new RegExp(`^${effectiveBucket}\\/`), '')
+    .replace(/^(employer-documents|verification-documents|worker-documents)\//, '');
+  return `${supabaseUrl}/storage/v1/object/public/${effectiveBucket}/${cleanPath}`;
 };
 
 /**

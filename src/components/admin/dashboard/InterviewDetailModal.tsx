@@ -8,6 +8,8 @@ import {
   PhoneCall, Copy, MessageSquare, CheckCheck, ChevronDown, Building2
 } from 'lucide-react';
 
+import { usePrivateUrl } from '@/hooks/usePrivateUrl';
+
 interface InterviewDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -267,6 +269,11 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
 
   const { worker } = interview;
 
+  const selfieRes = usePrivateUrl(worker?.profile_picture_url);
+  const aadhaarFrontRes = usePrivateUrl(worker?.aadhaar_front_url);
+  const aadhaarBackRes = usePrivateUrl(worker?.aadhaar_back_url);
+  const videoRes = usePrivateUrl(worker?.video_url);
+
   const workerName = 
     interview.workerName ||
     (worker?.full_name && worker.full_name.trim() && worker.full_name !== 'Verified Worker' ? worker.full_name.trim() : null) ||
@@ -282,10 +289,10 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
     return `${base}/storage/v1/object/public/${bucket}/${cleanPath}`;
   };
 
-  const selfieUrl = worker ? getPublicUrl('worker-selfies', worker.profile_picture_url) : '';
-  const aadhaarFrontUrl = worker ? getPublicUrl('worker-documents', worker.aadhaar_front_url) : '';
-  const aadhaarBackUrl = worker ? getPublicUrl('worker-documents', worker.aadhaar_back_url) : '';
-  const videoUrl = worker ? getPublicUrl('worker-videos', worker.video_url) : '';
+  const selfieUrl = selfieRes.url || (worker ? getPublicUrl('worker-selfies', worker.profile_picture_url) : '');
+  const aadhaarFrontUrl = aadhaarFrontRes.url || (worker ? getPublicUrl('worker-documents', worker.aadhaar_front_url) : '');
+  const aadhaarBackUrl = aadhaarBackRes.url || (worker ? getPublicUrl('worker-documents', worker.aadhaar_back_url) : '');
+  const videoUrl = videoRes.url || (worker ? getPublicUrl('worker-videos', worker.video_url) : '');
 
   return createPortal(
     <div 

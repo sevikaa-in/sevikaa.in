@@ -64,42 +64,55 @@ export async function GET(req: NextRequest) {
       console.warn("Admin counts query notice:", e);
     }
 
-    const search = searchParams.get('q') || searchParams.get('search') || '';
-    const searchPattern = search.trim() ? `%${search.trim()}%` : null;
+
+
+    const searchPattern = searchParams.get('q') ? `%${searchParams.get('q')}%` : null;
     const statusFilter = searchParams.get('status') || '';
 
-    // 3. Tab-based Paginated Fetching (Include 'interviews' and 'tele-onboarding' tabs)
-    if (tab === 'workers' || tab === 'interviews' || tab === 'overview' || tab === 'tele-onboarding') {
+    // 3. Tab-based Paginated Fetching
+    if (tab === 'workers' || tab === 'overview' || tab === 'tele-onboarding') {
       try {
-        await queryDb(`
-          ALTER TABLE public.worker_profiles 
-          ADD COLUMN IF NOT EXISTS preferred_society_name text,
-          ADD COLUMN IF NOT EXISTS secondary_society_name text,
-          ADD COLUMN IF NOT EXISTS bio text,
-          ADD COLUMN IF NOT EXISTS preferred_shift text,
-          ADD COLUMN IF NOT EXISTS emergency_contact text,
-          ADD COLUMN IF NOT EXISTS aadhaar_front_url text,
-          ADD COLUMN IF NOT EXISTS aadhaar_back_url text;
-        `).catch(() => {});
-
         const wRes = await queryDb(
-          `SELECT p.id, p.email, p.phone, p.status, p.created_at, wp.full_name AS profile_name,
-                  COALESCE(
-                    NULLIF(NULLIF(TRIM(wp.full_name), 'Worker Candidate'), ''),
-                    NULLIF(TRIM(wp.full_name), ''),
-                    CONCAT('Candidate ', RIGHT(COALESCE(p.phone, 'Lead'), 4))
-                  ) AS full_name,
-                  wp.skills, wp.languages_spoken, wp.age, wp.gender,
-                  wp.expected_salary, wp.experience_years, wp.profile_picture_url,
-                  wp.video_url, wp.aadhaar_front_url, wp.aadhaar_back_url,
-                  wp.bio, wp.preferred_shift, wp.preferred_shift AS work_timing, wp.availability_slots, wp.emergency_contact,
-                  COALESCE(s.name, wp.preferred_society_name, (wp.preferred_areas[1])) AS primary_gated_society,
-                  COALESCE(wp.secondary_society_name, (CASE WHEN array_length(wp.preferred_areas, 1) > 1 THEN wp.preferred_areas[2] ELSE NULL END)) AS secondary_gated_society
+          `SELECT COALESCE(wp.id::text, p.id::text) AS id,
+                  COALESCE(wp.user_id::text, p.id::text) AS user_id,
+                  COALESCE(p.email, '') AS email,
+                  COALESCE(p.phone, wp.alternate_phone, wp.emergency_contact, '') AS phone,
+                  COALESCE(p.status, 'pending_review') AS status,
+                  COALESCE(p.created_at, wp.created_at, NOW()) AS created_at,
+                  COALESCE(NULLIF(TRIM(wp.full_name), ''), NULLIF(TRIM(p.full_name), ''), CONCAT('Candidate ', RIGHT(COALESCE(p.phone, 'Lead'), 4))) AS name,
+                  COALESCE(NULLIF(TRIM(wp.full_name), ''), NULLIF(TRIM(p.full_name), ''), CONCAT('Candidate ', RIGHT(COALESCE(p.phone, 'Lead'), 4))) AS full_name,
+                  wp.gender, 
+                  wp.age, 
+                  wp.category,
+                  wp.experience_years, 
+                  wp.expected_salary, 
+                  wp.skills, 
+                  wp.languages_spoken, 
+                  wp.bio,
+                  COALESCE(wp.profile_picture_url, wp.avatar_url) AS profile_picture_url,
+                  COALESCE(wp.avatar_url, wp.profile_picture_url) AS avatar_url,
+                  wp.aadhaar_front_url, 
+                  wp.aadhaar_back_url, 
+                  wp.video_url, 
+                  wp.police_verification_url, 
+                  wp.preferred_shift, 
+                  wp.emergency_contact, 
+                  COALESCE(wp.alternate_phone, wp.emergency_contact) AS alternate_phone,
+                  COALESCE(wp.is_tele_onboarded, false) AS is_tele_onboarded, 
+                  COALESCE(wp.is_interview_verified, false) AS is_interview_verified, 
+                  COALESCE(wp.is_aadhaar_front_verified, false) AS is_aadhaar_front_verified, 
+                  COALESCE(wp.is_aadhaar_back_verified, false) AS is_aadhaar_back_verified, 
+                  COALESCE(wp.is_aadhaar_verified, false) AS is_aadhaar_verified, 
+                  COALESCE(wp.is_police_verified, false) AS is_police_verified, 
+                  COALESCE(wp.is_video_verified, false) AS is_video_verified,
+                  COALESCE(s.name, wp.preferred_society_name, (CASE WHEN array_length(wp.preferred_areas, 1) > 0 THEN wp.preferred_areas[1] ELSE NULL END)) AS primary_gated_society,
+                  COALESCE(wp.secondary_society_name, (CASE WHEN array_length(wp.preferred_areas, 1) > 1 THEN wp.preferred_areas[2] ELSE NULL END)) AS secondary_gated_society,
+                  wp.preferred_society_name, wp.secondary_society_name, wp.preferred_areas
            FROM public.profiles p
            LEFT JOIN public.worker_profiles wp ON wp.user_id::text = p.id::text OR wp.id::text = p.id::text
            LEFT JOIN public.societies s ON s.id::text = wp.preferred_society_id::text
            WHERE (p.role = 'worker' OR wp.id IS NOT NULL)
-             AND ($3::text IS NULL OR p.phone LIKE $3 OR wp.full_name ILIKE $3)
+             AND ($3::text IS NULL OR p.phone LIKE $3 OR wp.alternate_phone LIKE $3 OR wp.full_name ILIKE $3 OR p.full_name ILIKE $3)
              AND ($4::text = '' OR p.status = $4 OR ($4 = 'approved' AND p.status IN ('approved', 'live', 'active', 'completed')) OR ($4 = 'suspended' AND p.status IN ('suspended', 'rejected', 'deactivated', 'changes_requested')))
            ORDER BY p.created_at DESC
            LIMIT $1 OFFSET $2`,
@@ -111,42 +124,24 @@ export async function GET(req: NextRequest) {
 
     if (tab === 'employers' || tab === 'overview' || tab === 'tele-onboarding') {
       try {
-        await queryDb(`
-          ALTER TABLE public.employer_profiles 
-          ADD COLUMN IF NOT EXISTS company_name text,
-          ADD COLUMN IF NOT EXISTS society_name text,
-          ADD COLUMN IF NOT EXISTS tower_block text,
-          ADD COLUMN IF NOT EXISTS address text,
-          ADD COLUMN IF NOT EXISTS city text,
-          ADD COLUMN IF NOT EXISTS state text,
-          ADD COLUMN IF NOT EXISTS pincode text,
-          ADD COLUMN IF NOT EXISTS gstin text,
-          ADD COLUMN IF NOT EXISTS alternate_phone text,
-          ADD COLUMN IF NOT EXISTS verification_requirement text,
-          ADD COLUMN IF NOT EXISTS status text,
-          ADD COLUMN IF NOT EXISTS avatar_url text,
-          ADD COLUMN IF NOT EXISTS aadhaar_front_url text,
-          ADD COLUMN IF NOT EXISTS aadhaar_back_url text;
-        `).catch(() => {});
-
         const eRes = await queryDb(
           `SELECT p.id, p.email, p.phone, p.status, p.created_at,
-                  COALESCE(
-                    NULLIF(TRIM(ep.company_name), ''),
-                    NULLIF(TRIM(ep.name), ''),
-                    CONCAT('Employer ', RIGHT(COALESCE(p.phone, 'Lead'), 4))
-                  ) AS company_name,
-                  COALESCE(
-                    NULLIF(TRIM(ep.society_name), ''), 
-                    NULLIF(TRIM(p.society_name), ''), 
-                    (SELECT COALESCE(j.society_name, s.name) FROM public.jobs j LEFT JOIN public.societies s ON s.id::text = j.society_id::text WHERE (j.employer_id::text = p.id::text OR j.employer_id::text = ep.user_id::text OR j.employer_id::text = ep.id::text) AND (j.society_name IS NOT NULL OR s.name IS NOT NULL) LIMIT 1)
-                  ) AS society_name,
-                  COALESCE(ep.address, ep.billing_address) AS address,
-                  ep.tower_block,
+                  ep.company_name, ep.name, ep.society_name, ep.address, ep.tower_block,
                   ep.city, ep.state, ep.pincode, ep.alternate_phone, ep.gstin,
-                  ep.verification_requirement, ep.avatar_url, ep.aadhaar_front_url, ep.aadhaar_back_url
+                  COALESCE(ep.avatar_url, ep.profile_picture_url, wp.profile_picture_url) AS avatar_url,
+                  COALESCE(ep.profile_picture_url, ep.avatar_url, wp.profile_picture_url) AS profile_picture_url,
+                  ep.residency_proof_url AS residency_proof_url,
+                  COALESCE(ep.aadhaar_front_url, wp.aadhaar_front_url) AS aadhaar_front_url,
+                  COALESCE(ep.aadhaar_back_url, wp.aadhaar_back_url) AS aadhaar_back_url,
+                  COALESCE(ep.is_tele_onboarded, false) AS is_tele_onboarded, 
+                  COALESCE(ep.is_residency_verified, false) AS is_residency_verified, 
+                  COALESCE(ep.is_aadhaar_front_verified, false) AS is_aadhaar_front_verified, 
+                  COALESCE(ep.is_aadhaar_back_verified, false) AS is_aadhaar_back_verified, 
+                  COALESCE(ep.is_aadhaar_verified, false) AS is_aadhaar_verified, 
+                  COALESCE(ep.is_interview_verified, false) AS is_interview_verified
            FROM public.profiles p
            LEFT JOIN public.employer_profiles ep ON ep.user_id::text = p.id::text OR ep.id::text = p.id::text
+           LEFT JOIN public.worker_profiles wp ON wp.user_id::text = p.id::text OR wp.id::text = p.id::text OR wp.user_id::text = ep.user_id::text
            WHERE (p.role = 'employer' OR ep.id IS NOT NULL)
            ORDER BY p.created_at DESC
            LIMIT $1 OFFSET $2`,
@@ -191,15 +186,6 @@ export async function GET(req: NextRequest) {
 
     if (tab === 'interviews' || tab === 'tele-onboarding' || tab === 'overview') {
       try {
-        // Guarantee columns exist on public.applications
-        await queryDb(`
-          ALTER TABLE public.applications 
-          ADD COLUMN IF NOT EXISTS reschedule_time text,
-          ADD COLUMN IF NOT EXISTS reschedule_note text,
-          ADD COLUMN IF NOT EXISTS interview_time text,
-          ADD COLUMN IF NOT EXISTS interview_note text;
-        `).catch(() => {});
-
         const iRes = await queryDb(
           `SELECT ja.id, ja.job_id, ja.worker_id, ja.status, ja.created_at, 
                   COALESCE(ja.reschedule_time, ja.interview_time, '') AS reschedule_time, 

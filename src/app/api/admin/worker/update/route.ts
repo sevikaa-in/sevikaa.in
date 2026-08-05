@@ -18,6 +18,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
+    // Strict 100% Completeness Validation Before Approval
+    if (status === 'live' || status === 'approved' || status === 'active') {
+      try {
+        const wRes = await queryDb(
+          `SELECT wp.*, p.phone FROM public.worker_profiles wp LEFT JOIN public.profiles p ON wp.user_id = p.id WHERE wp.user_id::text = $1 OR wp.id::text = $1 LIMIT 1`,
+          [userId]
+        );
+        if (wRes?.rows?.[0]) {
+          const row = wRes.rows[0];
+          const hasName = !!(full_name || row.full_name || row.name)?.trim();
+          const hasPhone = (phone || row.phone || '').replace(/\D/g, '').length >= 10;
+          const hasGenderAge = !!(gender || row.gender) && !!(age || row.age);
+          const hasSkills = Array.isArray(skills || row.skills) ? (skills || row.skills).length > 0 : !!(skills || row.skills);
+          const hasSalary = !!(expected_salary || row.expected_salary);
+          const hasExperience = (experience_years !== undefined || row.experience_years !== undefined);
+          const hasLanguages = Array.isArray(languages_spoken || row.languages_spoken) && (languages_spoken || row.languages_spoken).length > 0;
+          const hasPhoto = !!(profile_picture_url || row.profile_picture_url || row.avatar_url);
+          const hasAadhaarFront = !!(aadhaar_front_url || row.aadhaar_front_url);
+          const hasAadhaarBack = !!(aadhaar_back_url || row.aadhaar_back_url);
+
+          const steps = [hasName, hasPhone, hasGenderAge, hasSkills, hasSalary, hasExperience, hasLanguages, hasPhoto, hasAadhaarFront, hasAadhaarBack];
+          const count = steps.filter(Boolean).length;
+          if (count < 10) {
+            return NextResponse.json({
+              success: false,
+              error: `Cannot approve worker profile: Only ${count * 10}% complete (${count} of 10 steps). All 10 profile steps must be 100% complete before Admin approval.`
+            }, { status: 400 });
+          }
+        }
+      } catch (checkErr) {
+        console.warn("Backend worker completeness check warning:", checkErr);
+      }
+    }
+
     const displayName = full_name || 'Worker';
     const numAge = Math.max(18, Math.min(80, parseInt(age) || 28));
     const parsedSalary = parseInt(expected_salary);
@@ -72,12 +106,13 @@ export async function POST(req: NextRequest) {
 
     // 2. Direct PostgreSQL update for public.worker_profiles
     try {
-      await queryDb(`
-        ALTER TABLE public.worker_profiles 
-        ADD COLUMN IF NOT EXISTS preferred_shift text,
-        ADD COLUMN IF NOT EXISTS bio text,
-        ADD COLUMN IF NOT EXISTS emergency_contact text;
-      `).catch(() => {});
+
+
+      const isTelePassed = body.is_tele_onboarded === true || body.tele_onboarded === true || body.is_interview_verified === true;
+      const isAadhaarFrontVer = body.is_aadhaar_front_verified === true || (isTelePassed && Boolean(aadhaar_front_url || body.aadhaar_front_url));
+      const isAadhaarBackVer = body.is_aadhaar_back_verified === true || (isTelePassed && Boolean(aadhaar_back_url || body.aadhaar_back_url));
+      const isAadhaarOverallVer = body.is_aadhaar_verified === true || (isAadhaarFrontVer && isAadhaarBackVer);
+      const workerBio = body.bio || body.notes || null;
 
       const checkRes = await queryDb(
         `SELECT id FROM public.worker_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`, 
@@ -111,6 +146,7 @@ export async function POST(req: NextRequest) {
                expected_salary = COALESCE($4, expected_salary), 
                experience_years = COALESCE($5, experience_years),
                emergency_contact = COALESCE($6, emergency_contact),
+               alternate_phone = COALESCE($6, alternate_phone),
                profile_picture_url = COALESCE($7, profile_picture_url),
                aadhaar_front_url = COALESCE($8, aadhaar_front_url),
                aadhaar_back_url = COALESCE($9, aadhaar_back_url),
@@ -121,14 +157,29 @@ export async function POST(req: NextRequest) {
                preferred_shift = COALESCE($15, preferred_shift),
                preferred_society_name = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE preferred_society_name END,
                secondary_society_name = CASE WHEN $17::text IS NOT NULL AND $17::text != '' THEN $17::text ELSE secondary_society_name END,
-               preferred_society_id = CASE WHEN $18::text IS NOT NULL AND $18::text != '' AND $18::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $18::uuid ELSE preferred_society_id END
+               preferred_society_id = CASE WHEN $18::text IS NOT NULL AND $18::text != '' AND $18::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $18::uuid ELSE preferred_society_id END,
+               bio = COALESCE($19, bio),
+               is_tele_onboarded = CASE WHEN $20::boolean THEN true ELSE is_tele_onboarded END,
+               is_interview_verified = CASE WHEN $20::boolean THEN true ELSE is_interview_verified END,
+               is_aadhaar_front_verified = CASE WHEN $21::boolean IS NOT NULL THEN $21::boolean ELSE is_aadhaar_front_verified END,
+               is_aadhaar_back_verified = CASE WHEN $22::boolean IS NOT NULL THEN $22::boolean ELSE is_aadhaar_back_verified END,
+               is_aadhaar_verified = CASE WHEN $23::boolean IS NOT NULL THEN $23::boolean ELSE is_aadhaar_verified END,
+               is_video_verified = CASE WHEN $24::boolean IS NOT NULL THEN $24::boolean ELSE is_video_verified END,
+               is_police_verified = CASE WHEN $25::boolean IS NOT NULL THEN $25::boolean ELSE is_police_verified END,
+               tele_onboarded_at = CASE WHEN $20::boolean THEN NOW() ELSE tele_onboarded_at END
            WHERE user_id::text = $14 OR id::text = $14`,
           [
             displayName, cleanGender, numAge, salary, expYears, 
             emergency_contact || null, profile_picture_url || null, 
             aadhaar_front_url || null, aadhaar_back_url || null, 
             video_url || null, skillsArr, langsArr, prefAreas, resolvedUserId,
-            preferred_shift, primarySoc || null, secondarySoc || null, pSocId
+            preferred_shift, primarySoc || null, secondarySoc || null, pSocId,
+            workerBio, isTelePassed, 
+            body.is_aadhaar_front_verified !== undefined ? body.is_aadhaar_front_verified : isAadhaarFrontVer,
+            body.is_aadhaar_back_verified !== undefined ? body.is_aadhaar_back_verified : isAadhaarBackVer,
+            body.is_aadhaar_verified !== undefined ? body.is_aadhaar_verified : isAadhaarOverallVer,
+            body.is_video_verified !== undefined ? body.is_video_verified : (isTelePassed ? true : null),
+            body.is_police_verified !== undefined ? body.is_police_verified : null
           ]
         );
       } else {

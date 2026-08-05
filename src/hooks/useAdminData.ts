@@ -78,6 +78,9 @@ export function useAdminData<T = any>(
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
+  const prefetchNextFetcherRef = useRef(prefetchNextFetcher);
+  prefetchNextFetcherRef.current = prefetchNextFetcher;
+
   const executeFetch = useCallback(async (showLoader = false) => {
     if (!key || !enabled) return;
 
@@ -116,10 +119,10 @@ export function useAdminData<T = any>(
     }
 
     // Trigger next-page prefetch if provided
-    if (prefetchNextKey && prefetchNextFetcher) {
-      prefetchAdminData(prefetchNextKey, prefetchNextFetcher, ttl);
+    if (prefetchNextKey && prefetchNextFetcherRef.current) {
+      prefetchAdminData(prefetchNextKey, prefetchNextFetcherRef.current, ttl);
     }
-  }, [key, enabled, ttl, prefetchNextKey, prefetchNextFetcher, executeFetch]);
+  }, [key, enabled, ttl, prefetchNextKey, executeFetch]);
 
   const mutate = useCallback((newData?: T) => {
     if (newData !== undefined) {

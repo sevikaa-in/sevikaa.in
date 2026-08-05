@@ -18,7 +18,8 @@ export type AssetType =
   | 'profile_picture_url'
   | 'aadhaar_front_url'
   | 'aadhaar_back_url'
-  | 'residency_proof_url';
+  | 'residency_proof_url'
+  | 'police_verification_url';
 
 export interface UploadResult {
   publicUrl: string;
@@ -28,6 +29,7 @@ export interface UploadResult {
 
 export interface UploadOptions {
   onProgress?: (percent: number) => void;
+  role?: 'worker' | 'employer' | string;
 }
 
 export async function secureUpload(
@@ -36,7 +38,7 @@ export async function secureUpload(
   assetType: AssetType,
   options?: UploadOptions
 ): Promise<UploadResult> {
-  const { onProgress } = options || {};
+  const { onProgress, role } = options || {};
 
   onProgress?.(5);
 
@@ -44,6 +46,9 @@ export async function secureUpload(
   formData.append('file', file);
   formData.append('userId', userId);
   formData.append('assetType', assetType);
+  if (role) {
+    formData.append('role', role);
+  }
 
   // Use XHR to get real upload progress
   const result = await new Promise<UploadResult>((resolve, reject) => {

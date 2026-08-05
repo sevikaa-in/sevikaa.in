@@ -279,8 +279,21 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             aadhaar_front_url: wProf?.aadhaar_front_url || '',
             aadhaar_back_url: wProf?.aadhaar_back_url || '',
             video_url: wProf?.video_url || '',
-            is_aadhaar_verified: wProf?.is_aadhaar_verified || isApproved
+            police_verification_url: wProf?.police_verification_url || '',
+            is_aadhaar_verified: wProf?.is_aadhaar_verified || isApproved,
+            is_police_verified: wProf?.is_police_verified || false
           });
+
+          // Onboarding Route Guard for Workers
+          const hasName = !!(wProf?.full_name || wProf?.name || profile?.full_name);
+          const hasSociety = !!(pSoc || wProf?.primary_gated_society || wProf?.preferred_society_name || wProf?.society || wProf?.preferred_society_id || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas.length > 0));
+          const hasSkills = Array.isArray(wProf?.skills) ? wProf.skills.length > 0 : !!wProf?.skills;
+          const isWorkerComplete = hasName && (hasSociety || hasSkills);
+          const isExplicitIncomplete = profStatus === 'onboarding_pending' || profStatus === 'incomplete';
+
+          if (!isApproved && (!isWorkerComplete || isExplicitIncomplete) && pathname !== '/worker/onboarding') {
+            router.push('/worker/onboarding');
+          }
 
           setBadges([
             { name: 'Aadhaar Verified', status: (wProf?.is_aadhaar_verified || isApproved) ? 'Verified' : 'Pending' },
@@ -371,6 +384,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             aadhaar_front_url: updatedData.aadhaarFrontUrl || updatedData.aadhaar_front_url || null,
             aadhaar_back_url: updatedData.aadhaarBackUrl || updatedData.aadhaar_back_url || null,
             video_url: updatedData.introVideoUrl || updatedData.video_url || null,
+            police_verification_url: updatedData.policeVerificationUrl || updatedData.police_verification_url || null,
             status: isChangesRequested ? 'pending_review' : undefined
           })
         });

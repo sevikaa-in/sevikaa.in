@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useAdminDashboard } from '../layout';
+import { useSuperAdminDashboard } from '../layout';
 import { 
   PhoneCall, Users, ShieldCheck, Search, RefreshCw, MessageSquare, 
   ArrowRight, CheckCircle2, UserCheck, AlertTriangle, Building, MapPin, 
@@ -14,7 +14,7 @@ import { formatWorkerShift, ALL_SHIFT_OPTIONS, normalizeShiftOption } from '@/ut
 import { resolveMediaUrl } from '@/utils/resolveMediaUrl';
 
 export default function TeleOnboardingPage() {
-  const { showToast } = useAdminDashboard();
+  const { showToast } = useSuperAdminDashboard();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -97,20 +97,7 @@ export default function TeleOnboardingPage() {
   const [switchingRole, setSwitchingRole] = useState(false);
   const [smsSent, setSmsSent] = useState(false);
   const [uploadingAsset, setUploadingAsset] = useState<string | null>(null);
-  const [docVerState, setDocVerState] = useState<{
-    aadhaar_front: boolean;
-    aadhaar_back: boolean;
-    residency: boolean;
-    video: boolean;
-    police: boolean;
-  }>({ aadhaar_front: false, aadhaar_back: false, residency: false, video: false, police: false });
-
-  const [previewMedia, setPreviewMedia] = useState<{ 
-    url: string; 
-    title: string; 
-    type: 'image' | 'video';
-    docKey?: 'aadhaar_front' | 'aadhaar_back' | 'residency' | 'video' | 'police';
-  } | null>(null);
+  const [previewMedia, setPreviewMedia] = useState<{ url: string; title: string; type: 'image' | 'video' } | null>(null);
 
   // Call Status & Notes (persisted in localStorage)
   const CALL_STATUS_OPTIONS = [
@@ -248,13 +235,6 @@ export default function TeleOnboardingPage() {
     setEditPhone(lead.phone || '');
     setEditEmail(lead.email || '');
     setEditAlternatePhone((lead.alternate_phone || lead.alt_phone || lead.emergency_contact || lead.emergencyContact || '').replace(/\D/g, '').slice(-10));
-    setDocVerState({
-      aadhaar_front: Boolean(lead.is_aadhaar_front_verified || lead.is_tele_onboarded),
-      aadhaar_back: Boolean(lead.is_aadhaar_back_verified || lead.is_tele_onboarded),
-      residency: Boolean(lead.is_residency_verified || lead.is_tele_onboarded),
-      video: Boolean(lead.is_video_verified || lead.is_tele_onboarded),
-      police: Boolean(lead.is_police_verified || lead.is_tele_onboarded)
-    });
 
     if (isWorkerLead(lead)) {
       const candidateRawName = lead.full_name || lead.profile_name || lead.name || '';
@@ -263,17 +243,7 @@ export default function TeleOnboardingPage() {
       setEditAge(lead.age ? String(lead.age) : '');
       const rawGen = lead.gender ? (lead.gender.charAt(0).toUpperCase() + lead.gender.slice(1).toLowerCase()) : '';
       setEditGender(rawGen);
-      const parseDbArray = (val: any): string[] => {
-        if (Array.isArray(val)) return val.filter(Boolean);
-        if (typeof val === 'string' && val.trim()) {
-          const cleaned = val.replace(/^\{|\}$/g, '').replace(/"/g, '');
-          return cleaned.split(',').map((s: string) => s.trim()).filter(Boolean);
-        }
-        return [];
-      };
-
-      const rawSkills = parseDbArray(lead.skills).length > 0 ? parseDbArray(lead.skills) : parseDbArray(lead.category);
-      setEditSkills(rawSkills);
+      setEditSkills(Array.isArray(lead.skills) ? lead.skills : []);
       setEditSalary(lead.expected_salary ? String(lead.expected_salary) : '');
       setEditExperience(lead.experience_years !== null && lead.experience_years !== undefined ? String(lead.experience_years) : '0');
       setEditShiftSlot(formatWorkerShift(lead.preferred_shift || lead.work_timing || lead.shift_slot, lead.availability_slots));
@@ -289,7 +259,9 @@ export default function TeleOnboardingPage() {
         : (Array.isArray(lead.preferred_areas) && lead.preferred_areas.length > 1 ? lead.preferred_areas.slice(1) : []);
       setEditSecondarySocieties(parsedSecList);
 
-      const parsedLangs = parseDbArray(lead.languages_spoken);
+      const parsedLangs = Array.isArray(lead.languages_spoken) 
+        ? lead.languages_spoken 
+        : (typeof lead.languages_spoken === 'string' ? lead.languages_spoken.split(',').map((s: string) => s.trim()) : ['Hindi']);
       setEditLanguages(parsedLangs.length > 0 ? parsedLangs : ['Hindi']);
     } else {
       const employerRawName = lead.company_name || lead.profile_name || lead.name || '';
@@ -306,49 +278,8 @@ export default function TeleOnboardingPage() {
     }
   };
 
-  const handleDirectDocVerificationToggle = async (docKey: string, isVerified: boolean) => {
-    if (!selectedLead) return;
-    setDocVerState(prev => ({ ...prev, [docKey]: isVerified }));
-    
-    const fieldMap: Record<string, string> = {
-      aadhaar_front: 'is_aadhaar_front_verified',
-      aadhaar_back: 'is_aadhaar_back_verified',
-      residency: 'is_residency_verified',
-      video: 'is_video_verified'
-    };
-    const dbField = fieldMap[docKey];
-    if (dbField) {
-      setSelectedLead((prev: any) => prev ? { ...prev, [dbField]: isVerified } : null);
-    }
-
-    try {
-      const isWorker = isWorkerLead(selectedLead);
-      const endpoint = isWorker ? '/api/admin/worker/update' : '/api/admin/employer/update';
-      const bodyPayload = isWorker ? {
-        userId: selectedLead.id,
-        is_aadhaar_front_verified: docKey === 'aadhaar_front' ? isVerified : (selectedLead.is_aadhaar_front_verified || docVerState.aadhaar_front),
-        is_aadhaar_back_verified: docKey === 'aadhaar_back' ? isVerified : (selectedLead.is_aadhaar_back_verified || docVerState.aadhaar_back),
-        is_video_verified: docKey === 'video' ? isVerified : (selectedLead.is_video_verified || docVerState.video)
-      } : {
-        id: selectedLead.id,
-        is_residency_verified: docKey === 'residency' ? isVerified : (selectedLead.is_residency_verified || docVerState.residency),
-        is_aadhaar_front_verified: docKey === 'aadhaar_front' ? isVerified : (selectedLead.is_aadhaar_front_verified || docVerState.aadhaar_front),
-        is_aadhaar_back_verified: docKey === 'aadhaar_back' ? isVerified : (selectedLead.is_aadhaar_back_verified || docVerState.aadhaar_back),
-      };
-
-      await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
-      });
-      refreshLeads();
-    } catch (err) {
-      console.warn("Direct doc verification save warning:", err);
-    }
-  };
-
   // Save Lead Updates
-  const handleSaveLead = async (isPassingTeleOnboarding: boolean = false) => {
+  const handleSaveLead = async () => {
     if (!selectedLead) return;
     const cleanAlt = editAlternatePhone ? editAlternatePhone.replace(/\D/g, '') : '';
     if (cleanAlt && cleanAlt.length !== 10) {
@@ -380,23 +311,12 @@ export default function TeleOnboardingPage() {
             primary_gated_society: editSociety,
             secondary_gated_society: editSecondarySocieties.join(', '),
             preferred_areas: [editSociety, ...editSecondarySocieties].filter(Boolean),
-            is_tele_onboarded: isPassingTeleOnboarding,
-            tele_onboarded: isPassingTeleOnboarding,
-            is_interview_verified: isPassingTeleOnboarding,
-            is_aadhaar_front_verified: isPassingTeleOnboarding || docVerState.aadhaar_front,
-            is_aadhaar_back_verified: isPassingTeleOnboarding || docVerState.aadhaar_back,
-            is_aadhaar_verified: isPassingTeleOnboarding || (docVerState.aadhaar_front && docVerState.aadhaar_back),
-            is_video_verified: isPassingTeleOnboarding || docVerState.video,
-            status: isPassingTeleOnboarding ? 'admin_interview' : (selectedLead.status || 'pending_review')
+            status: 'admin_interview'
           })
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to save worker lead');
-        if (isPassingTeleOnboarding) {
-          showToast("✓ Telephonic Verification Passed & Profile Marked Ready!", "success");
-        } else {
-          showToast("💾 Draft Progress Saved Successfully!", "success");
-        }
+        showToast("Worker candidate profile saved & updated!", "success");
       } else {
         const cleanAlt = editAlternatePhone ? editAlternatePhone.replace(/\D/g, '') : '';
         if (cleanAlt && cleanAlt.length !== 10) {
@@ -419,12 +339,6 @@ export default function TeleOnboardingPage() {
             pincode: editPincode,
             gstin: editGstin,
             verification_requirement: editVerificationReq,
-            is_tele_onboarded: isPassingTeleOnboarding || selectedLead.is_tele_onboarded,
-            is_residency_verified: isPassingTeleOnboarding || docVerState.residency || selectedLead.is_residency_verified,
-            is_aadhaar_front_verified: isPassingTeleOnboarding || docVerState.aadhaar_front || selectedLead.is_aadhaar_front_verified,
-            is_aadhaar_back_verified: isPassingTeleOnboarding || docVerState.aadhaar_back || selectedLead.is_aadhaar_back_verified,
-            is_aadhaar_verified: isPassingTeleOnboarding || (docVerState.aadhaar_front && docVerState.aadhaar_back) || selectedLead.is_aadhaar_verified,
-            is_police_verified: isPassingTeleOnboarding || docVerState.police || selectedLead.is_police_verified,
             status: selectedLead.status || 'pending_review'
           })
         });
@@ -930,7 +844,7 @@ export default function TeleOnboardingPage() {
               <button
                 disabled={currentLeads.length < limit || loading}
                 onClick={() => setPage(p => p + 1)}
-                className="py-2 px-3 bg-[#1A73E8] hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+                className="py-2 px-[#1A73E8] hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
               >
                 Next Page <ChevronRight size={15} />
               </button>
@@ -1427,11 +1341,7 @@ export default function TeleOnboardingPage() {
                             }}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            {resolveMediaUrl('worker-selfies', selectedLead.profile_picture_url) ? (
-                              <img src={resolveMediaUrl('worker-selfies', selectedLead.profile_picture_url)} alt="Selfie" className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-[10px] text-slate-400 font-medium italic">Photo Available</span>
-                            )}
+                            <img src={resolveMediaUrl('worker-selfies', selectedLead.profile_picture_url)} alt="Selfie" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>
@@ -1447,32 +1357,17 @@ export default function TeleOnboardingPage() {
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Aadhaar Front</span>
                         {selectedLead.aadhaar_front_url ? (
-                          <div className="space-y-1.5">
-                            <div 
-                              onClick={() => {
-                                const mediaUrl = resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url);
-                                if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - Aadhaar Front Card`, type: 'image', docKey: 'aadhaar_front' });
-                              }}
-                              className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
-                            >
-                              {resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url) ? (
-                                <img src={resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url)} alt="Aadhaar Front" className="w-full h-full object-cover" />
-                              ) : (
-                                <span className="text-[10px] text-slate-400 font-medium italic">Doc Uploaded</span>
-                              )}
-                              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
-                                <FileText size={12} /> Inspect
-                              </div>
+                          <div 
+                            onClick={() => {
+                              const mediaUrl = resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url);
+                              if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - Aadhaar Front Card`, type: 'image' });
+                            }}
+                            className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
+                          >
+                            <img src={resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url)} alt="Aadhaar Front" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                              <FileText size={12} /> Inspect
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setDocVerState(prev => ({ ...prev, aadhaar_front: !prev.aadhaar_front }))}
-                              className={`w-full py-0.5 px-2 rounded-md text-[8px] font-black uppercase transition-all cursor-pointer ${
-                                docVerState.aadhaar_front || selectedLead.is_tele_onboarded || selectedLead.is_aadhaar_front_verified ? 'bg-[#34A853] text-white shadow-2xs' : 'bg-amber-100 text-amber-900 hover:bg-amber-200'
-                              }`}
-                            >
-                              {docVerState.aadhaar_front || selectedLead.is_tele_onboarded || selectedLead.is_aadhaar_front_verified ? '✓ Verified' : '⏳ Pending'}
-                            </button>
                           </div>
                         ) : (
                           <div className="h-16 flex flex-col items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -1485,32 +1380,17 @@ export default function TeleOnboardingPage() {
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Aadhaar Back</span>
                         {selectedLead.aadhaar_back_url ? (
-                          <div className="space-y-1.5">
-                            <div 
-                              onClick={() => {
-                                const mediaUrl = resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url);
-                                if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - Aadhaar Back Card`, type: 'image', docKey: 'aadhaar_back' });
-                              }}
-                              className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
-                            >
-                              {resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url) ? (
-                                <img src={resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url)} alt="Aadhaar Back" className="w-full h-full object-cover" />
-                              ) : (
-                                <span className="text-[10px] text-slate-400 font-medium italic">Doc Uploaded</span>
-                              )}
-                              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
-                                <FileText size={12} /> Inspect
-                              </div>
+                          <div 
+                            onClick={() => {
+                              const mediaUrl = resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url);
+                              if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - Aadhaar Back Card`, type: 'image' });
+                            }}
+                            className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
+                          >
+                            <img src={resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url)} alt="Aadhaar Back" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                              <FileText size={12} /> Inspect
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setDocVerState(prev => ({ ...prev, aadhaar_back: !prev.aadhaar_back }))}
-                              className={`w-full py-0.5 px-2 rounded-md text-[8px] font-black uppercase transition-all cursor-pointer ${
-                                docVerState.aadhaar_back || selectedLead.is_tele_onboarded || selectedLead.is_aadhaar_back_verified ? 'bg-[#34A853] text-white shadow-2xs' : 'bg-amber-100 text-amber-900 hover:bg-amber-200'
-                              }`}
-                            >
-                              {docVerState.aadhaar_back || selectedLead.is_tele_onboarded || selectedLead.is_aadhaar_back_verified ? '✓ Verified' : '⏳ Pending'}
-                            </button>
                           </div>
                         ) : (
                           <div className="h-16 flex flex-col items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -1523,32 +1403,17 @@ export default function TeleOnboardingPage() {
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Police Clearance</span>
                         {selectedLead.police_verification_url ? (
-                          <div className="space-y-1.5">
-                            <div 
-                              onClick={() => {
-                                const mediaUrl = resolveMediaUrl('worker-documents', selectedLead.police_verification_url);
-                                if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - Police Verification Clearance Document`, type: 'image', docKey: 'police' });
-                              }}
-                              className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
-                            >
-                              {resolveMediaUrl('worker-documents', selectedLead.police_verification_url) ? (
-                                <img src={resolveMediaUrl('worker-documents', selectedLead.police_verification_url)} alt="Police Clearance" className="w-full h-full object-cover" />
-                              ) : (
-                                <span className="text-[10px] text-slate-400 font-medium italic">Doc Uploaded</span>
-                              )}
-                              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
-                                <FileText size={12} /> Inspect
-                              </div>
+                          <div 
+                            onClick={() => {
+                              const mediaUrl = resolveMediaUrl('worker-documents', selectedLead.police_verification_url);
+                              if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - Police Verification Clearance Document`, type: 'image' });
+                            }}
+                            className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
+                          >
+                            <img src={resolveMediaUrl('worker-documents', selectedLead.police_verification_url)} alt="Police Clearance" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                              <FileText size={12} /> Inspect
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setDocVerState(prev => ({ ...prev, police: !prev.police }))}
-                              className={`w-full py-0.5 px-2 rounded-md text-[8px] font-black uppercase transition-all cursor-pointer ${
-                                docVerState.police || selectedLead.is_tele_onboarded || selectedLead.is_police_verified ? 'bg-[#34A853] text-white shadow-2xs' : 'bg-amber-100 text-amber-900 hover:bg-amber-200'
-                              }`}
-                            >
-                              {docVerState.police || selectedLead.is_tele_onboarded || selectedLead.is_police_verified ? '✓ Verified' : '⏳ Pending'}
-                            </button>
                           </div>
                         ) : (
                           <div className="h-16 flex flex-col items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -1561,26 +1426,15 @@ export default function TeleOnboardingPage() {
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">15s Intro Video</span>
                         {selectedLead.video_url ? (
-                          <div className="space-y-1.5">
-                            <div 
-                              onClick={() => {
-                                const mediaUrl = resolveMediaUrl('worker-videos', selectedLead.video_url);
-                                if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - 15s Intro Video`, type: 'video', docKey: 'video' });
-                              }}
-                              className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex flex-col items-center justify-center text-white space-y-1 shadow-2xs"
-                            >
-                              <span className="w-8 h-8 rounded-full bg-[#1A73E8] flex items-center justify-center font-bold text-xs shadow-md">▶</span>
-                              <span className="text-[9px] font-bold text-blue-200">Play Video</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setDocVerState(prev => ({ ...prev, video: !prev.video }))}
-                              className={`w-full py-0.5 px-2 rounded-md text-[8px] font-black uppercase transition-all cursor-pointer ${
-                                docVerState.video || selectedLead.is_tele_onboarded || selectedLead.is_video_verified ? 'bg-[#34A853] text-white shadow-2xs' : 'bg-amber-100 text-amber-900 hover:bg-amber-200'
-                              }`}
-                            >
-                              {docVerState.video || selectedLead.is_tele_onboarded || selectedLead.is_video_verified ? '✓ Verified' : '⏳ Pending'}
-                            </button>
+                          <div 
+                            onClick={() => {
+                              const mediaUrl = resolveMediaUrl('worker-videos', selectedLead.video_url);
+                              if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - 15s Intro Video`, type: 'video' });
+                            }}
+                            className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex flex-col items-center justify-center text-white space-y-1 shadow-2xs"
+                          >
+                            <span className="w-8 h-8 rounded-full bg-[#1A73E8] flex items-center justify-center font-bold text-xs shadow-md">▶</span>
+                            <span className="text-[9px] font-bold text-blue-200">Play Video</span>
                           </div>
                         ) : (
                           <div className="h-16 flex flex-col items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -1822,11 +1676,7 @@ export default function TeleOnboardingPage() {
                             }}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            {resolveMediaUrl('verification-documents', selectedLead.avatar_url || selectedLead.profile_picture_url) ? (
-                              <img src={resolveMediaUrl('verification-documents', selectedLead.avatar_url || selectedLead.profile_picture_url)} alt="Employer Selfie" className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-[10px] text-slate-400 font-medium italic">Photo Available</span>
-                            )}
+                            <img src={resolveMediaUrl('verification-documents', selectedLead.avatar_url || selectedLead.profile_picture_url)} alt="Employer Selfie" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>
@@ -1842,36 +1692,17 @@ export default function TeleOnboardingPage() {
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Aadhaar Front</span>
                         {resolveMediaUrl('verification-documents', selectedLead.aadhaar_front_url) ? (
-                          <div className="space-y-1.5">
-                            <div 
-                              onClick={() => {
-                                const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.aadhaar_front_url);
-                                if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Aadhaar Front Card`, type: 'image', docKey: 'aadhaar_front' });
-                              }}
-                              className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
-                            >
-                              <img 
-                                src={resolveMediaUrl('verification-documents', selectedLead.aadhaar_front_url)} 
-                                alt="Aadhaar Front" 
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  const img = e.currentTarget;
-                                  if (img.src.includes('/worker-documents/')) {
-                                    img.src = img.src.replace('/worker-documents/', '/verification-documents/');
-                                  } else if (img.src.includes('/verification-documents/')) {
-                                    img.src = img.src.replace('/verification-documents/', '/documents/');
-                                  }
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
-                                <FileText size={12} /> Inspect
-                              </div>
+                          <div 
+                            onClick={() => {
+                              const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.aadhaar_front_url);
+                              if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Aadhaar Front Card`, type: 'image' });
+                            }}
+                            className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
+                          >
+                            <img src={resolveMediaUrl('verification-documents', selectedLead.aadhaar_front_url)} alt="Aadhaar Front" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                              <FileText size={12} /> Inspect
                             </div>
-                            <span className={`block px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${
-                              docVerState.aadhaar_front || selectedLead.is_tele_onboarded || selectedLead.is_aadhaar_front_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {docVerState.aadhaar_front || selectedLead.is_tele_onboarded || selectedLead.is_aadhaar_front_verified ? '✓ Verified' : '⏳ Pending'}
-                            </span>
                           </div>
                         ) : (
                           <div className="h-16 flex flex-col items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -1884,36 +1715,17 @@ export default function TeleOnboardingPage() {
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Aadhaar Back</span>
                         {resolveMediaUrl('verification-documents', selectedLead.aadhaar_back_url) ? (
-                          <div className="space-y-1.5">
-                            <div 
-                              onClick={() => {
-                                const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.aadhaar_back_url);
-                                if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Aadhaar Back Card`, type: 'image', docKey: 'aadhaar_back' });
-                              }}
-                              className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
-                            >
-                              <img 
-                                src={resolveMediaUrl('verification-documents', selectedLead.aadhaar_back_url)} 
-                                alt="Aadhaar Back" 
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  const img = e.currentTarget;
-                                  if (img.src.includes('/worker-documents/')) {
-                                    img.src = img.src.replace('/worker-documents/', '/verification-documents/');
-                                  } else if (img.src.includes('/verification-documents/')) {
-                                    img.src = img.src.replace('/verification-documents/', '/documents/');
-                                  }
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
-                                <FileText size={12} /> Inspect
-                              </div>
+                          <div 
+                            onClick={() => {
+                              const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.aadhaar_back_url);
+                              if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Aadhaar Back Card`, type: 'image' });
+                            }}
+                            className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
+                          >
+                            <img src={resolveMediaUrl('verification-documents', selectedLead.aadhaar_back_url)} alt="Aadhaar Back" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                              <FileText size={12} /> Inspect
                             </div>
-                            <span className={`block px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${
-                              docVerState.aadhaar_back || selectedLead.is_tele_onboarded || selectedLead.is_aadhaar_back_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {docVerState.aadhaar_back || selectedLead.is_tele_onboarded || selectedLead.is_aadhaar_back_verified ? '✓ Verified' : '⏳ Pending'}
-                            </span>
                           </div>
                         ) : (
                           <div className="h-16 flex flex-col items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -1926,36 +1738,17 @@ export default function TeleOnboardingPage() {
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Residency Proof</span>
                         {resolveMediaUrl('verification-documents', selectedLead.residency_proof_url) ? (
-                          <div className="space-y-1.5">
-                            <div 
-                              onClick={() => {
-                                const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.residency_proof_url);
-                                if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Society Residency Proof`, type: 'image', docKey: 'residency' });
-                              }}
-                              className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
-                            >
-                              <img 
-                                src={resolveMediaUrl('verification-documents', selectedLead.residency_proof_url)} 
-                                alt="Residency Proof" 
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  const img = e.currentTarget;
-                                  if (img.src.includes('/worker-documents/')) {
-                                    img.src = img.src.replace('/worker-documents/', '/verification-documents/');
-                                  } else if (img.src.includes('/verification-documents/')) {
-                                    img.src = img.src.replace('/verification-documents/', '/documents/');
-                                  }
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
-                                <FileText size={12} /> Inspect
-                              </div>
+                          <div 
+                            onClick={() => {
+                              const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.residency_proof_url);
+                              if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Society Residency Proof`, type: 'image' });
+                            }}
+                            className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
+                          >
+                            <img src={resolveMediaUrl('verification-documents', selectedLead.residency_proof_url)} alt="Residency Proof" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                              <FileText size={12} /> Inspect
                             </div>
-                            <span className={`block px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${
-                              docVerState.residency || selectedLead.is_tele_onboarded || selectedLead.is_residency_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {docVerState.residency || selectedLead.is_tele_onboarded || selectedLead.is_residency_verified ? '✓ Verified' : '⏳ Pending'}
-                            </span>
                           </div>
                         ) : (
                           <div className="h-16 flex flex-col items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -2001,36 +1794,32 @@ export default function TeleOnboardingPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50/60 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 shrink-0 flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setIsSheetOpen(false)}
-                className="w-full sm:w-auto py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
               >
                 Close Modal
               </button>
-
-              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  disabled={savingLead}
-                  onClick={() => handleSaveLead(false)}
-                  className="w-full sm:w-auto py-2.5 px-4 bg-white text-[#1A73E8] border border-[#1A73E8] hover:bg-blue-50 rounded-xl text-xs font-black shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <Save size={14} />
-                  <span>{savingLead ? 'Saving Draft...' : '💾 Save Draft Progress'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={savingLead}
-                  onClick={() => handleSaveLead(true)}
-                  className="w-full sm:w-auto py-2.5 px-5 bg-[#34A853] hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <CheckCircle2 size={14} />
-                  <span>{savingLead ? 'Updating...' : '✓ Pass Tele-Onboarding & Mark Verified'}</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                disabled={savingLead}
+                onClick={handleSaveLead}
+                className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {savingLead ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving Tele-Interview...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={15} />
+                    <span>Save Telephonic Setup &amp; Documents</span>
+                  </>
+                )}
+              </button>
             </div>
 
           </div>
@@ -2065,55 +1854,14 @@ export default function TeleOnboardingPage() {
                   src={previewMedia.url} 
                   alt={previewMedia.title} 
                   className="max-h-[70vh] w-auto rounded-xl object-contain" 
-                  onError={(e) => {
-                    const img = e.currentTarget;
-                    if (img.src.includes('/worker-documents/')) {
-                      img.src = img.src.replace('/worker-documents/', '/verification-documents/');
-                    } else if (img.src.includes('/verification-documents/')) {
-                      img.src = img.src.replace('/verification-documents/', '/documents/');
-                    }
-                  }}
                 />
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-              {previewMedia.docKey ? (
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (previewMedia.docKey) {
-                        handleDirectDocVerificationToggle(previewMedia.docKey, true);
-                        showToast(`✓ ${previewMedia.title} Approved & Saved!`, "success");
-                        setPreviewMedia(null);
-                      }
-                    }}
-                    className="py-2.5 px-4 bg-[#34A853] hover:bg-emerald-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"
-                  >
-                    <CheckCircle2 size={15} />
-                    <span>✓ Approve Document</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (previewMedia.docKey) {
-                        handleDirectDocVerificationToggle(previewMedia.docKey, false);
-                        showToast(`⏳ ${previewMedia.title} Marked Pending`, "info");
-                        setPreviewMedia(null);
-                      }
-                    }}
-                    className="py-2.5 px-4 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  >
-                    <span>⏳ Mark Pending</span>
-                  </button>
-                </div>
-              ) : <div />}
-
+            <div className="flex justify-end">
               <button
                 onClick={() => setPreviewMedia(null)}
-                className="py-2.5 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer w-full sm:w-auto"
+                className="py-2.5 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
               >
                 Close Preview
               </button>

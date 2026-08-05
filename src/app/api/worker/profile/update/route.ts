@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
       userId, name, full_name, phone, email, gender, age, 
       expectedSalary, experience, skills, languages, languages_spoken, bio, 
       emergencyContact, preferredShift, profile_picture_url, onboarding_step, status,
-      aadhaar_front_url, aadhaar_back_url, video_url
+      aadhaar_front_url, aadhaar_back_url, video_url, police_verification_url
     } = body;
 
     if (!userId) {
@@ -83,8 +83,11 @@ export async function POST(req: NextRequest) {
         ADD COLUMN IF NOT EXISTS bio text,
         ADD COLUMN IF NOT EXISTS preferred_shift text,
         ADD COLUMN IF NOT EXISTS emergency_contact text,
+        ADD COLUMN IF NOT EXISTS alternate_phone text,
+        ADD COLUMN IF NOT EXISTS alt_phone text,
         ADD COLUMN IF NOT EXISTS aadhaar_front_url text,
         ADD COLUMN IF NOT EXISTS aadhaar_back_url text,
+        ADD COLUMN IF NOT EXISTS police_verification_url text,
         ADD COLUMN IF NOT EXISTS preferred_society_name text,
         ADD COLUMN IF NOT EXISTS secondary_society_name text;
       `).catch(() => {});
@@ -109,19 +112,17 @@ export async function POST(req: NextRequest) {
         };
         workerShift = body.selectedShifts.map((s: string) => SHIFT_MAP[s] || s).join(', ');
       }
-      const workerEmergency = body.emergencyContact || body.emergency_contact || null;
+
+      const rawAltDigits = (body.alternate_phone || body.alt_phone || body.emergencyContact || body.emergency_contact || '').replace(/\D/g, '');
+      const workerEmergency = rawAltDigits.length === 10 ? `+91 ${rawAltDigits}` : (body.alternate_phone || body.alt_phone || body.emergencyContact || body.emergency_contact || null);
       const pSoc = primarySoc || null;
       const sSoc = secondarySoc || null;
 
-      let pSocId = body.primary_society_id || body.society_id || null;
-
-      if (!pSocId && primarySoc) {
+      let pSocId: string | null = null;
+      if (pSoc) {
         try {
-          const socRes = await queryDb(
-            `SELECT id, name FROM public.societies WHERE name ILIKE $1 OR name ILIKE $2 LIMIT 1`,
-            [primarySoc.trim(), `%${primarySoc.trim()}%`]
-          );
-          if (socRes?.rows?.[0]?.id) {
+          const socRes = await queryDb(`SELECT id FROM public.societies WHERE LOWER(name) = LOWER($1) LIMIT 1`, [pSoc]);
+          if (socRes?.rows && socRes.rows.length > 0) {
             pSocId = socRes.rows[0].id;
           }
         } catch (sErr) {
@@ -143,10 +144,13 @@ export async function POST(req: NextRequest) {
                aadhaar_front_url = CASE WHEN $9::text IS NOT NULL AND $9::text != '' THEN $9::text ELSE aadhaar_front_url END,
                aadhaar_back_url = CASE WHEN $10::text IS NOT NULL AND $10::text != '' THEN $10::text ELSE aadhaar_back_url END,
                video_url = CASE WHEN $11::text IS NOT NULL AND $11::text != '' THEN $11::text ELSE video_url END,
+               police_verification_url = CASE WHEN $20::text IS NOT NULL AND $20::text != '' THEN $20::text ELSE police_verification_url END,
                preferred_areas = CASE WHEN $12::text[] IS NOT NULL AND array_length($12::text[], 1) > 0 THEN $12::text[] ELSE preferred_areas END,
                bio = CASE WHEN $14::text IS NOT NULL AND $14::text != '' THEN $14::text ELSE bio END,
                preferred_shift = CASE WHEN $15::text IS NOT NULL AND $15::text != '' THEN $15::text ELSE preferred_shift END,
                emergency_contact = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE emergency_contact END,
+               alternate_phone = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE alternate_phone END,
+               alt_phone = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE alt_phone END,
                preferred_society_name = CASE WHEN $17::text IS NOT NULL AND $17::text != '' THEN $17::text ELSE preferred_society_name END,
                secondary_society_name = CASE WHEN $18::text IS NOT NULL AND $18::text != '' THEN $18::text ELSE secondary_society_name END,
                preferred_society_id = CASE WHEN $19::text IS NOT NULL AND $19::text != '' AND $19::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $19::uuid ELSE preferred_society_id END,
@@ -158,17 +162,19 @@ export async function POST(req: NextRequest) {
           [displayName, cleanGender, numAge, salary, expYears, 
            skillsArr.length ? skillsArr : null, langsArr.length ? langsArr : null, 
            profile_picture_url || null, aadhaar_front_url || null, aadhaar_back_url || null,
-           video_url || null, prefAreas, resolvedUserId, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId]
+           video_url || null, prefAreas, resolvedUserId, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId,
+           police_verification_url || null]
         );
       } else {
         await queryDb(
           `INSERT INTO public.worker_profiles 
-             (id, user_id, full_name, gender, age, expected_salary, experience_years, skills, languages_spoken, profile_picture_url, aadhaar_front_url, aadhaar_back_url, video_url, preferred_areas, bio, preferred_shift, emergency_contact, preferred_society_name, secondary_society_name, preferred_society_id, created_at)
+             (id, user_id, full_name, gender, age, expected_salary, experience_years, skills, languages_spoken, profile_picture_url, aadhaar_front_url, aadhaar_back_url, video_url, police_verification_url, preferred_areas, bio, preferred_shift, emergency_contact, alternate_phone, alt_phone, preferred_society_name, secondary_society_name, preferred_society_id, created_at)
            VALUES 
-             (gen_random_uuid(), CASE WHEN $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $1::uuid ELSE gen_random_uuid() END, $2::text, $3::text, $4::integer, $5::integer, $6::integer, $7::text[], $8::text[], $9::text, $10::text, $11::text, $12::text, $13::text[], $14::text, $15::text, $16::text, $17::text, $18::text, CASE WHEN $19::text IS NOT NULL AND $19::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $19::uuid ELSE NULL END, NOW())`,
+             (gen_random_uuid(), CASE WHEN $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $1::uuid ELSE gen_random_uuid() END, $2::text, $3::text, $4::integer, $5::integer, $6::integer, $7::text[], $8::text[], $9::text, $10::text, $11::text, $12::text, $20::text, $13::text[], $14::text, $15::text, $16::text, $16::text, $16::text, $17::text, $18::text, CASE WHEN $19::text IS NOT NULL AND $19::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $19::uuid ELSE NULL END, NOW())`,
           [resolvedUserId, displayName, cleanGender, numAge, salary, expYears, skillsArr, langsArr, 
            profile_picture_url || null, aadhaar_front_url || null, aadhaar_back_url || null,
-           video_url || null, prefAreas, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId]
+           video_url || null, prefAreas, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId,
+           police_verification_url || null]
         );
       }
     } catch (dbErr) {
@@ -200,6 +206,7 @@ export async function POST(req: NextRequest) {
         if (aadhaar_front_url) payload.aadhaar_front_url = aadhaar_front_url;
         if (aadhaar_back_url) payload.aadhaar_back_url = aadhaar_back_url;
         if (video_url) payload.video_url = video_url;
+        if (police_verification_url) payload.police_verification_url = police_verification_url;
         if (status) payload.status = status;
         if (currentStep) payload.onboarding_step = currentStep;
 

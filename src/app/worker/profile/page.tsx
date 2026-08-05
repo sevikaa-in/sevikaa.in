@@ -12,6 +12,7 @@ import { ChangeMobileInlineSection } from '@/components/profile/ChangeMobileInli
 import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInlineSection';
 import { resolveMediaUrl } from '@/utils/resolveMediaUrl';
 import { secureUpload } from '@/utils/secureUpload';
+import { usePrivateUrl } from '@/hooks/usePrivateUrl';
 
 const SKILL_CATEGORIES = [
   { id: 'cook', key: 'cook', label: 'Cook / Chef', defaultLabel: 'Cook / Chef', icon: '🍳' },
@@ -91,10 +92,18 @@ export default function WorkerProfilePage() {
   const [profilePhoto, setProfilePhoto] = useState<string | null>(workerProfile.profile_picture_url || workerProfile.avatar_url || null);
   const [aadhaarFrontUrl, setAadhaarFrontUrl] = useState<string | null>(workerProfile.aadhaar_front_url || null);
   const [aadhaarBackUrl, setAadhaarBackUrl] = useState<string | null>(workerProfile.aadhaar_back_url || null);
+  const [policeDocUrl, setPoliceDocUrl] = useState<string | null>(workerProfile.police_verification_url || null);
   const [introVideoUrl, setIntroVideoUrl] = useState<string | null>(workerProfile.video_url || null);
+
+  // Resolved Private Cloudinary Signed URLs for Inline Previews
+  const resolvedAadhaarFrontRes = usePrivateUrl(aadhaarFrontUrl || workerProfile.aadhaar_front_url);
+  const resolvedAadhaarBackRes = usePrivateUrl(aadhaarBackUrl || workerProfile.aadhaar_back_url);
+  const resolvedPoliceDocRes = usePrivateUrl(policeDocUrl || workerProfile.police_verification_url);
+  const resolvedVideoRes = usePrivateUrl(introVideoUrl || workerProfile.video_url);
 
   const [aadhaarFrontUploaded, setAadhaarFrontUploaded] = useState(!!workerProfile.aadhaar_front_url);
   const [aadhaarBackUploaded, setAadhaarBackUploaded] = useState(!!workerProfile.aadhaar_back_url);
+  const [policeDocUploaded, setPoliceDocUploaded] = useState(!!workerProfile.police_verification_url);
   const [photoSelfieUploaded, setPhotoSelfieUploaded] = useState(!!workerProfile.profile_picture_url);
   const [videoUploaded, setVideoUploaded] = useState(!!workerProfile.video_url);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
@@ -148,6 +157,12 @@ export default function WorkerProfilePage() {
     if (video) {
       setIntroVideoUrl(video);
       setVideoUploaded(true);
+    }
+
+    const pDoc = workerProfile.police_verification_url || localStorage.getItem('sevikaa_worker_police_doc');
+    if (pDoc) {
+      setPoliceDocUrl(pDoc);
+      setPoliceDocUploaded(true);
     }
   }, [workerProfile]);
 
@@ -210,11 +225,13 @@ export default function WorkerProfilePage() {
   const [isVerifyingDeleteOtp, setIsVerifyingDeleteOtp] = useState(false);
   const [deleteOtpNotice, setDeleteOtpNotice] = useState('');
   const [deleteOtpError, setDeleteOtpError] = useState('');
-  const [activeInlinePreview, setActiveInlinePreview] = useState<'front' | 'back' | 'video' | null>(null);
+  const [activeInlinePreview, setActiveInlinePreview] = useState<'front' | 'back' | 'police' | 'video' | null>(null);
 
   // Profile completeness check
   const cleanPhone = phone.replace(/\D/g, '').slice(-10);
-  const isAadhaarDone = (aadhaarFrontUploaded && aadhaarBackUploaded) || workerProfile.status === 'live' || workerProfile.status === 'approved';
+  const hasAadhaarFront = aadhaarFrontUploaded || !!aadhaarFrontUrl || !!workerProfile.aadhaar_front_url;
+  const hasAadhaarBack = aadhaarBackUploaded || !!aadhaarBackUrl || !!workerProfile.aadhaar_back_url;
+  const isAadhaarDone = hasAadhaarFront && hasAadhaarBack;
   const isPhotoDone = !!profilePhoto || !!workerProfile.avatar_url || !!workerProfile.profile_picture_url;
 
   const completionSteps = [
@@ -226,7 +243,8 @@ export default function WorkerProfilePage() {
     { key: 'experience', label: t('stepExperience') || 'Experience', done: !!String(experience).trim() },
     { key: 'languages', label: t('stepLanguages') || 'Languages', done: languages.length > 0 },
     { key: 'photo', label: t('stepProfilePhoto') || 'Profile Photo', done: isPhotoDone },
-    { key: 'aadhaar', label: t('stepAadhaarUploaded') || 'Aadhaar Uploaded', done: isAadhaarDone },
+    { key: 'aadhaarFront', label: 'Aadhaar (Front)', done: hasAadhaarFront },
+    { key: 'aadhaarBack', label: 'Aadhaar (Back)', done: hasAadhaarBack },
   ];
   const completedCount = completionSteps.filter(s => s.done).length;
   const completionPercent = Math.round((completedCount / completionSteps.length) * 100);
@@ -261,12 +279,14 @@ export default function WorkerProfilePage() {
 
   const validateFile = (
     file: File, 
-    allowedTypes: string[], 
+    allowPdf: boolean, 
     maxMB: number, 
     label: string
   ): boolean => {
-    if (!allowedTypes.includes(file.type)) {
-      showToast(`${label}: Only ${allowedTypes.map(t => t.split('/')[1].toUpperCase()).join(', ')} files allowed.`, 'error');
+    const isImage = file.type.startsWith('image/');
+    const isPdf = allowPdf && file.type === 'application/pdf';
+    if (!isImage && !isPdf) {
+      showToast(`${label}: Only image or PDF files allowed.`, 'error');
       return false;
     }
     if (file.size > maxMB * 1024 * 1024) {
@@ -280,7 +300,7 @@ export default function WorkerProfilePage() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!validateFile(file, ALLOWED_SELFIE_TYPES, SELFIE_MAX_MB, 'Profile photo')) return;
+    if (!validateFile(file, false, SELFIE_MAX_MB, 'Profile photo')) return;
     const activeUserId = getActiveUserId();
     if (!activeUserId) { showToast('Session missing. Please re-login.', 'error'); return; }
     showToast('Uploading profile photo…', 'info');
@@ -303,7 +323,7 @@ export default function WorkerProfilePage() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!validateFile(file, ALLOWED_AADHAAR_TYPES, AADHAAR_MAX_MB, 'Aadhaar front')) return;
+    if (!validateFile(file, true, AADHAAR_MAX_MB, 'Aadhaar front')) return;
     const activeUserId = getActiveUserId();
     if (!activeUserId) { showToast('Session missing. Please re-login.', 'error'); return; }
     showToast('Uploading Aadhaar front…', 'info');
@@ -326,7 +346,7 @@ export default function WorkerProfilePage() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!validateFile(file, ALLOWED_AADHAAR_TYPES, AADHAAR_MAX_MB, 'Aadhaar back')) return;
+    if (!validateFile(file, true, AADHAAR_MAX_MB, 'Aadhaar back')) return;
     const activeUserId = getActiveUserId();
     if (!activeUserId) { showToast('Session missing. Please re-login.', 'error'); return; }
     showToast('Uploading Aadhaar back…', 'info');
@@ -342,6 +362,29 @@ export default function WorkerProfilePage() {
     } catch (err: any) {
       setUploadProgress(p => ({ ...p, aadhaarBack: 0 }));
       showToast(`Aadhaar back upload failed: ${err.message}`, 'error');
+    }
+  };
+
+  const handlePoliceDocChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!validateFile(file, true, 10, 'Police verification document')) return;
+    const activeUserId = getActiveUserId();
+    if (!activeUserId) { showToast('Session missing. Please re-login.', 'error'); return; }
+    showToast('Uploading police verification document…', 'info');
+    try {
+      const { publicUrl } = await secureUpload(file, activeUserId, 'police_verification_url', {
+        onProgress: (pct) => setUploadProgress(p => ({ ...p, police: pct }))
+      });
+      setPoliceDocUrl(publicUrl);
+      setPoliceDocUploaded(true);
+      setUploadProgress(p => ({ ...p, police: 0 }));
+      handleSaveProfile({ ...workerProfile, policeVerificationUrl: publicUrl, police_verification_url: publicUrl });
+      showToast('Police verification document uploaded and saved!', 'success');
+    } catch (err: any) {
+      setUploadProgress(p => ({ ...p, police: 0 }));
+      showToast(`Police verification upload failed: ${err.message}`, 'error');
     }
   };
 
@@ -366,6 +409,13 @@ export default function WorkerProfilePage() {
 
   const onSave = async () => {
     const cleanPhoneDigits = phone ? phone.replace(/\D/g, '').slice(-10) : '';
+    const cleanEmergencyDigits = emergencyContact ? emergencyContact.replace(/\D/g, '') : '';
+
+    if (cleanEmergencyDigits && cleanEmergencyDigits.length !== 10) {
+      showToast("Emergency / Family contact number must be exactly 10 digits if provided.", "error");
+      return;
+    }
+
     await handleSaveProfile({
       name,
       expectedSalary,
@@ -374,7 +424,7 @@ export default function WorkerProfilePage() {
       gender,
       age: Number(age),
       preferredShift,
-      emergencyContact: emergencyContact ? `+91${emergencyContact.replace(/\D/g, '').slice(-10)}` : '',
+      emergencyContact: cleanEmergencyDigits ? `+91${cleanEmergencyDigits}` : '',
       bio,
       languages,
       category: selectedSkills.map(id => SKILL_CATEGORIES.find(s => s.id === id)?.defaultLabel || id),
@@ -579,7 +629,12 @@ export default function WorkerProfilePage() {
               <Phone size={15} className="text-[#34A853] shrink-0" />
               <span className="text-slate-500 font-bold">Mobile:</span>
             </div>
-            <span className="font-mono text-sm font-black text-slate-900 break-all">+91 {phone}</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-sm font-black text-slate-900 break-all">+91 {phone}</span>
+              {emergencyContact && (
+                <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">Alt: +91 {emergencyContact}</span>
+              )}
+            </div>
           </div>
 
           <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
@@ -679,6 +734,21 @@ export default function WorkerProfilePage() {
                 showToast('Worker email address updated successfully!', 'success');
               }}
             />
+
+            <div>
+              <label className="block text-xs font-black text-slate-700 mb-1">Alternate / Family Mobile Number (Optional)</label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-3 text-xs font-bold text-slate-400">+91</span>
+                <input 
+                  type="text" 
+                  maxLength={10}
+                  value={emergencyContact}
+                  onChange={(e) => setEmergencyContact(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="10-digit alternate mobile number"
+                  className="w-full pl-12 pr-3 py-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold font-mono text-slate-800 focus:outline-none transition-colors"
+                />
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="relative">
@@ -990,7 +1060,12 @@ export default function WorkerProfilePage() {
                   </label>
                   <button 
                     type="button"
-                    onClick={() => { setAadhaarFrontUploaded(false); setAadhaarFrontUrl(null); if (activeInlinePreview === 'front') setActiveInlinePreview(null); }} 
+                    onClick={() => {
+                      setAadhaarFrontUploaded(false);
+                      setAadhaarFrontUrl(null);
+                      setWorkerProfile((prev: any) => ({ ...prev, aadhaar_front_url: '' }));
+                      if (activeInlinePreview === 'front') setActiveInlinePreview(null);
+                    }} 
                     className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer transition-colors"
                     title="Remove"
                   >
@@ -1019,8 +1094,8 @@ export default function WorkerProfilePage() {
                   </button>
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
-                  {(aadhaarFrontUrl || workerProfile.aadhaar_front_url) ? (
-                    <img src={aadhaarFrontUrl || workerProfile.aadhaar_front_url || ''} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  {(resolvedAadhaarFrontRes.url || aadhaarFrontUrl || workerProfile.aadhaar_front_url) ? (
+                    <img src={resolvedAadhaarFrontRes.url || aadhaarFrontUrl || workerProfile.aadhaar_front_url || ''} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
@@ -1062,7 +1137,12 @@ export default function WorkerProfilePage() {
                   </label>
                   <button 
                     type="button"
-                    onClick={() => { setAadhaarBackUploaded(false); setAadhaarBackUrl(null); if (activeInlinePreview === 'back') setActiveInlinePreview(null); }} 
+                    onClick={() => {
+                      setAadhaarBackUploaded(false);
+                      setAadhaarBackUrl(null);
+                      setWorkerProfile((prev: any) => ({ ...prev, aadhaar_back_url: '' }));
+                      if (activeInlinePreview === 'back') setActiveInlinePreview(null);
+                    }} 
                     className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer transition-colors"
                     title="Remove"
                   >
@@ -1091,13 +1171,96 @@ export default function WorkerProfilePage() {
                   </button>
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
-                  {(aadhaarBackUrl || workerProfile.aadhaar_back_url) ? (
-                    <img src={aadhaarBackUrl || workerProfile.aadhaar_back_url || ''} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  {(resolvedAadhaarBackRes.url || aadhaarBackUrl || workerProfile.aadhaar_back_url) ? (
+                    <img src={resolvedAadhaarBackRes.url || aadhaarBackUrl || workerProfile.aadhaar_back_url || ''} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
                       <p>Aadhaar Back Document Verified &amp; Stored</p>
                       <p className="text-[10px] text-slate-500 font-normal">Active address proof linked to worker profile</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Police Verification Document (Optional) */}
+          <div className="space-y-2">
+            <div className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-4 rounded-2xl border-2 transition-all ${(policeDocUploaded || workerProfile.police_verification_url) ? 'border-amber-300 bg-amber-50/60' : 'border-dashed border-slate-200 bg-slate-50 hover:border-amber-300'}`}>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className={`p-2.5 rounded-xl shrink-0 ${(policeDocUploaded || workerProfile.police_verification_url) ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                  <ShieldCheck size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs font-black text-slate-900">Police Verification Certificate</p>
+                    <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-800 rounded-full shrink-0">Optional</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-semibold truncate">Clearance Certificate / N.O.C &bull; JPG &bull; PNG &bull; PDF &bull; Max 10MB</p>
+                </div>
+              </div>
+
+              {(policeDocUploaded || workerProfile.police_verification_url) ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveInlinePreview(activeInlinePreview === 'police' ? null : 'police')}
+                    className="py-1.5 px-3 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Eye size={12} className="text-amber-800" />
+                    <span>{activeInlinePreview === 'police' ? 'Hide Preview' : 'View'}</span>
+                  </button>
+                  <label className="cursor-pointer">
+                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handlePoliceDocChange} />
+                    <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
+                      <Upload size={11} />
+                      <span>Change</span>
+                    </div>
+                  </label>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setPoliceDocUploaded(false);
+                      setPoliceDocUrl(null);
+                      setWorkerProfile((prev: any) => ({ ...prev, police_verification_url: '' }));
+                      if (activeInlinePreview === 'police') setActiveInlinePreview(null);
+                    }} 
+                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer transition-colors"
+                    title="Remove"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <label className="cursor-pointer shrink-0">
+                  <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handlePoliceDocChange} />
+                  <div className="py-2 px-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap shadow-2xs">
+                    <Upload size={11} /><span>Upload Police Clearance</span>
+                  </div>
+                </label>
+              )}
+            </div>
+
+            {/* Inline Police Verification Preview Drawer */}
+            {activeInlinePreview === 'police' && (
+              <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 animate-fade-in border border-amber-950 shadow-md">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs font-black text-amber-400 flex items-center gap-1.5">
+                    <ShieldCheck size={14} /> Police Verification Document Uploaded
+                  </span>
+                  <button onClick={() => setActiveInlinePreview(null)} className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer">
+                    Close Preview ✕
+                  </button>
+                </div>
+                <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
+                  {(resolvedPoliceDocRes.url || policeDocUrl || workerProfile.police_verification_url) ? (
+                    <img src={resolvedPoliceDocRes.url || policeDocUrl || workerProfile.police_verification_url || ''} alt="Police Verification Document" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
+                      <ShieldCheck size={32} className="mx-auto text-amber-400 opacity-60 mb-2" />
+                      <p>Police Clearance Document Stored</p>
+                      <p className="text-[10px] text-slate-500 font-normal">Police background verification proof linked to candidate profile</p>
                     </div>
                   )}
                 </div>
@@ -1134,7 +1297,12 @@ export default function WorkerProfilePage() {
                   </label>
                   <button 
                     type="button"
-                    onClick={() => { setVideoUploaded(false); setIntroVideoUrl(null); if (activeInlinePreview === 'video') setActiveInlinePreview(null); }} 
+                    onClick={() => {
+                      setVideoUploaded(false);
+                      setIntroVideoUrl(null);
+                      setWorkerProfile((prev: any) => ({ ...prev, video_url: '' }));
+                      if (activeInlinePreview === 'video') setActiveInlinePreview(null);
+                    }} 
                     className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer transition-colors"
                     title="Remove"
                   >
@@ -1163,8 +1331,8 @@ export default function WorkerProfilePage() {
                   </button>
                 </div>
                 <div className="flex justify-center bg-black rounded-xl p-1 min-h-[220px] max-h-[360px] overflow-hidden">
-                  {(introVideoUrl || workerProfile.video_url) ? (
-                    <video src={resolveMediaUrl('worker-videos', introVideoUrl || workerProfile.video_url)} controls autoPlay className="max-h-[340px] w-full object-contain rounded-lg" />
+                  {(resolvedVideoRes.url || introVideoUrl || workerProfile.video_url) ? (
+                    <video src={resolvedVideoRes.url || resolveMediaUrl('worker-videos', introVideoUrl || workerProfile.video_url)} controls autoPlay className="max-h-[340px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <Video size={32} className="mx-auto text-purple-400 opacity-60 mb-2" />
@@ -1176,20 +1344,6 @@ export default function WorkerProfilePage() {
               </div>
             )}
           </div>
-
-        </div>
-
-        {/* 💾 IN-CARD SAVE BUTTON FOR DOCUMENTS */}
-        <div className="pt-2 border-t border-slate-100 flex justify-end">
-          <button
-            type="button"
-            onClick={onSaveDocuments}
-            disabled={saveDocsLoading}
-            className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-          >
-            <Save size={14} />
-            <span>{saveDocsLoading ? 'Saving Documents...' : 'Save Uploaded Documents'}</span>
-          </button>
         </div>
       </div>
 

@@ -10,17 +10,21 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabaseClient';
+import { secureUpload } from '@/utils/secureUpload';
 
 export default function EmployerRelocatePage() {
   const router = useRouter();
-  const { employerProfile, setEmployerProfile, handleSaveEmployerProfile, showToast } = useEmployerDashboard();
+  const { user, employerProfile, setEmployerProfile, handleSaveEmployerProfile, showToast } = useEmployerDashboard();
   const { t } = useLanguage();
 
   const [relocationReason, setRelocationReason] = useState('Moved to new residential gated society');
   const [targetSociety, setTargetSociety] = useState('');
+  const [targetSocietyId, setTargetSocietyId] = useState('');
   const [societySearchQuery, setSocietySearchQuery] = useState('');
   const [relocationProofUrl, setRelocationProofUrl] = useState<string | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
   const [relocationSubmitLoading, setRelocationSubmitLoading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Live Supabase DB Societies State (100% Real Data Only, Zero Mock Data)
   const [dbSocieties, setDbSocieties] = useState<any[]>([]);
@@ -60,23 +64,39 @@ export default function EmployerRelocatePage() {
     soc.locality.toLowerCase().includes(societySearchQuery.toLowerCase())
   );
 
-  const handleRelocationProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRelocationProofChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
-      showToast('Relocation Proof: Only JPG, PNG, or PDF files allowed.', 'error');
+    e.target.value = ''; // Release system file handle immediately
+
+    const isValidExt = /\.(jpg|jpeg|png|webp|pdf)$/i.test(file.name);
+    const isValidMime = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(file.type);
+
+    if (!isValidExt && !isValidMime) {
+      showToast('Relocation Proof: Only JPG, PNG, WEBP, or PDF files allowed.', 'error');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast(`File size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      showToast(`File size must be under 10MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setRelocationProofUrl(reader.result as string);
-      showToast('New residence proof document attached successfully!', 'success');
-    };
-    reader.readAsDataURL(file);
+
+    const activeUserId = employerProfile?.user_id || employerProfile?.id || 'employer_guest';
+    setUploadingProof(true);
+
+    try {
+      const uploadResult = await secureUpload(file, activeUserId, 'residency_proof_url');
+
+      if (uploadResult?.publicUrl) {
+        setRelocationProofUrl(uploadResult.publicUrl);
+        showToast('Residence proof document uploaded successfully!', 'success');
+      }
+    } catch (err: any) {
+      console.error('Relocation proof upload error:', err);
+      showToast(`Upload failed: ${err.message}`, 'error');
+    } finally {
+      setUploadingProof(false);
+    }
   };
 
   const handleSubmitRelocationRequest = async () => {
@@ -90,22 +110,30 @@ export default function EmployerRelocatePage() {
     }
     setRelocationSubmitLoading(true);
     try {
-      const noteMsg = `⏳ Society Relocation Request to "${targetSociety.trim()}" submitted for admin verification. Reason: ${relocationReason}`;
-      if (typeof handleSaveEmployerProfile === 'function') {
-        await handleSaveEmployerProfile({
-          ...employerProfile,
-          status: 'changes_requested',
-          admin_note: noteMsg,
-          residency_proof_url: relocationProofUrl
-        });
-      } else {
-        setEmployerProfile((prev: any) => ({
-          ...prev,
-          status: 'changes_requested',
-          admin_note: noteMsg,
-          residency_proof_url: relocationProofUrl
-        }));
-      }
+      const activeUserId = employerProfile?.user_id || employerProfile?.id || user?.id;
+      const res = await fetch('/api/employer/relocate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: activeUserId,
+          currentSociety: employerProfile?.society_name || '',
+          targetSociety: targetSociety.trim(),
+          targetSocietyId: targetSocietyId || null,
+          reason: relocationReason,
+          residencyProofUrl: relocationProofUrl,
+          employerName: employerProfile?.company_name || employerProfile?.name || 'Employer Household',
+          employerPhone: employerProfile?.phone || ''
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Submission failed');
+
+      setEmployerProfile((prev: any) => ({
+        ...prev,
+        status: 'changes_requested',
+        residency_proof_url: relocationProofUrl
+      }));
+
       showToast(`Society relocation request to "${targetSociety.trim()}" submitted to admin for audit!`, 'success');
       router.push('/employer/account');
     } catch (err: any) {
@@ -162,10 +190,10 @@ export default function EmployerRelocatePage() {
         
         {/* Step 1: Relocation Reason */}
         <div className="space-y-2">
-          <label className="text-xs font-black text-slate-800 uppercase tracking-wider block flex items-center gap-1.5">
+          <div className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
             <span className="w-5 h-5 rounded-full bg-[#1A73E8] text-white text-[10px] flex items-center justify-center font-black">1</span>
             Primary Reason for Society Relocation
-          </label>
+          </div>
           <select
             value={relocationReason}
             onChange={(e) => setRelocationReason(e.target.value)}
@@ -178,13 +206,13 @@ export default function EmployerRelocatePage() {
           </select>
         </div>
 
-        {/* Step 2: Search & Select Target Verified Society (INLINE ON PAGE, NO MODAL) */}
+        {/* Step 2: Target Gated Society Selection */}
         <div className="space-y-3 pt-4 border-t border-slate-100">
-          <div className="flex justify-between items-center">
-            <label className="text-xs font-black text-slate-800 uppercase tracking-wider block flex items-center gap-1.5">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
               <span className="w-5 h-5 rounded-full bg-[#1A73E8] text-white text-[10px] flex items-center justify-center font-black">2</span>
-              Select Target New Verified Gated Society
-            </label>
+              Select Target New Gated Society
+            </div>
             <Link 
               href="/societies" 
               target="_blank"
@@ -218,20 +246,23 @@ export default function EmployerRelocatePage() {
                 <button
                   key={soc.id || soc.value}
                   type="button"
-                  onClick={() => setTargetSociety(soc.value)}
+                  onClick={() => {
+                    setTargetSociety(soc.label);
+                    setTargetSocietyId(soc.id || '');
+                  }}
                   className={`w-full text-left p-3.5 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
-                    targetSociety === soc.value 
+                    targetSociety === soc.label || targetSociety === soc.value
                       ? 'bg-blue-600 text-white shadow-sm' 
                       : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/80'
                   }`}
                 >
                   <div>
                     <span className="block font-black text-sm">{soc.label}</span>
-                    <span className={`block text-[11px] mt-0.5 font-normal ${targetSociety === soc.value ? 'text-blue-100' : 'text-slate-500'}`}>
+                    <span className={`block text-[11px] mt-0.5 font-normal ${targetSociety === soc.label || targetSociety === soc.value ? 'text-blue-100' : 'text-slate-500'}`}>
                       {soc.locality}
                     </span>
                   </div>
-                  {targetSociety === soc.value && (
+                  {(targetSociety === soc.label || targetSociety === soc.value) && (
                     <span className="p-1 bg-white text-[#1A73E8] rounded-full shrink-0">
                       <Check size={14} className="stroke-[3]" />
                     </span>
@@ -262,34 +293,34 @@ export default function EmployerRelocatePage() {
 
         {/* Step 3: Upload New Residence Proof */}
         <div className="space-y-3 pt-4 border-t border-slate-100">
-          <label className="text-xs font-black text-slate-800 uppercase tracking-wider block flex items-center gap-1.5 justify-between">
+          <div className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5 justify-between">
             <span className="flex items-center gap-1.5">
               <span className="w-5 h-5 rounded-full bg-[#1A73E8] text-white text-[10px] flex items-center justify-center font-black">3</span>
               Upload New Residence Proof
             </span>
-            <span className="text-[10px] text-slate-400 font-semibold lowercase">(JPG, PNG, PDF · Max 5MB)</span>
-          </label>
+            <span className="text-[10px] text-slate-400 font-semibold lowercase">(JPG, PNG, PDF · Max 10MB)</span>
+          </div>
           <p className="text-xs text-slate-500 font-medium">
             Please attach a copy of your Rent Agreement, Maintenance Bill, Electricity Bill, or Society Allotment Letter for the target society.
           </p>
 
           <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
             <input 
+              ref={fileInputRef}
               type="file" 
-              accept="image/jpeg,image/png,application/pdf"
               onChange={handleRelocationProofChange}
-              className="hidden"
-              id="relocation-proof-page-file"
+              style={{ display: 'none' }}
             />
-            <label 
-              htmlFor="relocation-proof-page-file"
-              className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black cursor-pointer flex items-center gap-2 shadow-sm transition-all shrink-0"
+            <button 
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black cursor-pointer flex items-center gap-2 shadow-sm transition-all shrink-0 active:scale-95"
             >
-              <Upload size={14} />
-              <span>{relocationProofUrl ? 'Change Residence Proof' : 'Upload Residence Proof'}</span>
-            </label>
+              <Upload size={14} className={uploadingProof ? 'animate-bounce' : ''} />
+              <span>{uploadingProof ? 'Uploading Proof...' : relocationProofUrl ? 'Change Residence Proof' : 'Upload Residence Proof'}</span>
+            </button>
             <span className="text-xs font-bold text-slate-700 truncate flex-1">
-              {relocationProofUrl ? '✓ Residence proof document attached' : 'No document selected yet'}
+              {uploadingProof ? '⏳ Uploading file to secure Cloudinary storage...' : relocationProofUrl ? '✓ Residence proof document uploaded' : 'No document selected yet'}
             </span>
           </div>
         </div>

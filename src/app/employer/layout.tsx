@@ -157,13 +157,36 @@ export default function EmployerDashboardLayout({ children }: { children: React.
             setDeletionRequested(true);
           }
           setEmployerProfile({
+            user_id: activeUser.id,
+            id: empProf?.id || activeUser.id,
             company_name: empProf?.company_name || empProf?.name || profileData?.full_name || 'Employer',
+            name: empProf?.company_name || empProf?.name || profileData?.full_name || 'Employer',
             email: profileData?.email || activeUser.email || empProf?.email || '',
             society_name: empProf?.society_name || empProf?.billing_address || '',
             phone: profileData?.phone || empProf?.phone || activeUser.phone || '',
             subscription_status: empProf?.subscription_status || 'Free',
-            address: empProf?.billing_address || empProf?.address || ''
+            address: empProf?.address || empProf?.billing_address || '',
+            tower: empProf?.tower_block || '',
+            city: empProf?.city || '',
+            state: empProf?.state || '',
+            pincode: empProf?.pincode || '',
+            gstin: empProf?.gstin || '',
+            alt_phone: empProf?.alternate_phone || '',
+            verification_pref: empProf?.verification_requirement || 'Aadhaar + Police Audit (Default)',
+            residency_proof_url: empProf?.residency_proof_url || null,
+            aadhaar_front_url: empProf?.aadhaar_front_url || null,
+            aadhaar_back_url: empProf?.aadhaar_back_url || null,
+            avatar_url: empProf?.avatar_url || profileData?.avatar_url || null,
+            status: empProf?.status || profileData?.status || 'live'
           });
+
+          // Check if onboarding is pending or incomplete
+          const isComplete = empProf?.society_name && empProf?.company_name && empProf?.company_name !== 'Employer Profile' && empProf?.company_name !== 'Employer';
+          const isPendingStatus = empProf?.status === 'onboarding_pending' || profileData?.status === 'onboarding_pending';
+
+          if ((!isComplete || isPendingStatus) && pathname !== '/employer/onboarding') {
+            router.push('/employer/onboarding');
+          }
         }
       }
 
@@ -340,11 +363,22 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: user.id,
-            company_name: updatedData.company_name,
-            phone: updatedData.phone,
-            email: updatedData.email,
-            address: updatedData.address ? `${updatedData.tower || ''}, ${updatedData.address}` : updatedData.billing_address,
-            society_name: updatedData.society_name,
+            company_name: updatedData.company_name ?? employerProfile.company_name ?? employerProfile.name,
+            phone: updatedData.phone ?? employerProfile.phone,
+            email: updatedData.email ?? employerProfile.email,
+            address: updatedData.address ?? employerProfile.address ?? employerProfile.billing_address,
+            society_name: updatedData.society_name ?? employerProfile.society_name,
+            tower: updatedData.tower ?? employerProfile.tower ?? employerProfile.tower_block,
+            city: updatedData.city ?? employerProfile.city,
+            state: updatedData.state ?? employerProfile.state,
+            pincode: updatedData.pincode ?? employerProfile.pincode,
+            gstin: updatedData.gstin ?? employerProfile.gstin,
+            alt_phone: updatedData.alt_phone ?? employerProfile.alt_phone ?? employerProfile.alternate_phone,
+            verification_pref: updatedData.verification_pref ?? employerProfile.verification_pref,
+            residency_proof_url: updatedData.residency_proof_url ?? employerProfile.residency_proof_url,
+            aadhaar_front_url: updatedData.aadhaar_front_url ?? employerProfile.aadhaar_front_url,
+            aadhaar_back_url: updatedData.aadhaar_back_url ?? employerProfile.aadhaar_back_url,
+            avatar_url: updatedData.avatar_url ?? employerProfile.avatar_url,
             status: isChangesRequested ? 'pending_review' : undefined
           })
         });

@@ -45,13 +45,15 @@ export async function GET(req: NextRequest) {
     for (const id of candidateIds) {
       if (!workerProfile) {
         const wpRes = await queryDb(
-          `SELECT * FROM public.worker_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`, [id]
+          `SELECT * FROM public.worker_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`, 
+          [id]
         );
         workerProfile = wpRes?.rows[0] || null;
       }
       if (!employerProfile) {
         const epRes = await queryDb(
-          `SELECT * FROM public.employer_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`, [id]
+          `SELECT * FROM public.employer_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`, 
+          [id]
         );
         employerProfile = epRes?.rows[0] || null;
       }

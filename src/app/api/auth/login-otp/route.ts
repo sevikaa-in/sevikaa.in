@@ -351,7 +351,7 @@ export async function POST(req: NextRequest) {
             await queryDb(
               `INSERT INTO public.worker_profiles (id, user_id, full_name, created_at)
                VALUES ($1, $1, $2, NOW())
-               ON CONFLICT (user_id) DO NOTHING`,
+               ON CONFLICT DO NOTHING`,
               [resolvedId, 'Worker Candidate']
             );
           } catch (wpStubErr: any) {
@@ -362,7 +362,7 @@ export async function POST(req: NextRequest) {
             await queryDb(
               `INSERT INTO public.employer_profiles (id, user_id, company_name, created_at)
                VALUES ($1, $1, $2, NOW())
-               ON CONFLICT (user_id) DO NOTHING`,
+               ON CONFLICT DO NOTHING`,
               [resolvedId, 'Employer Candidate']
             );
           } catch (epStubErr: any) {

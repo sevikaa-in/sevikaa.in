@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  X, Check, Camera, FileText, Video, RotateCw, ZoomIn, ZoomOut, 
-  ShieldCheck, Calendar, MapPin, Phone, Mail, User, ShieldAlert, Award, Globe, Clock
+  X, Check, Camera, FileText, Video, RotateCw, RotateCcw, ZoomIn, ZoomOut, 
+  ShieldCheck, Calendar, MapPin, Phone, PhoneCall, Mail, User, ShieldAlert, Award, Globe, Clock, Building
 } from 'lucide-react';
 import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
 import { formatWorkerShift } from '@/utils/formatWorkerShift';
+import { usePrivateUrl } from '@/hooks/usePrivateUrl';
 
 interface WorkerDetailModalProps {
   isOpen: boolean;
@@ -36,7 +37,15 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
   onUpdateBadge
 }) => {
   const [mounted, setMounted] = useState(false);
-  const [activeDocTab, setActiveDocTab] = useState<'selfie' | 'aadhaar_front' | 'aadhaar_back' | 'video'>('selfie');
+
+  // Resolved Private Cloudinary Assets
+  const selfieRes = usePrivateUrl(worker?.profile_picture_url);
+  const aadhaarFrontRes = usePrivateUrl(worker?.aadhaar_front_url);
+  const aadhaarBackRes = usePrivateUrl(worker?.aadhaar_back_url);
+  const policeDocRes = usePrivateUrl(worker?.police_verification_url);
+  const videoRes = usePrivateUrl(worker?.video_url);
+
+  const [activeDocTab, setActiveDocTab] = useState<'selfie' | 'aadhaar_front' | 'aadhaar_back' | 'police' | 'video'>('selfie');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [notes, setNotes] = useState('');
@@ -51,9 +60,9 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
 
   if (!isOpen || !worker || !mounted) return null;
 
-  const handleZoomIn = () => setZoomLevel(prev => Math.min(2.5, prev + 0.2));
-  const handleZoomOut = () => setZoomLevel(prev => Math.max(0.5, prev - 0.2));
-  const handleRotate = () => setRotation(prev => (prev + 90) % 360);
+  const handleZoomIn = () => setZoomLevel((prev: number) => Math.min(2.5, prev + 0.2));
+  const handleZoomOut = () => setZoomLevel((prev: number) => Math.max(0.5, prev - 0.2));
+  const handleRotate = () => setRotation((prev: number) => (prev + 90) % 360);
 
   const resetTransform = () => {
     setZoomLevel(1);
@@ -61,7 +70,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
   };
 
   const applyNoteTemplate = (tpl: string) => {
-    setNotes(prev => prev ? `${prev}\n${tpl}` : tpl);
+    setNotes((prev: string) => prev ? `${prev}\n${tpl}` : tpl);
   };
 
   return createPortal(
@@ -168,6 +177,33 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                 {worker.skills?.[0] || 'Domestic Help'}
               </span>
             </div>
+
+            {/* Stage 1 Telephonic Verification Status Banner */}
+            {(() => {
+              const isTelePassed = worker.is_tele_onboarded === true || worker.is_interview_verified === true || worker.badges?.interview === 'Verified' || worker.status === 'live' || worker.status === 'approved';
+              return (
+                <div className={`flex items-center justify-between p-3 rounded-2xl border ${
+                  isTelePassed ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-900' : 'bg-amber-50/80 border-amber-200 text-amber-950'
+                }`}>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <PhoneCall size={16} className={isTelePassed ? "text-[#34A853] shrink-0" : "text-amber-600 shrink-0"} />
+                    <div className="min-w-0">
+                      <span className="text-xs font-black block truncate">
+                        {isTelePassed ? 'Stage 1 Passed: Telephonic Onboarding Verified' : 'Stage 1 Pending: Telephonic Onboarding Call Required'}
+                      </span>
+                      <span className="text-[10px] font-medium opacity-80 block truncate">
+                        {isTelePassed ? 'Candidate telephonic interview completed and details confirmed.' : 'Perform Tele-Onboarding call before final Stage 2 Live Approval.'}
+                      </span>
+                    </div>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-xl text-[9.5px] font-black uppercase shrink-0 shadow-2xs ${
+                    isTelePassed ? 'bg-[#34A853] text-white' : 'bg-amber-500 text-white'
+                  }`}>
+                    {isTelePassed ? '✓ Tele-Verified' : '⏳ Call Pending'}
+                  </span>
+                </div>
+              );
+            })()}
             
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-3 text-xs">
               <div className="min-w-0">
@@ -198,39 +234,112 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               </div>
             </div>
 
-            <div className="border-t border-slate-100 pt-3.5 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-bold">
-              <div className="min-w-0">
-                <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Emergency Contact</span>
-                <span className="text-slate-700 font-semibold truncate block">{worker.emergency_contact || 'None Listed'}</span>
-              </div>
-              <div className="min-w-0">
-                <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Preferred Shift Slot</span>
-                <span className="text-[#1A73E8] font-extrabold flex items-center gap-1 min-w-0">
-                  <Clock size={11} className="text-[#1A73E8] shrink-0" />
-                  <span className="truncate">{formatWorkerShift(worker.preferred_shift || worker.work_timing || worker.preferredShift, worker.availability_slots)}</span>
-                </span>
-              </div>
-              <div className="min-w-0">
-                <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Preferred Sector / Society</span>
-                <span className="text-slate-700 font-semibold flex items-center gap-0.5 min-w-0">
-                  <MapPin size={10} className="text-slate-400 shrink-0" />
-                  <span className="truncate">{worker.preferred_society_name || 'N/A'}</span>
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const secondarySocietiesList: string[] = (() => {
+                if (Array.isArray(worker.secondary_societies) && worker.secondary_societies.length > 0) {
+                  return worker.secondary_societies.filter(Boolean);
+                }
+                const rawSec = worker.secondary_gated_society || worker.secondary_society_name || worker.secondary_society || '';
+                if (rawSec && typeof rawSec === 'string') {
+                  return rawSec.split(',').map((s: string) => s.trim()).filter(Boolean);
+                }
+                if (Array.isArray(worker.preferred_areas) && worker.preferred_areas.length > 1) {
+                  return worker.preferred_areas.slice(1).filter(Boolean);
+                }
+                return [];
+              })();
 
-            <div className="border-t border-slate-100 pt-3.5 flex flex-wrap gap-1.5">
-              {worker.skills?.map((skill: string) => (
-                <span key={skill} className="bg-[#1A73E8]/10 text-[#1A73E8] px-2.5 py-1 rounded-xl text-[9.5px] font-black uppercase">
-                  {skill}
-                </span>
-              ))}
-              {worker.languages_spoken?.map((lang: string) => (
-                <span key={lang} className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-xl text-[9.5px] font-black uppercase">
-                  {lang}
-                </span>
-              ))}
-            </div>
+              return (
+                <div className="border-t border-slate-100 pt-3.5 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-bold">
+                    <div className="min-w-0">
+                      <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Primary Gated Society</span>
+                      <span className="text-slate-800 font-extrabold flex items-center gap-1 min-w-0 mt-0.5">
+                        <MapPin size={11} className="text-[#1A73E8] shrink-0" />
+                        <span className="truncate">
+                          {worker.primary_gated_society || 
+                           worker.preferred_society_name || 
+                           worker.society_name || 
+                           worker.society || 
+                           worker.preferred_society || 
+                           worker.societies?.name || 
+                           (Array.isArray(worker.preferred_areas) && worker.preferred_areas[0]) || 
+                           'Not Assigned'}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="min-w-0">
+                      <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Preferred Shift Slot</span>
+                      <span className="text-[#1A73E8] font-extrabold flex items-center gap-1 min-w-0 mt-0.5">
+                        <Clock size={11} className="text-[#1A73E8] shrink-0" />
+                        <span className="truncate">{formatWorkerShift(worker.preferred_shift || worker.work_timing || worker.preferredShift, worker.availability_slots)}</span>
+                      </span>
+                    </div>
+
+                    <div className="min-w-0">
+                      <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Alternate / Emergency Contact</span>
+                      <span className="text-slate-700 font-semibold flex items-center gap-1 min-w-0 mt-0.5">
+                        <Phone size={10} className="text-slate-400 shrink-0" />
+                        <span className="truncate">{worker.alternate_phone || worker.alt_phone || worker.emergency_contact || 'None Listed'}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Secondary Workplace Societies Chips */}
+                  <div className="space-y-1 pt-1 border-t border-slate-50">
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                      Secondary Workplace Societies ({secondarySocietiesList.length}/5)
+                    </span>
+                    {secondarySocietiesList.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {secondarySocietiesList.slice(0, 5).map((soc: string, idx: number) => (
+                          <span 
+                            key={idx} 
+                            className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-2.5 py-1 rounded-xl text-xs font-extrabold shadow-2xs"
+                          >
+                            <Building size={12} className="text-emerald-600 shrink-0" />
+                            <span>{soc}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-400 bg-slate-50 p-2 rounded-xl border border-slate-100 block">
+                        None Listed (Only Primary Gated Society Configured)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {(() => {
+              const parseDbArray = (val: any): string[] => {
+                if (Array.isArray(val)) return val.filter(Boolean);
+                if (typeof val === 'string' && val.trim()) {
+                  const cleaned = val.replace(/^\{|\}$/g, '').replace(/"/g, '');
+                  return cleaned.split(',').map((s: string) => s.trim()).filter(Boolean);
+                }
+                return [];
+              };
+              const skillsList = parseDbArray(worker.skills).length > 0 ? parseDbArray(worker.skills) : parseDbArray(worker.category);
+              const langsList = parseDbArray(worker.languages_spoken || worker.languages);
+
+              return (
+                <div className="border-t border-slate-100 pt-3.5 flex flex-wrap gap-1.5">
+                  {skillsList.map((skill: string) => (
+                    <span key={skill} className="bg-[#1A73E8]/10 text-[#1A73E8] px-2.5 py-1 rounded-xl text-[9.5px] font-black uppercase">
+                      {skill}
+                    </span>
+                  ))}
+                  {langsList.map((lang: string) => (
+                    <span key={lang} className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-xl text-[9.5px] font-black uppercase">
+                      {lang}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Candidate Bio / Statement with Translate Button */}
             <div className="border-t border-slate-100 pt-3.5 space-y-1.5">
@@ -250,9 +359,13 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                 </button>
               </div>
               <p className="text-xs text-slate-700 leading-relaxed font-semibold bg-slate-50/80 p-3.5 rounded-xl border border-slate-100/60">
-                {isTranslated 
-                  ? translateToEnglish(worker.bio || worker.notes || 'Verified candidate profile.') 
-                  : (worker.bio || worker.notes || 'Verified candidate profile.')}
+                {(() => {
+                  const defaultText = (worker.status === 'live' || worker.status === 'approved') 
+                    ? 'Verified Worker Profile.' 
+                    : 'Worker Profile — Pending Verification.';
+                  const textToUse = worker.bio || worker.notes || defaultText;
+                  return isTranslated ? translateToEnglish(textToUse) : textToUse;
+                })()}
               </p>
             </div>
           </div>
@@ -278,6 +391,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                 { id: 'selfie', label: 'Selfie Photo', icon: <Camera size={11} /> },
                 { id: 'aadhaar_front', label: 'Aadhaar Front', icon: <FileText size={11} /> },
                 { id: 'aadhaar_back', label: 'Aadhaar Back', icon: <FileText size={11} /> },
+                { id: 'police', label: 'Police Doc', icon: <ShieldCheck size={11} /> },
                 { id: 'video', label: 'Intro Video', icon: <Video size={11} /> }
               ].map((tab) => (
                 <button
@@ -303,7 +417,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               {activeDocTab === 'selfie' && (
                 worker.profile_picture_url ? (
                   <img 
-                    src={getPublicUrl('worker-selfies', worker.profile_picture_url)} 
+                    src={selfieRes.url || getPublicUrl('worker-selfies', worker.profile_picture_url)} 
                     alt="Candidate Selfie" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -319,7 +433,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               {activeDocTab === 'aadhaar_front' && (
                 worker.aadhaar_front_url ? (
                   <img 
-                    src={getPublicUrl('worker-documents', worker.aadhaar_front_url)} 
+                    src={aadhaarFrontRes.url || getPublicUrl('worker-documents', worker.aadhaar_front_url)} 
                     alt="Aadhaar Front" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -335,7 +449,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               {activeDocTab === 'aadhaar_back' && (
                 worker.aadhaar_back_url ? (
                   <img 
-                    src={getPublicUrl('worker-documents', worker.aadhaar_back_url)} 
+                    src={aadhaarBackRes.url || getPublicUrl('worker-documents', worker.aadhaar_back_url)} 
                     alt="Aadhaar Back" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -348,11 +462,27 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                 )
               )}
 
+              {activeDocTab === 'police' && (
+                worker.police_verification_url ? (
+                  <img 
+                    src={policeDocRes.url || getPublicUrl('worker-documents', worker.police_verification_url)} 
+                    alt="Police Verification Document" 
+                    className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
+                    style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
+                  />
+                ) : (
+                  <div className="text-center space-y-2 p-4 text-slate-400">
+                    <ShieldCheck size={32} className="mx-auto text-amber-400 opacity-60" />
+                    <span className="block text-xs font-bold">No Police Verification Document Uploaded</span>
+                  </div>
+                )
+              )}
+
               {activeDocTab === 'video' && (
                 worker.video_url ? (
                   <video 
                     controls 
-                    src={getPublicUrl('worker-videos', worker.video_url)} 
+                    src={videoRes.url || getPublicUrl('worker-videos', worker.video_url)} 
                     className="max-h-full max-w-full rounded-lg shadow-sm"
                   />
                 ) : (
@@ -374,36 +504,35 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
                 { key: 'mobile', label: 'Mobile Phone Verification' },
-                { key: 'aadhaar', label: 'Aadhaar ID Card Verification' },
+                { key: 'aadhaar_front', label: 'Aadhaar Front (Identity & Name)' },
+                { key: 'aadhaar_back', label: 'Aadhaar Back (Address & Pin)' },
                 { key: 'police', label: 'Police PCC Background Verification' },
                 { key: 'interview', label: 'In-Person / Phone Admin Interview' },
                 { key: 'video', label: 'Video Introduction Verification' },
                 { key: 'profile', label: 'Overall Profile Approval Status' }
               ].map((badge) => {
-                const currentStatus = worker.badges?.[badge.key] || 'Pending';
+                const currentStatus = worker.badges?.[badge.key] || (
+                  badge.key === 'aadhaar_front' ? (worker.is_aadhaar_front_verified === true ? 'Verified' : 'Pending') :
+                  badge.key === 'aadhaar_back' ? (worker.is_aadhaar_back_verified === true ? 'Verified' : 'Pending') :
+                  badge.key === 'interview' ? (worker.is_interview_verified === true || worker.is_tele_onboarded === true ? 'Verified' : 'Pending') :
+                  badge.key === 'video' ? (worker.is_video_verified === true ? 'Verified' : 'Pending') :
+                  badge.key === 'police' ? (worker.is_police_verified === true ? 'Verified' : 'Pending') :
+                  badge.key === 'mobile' ? (worker.phone ? 'Verified' : 'Pending') :
+                  badge.key === 'profile' ? (worker.status === 'approved' || worker.status === 'live' ? 'Verified' : 'Pending') :
+                  'Pending'
+                );
                 return (
-                  <div key={badge.key} className="p-3 bg-slate-50/70 rounded-xl space-y-2 border border-slate-100/50">
-                    <span className="text-[9.5px] font-bold text-slate-600 block">{badge.label}</span>
-                    <div className="flex gap-1">
-                      {['Pending', 'Verified', 'Rejected'].map((status) => (
-                        <button
-                          key={status}
-                          type="button"
-                          onClick={() => onUpdateBadge(badge.key, status as any)}
-                          className={`flex-1 py-1 rounded-lg text-[8.5px] font-black uppercase active:scale-95 transition-all cursor-pointer ${
-                            currentStatus === status
-                              ? status === 'Verified'
-                                ? 'bg-[#34A853] text-white shadow-sm'
-                                : status === 'Rejected'
-                                ? 'bg-[#EA4335] text-white shadow-sm'
-                                : 'bg-[#FBBC05] text-[#202124] shadow-sm'
-                              : 'bg-white text-slate-400 hover:text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          {status}
-                        </button>
-                      ))}
-                    </div>
+                  <div key={badge.key} className="p-3 bg-slate-50/70 rounded-xl flex items-center justify-between border border-slate-100/50 gap-2">
+                    <span className="text-xs font-bold text-slate-700">{badge.label}</span>
+                    <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 ${
+                      currentStatus === 'Verified'
+                        ? 'bg-[#34A853] text-white shadow-2xs'
+                        : currentStatus === 'Rejected'
+                        ? 'bg-[#EA4335] text-white shadow-2xs'
+                        : 'bg-[#FBBC05] text-[#202124] shadow-2xs'
+                    }`}>
+                      {currentStatus === 'Verified' ? '✓ VERIFIED' : currentStatus === 'Rejected' ? '✕ REJECTED' : '⏳ PENDING'}
+                    </span>
                   </div>
                 );
               })}
@@ -480,11 +609,11 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                       key={template}
                       type="button"
                       onClick={() => {
-                        setRequestReason(prev => {
+                        setRequestReason((prev: string) => {
                           if (!prev || !prev.trim()) return `- ${template}`;
                           if (prev.includes(template)) {
                             // Toggle off
-                            const lines = prev.split('\n').filter(line => !line.includes(template));
+                            const lines = prev.split('\n').filter((line: string) => !line.includes(template));
                             return lines.join('\n');
                           }
                           return `${prev}\n- ${template}`;
@@ -545,23 +674,48 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                 >
                   Close Drawer
                 </button>
-                <button
-                  onClick={() => {
-                    const isWorkerComplete = !!(worker.full_name || worker.name) &&
-                                              !!(worker.skills && worker.skills.length > 0) &&
-                                              !!(worker.profile_picture_url || worker.aadhaar_front_url || worker.video_url);
-                    if (!isWorkerComplete) {
-                      alert("⚠️ Restricted Action: Cannot approve an incomplete worker profile!\n\nPlease complete Candidate Name, Work Skills, and upload Selfie / Aadhaar in Tele-Onboarding before approving.");
-                      return;
-                    }
-                    onUpdateStatus(worker.id, 'live');
-                    onClose();
-                  }}
-                  className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#34A853]/20 flex items-center gap-1.5"
-                >
-                  <Check size={15} strokeWidth={3} />
-                  Approve Live Profile
-                </button>
+                {(worker.status === 'live' || worker.status === 'approved') ? (
+                  <button
+                    onClick={() => {
+                      onUpdateStatus(worker.id, 'pending_verification');
+                      onClose();
+                    }}
+                    className="py-2.5 px-5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-amber-500/20 flex items-center gap-1.5"
+                  >
+                    <RotateCcw size={15} strokeWidth={2.5} />
+                    Unapprove / Set Pending
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const hasName = !!(worker?.full_name || worker?.name)?.trim();
+                      const hasPhone = (worker?.phone || '').replace(/\D/g, '').length >= 10;
+                      const hasGenderAge = !!worker?.gender && !!worker?.age;
+                      const hasSkills = Array.isArray(worker?.skills) ? worker.skills.length > 0 : !!worker?.skills;
+                      const hasSalary = !!worker?.expected_salary || !!worker?.expectedSalary;
+                      const hasExperience = worker?.experience_years !== undefined || !!worker?.experience;
+                      const hasLanguages = Array.isArray(worker?.languages_spoken || worker?.languages) && (worker?.languages_spoken || worker?.languages).length > 0;
+                      const hasPhoto = !!(worker?.profile_picture_url || worker?.avatar_url);
+                      const hasAadhaarFront = !!worker?.aadhaar_front_url;
+                      const hasAadhaarBack = !!worker?.aadhaar_back_url;
+
+                      const steps = [hasName, hasPhone, hasGenderAge, hasSkills, hasSalary, hasExperience, hasLanguages, hasPhoto, hasAadhaarFront, hasAadhaarBack];
+                      const completedCount = steps.filter(Boolean).length;
+                      const is100PercentComplete = completedCount === 10;
+
+                      if (!is100PercentComplete) {
+                        alert(`⚠️ Restricted Action: Cannot approve an incomplete worker profile!\n\nProfile is currently ${completedCount * 10}% complete (${completedCount} of 10 steps).\n\nAll 10 profile steps (Candidate Name, Mobile, Gender & Age, Skills, Salary, Experience, Languages, Profile Photo, Aadhaar Front, and Aadhaar Back) must be 100% complete before Admin approval.`);
+                        return;
+                      }
+                      onUpdateStatus(worker.id, 'live');
+                      onClose();
+                    }}
+                    className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#34A853]/20 flex items-center gap-1.5"
+                  >
+                    <Check size={15} strokeWidth={3} />
+                    Approve Live Profile
+                  </button>
+                )}
               </div>
             </div>
           )}

@@ -345,16 +345,24 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
               : 'Domestic Worker';
 
             return {
+              ...w,
               id: w.id,
               name: displayName,
               full_name: displayName,
               email: w.email || '',
               phone: w.phone || '',
               skills: w.skills || [],
+              languages_spoken: Array.isArray(w.languages_spoken) ? w.languages_spoken : (typeof w.languages_spoken === 'string' ? w.languages_spoken.split(',').map((s: string) => s.trim()).filter(Boolean) : ['Hindi']),
               displayCategory,
               status: w.status || 'pending_review',
               age: w.age || 28,
               gender: w.gender || 'female',
+              bio: w.bio || '',
+              primary_gated_society: w.primary_gated_society || w.preferred_society_name || w.society_name || w.society || '',
+              preferred_society_name: w.primary_gated_society || w.preferred_society_name || w.society_name || w.society || '',
+              secondary_gated_society: w.secondary_gated_society || w.secondary_society_name || '',
+              secondary_society_name: w.secondary_gated_society || w.secondary_society_name || '',
+              preferred_areas: Array.isArray(w.preferred_areas) && w.preferred_areas.length > 0 ? w.preferred_areas : [w.primary_gated_society || w.preferred_society_name, w.secondary_gated_society || w.secondary_society_name].filter(Boolean),
               profile_picture_url: w.profile_picture_url || '',
               video_url: w.video_url || '',
               aadhaar_front_url: w.aadhaar_front_url || '',
@@ -364,24 +372,30 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
               preferred_shift: formatWorkerShift(w.preferred_shift || w.work_timing, w.availability_slots),
               work_timing: formatWorkerShift(w.preferred_shift || w.work_timing, w.availability_slots),
               availability_slots: w.availability_slots || null,
-              emergency_contact: w.emergency_contact || '',
-              primary_gated_society: w.primary_gated_society || '',
-              secondary_gated_society: w.secondary_gated_society || '',
+              emergency_contact: w.emergency_contact || w.alternate_phone || w.alt_phone || '',
+              alternate_phone: w.alternate_phone || w.alt_phone || w.emergency_contact || '',
               created_at: w.created_at,
               badges: {
                 mobile: w.phone ? 'Verified' : 'Pending',
-                aadhaar: w.aadhaar_front_url ? 'Verified' : 'Pending',
-                police: 'Pending',
-                interview: w.status === 'approved' || w.status === 'live' ? 'Verified' : 'Pending',
-                video: w.video_url ? 'Verified' : 'Pending',
-                profile: w.profile_picture_url ? 'Verified' : 'Pending'
+                aadhaar_front: w.is_aadhaar_front_verified === true ? 'Verified' : 'Pending',
+                aadhaar_back: w.is_aadhaar_back_verified === true ? 'Verified' : 'Pending',
+                aadhaar: w.is_aadhaar_verified === true || (w.is_aadhaar_front_verified === true && w.is_aadhaar_back_verified === true) ? 'Verified' : 'Pending',
+                police: w.is_police_verified === true ? 'Verified' : 'Pending',
+                interview: w.is_interview_verified === true || w.is_tele_onboarded === true ? 'Verified' : 'Pending',
+                video: w.is_video_verified === true ? 'Verified' : 'Pending',
+                profile: w.status === 'approved' || w.status === 'live' ? 'Verified' : 'Pending'
               }
             };
           });
           setWorkersList(mappedWorkers);
-          if (mappedWorkers.length > 0) {
-            setSelectedWorker(mappedWorkers[0]);
-          }
+          setSelectedWorker((prevSelected: any) => {
+            if (!prevSelected && mappedWorkers.length > 0) return mappedWorkers[0];
+            if (prevSelected) {
+              const updatedSelected = mappedWorkers.find((w: any) => w.id === prevSelected.id);
+              return updatedSelected || prevSelected;
+            }
+            return null;
+          });
 
           const pendingWorkers = mappedWorkers.filter((w: any) => w.status === 'pending_review' || w.status === 'admin_interview');
           setInterviewsList(pendingWorkers.map((w: any, index: number) => {
@@ -410,7 +424,15 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             email: e.email || '',
             phone: e.phone || '',
             status: e.status || 'pending_review',
-            signup_date: e.created_at || 'Today'
+            signup_date: e.created_at || 'Today',
+            badges: {
+              mobile: e.phone ? 'Verified' : 'Pending',
+              aadhaar_front: e.is_aadhaar_front_verified === true ? 'Verified' : 'Pending',
+              aadhaar_back: e.is_aadhaar_back_verified === true ? 'Verified' : 'Pending',
+              residency: e.is_residency_verified === true ? 'Verified' : 'Pending',
+              interview: e.is_interview_verified === true || e.is_tele_onboarded === true ? 'Verified' : 'Pending',
+              profile: e.status === 'approved' || e.status === 'active' ? 'Verified' : 'Pending'
+            }
           }));
           setEmployersList(mappedEmployers);
         }
@@ -566,7 +588,13 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       if (!isPlaceholder) {
         try {
           const updateFields: any = {};
-          if (badgeKey === 'aadhaar') updateFields.is_aadhaar_verified = (status === 'Verified');
+          if (badgeKey === 'aadhaar_front') updateFields.is_aadhaar_front_verified = (status === 'Verified');
+          if (badgeKey === 'aadhaar_back') updateFields.is_aadhaar_back_verified = (status === 'Verified');
+          if (badgeKey === 'aadhaar') {
+            updateFields.is_aadhaar_front_verified = (status === 'Verified');
+            updateFields.is_aadhaar_back_verified = (status === 'Verified');
+            updateFields.is_aadhaar_verified = (status === 'Verified');
+          }
           if (badgeKey === 'police') updateFields.is_police_verified = (status === 'Verified');
           if (badgeKey === 'interview') updateFields.is_interview_verified = (status === 'Verified');
 

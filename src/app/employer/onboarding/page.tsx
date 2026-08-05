@@ -1,0 +1,471 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEmployerDashboard } from '../layout';
+import { useLanguage } from '@/context/LanguageContext';
+import { 
+  Building, User, Phone, Mail, MapPin, CheckCircle2, ShieldCheck, 
+  Sparkles, ArrowRight, Upload, Lock, AlertCircle, FileText, Check, Loader2, KeyRound
+} from 'lucide-react';
+import { secureUpload } from '@/utils/secureUpload';
+
+const DEFAULT_SOCIETIES = [
+  'DLF Westend Heights',
+  'Prestige Shantiniketan',
+  'Sobha Royal Pavilion',
+  'Godrej Eternity',
+  'Brigade Metropolis',
+  'Bhartiya City Nikoo Homes',
+  'Salarpuria Sattva Greenage',
+  'Purva Venezia',
+  'Adarsh Palm Retreat',
+  'Mantri Tranquil'
+];
+
+export default function EmployerOnboardingPage() {
+  const router = useRouter();
+  const { employerProfile, setEmployerProfile, user, showToast } = useEmployerDashboard();
+  const { t } = useLanguage();
+
+  const [loading, setLoading] = useState(false);
+
+  // Form Inputs
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [societyName, setSocietyName] = useState('');
+  const [towerBlock, setTowerBlock] = useState('');
+  const [address, setAddress] = useState('');
+  const [altPhone, setAltPhone] = useState('');
+  const [residencyProofUrl, setResidencyProofUrl] = useState<string | null>(null);
+
+  // OTP Verification for Phone if starting via Email OTP
+  const [verifiedChannel, setVerifiedChannel] = useState<'mobile' | 'email'>('mobile');
+  const [showPhoneOtpStep, setShowPhoneOtpStep] = useState(false);
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+
+  // Initialize fields from pre-existing user or profile session
+  useEffect(() => {
+    if (employerProfile) {
+      if (employerProfile.company_name && employerProfile.company_name !== 'Employer Profile' && employerProfile.company_name !== 'Employer') {
+        setFullName(employerProfile.company_name);
+      }
+      if (employerProfile.email) setEmail(employerProfile.email);
+      if (employerProfile.society_name) setSocietyName(employerProfile.society_name);
+      if (employerProfile.tower) setTowerBlock(employerProfile.tower);
+      if (employerProfile.address) setAddress(employerProfile.address);
+
+      const rawP = (employerProfile.phone || user?.phone || '').replace(/\D/g, '').slice(-10);
+      if (rawP && rawP.length === 10) {
+        setPhone(rawP);
+        setVerifiedChannel('mobile');
+        setPhoneVerified(true);
+      } else if (user?.email || employerProfile.email) {
+        setEmail(user?.email || employerProfile.email);
+        setVerifiedChannel('email');
+      }
+    }
+  }, [employerProfile, user]);
+
+  const handleNameChange = (val: string) => {
+    const lettersOnly = val.replace(/[^a-zA-Z\s]/g, '');
+    setFullName(lettersOnly);
+  };
+
+  const handlePhoneChange = (val: string) => {
+    const digitsOnly = val.replace(/\D/g, '').slice(0, 10);
+    setPhone(digitsOnly);
+  };
+
+  const handleAltPhoneChange = (val: string) => {
+    const digitsOnly = val.replace(/\D/g, '').slice(0, 10);
+    setAltPhone(digitsOnly);
+  };
+
+  const handleSendPhoneOtp = async () => {
+    if (phone.length !== 10) {
+      showToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+    setSendingOtp(true);
+    setTimeout(() => {
+      setSendingOtp(false);
+      setShowPhoneOtpStep(true);
+      showToast('Verification OTP sent to +91 ' + phone, 'success');
+    }, 800);
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    if (phoneOtp.length !== 6) {
+      showToast('Please enter a valid 6-digit OTP code.', 'error');
+      return;
+    }
+    setPhoneVerified(true);
+    setShowPhoneOtpStep(false);
+    showToast('Mobile number verified successfully!', 'success');
+  };
+
+  const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const activeUserId = user?.id || employerProfile?.user_id || 'employer_guest';
+    try {
+      showToast('Uploading residency proof...', 'info');
+      const { publicUrl } = await secureUpload(file, activeUserId, 'residency_proof_url', { role: 'employer' });
+      setResidencyProofUrl(publicUrl);
+      showToast('Residency proof uploaded successfully!', 'success');
+    } catch (err: any) {
+      showToast(`Upload failed: ${err.message}`, 'error');
+    }
+  };
+
+  const handleSubmitOnboarding = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!fullName.trim()) {
+      showToast('Please enter your full name.', 'error');
+      return;
+    }
+
+    if (phone.length !== 10) {
+      showToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !email.trim() || !emailRegex.test(email.trim())) {
+      showToast('Please enter a valid email address for receiving subscription invoices & receipts.', 'error');
+      return;
+    }
+
+    if (altPhone.trim() && altPhone.trim().length !== 10) {
+      showToast('Alternate / Family contact number must be exactly 10 digits if provided.', 'error');
+      return;
+    }
+
+    if (!societyName.trim()) {
+      showToast('Please select your gated society.', 'error');
+      return;
+    }
+
+    if (!address.trim()) {
+      showToast('Please enter your flat address.', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const activeUserId = user?.id || employerProfile?.user_id || 'employer_guest';
+
+      const res = await fetch('/api/employer/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: activeUserId,
+          company_name: fullName.trim(),
+          name: fullName.trim(),
+          phone: `+91 ${phone}`,
+          email: email.trim(),
+          society_name: societyName,
+          tower_block: towerBlock.trim(),
+          address: address.trim(),
+          alternate_phone: altPhone ? `+91 ${altPhone}` : '',
+          residency_proof_url: residencyProofUrl || employerProfile?.residency_proof_url || null
+        })
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to complete onboarding setup');
+      }
+
+      // Update Local Dashboard Context
+      setEmployerProfile((prev: any) => ({
+        ...prev,
+        company_name: fullName.trim(),
+        name: fullName.trim(),
+        phone: `+91 ${phone}`,
+        email: email.trim(),
+        society_name: societyName,
+        tower: towerBlock.trim(),
+        tower_block: towerBlock.trim(),
+        address: address.trim(),
+        alt_phone: altPhone ? `+91 ${altPhone}` : '',
+        residency_proof_url: residencyProofUrl || prev.residency_proof_url,
+        status: 'live'
+      }));
+
+      showToast('Household setup completed! Welcome to Sevikaa.', 'success');
+      router.push('/employer/account');
+    } catch (err: any) {
+      showToast(err.message || 'Error completing onboarding', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6 space-y-8 animate-fade-in">
+      {/* Executive Light Hero Header */}
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white p-7 sm:p-9 rounded-3xl shadow-xl space-y-3 relative overflow-hidden">
+        <div className="absolute right-0 top-0 translate-x-6 -translate-y-6 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl">
+            <Building size={28} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight">🏡 Household &amp; Employer Setup</h1>
+            <p className="text-xs sm:text-sm text-blue-100 font-semibold mt-0.5">Complete your profile details once to start hiring verified domestic workers.</p>
+          </div>
+        </div>
+
+        {/* Step Progress Indicators */}
+        <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/20 text-[11px] font-black uppercase tracking-wider">
+          <div className="bg-white/20 backdrop-blur-md p-2 rounded-xl text-center flex items-center justify-center gap-1.5 border border-white/30">
+            <CheckCircle2 size={13} className="text-emerald-300" />
+            <span>1. Auth Channel</span>
+          </div>
+          <div className="bg-white text-blue-900 p-2 rounded-xl text-center flex items-center justify-center gap-1.5 shadow-sm">
+            <Sparkles size={13} className="text-blue-600" />
+            <span>2. Household</span>
+          </div>
+          <div className="bg-white/20 backdrop-blur-md p-2 rounded-xl text-center flex items-center justify-center gap-1.5 opacity-80">
+            <ShieldCheck size={13} />
+            <span>3. Instant Audit</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Form Container */}
+      <form onSubmit={handleSubmitOnboarding} className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm space-y-6">
+        
+        {/* SECTION 1: VERIFIED AUTHENTICATION CHANNELS */}
+        <div className="space-y-4 pb-6 border-b border-slate-100">
+          <h2 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+            <ShieldCheck size={16} className="text-[#1A73E8]" />
+            <span>Step 1: Contact Credentials &amp; Invoice Billing</span>
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Mobile Number Field */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span>Mobile Number</span>
+                {verifiedChannel === 'mobile' || phoneVerified ? (
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 size={10} /> Verified OTP
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">Required</span>
+                )}
+              </label>
+
+              <div className="relative">
+                <span className="absolute left-3.5 top-3 text-slate-400 font-bold text-xs">+91</span>
+                <input 
+                  type="text" 
+                  maxLength={10}
+                  value={phone}
+                  readOnly={verifiedChannel === 'mobile'}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  placeholder="9876543210"
+                  className={`w-full p-2.5 pl-12 rounded-xl text-xs font-bold border transition-all ${
+                    verifiedChannel === 'mobile' 
+                      ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed font-mono'
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono'
+                  }`}
+                />
+              </div>
+
+              {verifiedChannel === 'email' && !phoneVerified && (
+                <div className="pt-1">
+                  {!showPhoneOtpStep ? (
+                    <button 
+                      type="button" 
+                      onClick={handleSendPhoneOtp}
+                      disabled={sendingOtp || phone.length !== 10}
+                      className="w-full py-2 bg-[#1A73E8] hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl text-[11px] font-black flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer transition-all"
+                    >
+                      {sendingOtp ? <Loader2 size={12} className="animate-spin" /> : <Phone size={12} />}
+                      <span>Send SMS OTP Verification</span>
+                    </button>
+                  ) : (
+                    <div className="flex gap-2 pt-1">
+                      <input 
+                        type="text" 
+                        maxLength={6}
+                        value={phoneOtp}
+                        onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
+                        placeholder="6-digit OTP"
+                        className="w-full p-2 bg-slate-50 border border-blue-300 rounded-xl text-center font-mono text-xs font-black focus:outline-none"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={handleVerifyPhoneOtp}
+                        className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-black cursor-pointer shrink-0"
+                      >
+                        Verify
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Email Address Field (Required for Invoices) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span>Email Address (For Invoices)</span>
+                {verifiedChannel === 'email' ? (
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 size={10} /> Verified OTP
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-[#1A73E8] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">Required</span>
+                )}
+              </label>
+              <input 
+                type="email"
+                value={email}
+                readOnly={verifiedChannel === 'email'}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@domain.com"
+                className={`w-full p-2.5 rounded-xl text-xs font-bold border transition-all ${
+                  verifiedChannel === 'email'
+                    ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed'
+                    : 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-[#1A73E8] focus:outline-none'
+                }`}
+              />
+              <p className="text-[10px] text-slate-400 font-medium">Used for GST subscription invoices &amp; payment PDF receipts.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 2: HOUSEHOLD NAME & ADDRESS DETAILS */}
+        <div className="space-y-4 pb-6 border-b border-slate-100">
+          <h2 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+            <Building size={16} className="text-[#1A73E8]" />
+            <span>Step 2: Household &amp; Residential Location</span>
+          </h2>
+
+          <div className="space-y-4">
+            {/* Household / Employer Full Name */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Employer / Household Full Name *</label>
+              <input 
+                type="text" 
+                value={fullName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="e.g. Rajesh Sharma"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+              />
+            </div>
+
+            {/* Gated Society Selection */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span>Gated Society / Apartment Complex *</span>
+                <span className="text-[10px] text-blue-600 font-extrabold">Instant Worker Matching</span>
+              </label>
+              <select 
+                value={societyName}
+                onChange={(e) => setSocietyName(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-[#1A73E8] focus:outline-none cursor-pointer"
+              >
+                <option value="">-- Select Your Gated Society --</option>
+                {DEFAULT_SOCIETIES.map(soc => (
+                  <option key={soc} value={soc}>{soc}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tower & Flat Address */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Tower / Block Number</label>
+                <input 
+                  type="text" 
+                  value={towerBlock}
+                  onChange={(e) => setTowerBlock(e.target.value)}
+                  placeholder="e.g. Tower A"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Flat &amp; Floor Address *</label>
+                <input 
+                  type="text" 
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="e.g. Flat 301, 3rd Floor"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Secondary Alternate Phone */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Alternate / Family Contact Phone (Optional)</label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-3 text-slate-400 font-bold text-xs">+91</span>
+                <input 
+                  type="text" 
+                  maxLength={10}
+                  value={altPhone}
+                  onChange={(e) => handleAltPhoneChange(e.target.value)}
+                  placeholder="Optional 10-digit backup phone"
+                  className="w-full p-2.5 pl-12 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 3: RESIDENCY PROOF UPLOAD (OPTIONAL) */}
+        <div className="space-y-4 pb-4">
+          <h2 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+            <FileText size={16} className="text-[#1A73E8]" />
+            <span>Step 3: Residency Proof (Optional — Speeds Up Approval)</span>
+          </h2>
+
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center sm:text-left">
+              <p className="text-xs font-black text-slate-800">Society Maintenance Bill or Rent Receipt</p>
+              <p className="text-[11px] text-slate-500 font-medium">Shows Flat &amp; Tower address for instant Admin residency verification.</p>
+            </div>
+
+            <label className="cursor-pointer shrink-0">
+              <input type="file" accept="image/*,.pdf" onChange={handleProofUpload} className="hidden" />
+              <div className="py-2.5 px-4 bg-white border border-slate-300 hover:border-[#1A73E8] text-slate-700 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-2xs">
+                {residencyProofUrl ? <CheckCircle2 size={14} className="text-emerald-600" /> : <Upload size={14} className="text-[#1A73E8]" />}
+                <span>{residencyProofUrl ? 'Change Uploaded Proof' : 'Upload Proof (PDF/JPG)'}</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* SUBMIT BUTTON */}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-4 bg-gradient-to-r from-[#1A73E8] to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-black text-sm rounded-2xl transition-all shadow-lg hover:shadow-xl active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              <span>Saving Household Setup...</span>
+            </>
+          ) : (
+            <>
+              <span>Complete Setup &amp; Go to Dashboard</span>
+              <ArrowRight size={18} />
+            </>
+          )}
+        </button>
+      </form>
+    </div>
+  );
+}

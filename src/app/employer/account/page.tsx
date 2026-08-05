@@ -12,6 +12,7 @@ import {
 import { ChangeMobileInlineSection } from '@/components/profile/ChangeMobileInlineSection';
 import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInlineSection';
 import { secureUpload } from '@/utils/secureUpload';
+import { usePrivateUrl } from '@/hooks/usePrivateUrl';
 
 export default function EmployerAccountPage() {
   const { 
@@ -23,28 +24,45 @@ export default function EmployerAccountPage() {
   const [isChangeMobileOpen, setIsChangeMobileOpen] = useState(false);
   const [activeInlinePreview, setActiveInlinePreview] = useState<'residency' | 'front' | 'back' | null>(null);
 
-  const [companyName, setCompanyName] = useState(employerProfile.company_name || employerProfile.name || '');
-  const [phone, setPhone] = useState(employerProfile.phone?.replace(/\D/g, '').slice(-10) || '');
+  const sanitizeAltPhone = (p?: string) => {
+    if (!p) return '';
+    const digits = p.replace(/\D/g, '');
+    return digits.length === 10 ? digits : '';
+  };
+
+  // Editable Form Inputs
+  const [companyName, setCompanyName] = useState(employerProfile.company_name || '');
+  const [phone, setPhone] = useState(employerProfile.phone || '');
+  const [altPhone, setAltPhone] = useState(sanitizeAltPhone(employerProfile.alternate_phone || employerProfile.alt_phone));
   const [email, setEmail] = useState(employerProfile.email || '');
-  const [towerBlock, setTowerBlock] = useState(employerProfile.tower || '');
-  const [address, setAddress] = useState(employerProfile.address || '');
-  const [city, setCity] = useState(employerProfile.city || '');
-  const [stateName, setStateName] = useState(employerProfile.state || '');
+  const [address, setAddress] = useState(employerProfile.address || employerProfile.billing_address || '');
+  const [towerBlock, setTowerBlock] = useState(employerProfile.tower_block || '');
+  const [city, setCity] = useState(employerProfile.city || 'Bangalore');
+  const [stateName, setStateName] = useState(employerProfile.state || 'Karnataka');
   const [pincode, setPincode] = useState(employerProfile.pincode || '');
   const [gstin, setGstin] = useState(employerProfile.gstin || '');
-  const [altPhone, setAltPhone] = useState(employerProfile.alt_phone || '');
-  const [verificationPref, setVerificationPref] = useState(employerProfile.verification_pref || 'Aadhaar + Police Audit (Default)');
+  const [verificationPref, setVerificationPref] = useState(employerProfile.verification_requirement || 'Aadhaar + Police Audit (Default)');
   const [saveLoading, setSaveLoading] = useState(false);
 
-  // ID Verification upload state
+  // Upload States
   const [residencyProofUploaded, setResidencyProofUploaded] = useState(false);
   const [residencyProofUrl, setResidencyProofUrl] = useState<string | null>(employerProfile.residency_proof_url || null);
   const [aadhaarFrontUploaded, setAadhaarFrontUploaded] = useState(false);
   const [aadhaarBackUploaded, setAadhaarBackUploaded] = useState(false);
   const [aadhaarFrontUrl, setAadhaarFrontUrl] = useState<string | null>(employerProfile.aadhaar_front_url || null);
   const [aadhaarBackUrl, setAadhaarBackUrl] = useState<string | null>(employerProfile.aadhaar_back_url || null);
+
+  // Resolved Private Cloudinary Signed URLs for Inline Preview
+  const residencyRes = usePrivateUrl(residencyProofUrl || employerProfile.residency_proof_url);
+  const aadhaarFrontRes = usePrivateUrl(aadhaarFrontUrl || employerProfile.aadhaar_front_url);
+  const aadhaarBackRes = usePrivateUrl(aadhaarBackUrl || employerProfile.aadhaar_back_url);
   const idVerified = (residencyProofUploaded || residencyProofUrl || aadhaarFrontUploaded || aadhaarFrontUrl) && (aadhaarBackUploaded || aadhaarBackUrl);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+
+  const residencyInputRef = React.useRef<HTMLInputElement>(null);
+  const photoInputRef = React.useRef<HTMLInputElement>(null);
+  const aadhaarFrontInputRef = React.useRef<HTMLInputElement>(null);
+  const aadhaarBackInputRef = React.useRef<HTMLInputElement>(null);
 
   // Profile Photo State
   const [profilePhoto, setProfilePhoto] = useState<string | null>(employerProfile.avatar_url || null);
@@ -79,23 +97,33 @@ export default function EmployerAccountPage() {
     soc.locality.toLowerCase().includes(societySearchQuery.toLowerCase())
   );
 
-  const handleRelocationProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRelocationProofChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
-      showToast('Relocation Proof: Only JPG, PNG, or PDF files allowed.', 'error');
+    e.target.value = ''; // Release system file handle immediately
+
+    if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(file.type)) {
+      showToast('Relocation Proof: Only JPG, PNG, WEBP, or PDF files allowed.', 'error');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast(`File size must be under 5MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      showToast(`File size must be under 10MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setRelocationProofUrl(reader.result as string);
-      showToast('New residence proof document attached successfully!', 'success');
-    };
-    reader.readAsDataURL(file);
+
+    const activeUserId = employerProfile?.user_id || employerProfile?.id || 'employer_guest';
+
+    try {
+      const uploadResult = await secureUpload(file, activeUserId, 'residency_proof_url');
+
+      if (uploadResult?.publicUrl) {
+        setRelocationProofUrl(uploadResult.publicUrl);
+        showToast('Residence proof document uploaded successfully!', 'success');
+      }
+    } catch (err: any) {
+      console.error('Relocation proof upload error:', err);
+      showToast(`Upload failed: ${err.message}`, 'error');
+    }
   };
 
   const handleSubmitRelocationRequest = async () => {
@@ -151,7 +179,8 @@ export default function EmployerAccountPage() {
       if (employerProfile.state) setStateName(employerProfile.state);
       if (employerProfile.pincode) setPincode(employerProfile.pincode);
       if (employerProfile.gstin) setGstin(employerProfile.gstin);
-      if (employerProfile.alt_phone) setAltPhone(employerProfile.alt_phone);
+      const rawAlt = employerProfile.alt_phone || employerProfile.alternate_phone || '';
+      if (rawAlt) setAltPhone(rawAlt.replace(/\D/g, '').slice(-10));
       if (employerProfile.residency_proof_url) setResidencyProofUrl(employerProfile.residency_proof_url);
       if (employerProfile.aadhaar_front_url) setAadhaarFrontUrl(employerProfile.aadhaar_front_url);
       if (employerProfile.aadhaar_back_url) setAadhaarBackUrl(employerProfile.aadhaar_back_url);
@@ -162,8 +191,8 @@ export default function EmployerAccountPage() {
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      showToast('Profile Photo: Only JPG or PNG files allowed.', 'error');
+    if (!file.type.startsWith('image/')) {
+      showToast('Profile Photo: Only image files (JPG, PNG, WebP, HEIC) allowed.', 'error');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -179,7 +208,12 @@ export default function EmployerAccountPage() {
       });
       setProfilePhoto(publicUrl);
       setUploadProgress(p => ({ ...p, photo: 0 }));
-      handleSaveEmployerProfile({ ...employerProfile, avatar_url: publicUrl, profile_picture_url: publicUrl });
+      handleSaveEmployerProfile({
+        ...employerProfile,
+        company_name: companyName || employerProfile.company_name || employerProfile.name,
+        avatar_url: publicUrl,
+        profile_picture_url: publicUrl
+      });
       showToast('Employer profile photo uploaded!', 'success');
     } catch (err: any) {
       setUploadProgress(p => ({ ...p, photo: 0 }));
@@ -190,8 +224,8 @@ export default function EmployerAccountPage() {
   const handleResidencyProofChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
-      showToast('Residency Proof: Only JPG, PNG, or PDF files allowed.', 'error');
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      showToast('Residency Proof: Only Image or PDF files allowed.', 'error');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -208,7 +242,11 @@ export default function EmployerAccountPage() {
       setResidencyProofUrl(publicUrl);
       setResidencyProofUploaded(true);
       setUploadProgress(p => ({ ...p, residency: 0 }));
-      handleSaveEmployerProfile({ ...employerProfile, residency_proof_url: publicUrl });
+      handleSaveEmployerProfile({
+        ...employerProfile,
+        company_name: companyName || employerProfile.company_name || employerProfile.name,
+        residency_proof_url: publicUrl
+      });
       showToast('Society Maintenance / Rent Agreement uploaded and saved!', 'success');
     } catch (err: any) {
       setUploadProgress(p => ({ ...p, residency: 0 }));
@@ -219,8 +257,8 @@ export default function EmployerAccountPage() {
   const handleAadhaarFrontChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
-      showToast('Aadhaar Front: Only JPG, PNG, or PDF files allowed.', 'error');
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      showToast('Aadhaar Front: Only Image or PDF files allowed.', 'error');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -237,7 +275,11 @@ export default function EmployerAccountPage() {
       setAadhaarFrontUrl(publicUrl);
       setAadhaarFrontUploaded(true);
       setUploadProgress(p => ({ ...p, aadhaarFront: 0 }));
-      handleSaveEmployerProfile({ ...employerProfile, aadhaar_front_url: publicUrl });
+      handleSaveEmployerProfile({
+        ...employerProfile,
+        company_name: companyName || employerProfile.company_name || employerProfile.name,
+        aadhaar_front_url: publicUrl
+      });
       showToast('Aadhaar Front uploaded and saved (private)!', 'success');
     } catch (err: any) {
       setUploadProgress(p => ({ ...p, aadhaarFront: 0 }));
@@ -248,8 +290,8 @@ export default function EmployerAccountPage() {
   const handleAadhaarBackChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) {
-      showToast('Aadhaar Back: Only JPG, PNG, or PDF files allowed.', 'error');
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      showToast('Aadhaar Back: Only Image or PDF files allowed.', 'error');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -266,7 +308,11 @@ export default function EmployerAccountPage() {
       setAadhaarBackUrl(publicUrl);
       setAadhaarBackUploaded(true);
       setUploadProgress(p => ({ ...p, aadhaarBack: 0 }));
-      handleSaveEmployerProfile({ ...employerProfile, aadhaar_back_url: publicUrl });
+      handleSaveEmployerProfile({
+        ...employerProfile,
+        company_name: companyName || employerProfile.company_name || employerProfile.name,
+        aadhaar_back_url: publicUrl
+      });
       showToast('Aadhaar Back uploaded and saved (private)!', 'success');
     } catch (err: any) {
       setUploadProgress(p => ({ ...p, aadhaarBack: 0 }));
@@ -291,7 +337,11 @@ export default function EmployerAccountPage() {
   const [deleteOtpError, setDeleteOtpError] = useState('');
 
   // Profile completeness calculation
-  const isAadhaarDone = (aadhaarFrontUploaded && aadhaarBackUploaded) || employerProfile.status === 'live' || employerProfile.status === 'approved';
+  const hasAadhaarFront = aadhaarFrontUploaded || !!aadhaarFrontUrl || !!employerProfile.aadhaar_front_url;
+  const hasAadhaarBack = aadhaarBackUploaded || !!aadhaarBackUrl || !!employerProfile.aadhaar_back_url;
+  const isAadhaarDone = hasAadhaarFront && hasAadhaarBack;
+  const isResidencyDone = residencyProofUploaded || !!residencyProofUrl || !!employerProfile.residency_proof_url;
+  const isIdentityDone = isResidencyDone || isAadhaarDone;
   const isPhotoDone = !!profilePhoto || !!employerProfile.avatar_url;
 
   const completionSteps = [
@@ -302,7 +352,9 @@ export default function EmployerAccountPage() {
     { key: 'tower', label: 'Tower / Block', done: !!towerBlock.trim() },
     { key: 'address', label: 'Flat Address', done: !!address.trim() },
     { key: 'photo', label: t('stepProfilePhoto') || 'Profile Photo', done: isPhotoDone },
-    { key: 'aadhaar', label: t('stepAadhaarUploaded') || 'Aadhaar Uploaded', done: isAadhaarDone }
+    { key: 'residency', label: 'Residency Proof', done: isResidencyDone },
+    { key: 'aadhaarFront', label: 'Aadhaar (Front)', done: hasAadhaarFront },
+    { key: 'aadhaarBack', label: 'Aadhaar (Back)', done: hasAadhaarBack }
   ];
 
   const completedCount = completionSteps.filter(s => s.done).length;
@@ -329,6 +381,20 @@ export default function EmployerAccountPage() {
       showToast("Please enter a valid 10-digit mobile number.", "error");
       return;
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !email.trim() || !emailRegex.test(email.trim())) {
+      showToast("Please enter a valid email address for receiving subscription invoices & payment receipts.", "error");
+      return;
+    }
+
+    const cleanAlt = altPhone.replace(/\D/g, '');
+    if (cleanAlt && cleanAlt.length !== 10) {
+      showToast("Alternate / Family contact number must be exactly 10 digits if provided.", "error");
+      return;
+    }
+    const formattedAltPhone = cleanAlt ? `+91 ${cleanAlt}` : '';
+
     setSaveLoading(true);
     try {
       if (typeof handleSaveEmployerProfile === 'function') {
@@ -343,7 +409,7 @@ export default function EmployerAccountPage() {
           state: stateName,
           pincode,
           gstin,
-          alt_phone: altPhone,
+          alt_phone: formattedAltPhone,
           verification_pref: verificationPref,
           avatar_url: profilePhoto || employerProfile.avatar_url
         });
@@ -359,7 +425,7 @@ export default function EmployerAccountPage() {
           state: stateName,
           pincode,
           gstin,
-          alt_phone: altPhone,
+          alt_phone: formattedAltPhone,
           verification_pref: verificationPref
         }));
         showToast("Household account & verification details updated!", "success");
@@ -379,6 +445,7 @@ export default function EmployerAccountPage() {
       if (typeof handleSaveEmployerProfile === 'function') {
         await handleSaveEmployerProfile({
           ...employerProfile,
+          company_name: companyName || employerProfile.company_name || employerProfile.name,
           residency_proof_url: residencyProofUrl || employerProfile.residency_proof_url,
           aadhaar_front_url: aadhaarFrontUrl || employerProfile.aadhaar_front_url,
           aadhaar_back_url: aadhaarBackUrl || employerProfile.aadhaar_back_url,
@@ -576,10 +643,10 @@ export default function EmployerAccountPage() {
             </div>
 
             {/* Camera Upload Button Overlay */}
-            <label className="absolute bottom-0 right-0 p-1.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95 border-2 border-white">
+            <input ref={photoInputRef} type="file" onChange={handlePhotoChange} style={{ display: 'none' }} />
+            <button type="button" onClick={() => photoInputRef.current?.click()} className="absolute bottom-0 right-0 p-1.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95 border-2 border-white">
               <Camera size={12} />
-              <input type="file" accept="image/*" capture="user" onChange={handlePhotoChange} className="hidden" />
-            </label>
+            </button>
           </div>
 
           {/* Employer Name, Dedicated Society Location Row, and Plan/Readiness Badges */}
@@ -639,7 +706,7 @@ export default function EmployerAccountPage() {
               <span className="text-slate-500 font-bold">Tower / Unit Address:</span>
             </div>
             <span className="text-sm font-black text-slate-900 break-words sm:text-right">
-              {[towerBlock ? `Tower ${towerBlock}` : '', address, city ? `(${city})` : ''].filter(Boolean).join(', ') || 'Address not provided'}
+              {[towerBlock ? (/^(tower|block|building|apt|flat)\b/i.test(towerBlock.trim()) ? towerBlock.trim() : `Tower ${towerBlock.trim()}`) : '', address, city ? `(${city})` : ''].filter(Boolean).join(', ') || 'Address not provided'}
             </span>
           </div>
         </div>
@@ -674,63 +741,6 @@ export default function EmployerAccountPage() {
                 {step.done ? <CheckCircle2 size={14} className="text-[#34A853] shrink-0" /> : <Lock size={14} className="text-slate-400 shrink-0" />}
               </div>
             ))}
-          </div>
-        </div>
-      </div>
-
-      {/* EMPLOYER PROFILE / HOUSEHOLD PHOTO */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-            <User size={16} className="text-[#1A73E8]" />
-            <span>{t('employerPhotoTitle') || "Employer / Household Photo"}</span>
-          </h3>
-          {profilePhoto ? (
-            <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-              <CheckCircle2 size={10} /> {t('uploadedBadge') || "Uploaded"}
-            </span>
-          ) : (
-            <span className="bg-slate-100 text-slate-500 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-slate-200">
-              {t('optionalBadge') || "Optional"}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-5">
-          {/* Avatar preview */}
-          <div className="w-20 h-20 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 overflow-hidden shrink-0 flex items-center justify-center">
-            {profilePhoto ? (
-              <img src={profilePhoto} alt="Employer Logo" className="w-full h-full object-cover" />
-            ) : (
-              <User size={28} className="text-slate-300" />
-            )}
-          </div>
-          <div className="space-y-2 flex-1">
-            <p className="text-xs font-medium text-slate-600 leading-relaxed">
-              {t('employerPhotoDesc') || "Upload a photo for your household account. Workers see this avatar on your job postings when applying."}
-            </p>
-            <p className="text-[10px] text-slate-400 font-semibold">{t('photoSpecs') || "JPG · PNG · Max 3MB"}</p>
-            <div className="flex gap-2">
-              <label className="cursor-pointer">
-                <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handlePhotoChange} />
-                <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 shadow-sm cursor-pointer">
-                  <Upload size={11} />
-                  <span>{profilePhoto ? (t('changePhotoBtn') || 'Change Photo') : (t('uploadPhotoBtn') || 'Upload Photo')}</span>
-                </div>
-              </label>
-              <label className="cursor-pointer">
-                <input type="file" accept="image/jpeg,image/png" capture="user" className="hidden" onChange={handlePhotoChange} />
-                <div className="py-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer">
-                  <Camera size={11} />
-                  <span>{t('takeSelfieBtn') || "Take Selfie"}</span>
-                </div>
-              </label>
-              {profilePhoto && (
-                <button onClick={() => setProfilePhoto(null)} className="py-2 px-3 text-red-400 hover:text-red-600 text-[10.5px] font-bold cursor-pointer">
-                  {t('removeBtn') || "Remove"}
-                </button>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -984,13 +994,15 @@ export default function EmployerAccountPage() {
 
           <div className="flex flex-col space-y-2">
             <div className="flex items-center gap-3">
-              <label className="cursor-pointer flex-1">
-                <input type="file" accept="image/*,application/pdf" capture="user" className="hidden" onChange={handleResidencyProofChange} />
-                <div className="w-full py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-xs">
-                  <Upload size={14} />
-                  <span>{(residencyProofUploaded || residencyProofUrl || employerProfile.residency_proof_url) ? (t('changeMaintenanceBtn') || "Change Maintenance Bill / Rent Agreement") : (t('uploadMaintenanceBtn') || "Upload Maintenance Bill / Rent Agreement")}</span>
-                </div>
-              </label>
+              <input ref={residencyInputRef} type="file" onChange={handleResidencyProofChange} style={{ display: 'none' }} />
+              <button 
+                type="button" 
+                onClick={() => residencyInputRef.current?.click()}
+                className="w-full py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-xs flex-1"
+              >
+                <Upload size={14} />
+                <span>{(residencyProofUploaded || residencyProofUrl || employerProfile.residency_proof_url) ? (t('changeMaintenanceBtn') || "Change Maintenance Bill / Rent Agreement") : (t('uploadMaintenanceBtn') || "Upload Maintenance Bill / Rent Agreement")}</span>
+              </button>
 
               {(residencyProofUploaded || residencyProofUrl || employerProfile.residency_proof_url) && (
                 <button
@@ -1016,8 +1028,8 @@ export default function EmployerAccountPage() {
                   </button>
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
-                  {(residencyProofUrl || employerProfile.residency_proof_url) ? (
-                    <img src={residencyProofUrl || employerProfile.residency_proof_url || ''} alt="Residency Proof" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  {(residencyRes.url || residencyProofUrl || employerProfile.residency_proof_url) ? (
+                    <img src={residencyRes.url || residencyProofUrl || employerProfile.residency_proof_url || ''} alt="Residency Proof" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <Building size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
@@ -1052,22 +1064,31 @@ export default function EmployerAccountPage() {
                     <Eye size={12} className="text-emerald-700" />
                     <span>{activeInlinePreview === 'front' ? 'Hide Preview' : 'View'}</span>
                   </button>
-                  <label className="cursor-pointer">
-                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
-                    <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
-                      <Upload size={11} />
-                      <span>Change</span>
-                    </div>
-                  </label>
-                  <button onClick={() => { setAadhaarFrontUploaded(false); if (activeInlinePreview === 'front') setActiveInlinePreview(null); }} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer">✕</button>
+                  <input ref={aadhaarFrontInputRef} type="file" onChange={handleAadhaarFrontChange} style={{ display: 'none' }} />
+                  <button type="button" onClick={() => aadhaarFrontInputRef.current?.click()} className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
+                    <Upload size={11} />
+                    <span>Change</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAadhaarFrontUploaded(false);
+                      setAadhaarFrontUrl(null);
+                      setEmployerProfile((prev: any) => ({ ...prev, aadhaar_front_url: '' }));
+                      if (activeInlinePreview === 'front') setActiveInlinePreview(null);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer"
+                  >
+                    ✕
+                  </button>
                 </div>
               ) : (
-                <label className="cursor-pointer shrink-0">
-                  <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
-                  <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
+                <div className="shrink-0">
+                  <input ref={aadhaarFrontInputRef} type="file" onChange={handleAadhaarFrontChange} style={{ display: 'none' }} />
+                  <button type="button" onClick={() => aadhaarFrontInputRef.current?.click()} className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
                     <Upload size={11} /><span>{t('uploadFrontBtn') || "Upload Front"}</span>
-                  </div>
-                </label>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -1083,8 +1104,8 @@ export default function EmployerAccountPage() {
                   </button>
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
-                  {(aadhaarFrontUrl || employerProfile.aadhaar_front_url) ? (
-                    <img src={aadhaarFrontUrl || employerProfile.aadhaar_front_url || ''} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  {(aadhaarFrontRes.url || aadhaarFrontUrl || employerProfile.aadhaar_front_url) ? (
+                    <img src={aadhaarFrontRes.url || aadhaarFrontUrl || employerProfile.aadhaar_front_url || ''} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
@@ -1116,22 +1137,31 @@ export default function EmployerAccountPage() {
                     <Eye size={12} className="text-emerald-700" />
                     <span>{activeInlinePreview === 'back' ? 'Hide Preview' : 'View'}</span>
                   </button>
-                  <label className="cursor-pointer">
-                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
-                    <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
-                      <Upload size={11} />
-                      <span>Change</span>
-                    </div>
-                  </label>
-                  <button onClick={() => { setAadhaarBackUploaded(false); if (activeInlinePreview === 'back') setActiveInlinePreview(null); }} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer">✕</button>
+                  <input ref={aadhaarBackInputRef} type="file" onChange={handleAadhaarBackChange} style={{ display: 'none' }} />
+                  <button type="button" onClick={() => aadhaarBackInputRef.current?.click()} className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
+                    <Upload size={11} />
+                    <span>Change</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAadhaarBackUploaded(false);
+                      setAadhaarBackUrl(null);
+                      setEmployerProfile((prev: any) => ({ ...prev, aadhaar_back_url: '' }));
+                      if (activeInlinePreview === 'back') setActiveInlinePreview(null);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer"
+                  >
+                    ✕
+                  </button>
                 </div>
               ) : (
-                <label className="cursor-pointer shrink-0">
-                  <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
-                  <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
+                <div className="shrink-0">
+                  <input ref={aadhaarBackInputRef} type="file" onChange={handleAadhaarBackChange} style={{ display: 'none' }} />
+                  <button type="button" onClick={() => aadhaarBackInputRef.current?.click()} className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
                     <Upload size={11} /><span>{t('uploadBackBtn') || "Upload Back"}</span>
-                  </div>
-                </label>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -1147,8 +1177,8 @@ export default function EmployerAccountPage() {
                   </button>
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
-                  {(aadhaarBackUrl || employerProfile.aadhaar_back_url) ? (
-                    <img src={aadhaarBackUrl || employerProfile.aadhaar_back_url || ''} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
+                  {(aadhaarBackRes.url || aadhaarBackUrl || employerProfile.aadhaar_back_url) ? (
+                    <img src={aadhaarBackRes.url || aadhaarBackUrl || employerProfile.aadhaar_back_url || ''} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
@@ -1159,19 +1189,6 @@ export default function EmployerAccountPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* 💾 IN-CARD SAVE BUTTON FOR DOCUMENTS */}
-        <div className="pt-2 border-t border-slate-100 flex justify-end">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saveLoading}
-            className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-          >
-            <Save size={14} />
-            <span>{saveLoading ? (t('savingText') || 'Saving...') : (t('saveDocumentsBtn') || 'Save Document Proofs')}</span>
-          </button>
         </div>
 
         {idVerified && (

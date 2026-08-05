@@ -58,7 +58,7 @@ export default function EmployerWorkersPage() {
             const wProfile = a.worker?.worker_profiles?.[0] || a.worker_profiles || {};
             const skills = wProfile.skills || [];
             const primarySkill = skills[0] || 'maid';
-            const wName = wProfile.full_name || a.worker?.full_name || 'Verified Candidate';
+            const wName = wProfile.full_name || a.worker?.full_name || 'Worker Candidate';
 
             return {
               id: a.worker_id || a.id,
@@ -94,7 +94,7 @@ export default function EmployerWorkersPage() {
           if (dbWorkers && dbWorkers.length > 0) {
             const mappedWorkers: Candidate[] = dbWorkers.map((w: any) => ({
               id: w.user_id || w.id,
-              name: w.full_name || 'Verified Candidate',
+              name: w.full_name || 'Worker Candidate',
               category: Array.isArray(w.skills) && w.skills[0] ? w.skills[0] : 'maid',
               role: Array.isArray(w.skills) ? w.skills.join(', ') : 'Domestic Helper',
               experience: `${w.experience_years || 4} Years Exp`,

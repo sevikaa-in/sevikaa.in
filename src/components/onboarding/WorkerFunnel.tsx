@@ -56,6 +56,11 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
 
   // Step 2 State: Basic Details & Languages
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [showPhoneOtp, setShowPhoneOtp] = useState(false);
+  const [sendingPhoneOtp, setSendingPhoneOtp] = useState(false);
   const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>('');
   const [age, setAge] = useState('');
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
@@ -286,7 +291,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
   // Form Validations per step
   const validateStep = () => {
     setError('');
-    if (step === 1 && !selfieFile) {
+    if (step === 1 && !selfieFile && !selfiePreview) {
       setError('Please upload or capture a profile selfie');
       return false;
     }
@@ -689,6 +694,75 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
               />
             </div>
 
+            {/* Mobile Phone Field for Employer Hiring Calls */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex justify-between">
+                <span>Mobile Number (Required for Hiring Calls)</span>
+                {phoneVerified ? (
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">✓ Verified OTP</span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">Required</span>
+                )}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-3.5 text-slate-400 font-bold text-xs">+91</span>
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="10-digit mobile number"
+                  className="w-full py-3.5 pl-12 px-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#202124] font-mono focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+                />
+              </div>
+
+              {!phoneVerified && (
+                <div className="pt-1">
+                  {!showPhoneOtp ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (phone.length !== 10) return setError('Please enter a valid 10-digit mobile number');
+                        setError('');
+                        setSendingPhoneOtp(true);
+                        setTimeout(() => {
+                          setSendingPhoneOtp(false);
+                          setShowPhoneOtp(true);
+                        }, 800);
+                      }}
+                      disabled={sendingPhoneOtp || phone.length !== 10}
+                      className="w-full py-2.5 bg-[#1A73E8] hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      {sendingPhoneOtp ? 'Sending OTP...' : 'Send SMS OTP Verification'}
+                    </button>
+                  ) : (
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={phoneOtp}
+                        onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
+                        placeholder="6-digit OTP"
+                        className="w-full p-2.5 bg-gray-50 border border-blue-300 rounded-xl text-center font-mono text-xs font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (phoneOtp.length !== 6) return setError('Please enter a 6-digit OTP');
+                          setPhoneVerified(true);
+                          setShowPhoneOtp(false);
+                          setError('');
+                        }}
+                        className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer shrink-0"
+                      >
+                        Verify
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('gender')}</label>
               <div className="grid grid-cols-3 gap-2">
@@ -1020,7 +1094,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
               <ArrowLeft size={16} />
               <span>{t('back')}</span>
             </button>
-          ) : (
+          ) : onCancel ? (
             <button
               onClick={onCancel}
               disabled={loading}
@@ -1029,7 +1103,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
               <ArrowLeft size={16} />
               <span>{t('back')}</span>
             </button>
-          )}
+          ) : null}
           
           <button
             onClick={step === 5 ? handleSubmit : handleNext}

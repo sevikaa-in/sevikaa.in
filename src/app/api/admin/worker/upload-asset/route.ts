@@ -64,23 +64,27 @@ export async function POST(req: NextRequest) {
       publicUrl = pUrl.publicUrl;
     }
 
-    // Persist the URL to the correct DB table
-    if (assetType === 'residency_proof_url') {
-      await queryDb(
-        `UPDATE public.employer_profiles SET residency_proof_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
-        [publicUrl, userId]
-      );
+    // Persist the URL to the correct DB table (Worker vs Employer)
+    const roleParam = formData.get('role') as string | null;
+    const isEmployer = roleParam === 'employer' || assetType === 'residency_proof_url';
+
+    if (isEmployer) {
+      if (assetType === 'profile_picture_url') {
+        await queryDb(
+          `UPDATE public.employer_profiles SET avatar_url = $1, profile_picture_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
+          [publicUrl, userId]
+        );
+      } else {
+        await queryDb(
+          `UPDATE public.employer_profiles SET ${assetType} = $1 WHERE user_id::text = $2 OR id::text = $2`,
+          [publicUrl, userId]
+        );
+      }
     } else {
       await queryDb(
         `UPDATE public.worker_profiles SET ${assetType} = $1 WHERE user_id::text = $2 OR id::text = $2`,
         [publicUrl, userId]
       );
-      if (assetType === 'profile_picture_url') {
-        await queryDb(
-          `UPDATE public.employer_profiles SET avatar_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
-          [publicUrl, userId]
-        ).catch(() => {});
-      }
     }
 
     return NextResponse.json({ success: true, message: `${assetType} uploaded successfully`, publicUrl });

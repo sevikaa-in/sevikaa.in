@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
     const cacheKey = `superadmin_data_${tab}_p${page}_l${limit}`;
 
-    const bypassCache = searchParams.get('fresh') === 'true' || searchParams.get('nocache') === 'true';
+    const bypassCache = searchParams.get('fresh') === 'true' || searchParams.get('nocache') === 'true' || tab === 'workers';
 
     // 1. Check Server Memory Cache (if not bypassing)
     if (!bypassCache) {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(cachedResponse, {
           headers: {
             'X-Cache': 'HIT-MEMORY',
-            'Cache-Control': 'private, max-age=30, stale-while-revalidate=60'
+            'Cache-Control': 'private, max-age=5, stale-while-revalidate=10'
           }
         });
       }
@@ -72,17 +72,51 @@ export async function GET(req: NextRequest) {
       console.warn("Stats query notice:", e);
     }
 
+
+
     // 3. Tab-based Paginated Fetching (Include 'interviews' tab)
     if (tab === 'workers' || tab === 'interviews' || tab === 'overview') {
       try {
         const wRes = await queryDb(
-          `SELECT p.id, p.email, p.phone, p.status, p.created_at,
-                  COALESCE(wp.full_name, 'Verified Worker') AS full_name,
-                  wp.skills, wp.languages_spoken, wp.age, wp.gender,
-                  wp.expected_salary, wp.experience_years, wp.profile_picture_url,
-                  wp.video_url, wp.aadhaar_front_url, wp.aadhaar_back_url, wp.preferred_shift, wp.availability_slots
+          `SELECT COALESCE(wp.id::text, p.id::text) AS id,
+                  COALESCE(wp.user_id::text, p.id::text) AS user_id,
+                  COALESCE(p.email, '') AS email,
+                  COALESCE(p.phone, wp.alternate_phone, wp.emergency_contact, '') AS phone,
+                  COALESCE(p.status, 'pending_review') AS status,
+                  COALESCE(p.created_at, wp.created_at, NOW()) AS created_at,
+                  COALESCE(NULLIF(TRIM(wp.full_name), ''), NULLIF(TRIM(p.full_name), ''), CONCAT('Candidate ', RIGHT(COALESCE(p.phone, 'Lead'), 4))) AS name,
+                  COALESCE(NULLIF(TRIM(wp.full_name), ''), NULLIF(TRIM(p.full_name), ''), CONCAT('Candidate ', RIGHT(COALESCE(p.phone, 'Lead'), 4))) AS full_name,
+                  wp.gender, 
+                  wp.age, 
+                  wp.category,
+                  wp.experience_years, 
+                  wp.expected_salary, 
+                  wp.skills, 
+                  wp.languages_spoken, 
+                  wp.bio,
+                  COALESCE(wp.profile_picture_url, wp.avatar_url) AS profile_picture_url,
+                  COALESCE(wp.avatar_url, wp.profile_picture_url) AS avatar_url,
+                  wp.aadhaar_front_url, 
+                  wp.aadhaar_back_url, 
+                  wp.video_url, 
+                  wp.police_verification_url, 
+                  wp.preferred_shift, 
+                  wp.availability_slots,
+                  wp.emergency_contact, 
+                  COALESCE(wp.alternate_phone, wp.emergency_contact) AS alternate_phone,
+                  COALESCE(wp.is_tele_onboarded, false) AS is_tele_onboarded, 
+                  COALESCE(wp.is_interview_verified, false) AS is_interview_verified, 
+                  COALESCE(wp.is_aadhaar_front_verified, false) AS is_aadhaar_front_verified, 
+                  COALESCE(wp.is_aadhaar_back_verified, false) AS is_aadhaar_back_verified, 
+                  COALESCE(wp.is_aadhaar_verified, false) AS is_aadhaar_verified, 
+                  COALESCE(wp.is_police_verified, false) AS is_police_verified, 
+                  COALESCE(wp.is_video_verified, false) AS is_video_verified,
+                  COALESCE(s.name, wp.preferred_society_name, (CASE WHEN array_length(wp.preferred_areas, 1) > 0 THEN wp.preferred_areas[1] ELSE NULL END)) AS primary_gated_society,
+                  COALESCE(wp.secondary_society_name, (CASE WHEN array_length(wp.preferred_areas, 1) > 1 THEN wp.preferred_areas[2] ELSE NULL END)) AS secondary_gated_society,
+                  wp.preferred_society_name, wp.secondary_society_name, wp.preferred_areas
            FROM public.profiles p
-           LEFT JOIN public.worker_profiles wp ON wp.user_id = p.id OR wp.id = p.id
+           LEFT JOIN public.worker_profiles wp ON wp.user_id::text = p.id::text OR wp.id::text = p.id::text
+           LEFT JOIN public.societies s ON s.id::text = wp.preferred_society_id::text
            WHERE p.role = 'worker' OR wp.id IS NOT NULL
            ORDER BY p.created_at DESC
            LIMIT $1 OFFSET $2`,
@@ -97,7 +131,7 @@ export async function GET(req: NextRequest) {
         const eRes = await queryDb(
           `SELECT ep.*, p.email, p.phone, p.status
            FROM public.employer_profiles ep
-           LEFT JOIN public.profiles p ON p.id = ep.user_id OR p.id = ep.id
+           LEFT JOIN public.profiles p ON p.id::text = ep.user_id::text OR p.id::text = ep.id::text
            ORDER BY ep.created_at DESC
            LIMIT $1 OFFSET $2`,
           [limit, offset]
