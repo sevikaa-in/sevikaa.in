@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
+import { logAuditAction } from '@/lib/auditLogger';
 
 export async function POST(req: NextRequest) {
   try {
@@ -175,6 +176,29 @@ export async function POST(req: NextRequest) {
       );
     } catch (pErr) {
       console.warn("Notice updating profiles:", pErr);
+    }
+
+    // 3. Log Audit Action
+    try {
+      const company = body.company_name || body.society_name || 'Employer Account';
+      const summaryText = `Employer profile '${company}' updated. Status: ${status ? status.toUpperCase() : 'Updated'}. ${is_approved ? 'Marked Approved.' : ''}`;
+
+      logAuditAction({
+        action: status ? `Employer Profile ${status.toUpperCase()}` : 'Employer Profile Updated',
+        category: 'moderation',
+        severity: status === 'approved' || status === 'live' ? 'info' : 'warning',
+        actor: body.admin_email || body.admin_name || 'admin@sevikaa.in',
+        admin_email: body.admin_email || 'admin@sevikaa.in',
+        admin_name: body.admin_name || 'Admin Moderator',
+        actorRole: 'Moderator',
+        target_name: company,
+        target_id: targetId,
+        changes_summary: summaryText,
+        details: summaryText,
+        raw_payload: body
+      }).catch(() => {});
+    } catch (auditErr) {
+      console.warn("Employer update audit log notice:", auditErr);
     }
 
     return NextResponse.json({ success: true });

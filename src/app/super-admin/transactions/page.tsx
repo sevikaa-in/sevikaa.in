@@ -30,63 +30,32 @@ export default function TransactionsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  useEffect(() => {
-    const fetchLiveTransactions = async () => {
-      setLoading(true);
-      try {
-        const txns: Transaction[] = [];
-        const res = await fetch('/api/super-admin/data?tab=overview&page=1&limit=50');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            const { employers, jobs } = data;
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPagesCount, setTotalPagesCount] = useState<number>(1);
 
-            if (employers && employers.length > 0) {
-              employers.forEach((emp: any, idx: number) => {
-                const statusName = emp.subscription_status || 'Standard';
-                const planAmount = statusName.toLowerCase().includes('pro') ? 1499 : statusName.toLowerCase().includes('basic') ? 299 : 699;
-                txns.push({
-                  id: `pay_SVK${1000 + idx}`,
-                  orderId: `order_SVK${5000 + idx}`,
-                  employerName: emp.company_name || emp.name || 'Household Employer',
-                  employerPhone: emp.phone || 'N/A',
-                  planName: `${statusName} Subscription Pass`,
-                  amount: planAmount,
-                  paymentMethod: 'UPI / Razorpay',
-                  status: 'captured',
-                  timestamp: emp.created_at ? new Date(emp.created_at).toLocaleDateString('en-IN') : 'Today'
-                });
-              });
-            }
-
-            if (jobs && jobs.length > 0) {
-              jobs.forEach((j: any, idx: number) => {
-                txns.push({
-                  id: `pay_JOB${2000 + idx}`,
-                  orderId: `order_JOB${6000 + idx}`,
-                  employerName: j.employer_name || 'Verified Employer',
-                  employerPhone: j.phone || 'N/A',
-                  planName: `Job Posting: ${j.title || j.category || 'Domestic Help'} Requisition`,
-                  amount: 199,
-                  paymentMethod: 'UPI / Netbanking',
-                  status: 'captured',
-                  timestamp: j.created_at ? new Date(j.created_at).toLocaleDateString('en-IN') : 'Today'
-                });
-              });
-            }
-          }
+  const fetchLiveTransactions = async (page = currentPage) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/super-admin/transactions?page=${page}&limit=10`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.transactions)) {
+          setTransactionsList(data.transactions);
+          setTotalCount(data.total || data.transactions.length);
+          setTotalPagesCount(data.totalPages || 1);
         }
-        setTransactionsList(txns);
-      } catch (err) {
-        console.warn("Error fetching live transactions:", err);
-        setTransactionsList([]);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (err) {
+      console.warn("Error fetching live transactions:", err);
+      setTransactionsList([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchLiveTransactions();
-  }, []);
+  useEffect(() => {
+    fetchLiveTransactions(currentPage);
+  }, [currentPage]);
 
   const filtered = transactionsList.filter(t => {
     const matchesSearch = t.employerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -322,10 +291,10 @@ export default function TransactionsPage() {
                   <Clock size={9} /> {t.timestamp}
                 </span>
                 <a 
-                  href={`/employer/account/invoices/${t.id.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                  href={`/invoice/${t.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[10px] font-bold text-[#2E7D32] hover:underline flex items-center gap-1 mt-1"
+                  className="text-[10px] font-bold text-[#2E7D32] hover:bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200/60 transition-all flex items-center gap-1 mt-1 cursor-pointer"
                 >
                   <FileText size={10} /> View Tax Invoice
                 </a>

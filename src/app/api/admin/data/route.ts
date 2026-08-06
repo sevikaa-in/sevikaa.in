@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
            LEFT JOIN public.worker_profiles wp ON wp.user_id::text = p.id::text OR wp.id::text = p.id::text
            LEFT JOIN public.societies s ON s.id::text = wp.preferred_society_id::text
            WHERE (p.role = 'worker' OR wp.id IS NOT NULL)
-             AND ($3::text IS NULL OR p.phone LIKE $3 OR wp.alternate_phone LIKE $3 OR wp.full_name ILIKE $3 OR p.full_name ILIKE $3)
+             AND ($3::text IS NULL OR p.phone LIKE $3 OR wp.alternate_phone LIKE $3 OR wp.full_name ILIKE $3 OR p.full_name ILIKE $3 OR wp.skills::text ILIKE $3 OR wp.category::text ILIKE $3 OR wp.preferred_society_name ILIKE $3 OR s.name ILIKE $3)
              AND ($4::text = '' OR p.status = $4 OR ($4 = 'approved' AND p.status IN ('approved', 'live', 'active', 'completed')) OR ($4 = 'suspended' AND p.status IN ('suspended', 'rejected', 'deactivated', 'changes_requested')))
            ORDER BY p.created_at DESC
            LIMIT $1 OFFSET $2`,

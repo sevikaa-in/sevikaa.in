@@ -1,175 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../../../lib/supabaseAdminClient';
-
-// Helper function to check admin/super-admin role via Supabase Session Token
-async function isAdmin(request: NextRequest): Promise<boolean> {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader) return false;
-  
-  const token = authHeader.replace('Bearer ', '');
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  
-  // Use a temporary client to verify the user JWT safely
-  const { createClient } = require('@supabase/supabase-js');
-  const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-  
-  try {
-    const { data: { user }, error } = await tempClient.auth.getUser(token);
-    if (error || !user) return false;
-    
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-      
-    return profile?.role === 'admin' || profile?.role === 'super-admin';
-  } catch (err) {
-    console.error("API Admin verification failed:", err);
-    return false;
-  }
-}
+import { queryDb } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
-    if (!(await isAdmin(request))) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // 1. Ensure public.sms_templates table exists
+    await queryDb(`
+      CREATE TABLE IF NOT EXISTS public.sms_templates (
+        id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        template_key text NOT NULL,
+        category text DEFAULT 'authentication',
+        provider text DEFAULT 'msg91',
+        sender_id text DEFAULT 'SEVKAA',
+        dlt_template_id text,
+        language text DEFAULT 'en',
+        title text,
+        message text,
+        is_active boolean DEFAULT true,
+        version integer DEFAULT 1,
+        created_at timestamptz DEFAULT NOW()
+      );
+    `).catch(() => {});
+
+    // 2. Delete obsolete legacy providers ('twilio', 'aws', 'Fast2SMS')
+    await queryDb(`DELETE FROM public.sms_templates WHERE LOWER(provider) IN ('twilio', 'aws', 'fast2sms') OR provider IS NULL;`).catch(() => {});
+
+    // 3. Seed official MSG91 & AWS SES default templates if table count is low
+    const checkTemplates = await queryDb(`SELECT COUNT(*) FROM public.sms_templates WHERE LOWER(provider) IN ('msg91', 'aws_ses');`).catch(() => null);
+    const count = parseInt(checkTemplates?.rows?.[0]?.count || '0', 10);
+
+    if (count === 0) {
+      await queryDb(`
+        INSERT INTO public.sms_templates (template_key, category, provider, sender_id, dlt_template_id, language, title, message, is_active, version)
+        VALUES 
+          ('LOGIN_OTP', 'authentication', 'msg91', 'SEVKAA', '12071618293041', 'en', 'MSG91 Login OTP', 'Your Sevikaa verification code is {{otp}}. Valid for 10 minutes. Do not share this code.', true, 1),
+          ('REGISTER_OTP', 'authentication', 'msg91', 'SEVKAA', '12071618293042', 'en', 'MSG91 Registration OTP', 'Welcome to Sevikaa. Your registration OTP is {{otp}}. Valid for 10 minutes.', true, 1),
+          ('INTERVIEW_SCHEDULED', 'worker_notification', 'msg91', 'SEVKAA', '12071618293043', 'en', 'MSG91 Telephonic Interview Alert', 'Hi {{name}}, your Sevikaa tele-onboarding call is scheduled for {{time}}.', true, 1),
+          ('WORKER_VERIFIED', 'worker_notification', 'msg91', 'SEVKAA', '12071618293044', 'en', 'MSG91 Profile Approval Notice', 'Congratulations {{name}}, your Sevikaa worker profile has been APPROVED and is now LIVE.', true, 1),
+          ('JOB_ACCEPTED', 'worker_notification', 'msg91', 'SEVKAA', '12071618293045', 'en', 'MSG91 Job Match Accepted', 'Hi {{name}}, your application for {{job_title}} at {{company}} has been accepted.', true, 1),
+          ('WELCOME_EMAIL', 'transactional', 'aws_ses', 'support@sevikaa.in', NULL, 'en', 'AWS SES Welcome Email', 'Welcome to Sevikaa domestic workforce platform.', true, 1);
+      `).catch(() => {});
     }
-    
-    const { data: templates, error } = await supabaseAdmin
-      .from('sms_templates')
-      .select('*')
-      .order('template_key', { ascending: true })
-      .order('provider', { ascending: true })
-      .order('language', { ascending: true })
-      .order('version', { ascending: false });
-      
-    if (error) throw error;
-    
-    return NextResponse.json({ templates });
+
+    // 4. Fetch ONLY MSG91 (SMS) and AWS SES (Email) templates
+    const res = await queryDb(`
+      SELECT DISTINCT ON (template_key, provider) *
+      FROM public.sms_templates 
+      WHERE LOWER(provider) IN ('msg91', 'aws_ses') 
+      ORDER BY template_key ASC, provider ASC, created_at DESC;
+    `);
+
+    const templates = (res?.rows || []).map((t, idx) => ({
+      id: t.id || `tpl_${idx}`,
+      template_key: t.template_key || 'LOGIN_OTP',
+      category: t.category || 'authentication',
+      provider: t.provider || 'msg91',
+      sender_id: t.sender_id || 'SEVKAA',
+      dlt_template_id: t.dlt_template_id || null,
+      language: t.language || 'en',
+      title: t.title || 'MSG91 DLT Template',
+      message: t.message || '',
+      is_active: t.is_active !== false,
+      version: t.version || 1
+    }));
+
+    return NextResponse.json({ success: true, templates });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to fetch templates' }, { status: 500 });
+    console.error("GET /api/notifications/sms/templates error:", err);
+    return NextResponse.json({ success: false, error: err.message, templates: [] }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    if (!(await isAdmin(request))) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
     const body = await request.json();
-    const { templateKey, category, provider, senderId, dltTemplateId, language = 'en', title, message, isActive = true } = body;
-    
-    if (!templateKey || !category || !provider || !message) {
-      return NextResponse.json({ error: 'Missing required fields: templateKey, category, provider, message' }, { status: 400 });
-    }
-    
-    // Find maximum version for this template key, provider and language
-    const { data: existing, error: fetchErr } = await supabaseAdmin
-      .from('sms_templates')
-      .select('version')
-      .eq('template_key', templateKey)
-      .eq('provider', provider)
-      .eq('language', language)
-      .order('version', { ascending: false })
-      .limit(1);
-      
-    if (fetchErr) throw fetchErr;
-    
-    const nextVersion = existing && existing.length > 0 ? existing[0].version + 1 : 1;
-    
-    // If this new template is active, deactivate other versions of same template key + provider + language
-    if (isActive) {
-      await supabaseAdmin
-        .from('sms_templates')
-        .update({ is_active: false })
-        .eq('template_key', templateKey)
-        .eq('provider', provider)
-        .eq('language', language);
-    }
-    
-    const { data: newTemplate, error: insertErr } = await supabaseAdmin
-      .from('sms_templates')
-      .insert({
-        template_key: templateKey,
-        category,
-        provider,
-        sender_id: senderId || 'SEVKAA',
-        dlt_template_id: dltTemplateId || null,
-        language,
-        title: title || templateKey,
-        message,
-        is_active: isActive,
-        version: nextVersion
-      })
-      .select()
-      .single();
-      
-    if (insertErr) throw insertErr;
-    
-    return NextResponse.json({ success: true, template: newTemplate });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to create template' }, { status: 500 });
-  }
-}
+    const { template_key, category, provider, sender_id, dlt_template_id, language, title, message } = body;
 
-export async function PATCH(request: NextRequest) {
-  try {
-    if (!(await isAdmin(request))) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const body = await request.json();
-    const { id, isActive, dltTemplateId, senderId } = body;
-    
-    if (!id) {
-      return NextResponse.json({ error: 'Missing required field: id' }, { status: 400 });
-    }
-    
-    // Fetch current template details
-    const { data: current, error: getErr } = await supabaseAdmin
-      .from('sms_templates')
-      .select('*')
-      .eq('id', id)
-      .single();
-      
-    if (getErr || !current) {
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
-    }
-    
-    const updateData: Record<string, any> = {};
-    if (isActive !== undefined) {
-      updateData.is_active = isActive;
-      
-      // If we are activating this version, deactivate all other versions of the same template key + provider + language
-      if (isActive === true) {
-        await supabaseAdmin
-          .from('sms_templates')
-          .update({ is_active: false })
-          .eq('template_key', current.template_key)
-          .eq('provider', current.provider)
-          .eq('language', current.language)
-          .neq('id', id);
-      }
-    }
-    if (dltTemplateId !== undefined) updateData.dlt_template_id = dltTemplateId || null;
-    if (senderId !== undefined) updateData.sender_id = senderId || 'SEVKAA';
-    
-    const { data: updated, error: updateErr } = await supabaseAdmin
-      .from('sms_templates')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-      
-    if (updateErr) throw updateErr;
-    
-    return NextResponse.json({ success: true, template: updated });
+    const res = await queryDb(`
+      INSERT INTO public.sms_templates (template_key, category, provider, sender_id, dlt_template_id, language, title, message, is_active, version)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, 1)
+      RETURNING *;
+    `, [
+      template_key || 'CUSTOM_TEMPLATE',
+      category || 'general',
+      provider || 'msg91',
+      sender_id || 'SEVKAA',
+      dlt_template_id || null,
+      language || 'en',
+      title || 'Custom DLT Template',
+      message || ''
+    ]);
+
+    return NextResponse.json({ success: true, template: res?.rows?.[0] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to update template' }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

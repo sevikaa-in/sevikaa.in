@@ -76,12 +76,14 @@ export async function POST(request: NextRequest) {
 
     await logSecurityAudit({
       userId: employerUserId,
-      role: 'employer',
-      action: 'UNLOCK_WORKER_CONTACT',
-      resource: `Worker:${workerId}`,
+      actorRole: 'Employer',
+      category: 'employer_activity',
+      action: 'Candidate Contact Unlocked',
+      target_id: workerId,
+      target_name: `Candidate ${workerId.slice(0, 8)}`,
       ipAddress: clientIp,
-      status: 'SUCCESS'
-    });
+      changes_summary: `Employer unlocked candidate contact phone number (${worker.phone}).`
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, phone: worker.phone });
   } catch (err: any) {

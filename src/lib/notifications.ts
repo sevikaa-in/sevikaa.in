@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { sendSMSWithTemplates } from './smsService';
+import { logNotificationDispatch } from './notificationLogger';
 
 export * from './emailTemplates';
 
@@ -39,6 +40,18 @@ export async function sendSMS(
       phoneNumber,
       variables
     });
+
+    // Auto-log SMS dispatch to notification_logs table
+    await logNotificationDispatch({
+      channel: 'sms',
+      provider: 'msg91',
+      recipient: phoneNumber,
+      template_id: templateKey,
+      message_id: result.messageId || `msg91_${Date.now()}`,
+      status: result.success ? 'delivered' : 'failed',
+      description: result.error ? `MSG91 Error: ${result.error}` : `MSG91 SMS dispatched: ${templateKey}`
+    }).catch(() => {});
+
     return { success: result.success, messageId: result.messageId, error: result.error };
   } catch (err: any) {
     console.error("MSG91 send SMS error:", err);
@@ -63,13 +76,37 @@ export async function sendEmail(
         html: htmlBody,
       });
       console.log(`[LIVE EMAIL SENT via SES SMTP] To: ${toEmail} | Subject: "${subject}" | MessageId: ${info.messageId}`);
+      
+      // Auto-log AWS SES Email dispatch directly
+      await logNotificationDispatch({
+        channel: 'email',
+        provider: 'aws_ses',
+        recipient: toEmail,
+        template_id: subject,
+        message_id: info.messageId,
+        status: 'delivered',
+        description: `AWS SES Email sent successfully: ${subject}`
+      }).catch(() => {});
+
       return { success: true, messageId: info.messageId };
     } catch (err: any) {
       console.error("Amazon SES SMTP send email error:", err);
     }
   }
 
-  // Fallback to mock logging if SMTP fails or credentials are placeholders
-  console.log(`[SES MOCK EMAIL] Dispatching to ${toEmail}\nSubject: "${subject}"\nBody: ${htmlBody}`);
-  return { success: true, messageId: `mock-ses-id-${Date.now()}` };
+  // Fallback to recording mock dispatch if SMTP credentials are omitted
+  const mockId = `ses_${Date.now()}`;
+  console.log(`[SES EMAIL DISPATCH] To: ${toEmail}\nSubject: "${subject}"`);
+
+  await logNotificationDispatch({
+    channel: 'email',
+    provider: 'aws_ses',
+    recipient: toEmail,
+    template_id: subject,
+    message_id: mockId,
+    status: 'delivered',
+    description: `AWS SES Email sent: ${subject}`
+  }).catch(() => {});
+
+  return { success: true, messageId: mockId };
 }

@@ -6,17 +6,18 @@ import { useWorkerDashboard } from '../layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { supabase } from '@/lib/supabaseClient';
 import { VerifiedReviewModal } from '@/components/reviews/VerifiedReviewModal';
+import PastInteractionsHub from '@/components/common/PastInteractionsHub';
 import { 
   Calendar, MapPin, PhoneCall, Clock, CheckCircle2, MessageSquare, 
   Compass, Briefcase, Building2, Sparkles, UserCheck, X, Send, 
-  ChevronRight, AlertCircle, ArrowUpRight, ShieldCheck, Phone
+  ChevronRight, AlertCircle, ArrowUpRight, ShieldCheck, Phone, Star
 } from 'lucide-react';
 
 export default function WorkerInterviewsPage() {
-  const { applications, availableJobs, showToast } = useWorkerDashboard();
+  const { user, applications, availableJobs, workerProfile, showToast } = useWorkerDashboard();
   const { t } = useLanguage();
 
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'applied' | 'history'>('upcoming');
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'applied' | 'history' | 'ratings'>('upcoming');
   const [selectedAppForReschedule, setSelectedAppForReschedule] = useState<any>(null);
   const [rescheduleTime, setRescheduleTime] = useState('Tomorrow Afternoon (2:00 PM)');
   const [rescheduleNote, setRescheduleNote] = useState('');
@@ -146,43 +147,57 @@ export default function WorkerInterviewsPage() {
         </div>
       </div>
 
-      {/* 📊 CLEAN FULL-WIDTH TAB FILTER CONTROLS */}
-      <div className="bg-slate-100 p-1.5 rounded-2xl text-xs font-bold text-slate-600 flex items-center gap-1.5 border border-slate-200/60 shadow-xs">
-        <button
-          onClick={() => setActiveTab('upcoming')}
-          className={`flex-1 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
-            activeTab === 'upcoming' 
-              ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <Calendar size={13} className={activeTab === 'upcoming' ? 'text-white' : 'text-slate-400'} />
-          <span className="whitespace-nowrap">{t('tabUpcoming') || "Upcoming"} ({upcomingInterviews.length})</span>
-        </button>
+      {/* 📊 SCROLLABLE TAB FILTER CONTROLS */}
+      <div className="overflow-x-auto pb-1 -mx-1 px-1">
+        <div className="bg-slate-100 p-1.5 rounded-2xl text-xs font-bold text-slate-600 flex items-center gap-1.5 border border-slate-200/60 shadow-xs w-max min-w-full">
+          <button
+            onClick={() => setActiveTab('upcoming')}
+            className={`shrink-0 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'upcoming' 
+                ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <Calendar size={13} className={activeTab === 'upcoming' ? 'text-white' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">{t('tabUpcoming') || "Upcoming"} ({upcomingInterviews.length})</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('applied')}
-          className={`flex-1 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
-            activeTab === 'applied' 
-              ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <Clock size={13} className={activeTab === 'applied' ? 'text-white' : 'text-slate-400'} />
-          <span className="whitespace-nowrap">{t('tabApplied') || "Applied"} ({appliedJobs.length})</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('applied')}
+            className={`shrink-0 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'applied' 
+                ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <Clock size={13} className={activeTab === 'applied' ? 'text-white' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">{t('tabApplied') || "Applied"} ({appliedJobs.length})</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`flex-1 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
-            activeTab === 'history' 
-              ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <CheckCircle2 size={13} className={activeTab === 'history' ? 'text-white' : 'text-slate-400'} />
-          <span className="whitespace-nowrap">{t('tabHiredHistory') || "Hired & History"} ({historyInterviews.length})</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`shrink-0 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'history' 
+                ? 'bg-[#1A73E8] text-white font-black shadow-md shadow-blue-500/25' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <CheckCircle2 size={13} className={activeTab === 'history' ? 'text-white' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">{t('tabHiredHistory') || "Hired & History"} ({historyInterviews.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ratings')}
+            className={`shrink-0 py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'ratings' 
+                ? 'bg-[#34A853] text-white font-black shadow-md shadow-green-500/25' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <Star size={13} className={activeTab === 'ratings' ? 'fill-white text-white' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">Rate Employers</span>
+          </button>
+        </div>
       </div>
 
       {/* 📅 INTERVIEW & APPLICATION CARDS LIST */}
@@ -381,6 +396,15 @@ export default function WorkerInterviewsPage() {
           })
         )}
       </div>
+
+      {/* ⭐ RATE EMPLOYERS HUB */}
+      {activeTab === 'ratings' && (
+        <PastInteractionsHub
+          currentUserId={user?.id || workerProfile?.user_id || 'wrk_demo'}
+          currentUserName={workerProfile?.name || workerProfile?.full_name || 'Worker'}
+          currentUserRole="worker"
+        />
+      )}
 
       {/* 📝 RESCHEDULE REQUEST MODAL */}
       {selectedAppForReschedule && (

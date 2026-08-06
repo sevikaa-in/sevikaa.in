@@ -1,7 +1,7 @@
 /**
  * Sevikaa Executive-Grade ITR-Compliant Tax Invoice Generator
  * Issuer: YugaYatra Retail (OPC) Pvt.Ltd (GSTIN: 29AABCY8389C1ZT)
- * Optimized for Single A4 Page Print / PDF Export
+ * Optimized for Guaranteed Single A4 Page Print & PDF Export
  */
 
 export interface InvoiceData {
@@ -49,8 +49,23 @@ export function formatInvoiceNumber(seqNumber: number, date: Date = new Date()):
 export function generateInvoiceHtml(data: InvoiceData): string {
   const sacCode = data.sacCode || '998519';
   const paymentStatus = data.paymentStatus || 'Paid';
-  const paymentMethod = data.paymentMethod || 'Online Payment (Razorpay / UPI)';
+  const paymentMethod = data.paymentMethod || 'Online Payment';
   
+  // Clean Date Only (Strips exact timestamp/IST string for clean invoice presentation)
+  const cleanInvoiceDate = (data.invoiceDate || '').split(',')[0].trim();
+  const cleanDueDate = (data.dueDate || '').split(',')[0].trim();
+
+  // Clean Phone Number Formatting (Prevents duplicate +91 prefixes)
+  const sanitizePhone = (p?: string) => {
+    if (!p) return 'N/A';
+    const digits = p.replace(/\D/g, '');
+    const tenDigits = digits.slice(-10);
+    return tenDigits.length === 10 
+      ? `+91 ${tenDigits.slice(0, 5)} ${tenDigits.slice(5)}`
+      : p;
+  };
+  const formattedPhone = sanitizePhone(data.buyerPhone);
+
   // Tax Inclusive Mathematics (18% GST)
   const totalAmount = Number(data.totalAmount || 0);
   const subtotal = Number((totalAmount / 1.18).toFixed(2));
@@ -64,20 +79,20 @@ export function generateInvoiceHtml(data: InvoiceData): string {
     const cgst = Number((totalTax / 2).toFixed(2));
     const sgst = Number((totalTax - cgst).toFixed(2));
     taxRows = `
-      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;color:#555;border-bottom:1px dashed #E0E0E0;">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#475569;border-bottom:1px dashed #C8E6C9;">
         <span style="font-weight:600;">CGST (9%)</span>
-        <span style="font-weight:700;color:#222;">₹ ${cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+        <span style="font-weight:700;color:#0F172A;">₹ ${cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;color:#555;">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#475569;">
         <span style="font-weight:600;">SGST (9%)</span>
-        <span style="font-weight:700;color:#222;">₹ ${sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+        <span style="font-weight:700;color:#0F172A;">₹ ${sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
       </div>
     `;
   } else {
     taxRows = `
-      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;color:#555;">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#475569;">
         <span style="font-weight:600;">IGST (18%)</span>
-        <span style="font-weight:700;color:#222;">₹ ${totalTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+        <span style="font-weight:700;color:#0F172A;">₹ ${totalTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
       </div>
     `;
   }
@@ -116,8 +131,8 @@ export function generateInvoiceHtml(data: InvoiceData): string {
         print-color-adjust: exact !important;
       }
       html, body {
-        width: 210mm;
-        height: 297mm;
+        width: 210mm !important;
+        height: 297mm !important;
         background: white !important;
         padding: 0 !important;
         margin: 0 !important;
@@ -142,7 +157,7 @@ export function generateInvoiceHtml(data: InvoiceData): string {
 <body style="margin:0;padding:25px 15px;background:#F0F4F8;color:#1E293B;">
 
   <!-- Print Control Header -->
-  <div class="no-print" style="max-width:800px;margin:0 auto 16px;display:flex;justify-content:space-between;align-items:center;">
+  <div class="no-print" style="width:100%;max-width:800px;margin:0 auto 16px;display:flex;justify-content:space-between;align-items:center;box-sizing:border-box;">
     <a href="javascript:history.back()" style="color:#1B5E20;font-weight:800;text-decoration:none;font-size:14px;display:flex;align-items:center;gap:6px;">
       ← Back to Dashboard
     </a>
@@ -184,11 +199,11 @@ export function generateInvoiceHtml(data: InvoiceData): string {
       <div style="display:grid;grid-template-columns:repeat(4, 1fr);background:linear-gradient(135deg, #F1F8E9 0%, #E8F5E9 100%);border-left:4px solid #2E7D32;border-radius:12px;padding:14px;margin:22px 0;text-align:center;">
         <div style="border-right:1px solid #C8E6C9;">
           <div style="font-size:10px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">📅 INVOICE DATE</div>
-          <div style="font-size:14.5px;font-weight:900;color:#1B5E20;">${data.invoiceDate}</div>
+          <div style="font-size:14.5px;font-weight:900;color:#1B5E20;">${cleanInvoiceDate}</div>
         </div>
         <div style="border-right:1px solid #C8E6C9;">
           <div style="font-size:10px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">⏳ EXPIRY DATE</div>
-          <div style="font-size:14.5px;font-weight:900;color:#1B5E20;">${data.dueDate}</div>
+          <div style="font-size:14.5px;font-weight:900;color:#1B5E20;">${cleanDueDate}</div>
         </div>
         <div style="border-right:1px solid #C8E6C9;">
           <div style="font-size:10px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">🏷️ SAC CODE</div>
@@ -210,7 +225,7 @@ export function generateInvoiceHtml(data: InvoiceData): string {
           <div style="font-size:17px;font-weight:900;color:#0F172A;margin-bottom:6px;">${data.buyerName}</div>
           <div style="font-size:12.5px;color:#475569;line-height:20px;">
             ✉ ${data.buyerEmail}<br>
-            📞 +91 ${data.buyerPhone}<br>
+            📞 ${formattedPhone}<br>
             📍 ${fullAddressStr}
             ${data.buyerGstin ? `<br><strong style="color:#0F172A;">GSTIN:</strong> ${data.buyerGstin}` : ''}
           </div>
@@ -261,7 +276,7 @@ export function generateInvoiceHtml(data: InvoiceData): string {
         </tbody>
       </table>
 
-      <!-- Financial Calculation Grid -->
+      <!-- Summary Grid: Payment Gateway Ref & Tax Calculation -->
       <div style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:18px;margin:22px 0;">
         <!-- Payment Metadata -->
         <div style="background:#F8FAFC;padding:16px;border-radius:14px;border:1px solid #E2E8F0;">
@@ -281,8 +296,8 @@ export function generateInvoiceHtml(data: InvoiceData): string {
             <span style="font-weight:800;font-family:monospace;color:#1E293B;">${data.transactionId}</span>
           </div>
           <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#475569;">
-            <span>Payment Timestamp</span>
-            <span style="font-weight:800;color:#1E293B;">${data.invoiceDate}</span>
+            <span>Payment Date</span>
+            <span style="font-weight:800;color:#1E293B;">${cleanInvoiceDate}</span>
           </div>
         </div>
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 import { memoryCache } from '@/lib/memoryCache';
+import { logAuditAction } from '@/lib/auditLogger';
 
 export async function POST(req: NextRequest) {
   try {
@@ -386,6 +387,44 @@ export async function POST(req: NextRequest) {
       } catch (adminErr) {
         console.warn("Supabase admin worker update warning:", adminErr);
       }
+    }
+
+    // 3. Log Audit Action with exact changes summary
+    try {
+      const changeParts: string[] = [];
+      if (status) changeParts.push(`Status set to '${status.toUpperCase()}'`);
+      if (body.is_tele_onboarded || body.tele_onboarded) changeParts.push("Telephonic Onboarding marked PASSED");
+      if (body.is_aadhaar_front_verified) changeParts.push("Aadhaar Front Verified");
+      if (body.is_aadhaar_back_verified) changeParts.push("Aadhaar Back Verified");
+      if (body.is_video_verified) changeParts.push("Selfie / Video Profile Verified");
+      if (body.is_police_verified) changeParts.push("Police PCC Clearance Verified");
+      if (displayName) changeParts.push(`Name: '${displayName}'`);
+      if (numAge) changeParts.push(`Age: ${numAge}`);
+      if (cleanGender) changeParts.push(`Gender: ${cleanGender}`);
+      if (salary) changeParts.push(`Expected Salary: ₹${salary}`);
+      if (skillsArr) changeParts.push(`Skills: ${skillsArr.join(', ')}`);
+
+      const summaryText = changeParts.length > 0 
+        ? changeParts.join(" • ") 
+        : "Worker profile details updated by admin moderator.";
+
+      logAuditAction({
+        req,
+        action: status ? `Worker Profile ${status.toUpperCase()}` : 'Worker Profile Updated',
+        category: 'moderation',
+        severity: status === 'live' || status === 'approved' ? 'info' : 'warning',
+        actor: body.admin_email || body.admin_name || 'admin@sevikaa.in',
+        admin_email: body.admin_email || 'admin@sevikaa.in',
+        admin_name: body.admin_name || 'Admin Moderator',
+        actorRole: 'Moderator',
+        target_name: displayName || 'Worker Candidate',
+        target_id: resolvedUserId,
+        changes_summary: summaryText,
+        details: summaryText,
+        raw_payload: body
+      }).catch(() => {});
+    } catch (auditErr) {
+      console.warn("Worker update audit log notice:", auditErr);
     }
 
     // Invalidate server memory cache

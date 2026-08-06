@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
+import { sendEmail as dispatchEmail } from '@/lib/notifications';
+import { getMagicLinkOrLoginOtpEmailHtml } from '@/lib/emailTemplates';
 
 // In-memory OTP storage
 const otpStore = new Map<string, { otp: string; expiresAt: number }>();
@@ -95,9 +97,6 @@ export async function POST(req: NextRequest) {
       }
 
       if (email) {
-        const { getMagicLinkOrLoginOtpEmailHtml } = require('@/lib/emailTemplates');
-        const { sendEmail: dispatchEmail } = require('@/lib/notifications');
-
         await dispatchEmail(
           email,
           'Your Sevikaa Verification Code',

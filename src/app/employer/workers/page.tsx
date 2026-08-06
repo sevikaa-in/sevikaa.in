@@ -5,6 +5,7 @@ import { useEmployerDashboard } from '../layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { supabase } from '@/lib/supabaseClient';
 import { VerifiedReviewModal } from '@/components/reviews/VerifiedReviewModal';
+import PastInteractionsHub from '@/components/common/PastInteractionsHub';
 import { 
   Search, MapPin, Phone, Lock, CheckCircle2, Star, ShieldCheck, Heart, 
   Eye, LayoutGrid, List, Filter, X, Calendar, UserCheck, Award, ChevronRight, 
@@ -145,6 +146,7 @@ export default function EmployerWorkersPage() {
   const [isScheduling, setIsScheduling] = useState(false);
 
   const [selectedCandidateForReview, setSelectedCandidateForReview] = useState<any | null>(null);
+  const [viewMode, setViewMode] = useState<'applicants' | 'history'>('applicants');
 
   // Body scroll lock when detail modal or interview modal is active
   useEffect(() => {
@@ -228,16 +230,51 @@ export default function EmployerWorkersPage() {
   return (
     <div className="space-y-5 animate-fade-in max-w-2xl mx-auto pb-16">
       
-      {/* Page Title */}
-      <div>
-        <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-          <Inbox size={18} className="text-[#1A73E8]" />
-          <span>{t('jobApplicantsTitle') || "Job Applicants"}</span>
-        </h2>
-        <p className="text-xs text-slate-400 font-semibold mt-0.5">
-          {t('jobApplicantsSub') || "Workers who have applied to your posted jobs. Only verified, Aadhaar-approved candidates appear here."}
-        </p>
+      {/* View Mode Sub-tab Toggle Header */}
+      <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 text-xs font-bold w-fit">
+        <button
+          onClick={() => setViewMode('applicants')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all cursor-pointer font-black ${
+            viewMode === 'applicants'
+              ? 'bg-white text-[#1A73E8] shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Inbox size={15} />
+          <span>Job Applicants ({applicantsCount})</span>
+        </button>
+
+        <button
+          onClick={() => setViewMode('history')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all cursor-pointer font-black ${
+            viewMode === 'history'
+              ? 'bg-white text-[#34A853] shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Star size={15} className="fill-[#34A853]" />
+          <span>Past Interacted &amp; Ratings Hub</span>
+        </button>
       </div>
+
+      {viewMode === 'history' ? (
+        <PastInteractionsHub
+          currentUserId={employerProfile?.user_id || 'emp_sharma_101'}
+          currentUserName={employerProfile?.company_name || 'Employer Household'}
+          currentUserRole="employer"
+        />
+      ) : (
+        <>
+          {/* Page Title */}
+          <div>
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <Inbox size={18} className="text-[#1A73E8]" />
+              <span>{t('jobApplicantsTitle') || "Job Applicants"}</span>
+            </h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">
+              {t('jobApplicantsSub') || "Workers who have applied to your posted jobs. Only verified, Aadhaar-approved candidates appear here."}
+            </p>
+          </div>
 
       {/* Job Filter Tabs — filter by which job they applied to */}
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -404,6 +441,8 @@ export default function EmployerWorkersPage() {
           })
         )}
       </div>
+        </>  
+      )}
 
       {/* 🟢 WORKER FULL PROFILE DETAIL MODAL */}
       {selectedCandidate && (

@@ -215,49 +215,26 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
 
   const fetchSmsData = async () => {
     setSmsLoading(true);
-    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (isPlaceholder) {
-      setSmsTemplates([
-        { id: '1', template_key: 'LOGIN_OTP', category: 'authentication', provider: 'aws', sender_id: 'SEVKAA', dlt_template_id: '12071618293041', language: 'en', title: 'Login OTP', message: 'Your Sevikaa verification code is {{otp}}. Valid for 10 minutes. Do not share this code with anyone.', is_active: true, version: 1 },
-        { id: '2', template_key: 'REGISTER_OTP', category: 'authentication', provider: 'aws', sender_id: 'SEVKAA', dlt_template_id: '12071618293042', language: 'en', title: 'Registration OTP', message: 'Welcome to Sevikaa. Your registration verification code is {{otp}}. Valid for 10 minutes.', is_active: true, version: 1 },
-        { id: '3', template_key: 'FORGOT_PASSWORD_OTP', category: 'authentication', provider: 'aws', sender_id: 'SEVKAA', dlt_template_id: '12071618293043', language: 'en', title: 'Forgot Password OTP', message: 'Your Sevikaa password reset code is {{otp}}. Valid for 10 minutes.', is_active: true, version: 1 },
-        { id: '4', template_key: 'CHANGE_MOBILE_OTP', category: 'authentication', provider: 'twilio', sender_id: 'SEVKAA', dlt_template_id: null, language: 'en', title: 'Change Mobile OTP', message: 'Verify your new mobile number using OTP {{otp}}. Valid for 10 minutes.', is_active: true, version: 1 }
-      ]);
-      setSmsLogs([
-        { id: 'log1', template_key: 'LOGIN_OTP', provider: 'aws', recipient_phone: '+919876543210', message: 'Your Sevikaa verification code is 482019. Valid for 10 minutes. Do not share this code with anyone.', status: 'success', created_at: new Date().toISOString() },
-        { id: 'log2', template_key: 'REGISTER_OTP', provider: 'aws', recipient_phone: '+919999988888', message: 'Welcome to Sevikaa. Your registration verification code is 123901. Valid for 10 minutes.', status: 'success', created_at: new Date(Date.now() - 300000).toISOString() },
-        { id: 'log3', template_key: 'CHANGE_MOBILE_OTP', provider: 'twilio', recipient_phone: '+919000011111', message: 'Verify your new mobile number using OTP 661002. Valid for 10 minutes.', status: 'failed', error_message: 'Twilio Auth failure', created_at: new Date(Date.now() - 600000).toISOString() }
-      ]);
-      setSmsLoading(false);
-      return;
-    }
-
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
-
       const [templatesRes, logsRes] = await Promise.all([
-        fetch('/api/notifications/sms/templates', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        fetch('/api/notifications/sms/logs?limit=50', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        fetch('/api/notifications/sms/templates').catch(() => null),
+        fetch('/api/notifications/logs?limit=50').catch(() => null)
       ]);
 
-      const templatesData = await templatesRes.json();
-      const logsData = await logsRes.json();
-
-      if (templatesData.templates) {
-        setSmsTemplates(templatesData.templates);
-        if (templatesData.templates.length > 0 && !previewTemplate) {
-          setPreviewTemplate(templatesData.templates[0]);
+      if (templatesRes) {
+        const templatesData = await templatesRes.json().catch(() => ({}));
+        if (templatesData.templates && Array.isArray(templatesData.templates)) {
+          setSmsTemplates(templatesData.templates);
+          if (templatesData.templates.length > 0 && !previewTemplate) {
+            setPreviewTemplate(templatesData.templates[0]);
+          }
         }
       }
-      if (logsData.logs) {
-        setSmsLogs(logsData.logs);
+      if (logsRes) {
+        const logsData = await logsRes.json().catch(() => ({}));
+        if (logsData.logs && Array.isArray(logsData.logs)) {
+          setSmsLogs(logsData.logs);
+        }
       }
     } catch (err) {
       console.error("Error fetching SMS dashboard data:", err);
@@ -975,6 +952,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
   };
 
   useEffect(() => {
+    fetchSmsData();
     let cleanupFn: (() => void) | null = null;
 
     const checkSuperAdmin = async () => {

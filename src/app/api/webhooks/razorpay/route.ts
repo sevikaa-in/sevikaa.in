@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { supabaseAdmin } from '../../../../lib/supabaseAdminClient';
+import { logAuditAction } from '../../../../lib/auditLogger';
+import { queryDb } from '../../../../lib/db';
 
 const razorpaySecret = process.env.RAZORPAY_KEY_SECRET || '';
 
@@ -28,54 +30,65 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Razorpay Webhook] Received Event: ${event}`);
 
+    // Ensure public.transactions table exists in PostgreSQL
+    await queryDb(`
+      CREATE TABLE IF NOT EXISTS public.transactions (
+        id text PRIMARY KEY,
+        order_id text,
+        user_id text,
+        employer_name text,
+        employer_email text,
+        employer_phone text,
+        plan_name text NOT NULL DEFAULT 'Premium Subscription Pass',
+        amount numeric NOT NULL DEFAULT 0,
+        payment_method text DEFAULT 'UPI / Razorpay',
+        status text NOT NULL DEFAULT 'captured',
+        raw_payload text,
+        created_at timestamptz DEFAULT NOW()
+      );
+    `).catch(() => {});
+
     // 2. Process Successful Charge Events
-    if (event === 'payment.captured' || event === 'subscription.charged') {
+    if (event === 'payment.captured' || event === 'subscription.charged' || event === 'payment.failed') {
       const paymentEntity = payload.payload.payment.entity;
       
-      // Extract userId from notes metadata passed during checkout creation
-      const userId = paymentEntity.notes?.userId || paymentEntity.notes?.user_id;
-      const billingEmail = paymentEntity.email;
+      const userId = paymentEntity.notes?.userId || paymentEntity.notes?.user_id || 'anonymous';
+      const billingEmail = paymentEntity.email || 'employer@sevikaa.in';
+      const billingPhone = paymentEntity.contact || 'N/A';
+      const planName = paymentEntity.notes?.planName || 'Premium Subscription Pass';
+      const paymentId = paymentEntity.id || `pay_${Date.now()}`;
+      const orderId = paymentEntity.order_id || `order_${Date.now()}`;
+      const amount = (paymentEntity.amount || 0) / 100;
+      const method = (paymentEntity.method || 'upi').toUpperCase();
+      const status = event === 'payment.failed' ? 'failed' : (paymentEntity.status || 'captured');
 
-      if (!userId) {
-        console.warn("[Razorpay Webhook] Webhook payment captured but no userId found in metadata notes.");
-        return NextResponse.json({ received: true, warning: 'No userId in notes' });
+      // Record transaction row into PostgreSQL
+      await queryDb(`
+        INSERT INTO public.transactions (id, order_id, user_id, employer_name, employer_email, employer_phone, plan_name, amount, payment_method, status, raw_payload, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+        ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, amount = EXCLUDED.amount;
+      `, [paymentId, orderId, userId, billingEmail.split('@')[0], billingEmail, billingPhone, planName, amount, method, status, JSON.stringify(payload)]).catch(() => {});
+
+      if (status === 'captured') {
+        // Upgrade employer profile status
+        await supabaseAdmin
+          .from('employer_profiles')
+          .update({ subscription_status: 'premium' })
+          .eq('user_id', userId);
       }
 
-      // Check if DB connections are placeholder
-      const isDbPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-      if (isDbPlaceholder) {
-        console.log(`[Razorpay Webhook Mock] Upgrading user ${userId} to Premium status.`);
-        return NextResponse.json({ received: true, mock: true });
-      }
-
-      // 3. Update database states with bypass role client
-      // Update employer_profiles status to premium
-      const { error: employerErr } = await supabaseAdmin
-        .from('employer_profiles')
-        .update({ subscription_status: 'premium' })
-        .eq('user_id', userId);
-
-      if (employerErr) {
-        console.error("[Razorpay Webhook] Failed to update employer_profiles:", employerErr);
-        throw employerErr;
-      }
-
-      // Sync audit logging history
-      const { error: auditErr } = await supabaseAdmin
-        .from('audit_logs')
-        .insert({
-          actor_id: userId,
-          actor_role: 'system',
-          action: `Upgrade to premium tier via Razorpay payment: ${paymentEntity.id}`
-        });
-
-      if (auditErr) {
-        console.error("[Razorpay Webhook] Audit log entry failed:", auditErr);
-      }
-
-      console.log(`[Razorpay Webhook] Successfully upgraded user ${userId} to Premium subscription.`);
+      // Security Audit Logging
+      logAuditAction({
+        action: `Razorpay Payment ${status.toUpperCase()}`,
+        category: 'payment_webhook',
+        severity: status === 'failed' ? 'warning' : 'info',
+        actor: billingEmail || userId,
+        actorRole: 'Employer',
+        target_name: `Transaction ${paymentId}`,
+        target_id: paymentId,
+        changes_summary: `${status.toUpperCase()} payment of ₹${amount.toFixed(2)} (${planName}) via ${method}. Payment ID: ${paymentId}`,
+        raw_payload: payload
+      }).catch(() => {});
     }
 
     return NextResponse.json({ received: true });

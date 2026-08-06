@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
+import { logAuditAction } from '@/lib/auditLogger';
 
 export async function POST(req: Request) {
   try {
@@ -104,6 +105,19 @@ export async function POST(req: Request) {
           status = 'pending_review'
       WHERE id = $3 OR id::text = $3::text;
     `, [displayName, formattedPhone, activeUserId]);
+
+    // 4. Log User Audit Action
+    logAuditAction({
+      action: 'Worker Onboarding Submitted',
+      category: 'worker_activity',
+      severity: 'info',
+      actor: formattedPhone || displayName,
+      actorRole: 'Worker',
+      target_name: displayName,
+      target_id: activeUserId,
+      changes_summary: `Candidate '${displayName}' completed onboarding. Skills: ${skillsArray.join(', ')}. Society: ${finalSociety || 'Unspecified'}.`,
+      raw_payload: body
+    }).catch(() => {});
 
     return NextResponse.json({ 
       success: true, 

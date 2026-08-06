@@ -1,374 +1,253 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSuperAdminDashboard } from '../layout';
-import { PlusCircle, Clock, Check, X } from 'lucide-react';
+import { Search, Send, ShieldCheck, Mail, MessageSquare, RefreshCw, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function SmsPage() {
-  const {
-    smsTemplates,
-    smsLogs,
-    smsLoading,
-    previewTemplate,
-    setPreviewTemplate,
-    previewVariables,
-    setPreviewVariables,
-    previewOutput,
-    previewValid,
-    previewMissing,
-    showAddModal,
-    setShowAddModal,
-    newTemplate,
-    setNewTemplate,
-    handleToggleSmsActive,
-    handleUpdateDltDetails,
-    handleAddTemplateVersion
-  } = useSuperAdminDashboard();
+  const { smsLogs } = useSuperAdminDashboard();
+
+  const [logSearchTerm, setLogSearchTerm] = useState('');
+  const [selectedChannel, setSelectedChannel] = useState<'all' | 'sms' | 'email'>('all');
+  const [selectedProvider, setSelectedProvider] = useState<'all' | 'msg91' | 'aws_ses'>('all');
+  
+  // Pagination & Caching state
+  const [page, setPage] = useState<number>(1);
+  const [pageSize] = useState<number>(15);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [logsList, setLogsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [logsCache, setLogsCache] = useState<{ [key: string]: { logs: any[]; total: number; totalPages: number } }>({});
+
+  const fetchLiveLogs = async (targetPage = page, forceRefresh = false) => {
+    const cacheKey = `logs_p${targetPage}_l${pageSize}`;
+    
+    // Check in-memory cache first if not forced refresh
+    if (!forceRefresh && logsCache[cacheKey]) {
+      const cached = logsCache[cacheKey];
+      setLogsList(cached.logs);
+      setTotalCount(cached.total);
+      setTotalPages(cached.totalPages);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/notifications/logs?page=${targetPage}&limit=${pageSize}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.logs)) {
+        setLogsList(data.logs);
+        setTotalCount(data.total || data.logs.length);
+        setTotalPages(data.totalPages || 1);
+
+        // Store in local cache
+        setLogsCache(prev => ({
+          ...prev,
+          [cacheKey]: { logs: data.logs, total: data.total, totalPages: data.totalPages }
+        }));
+      } else {
+        setLogsList(smsLogs || []);
+      }
+    } catch (err) {
+      setLogsList(smsLogs || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveLogs(page);
+  }, [page]);
+
+  const activeLogs = logsList.length > 0 ? logsList : smsLogs;
+
+  const filteredLogs = activeLogs.filter((log: any) => {
+    const matchesSearch = (log.recipient || log.recipient_phone || '').toLowerCase().includes(logSearchTerm.toLowerCase()) ||
+                          (log.template_id || log.template_key || '').toLowerCase().includes(logSearchTerm.toLowerCase()) ||
+                          (log.description || log.message || '').toLowerCase().includes(logSearchTerm.toLowerCase());
+    const matchesChannel = selectedChannel === 'all' || (log.channel || 'sms').toLowerCase() === selectedChannel;
+    const matchesProvider = selectedProvider === 'all' || (log.provider || 'msg91').toLowerCase() === selectedProvider;
+    return matchesSearch && matchesChannel && matchesProvider;
+  });
+
+  const deliveredCount = activeLogs.filter((l: any) => l.status === 'delivered' || l.status === 'success').length;
+  const deliveryRate = activeLogs.length > 0 ? Math.round((deliveredCount / activeLogs.length) * 100) : 100;
 
   return (
-    <div className="space-y-6 animate-fade-in w-full max-w-6xl">
-      {/* Header section with Stats */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 animate-fade-in w-full max-w-6xl pb-12">
+      {/* Header section */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
         <div>
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">SMS &amp; DLT Gateway Registry</h3>
-          <p className="text-[10px] text-slate-400 font-bold px-1 mt-0.5">TRAI DLT Template ID mapping, Fast2SMS / Twilio API gateway console.</p>
+          <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+            <Send size={18} className="text-[#1A73E8]" />
+            <span>MSG91 SMS &amp; AWS SES Email Gateway Console</span>
+          </h3>
+          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+            Real-time webhook delivery ledger for MSG91 SMS OTPs and AWS SES Email notifications.
+          </p>
         </div>
+
         <button
-          onClick={() => setShowAddModal(true)}
-          className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm shadow-[#1A73E8]/20 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shrink-0"
+          onClick={() => fetchLiveLogs(page, true)}
+          className="py-2 px-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shrink-0"
         >
-          <PlusCircle size={14} />
-          <span>Create DLT Template Mapping</span>
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+          <span>Refresh Ledger</span>
         </button>
       </div>
 
-      {/* DLT TELECOM COMPLIANCE EXPLANATORY BANNER */}
+      {/* Gateway Status Cards Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+          <span className="block text-[9px] font-bold text-gray-400 uppercase">SMS Gateway (MSG91)</span>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="w-2 h-2 rounded-full bg-[#34A853] animate-pulse"></span>
+            <span className="text-sm font-black text-slate-800">SEVKAA Header Active</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+          <span className="block text-[9px] font-bold text-gray-400 uppercase">Email Gateway (AWS SES)</span>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="w-2 h-2 rounded-full bg-[#34A853] animate-pulse"></span>
+            <span className="text-sm font-black text-slate-800">sevikaa.in Domain Verified</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+          <span className="block text-[9px] font-bold text-gray-400 uppercase">Total Webhook Logs</span>
+          <span className="block text-2xl font-black text-slate-800 mt-0.5">{totalCount || activeLogs.length} Events</span>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+          <span className="block text-[9px] font-bold text-gray-400 uppercase">Page Delivery Rate</span>
+          <span className="block text-2xl font-black text-[#34A853] mt-0.5">{deliveryRate}% Success</span>
+        </div>
+      </div>
+
+      {/* Webhook Explanatory Banner */}
       <div className="bg-[#1A73E8]/5 p-4 rounded-2xl border border-blue-200/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
         <div className="space-y-1">
           <h4 className="font-black text-[#1A73E8] text-xs flex items-center gap-1.5">
-            <span>ℹ️ Why is DLT Template Mapping Needed Here?</span>
+            <CheckCircle2 size={15} />
+            <span>High Performance Webhook Ledger (Cached &amp; Paginated)</span>
           </h4>
-          <p className="text-[10.5px] text-slate-600 font-medium leading-relaxed max-w-3xl">
-            While actual SMS template registration is performed on your DLT Portal (e.g. <em>Fast2SMS, Jio DLT, or Airtel DLT</em>), 
-            <strong>Sevikaa's notification API</strong> requires these approved <strong>DLT PE IDs &amp; Template IDs</strong> mapped in this database. 
-            When automated OTPs, interview reminders, or worker match alerts are sent, our API automatically attaches these DLT IDs for 100% TRAI compliance and instant delivery.
+          <p className="text-[10.5px] text-slate-600 font-medium leading-relaxed max-w-4xl">
+            Displays MSG91 SMS delivery callbacks &amp; AWS SES direct email dispatches formatted in <strong>IST (UTC+5:30)</strong>. Responses are paginated and cached in memory for instant navigation.
           </p>
         </div>
       </div>
 
-      {/* Statistics Counters Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-          <span className="block text-[9px] font-bold text-gray-400 uppercase">Total Templates</span>
-          <span className="block text-2xl font-black text-slate-800 mt-1">{new Set(smsTemplates.map(t => t.template_key)).size} Keys</span>
+      {/* Filters Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-bold">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+          <input
+            type="text"
+            placeholder="Search recipient phone/email, message ID, or status..."
+            value={logSearchTerm}
+            onChange={(e) => setLogSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none"
+          />
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-          <span className="block text-[9px] font-bold text-gray-400 uppercase">Registered Versions</span>
-          <span className="block text-2xl font-black text-slate-800 mt-1">{smsTemplates.length} Loaded</span>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-          <span className="block text-[9px] font-bold text-gray-400 uppercase">Active Providers</span>
-          <span className="block text-2xl font-black text-[#1A73E8] mt-1">AWS & Twilio</span>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-          <span className="block text-[9px] font-bold text-gray-400 uppercase">Gateway Delivery</span>
-          <span className="block text-2xl font-black text-[#34A853] mt-1">
-            {smsLogs.length > 0
-              ? `${Math.round((smsLogs.filter(l => l.status === 'success').length / smsLogs.length) * 100)}%`
-              : '100%'}
+
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <span className="text-[10px] text-slate-400 uppercase">Channel:</span>
+          <select
+            value={selectedChannel}
+            onChange={(e) => setSelectedChannel(e.target.value as any)}
+            className="py-1.5 px-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
+          >
+            <option value="all">All Channels</option>
+            <option value="sms">SMS Channel (MSG91)</option>
+            <option value="email">Email Channel (AWS SES)</option>
+          </select>
+
+          <span className="text-[10px] text-slate-400 uppercase ml-1">Provider:</span>
+          <select
+            value={selectedProvider}
+            onChange={(e) => setSelectedProvider(e.target.value as any)}
+            className="py-1.5 px-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
+          >
+            <option value="all">All Gateways</option>
+            <option value="msg91">MSG91 SMS Gateway</option>
+            <option value="aws_ses">AWS SES Email Gateway</option>
+          </select>
+
+          <span className="bg-slate-100 text-slate-600 text-[9px] font-black px-2.5 py-1 rounded-full uppercase ml-1">
+            {filteredLogs.length} Rows
           </span>
         </div>
       </div>
 
-      {/* Central Split Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left Area: Templates List - Grid Col 7 */}
-        <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-50 flex items-center justify-between">
-            <span className="text-xs font-black text-slate-800">Available Templates ({smsTemplates.length})</span>
-            {smsLoading && <Clock className="animate-spin text-gray-400" size={14} />}
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50 text-[10px] font-black text-gray-400 uppercase border-b border-slate-50">
-                  <th className="p-3">Key / ID</th>
-                  <th className="p-3">Provider</th>
-                  <th className="p-3">DLT Info</th>
-                  <th className="p-3 text-center">Status</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {smsTemplates.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-400 font-bold">
-                      No SMS templates found in database. Seed them or create one.
-                    </td>
-                  </tr>
-                ) : (
-                  smsTemplates.map((template) => {
-                    const isSelected = previewTemplate?.id === template.id;
-                    return (
-                      <tr 
-                        key={template.id} 
-                        className={`hover:bg-slate-50/30 transition-colors ${isSelected ? 'bg-blue-50/10' : ''}`}
-                      >
-                        <td className="p-3 align-top">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-black text-slate-800 text-[11px]">{template.template_key}</span>
-                              <span className="bg-slate-100 text-slate-600 text-[8px] font-black px-1.5 py-0.5 rounded-full">
-                                v{template.version}
-                              </span>
-                            </div>
-                            <span className="block text-[9px] text-gray-400 font-bold capitalize">
-                              {template.category.replace('_', ' ')} • {template.language}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="p-3 align-top font-bold text-slate-600 capitalize">
-                          {template.provider}
-                        </td>
-                        <td className="p-3 align-top">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 text-[10px] text-slate-600 font-bold">
-                              <span className="text-[9px] text-gray-400 font-semibold">Header:</span>
-                              <span className="bg-slate-50 px-1 py-0.2 rounded font-black border border-slate-100 text-slate-700">{template.sender_id || 'SEVKAA'}</span>
-                            </div>
-                            <div className="text-[10px] text-slate-600">
-                              <span className="text-[9px] text-gray-400 font-semibold">DLT ID:</span>
-                              {template.dlt_template_id ? (
-                                <span className="ml-1 font-mono text-[9px] bg-slate-50 p-0.5 rounded border border-slate-100">{template.dlt_template_id}</span>
-                              ) : (
-                                <span className="ml-1 text-[8px] bg-amber-50 text-amber-600 font-black px-1.5 py-0.2 rounded">Pending DLT</span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3 align-top text-center">
-                          <button
-                            onClick={() => handleToggleSmsActive(template.id, template.is_active)}
-                            className={`py-1 px-2.5 rounded-full text-[9px] font-black cursor-pointer transition-all border ${
-                              template.is_active
-                                ? 'bg-[#34A853]/10 text-[#34A853] border-[#34A853]/20 hover:bg-[#34A853]/20'
-                                : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'
-                            }`}
-                          >
-                            {template.is_active ? 'Active' : 'Disabled'}
-                          </button>
-                        </td>
-                        <td className="p-3 align-top text-right">
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              onClick={() => {
-                                setPreviewTemplate(template);
-                                if (template.template_key.includes('OTP')) {
-                                  setPreviewVariables(JSON.stringify({ otp: '581029' }, null, 2));
-                                } else if (template.template_key === 'JOB_APPLIED') {
-                                  setPreviewVariables(JSON.stringify({ job_title: 'Full Time Cook' }, null, 2));
-                                } else if (template.template_key === 'JOB_ACCEPTED') {
-                                  setPreviewVariables(JSON.stringify({ job_title: 'Infant Nanny', company: 'Goel Family' }, null, 2));
-                                } else if (template.template_key === 'INTERVIEW_SCHEDULED') {
-                                  setPreviewVariables(JSON.stringify({ date: '2026-07-28', time: '11:00 AM' }, null, 2));
-                                } else if (template.template_key === 'NEW_APPLICATION') {
-                                  setPreviewVariables(JSON.stringify({ job_title: 'House Maid' }, null, 2));
-                                } else if (template.template_key === 'SUBSCRIPTION_ACTIVATED') {
-                                  setPreviewVariables(JSON.stringify({ plan_name: 'Premium Unlocks' }, null, 2));
-                                } else if (template.template_key === 'PAYMENT_SUCCESS') {
-                                  setPreviewVariables(JSON.stringify({ amount: '999', transaction_id: 'TXN_9918204' }, null, 2));
-                                } else {
-                                  setPreviewVariables('{}');
-                                }
-                              }}
-                              className="py-1 px-2 bg-slate-100 hover:bg-slate-200 rounded text-[10px] font-black cursor-pointer transition-colors"
-                            >
-                              Test & Preview
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Right Area: Dynamic Preview & Validation - Grid Col 5 */}
-        <div className="lg:col-span-5 space-y-6">
-          {previewTemplate ? (
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                <div className="space-y-0.5">
-                  <span className="block text-xs font-black text-slate-800">Dynamic Previewer</span>
-                  <span className="block text-[10px] text-gray-400 font-bold">Testing: {previewTemplate.template_key} (v{previewTemplate.version})</span>
-                </div>
-                <span className="bg-blue-50 text-[#1A73E8] text-[8px] font-black px-2 py-0.5 rounded uppercase">
-                  {previewTemplate.provider} Adapter
-                </span>
-              </div>
-
-              {/* Original Template */}
-              <div className="space-y-1">
-                <span className="block text-[10px] font-bold text-gray-400 uppercase">Original DB Template</span>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 font-medium whitespace-pre-wrap leading-relaxed">
-                  {previewTemplate.message}
-                </div>
-              </div>
-
-              {/* Variables JSON editor */}
-              <div className="space-y-1">
-                <span className="block text-[10px] font-bold text-gray-400 uppercase">JSON Variables Editor</span>
-                <textarea
-                  rows={4}
-                  value={previewVariables}
-                  onChange={(e) => setPreviewVariables(e.target.value)}
-                  className="w-full p-3 bg-slate-900 text-green-400 font-mono text-xs rounded-xl border border-slate-800 focus:outline-none focus:ring-1 focus:ring-[#1A73E8] leading-relaxed resize-y"
-                />
-              </div>
-
-              {/* Live Interpolated Output */}
-              <div className="space-y-2 pt-2 border-t border-slate-50">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase">Live Render Preview</span>
-                  <div className="flex items-center gap-1.5">
-                    {previewValid ? (
-                      <span className="bg-[#34A853]/10 text-[#34A853] text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <Check size={10} /> Valid
-                      </span>
-                    ) : (
-                      <span className="bg-[#EA4335]/10 text-[#EA4335] text-[9px] font-black px-2 py-0.5 rounded-full">
-                        Missing: {previewMissing.join(', ')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-blue-50/10 text-slate-800 rounded-xl border border-blue-100/30 text-xs font-bold leading-relaxed whitespace-pre-wrap">
-                  {previewOutput || 'No output rendered'}
-                </div>
-              </div>
-
-              {/* DLT compliant text representation */}
-              <div className="p-3 bg-amber-50/20 rounded-2xl border border-amber-100/50 space-y-1">
-                <span className="block text-[9px] font-bold text-amber-700 uppercase">Jio TrueConnect Registration Format:</span>
-                <span className="block text-[10px] font-mono text-amber-800 leading-relaxed font-semibold select-all cursor-pointer" title="Double click to select all">
-                  {previewTemplate.message
-                    .replace(/\{\{\s*otp\s*\}\}/g, '{#number#}')
-                    .replace(/\{\{\s*expiry\s*\}\}/g, '{#number#}')
-                    .replace(/\{\{\s*amount\s*\}\}/g, '{#number#}')
-                    .replace(/\{\{\s*job_title\s*\}\}/g, '{#alphanumeric#}')
-                    .replace(/\{\{\s*company\s*\}\}/g, '{#alphanumeric#}')
-                    .replace(/\{\{\s*plan_name\s*\}\}/g, '{#alphanumeric#}')
-                    .replace(/\{\{\s*transaction_id\s*\}\}/g, '{#alphanumeric#}')
-                    .replace(/\{\{\s*date\s*\}\}/g, '{#alphanumeric#}')
-                    .replace(/\{\{\s*time\s*\}\}/g, '{#alphanumeric#}')
-                  }
-                </span>
-              </div>
-
-              {/* Quick Admin DLT ID update form */}
-              <form 
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.currentTarget);
-                  handleUpdateDltDetails(previewTemplate.id, fd.get('dltId') as string, fd.get('senderId') as string);
-                }}
-                className="pt-3 border-t border-slate-50 grid grid-cols-2 gap-3"
-              >
-                <div className="space-y-1">
-                  <label className="block text-[9px] text-gray-400 font-bold uppercase">DLT Template ID</label>
-                  <input
-                    name="dltId"
-                    type="text"
-                    defaultValue={previewTemplate.dlt_template_id || ''}
-                    placeholder="e.g. 1207161829..."
-                    className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs font-bold focus:outline-none focus:border-[#1A73E8]"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[9px] text-gray-400 font-bold uppercase">Header / Mask</label>
-                  <input
-                    name="senderId"
-                    type="text"
-                    defaultValue={previewTemplate.sender_id || 'SEVKAA'}
-                    className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs font-bold focus:outline-none focus:border-[#1A73E8]"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <button
-                    type="submit"
-                    className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  >
-                    Update Template Identifiers
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : (
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 text-center text-gray-400 font-bold text-xs">
-              Select a template from the list on the left to test variables and view rendering validation.
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Section 3: Audit logs */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-50">
-          <span className="text-xs font-black text-slate-800">Recent Template SMS Dispatches</span>
+      {/* Webhook Delivery Logs Table */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-slate-50 flex items-center justify-between">
+          <span className="text-xs font-black text-slate-800 flex items-center gap-2">
+            <ShieldCheck size={16} className="text-[#34A853]" />
+            <span>Live Gateway Webhook Delivery Ledger (IST Format)</span>
+          </span>
+          <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-emerald-200/50">
+            Page {page} of {totalPages}
+          </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50/50 text-[10px] font-black text-gray-400 uppercase border-b border-slate-50">
-                <th className="p-3">Timestamp</th>
-                <th className="p-3">Template</th>
-                <th className="p-3">Recipient</th>
-                <th className="p-3">Rendered Message</th>
-                <th className="p-3 text-center">Provider</th>
-                <th className="p-3 text-right">Status</th>
+                <th className="p-3.5">Timestamp (IST)</th>
+                <th className="p-3.5">Channel &amp; Provider</th>
+                <th className="p-3.5">Recipient Target</th>
+                <th className="p-3.5">Template / Message ID</th>
+                <th className="p-3.5">Gateway Status Description</th>
+                <th className="p-3.5 text-right">Delivery Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {smsLogs.length === 0 ? (
+              {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-gray-400 font-bold">
-                    No dispatch audit trails recorded.
+                  <td colSpan={6} className="p-8 text-center text-gray-400 font-bold">
+                    No webhook delivery logs matching your active filters.
                   </td>
                 </tr>
               ) : (
-                smsLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/20">
-                    <td className="p-3 whitespace-nowrap text-gray-400 font-bold">
-                      {new Date(log.created_at).toLocaleString()}
+                filteredLogs.map((log: any) => (
+                  <tr key={log.id} className="hover:bg-slate-50/30 transition-colors">
+                    <td className="p-3.5 whitespace-nowrap text-gray-500 font-bold font-mono text-[10px]">
+                      {log.timestamp}
                     </td>
-                    <td className="p-3 font-bold text-slate-700">
-                      {log.template_key || 'Direct Message'}
+                    <td className="p-3.5 font-bold text-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        {log.channel === 'email' ? <Mail size={13} className="text-purple-600" /> : <MessageSquare size={13} className="text-blue-600" />}
+                        <span className="uppercase text-[9px] px-1.5 py-0.5 rounded bg-slate-100 font-black text-slate-700">
+                          {log.channel || 'SMS'}
+                        </span>
+                        <span className="capitalize text-xs font-semibold text-slate-600">
+                          {log.provider || 'MSG91'}
+                        </span>
+                      </div>
                     </td>
-                    <td className="p-3 font-bold text-slate-800">
-                      {log.recipient_phone}
+                    <td className="p-3.5 font-bold text-slate-800 font-mono text-xs">
+                      {log.recipient || log.recipient_phone}
                     </td>
-                    <td className="p-3 max-w-sm break-words font-medium text-slate-600">
-                      {log.message}
+                    <td className="p-3.5 max-w-sm break-words font-mono text-[10px] text-slate-500">
+                      {log.template_id || log.template_key || 'DEFAULT'} {log.message_id ? `(${log.message_id})` : ''}
                     </td>
-                    <td className="p-3 text-center font-bold text-slate-600 capitalize">
-                      {log.provider}
+                    <td className="p-3.5 font-medium text-slate-600 text-xs">
+                      {log.description || log.message || 'Delivered'}
                     </td>
-                    <td className="p-3 text-right">
-                      {log.status === 'success' ? (
-                        <span className="bg-[#34A853]/10 text-[#34A853] text-[9px] font-black px-2 py-0.5 rounded-full inline-block">
-                          Success
+                    <td className="p-3.5 text-right">
+                      {log.status === 'delivered' || log.status === 'success' ? (
+                        <span className="bg-[#34A853]/10 text-[#34A853] text-[9px] font-black px-2.5 py-0.5 rounded-full inline-block uppercase border border-emerald-200/50">
+                          Delivered
                         </span>
                       ) : (
                         <div className="space-y-0.5 flex flex-col items-end">
-                          <span className="bg-[#EA4335]/10 text-[#EA4335] text-[9px] font-black px-2 py-0.5 rounded-full inline-block">
-                            Failed
+                          <span className="bg-[#EA4335]/10 text-[#EA4335] text-[9px] font-black px-2.5 py-0.5 rounded-full inline-block uppercase border border-red-200/50">
+                            {log.status || 'Failed'}
                           </span>
                           {log.error_message && (
                             <span className="text-[8px] text-[#EA4335] font-semibold block">{log.error_message}</span>
@@ -382,150 +261,53 @@ export default function SmsPage() {
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Template Creation Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-[#202124]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-xl max-w-lg w-full overflow-hidden animate-scale-in">
-            <div className="p-5 border-b border-slate-50 flex justify-between items-center">
-              <span className="text-sm font-black text-slate-800">Create New Template Version</span>
-              <button 
-                onClick={() => setShowAddModal(false)}
-                className="text-gray-400 hover:text-slate-800 cursor-pointer"
-              >
-                <X size={18} />
-              </button>
+        {/* Pagination Bar */}
+        <div className="p-4 border-t border-slate-50 flex items-center justify-between text-xs font-bold bg-slate-50/30">
+          <span className="text-slate-500 font-semibold text-[11px]">
+            Showing page <span className="text-slate-900 font-bold">{page}</span> of <span className="text-slate-900 font-bold">{totalPages}</span> ({totalCount} total entries)
+          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              disabled={page <= 1 || loading}
+              onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+              className="py-1.5 px-3 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+            >
+              <ChevronLeft size={14} />
+              <span>Previous</span>
+            </button>
+
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).slice(
+                Math.max(0, page - 3),
+                Math.min(totalPages, page + 2)
+              ).map((pNum) => (
+                <button
+                  key={pNum}
+                  onClick={() => setPage(pNum)}
+                  className={`w-7 h-7 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                    pNum === page
+                      ? 'bg-[#1A73E8] text-white font-black shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {pNum}
+                </button>
+              ))}
             </div>
 
-            <form onSubmit={handleAddTemplateVersion} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="block text-[10px] text-gray-400 font-bold uppercase">Template Key</label>
-                  <select
-                    value={newTemplate.templateKey}
-                    onChange={(e) => setNewTemplate((prev: any) => ({ ...prev, templateKey: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none"
-                  >
-                    <option value="LOGIN_OTP">LOGIN_OTP</option>
-                    <option value="REGISTER_OTP">REGISTER_OTP</option>
-                    <option value="FORGOT_PASSWORD_OTP">FORGOT_PASSWORD_OTP</option>
-                    <option value="CHANGE_MOBILE_OTP">CHANGE_MOBILE_OTP</option>
-                    <option value="JOB_APPLIED">JOB_APPLIED</option>
-                    <option value="JOB_ACCEPTED">JOB_ACCEPTED</option>
-                    <option value="INTERVIEW_SCHEDULED">INTERVIEW_SCHEDULED</option>
-                    <option value="WORKER_VERIFIED">WORKER_VERIFIED</option>
-                    <option value="NEW_APPLICATION">NEW_APPLICATION</option>
-                    <option value="SUBSCRIPTION_ACTIVATED">SUBSCRIPTION_ACTIVATED</option>
-                    <option value="PAYMENT_SUCCESS">PAYMENT_SUCCESS</option>
-                    <option value="SECURITY_ALERT">SECURITY_ALERT</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] text-gray-400 font-bold uppercase">Category</label>
-                  <select
-                    value={newTemplate.category}
-                    onChange={(e) => setNewTemplate((prev: any) => ({ ...prev, category: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none"
-                  >
-                    <option value="authentication">Authentication</option>
-                    <option value="worker_notification">Worker Notification</option>
-                    <option value="employer_notification">Employer Notification</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-[10px] text-gray-400 font-bold uppercase">Provider</label>
-                  <select
-                    value={newTemplate.provider}
-                    onChange={(e) => setNewTemplate((prev: any) => ({ ...prev, provider: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none"
-                  >
-                    <option value="aws">AWS</option>
-                    <option value="msg91">MSG91</option>
-                    <option value="twilio">Twilio</option>
-                    <option value="gupshup">Gupshup</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[10px] text-gray-400 font-bold uppercase">Language</label>
-                  <select
-                    value={newTemplate.language}
-                    onChange={(e) => setNewTemplate((prev: any) => ({ ...prev, language: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none"
-                  >
-                    <option value="en">English (en)</option>
-                    <option value="hi">Hindi (hi)</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[10px] text-gray-400 font-bold uppercase">Sender ID / Mask</label>
-                  <input
-                    type="text"
-                    value={newTemplate.senderId}
-                    onChange={(e) => setNewTemplate((prev: any) => ({ ...prev, senderId: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="block text-[10px] text-gray-400 font-bold uppercase">DLT Template ID (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 120716182..."
-                    value={newTemplate.dltTemplateId}
-                    onChange={(e) => setNewTemplate((prev: any) => ({ ...prev, dltTemplateId: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[10px] text-gray-400 font-bold uppercase">Title Description</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Login OTP Template"
-                    value={newTemplate.title}
-                    onChange={(e) => setNewTemplate((prev: any) => ({ ...prev, title: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[10px] text-gray-400 font-bold uppercase">Message Template (Use double brackets like &#123;&#123;otp&#125;&#125;)</label>
-                <textarea
-                  rows={4}
-                  placeholder="Welcome to Sevikaa. Your registration verification code is {{otp}}. Valid for 10 minutes."
-                  value={newTemplate.message}
-                  onChange={(e) => setNewTemplate((prev: any) => ({ ...prev, message: e.target.value }))}
-                  className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#1A73E8] leading-relaxed resize-none"
-                  required
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="py-2.5 px-4 bg-[#1A73E8] hover:bg-[#1557b0] text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all"
-                >
-                  Submit Version
-                </button>
-              </div>
-            </form>
+            <button
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+              className="py-1.5 px-3 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+            >
+              <span>Next</span>
+              <ChevronRight size={14} />
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

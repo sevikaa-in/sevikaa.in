@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWorkerDashboard } from '../layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { 
@@ -107,6 +107,21 @@ export default function WorkerProfilePage() {
   const [photoSelfieUploaded, setPhotoSelfieUploaded] = useState(!!workerProfile.profile_picture_url);
   const [videoUploaded, setVideoUploaded] = useState(!!workerProfile.video_url);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [ratingData, setRatingData] = useState<{ avg: number; count: number } | null>(null);
+
+  useEffect(() => {
+    const uid = workerProfile?.user_id || user?.id;
+    if (!uid) return;
+    fetch(`/api/reviews/history?userId=${uid}&role=worker`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.reviewsReceived?.length > 0) {
+          const total = data.reviewsReceived.reduce((s: number, r: any) => s + (r.rating || 0), 0);
+          setRatingData({ avg: parseFloat((total / data.reviewsReceived.length).toFixed(1)), count: data.reviewsReceived.length });
+        }
+      })
+      .catch(() => {});
+  }, [workerProfile?.user_id, user?.id]);
 
   React.useEffect(() => {
     if (workerProfile.name) setName(workerProfile.name);
@@ -618,6 +633,13 @@ export default function WorkerProfilePage() {
                 <IndianRupee size={11} />
                 ₹{expectedSalary || '15000'}/mo
               </span>
+
+              {ratingData && (
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs whitespace-nowrap">
+                  <Star size={11} className="fill-amber-500 text-amber-500" />
+                  {ratingData.avg} ({ratingData.count} {ratingData.count === 1 ? 'review' : 'reviews'})
+                </span>
+              )}
             </div>
           </div>
         </div>

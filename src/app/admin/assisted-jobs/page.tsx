@@ -77,7 +77,19 @@ export default function AssistedJobMatcherPage() {
         fetch('/api/admin/data?tab=jobs&limit=100').then(r => r.json()).catch(() => ({ jobs: [] }))
       ]);
 
-      if (wRes?.success) setWorkersList(wRes.workers || []);
+      if (wRes?.success && Array.isArray(wRes.workers)) {
+        // Strictly filter to Live / Approved profiles with complete details
+        const liveOnly = wRes.workers.filter((w: any) => {
+          const s = (w.status || '').toLowerCase();
+          const isApprovedStatus = s === 'approved' || s === 'live' || s === 'active' || s === 'completed';
+          const hasSkills = (Array.isArray(w.skills) && w.skills.length > 0) || (typeof w.skills === 'string' && w.skills.trim()) || w.category;
+          const hasPhone = !!(w.phone || w.alternate_phone);
+          return isApprovedStatus && hasSkills && hasPhone;
+        });
+        setWorkersList(liveOnly);
+      } else {
+        setWorkersList([]);
+      }
       if (jRes?.success || jRes?.jobs) setJobsList(jRes.jobs || []);
     } catch (e) {
       console.warn("Assisted data fetch notice:", e);
@@ -90,7 +102,7 @@ export default function AssistedJobMatcherPage() {
     fetchPaginatedData(page, phoneSearch);
   }, [page]);
 
-  // Debounced Instant Database Search when Admin Types Phone Number
+  // Debounced Instant Database Search when Admin Types Phone Number, Name, Skill or Society
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchPaginatedData(1, phoneSearch);
@@ -102,6 +114,13 @@ export default function AssistedJobMatcherPage() {
 
   // When a worker is selected, pre-fill filters based on candidate profile
   const handleSelectWorker = (worker: any) => {
+    const s = (worker.status || '').toLowerCase();
+    const isLive = s === 'approved' || s === 'live' || s === 'active' || s === 'completed';
+    if (!isLive) {
+      showToast(`Candidate "${worker.full_name || 'Worker'}" is incomplete or pending admin audit. Incomplete profiles cannot apply for jobs.`, 'info');
+      return;
+    }
+
     setSelectedWorker(worker);
     setAppliedJobIds([]);
     setSkillFilter('All');
@@ -167,6 +186,15 @@ export default function AssistedJobMatcherPage() {
   // Submit Application on Behalf of Candidate for Specific Job Post
   const handleApplyForWorker = async (job: any) => {
     if (!selectedWorker) return;
+
+    // Strict validation guard: Incomplete or unapproved candidate profiles cannot apply for jobs
+    const s = (selectedWorker.status || '').toLowerCase();
+    const isLive = s === 'approved' || s === 'live' || s === 'active' || s === 'completed';
+    if (!isLive) {
+      showToast(`Cannot apply: Profile for "${selectedWorker.full_name || 'Candidate'}" is incomplete or pending admin audit.`, 'error');
+      return;
+    }
+
     setSubmittingJobId(job.id);
     try {
       const res = await fetch('/api/admin/worker/submit-application', {
@@ -208,7 +236,7 @@ export default function AssistedJobMatcherPage() {
               <span>Assisted Job Matcher &amp; Targeted Application Hub</span>
             </h2>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Search candidate phone numbers, open their job placement sub-view, inspect employer job details, and submit targeted 1-on-1 applications.
+              Search verified live candidates by mobile number, candidate name, skill, or society. Only complete, verified profiles can apply for jobs.
             </p>
           </div>
 
@@ -227,21 +255,30 @@ export default function AssistedJobMatcherPage() {
           
           {/* SEARCH BAR */}
           <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
-            <span className="text-xs font-bold uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
-              <PhoneCall size={16} className="text-[#1A73E8]" />
-              <span>Step 1: Instant Candidate Phone Lookup (Caller Input)</span>
-            </span>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-xs font-bold uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                <PhoneCall size={16} className="text-[#1A73E8]" />
+                <span>Step 1: Search Verified Live Candidate Directory</span>
+              </span>
+              <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <ShieldCheck size={12} className="text-[#34A853]" />
+                <span>Live Verified Candidates Only</span>
+              </span>
+            </div>
 
             <div className="relative">
               <Search className="absolute left-4 top-4 text-[#1A73E8]" size={18} />
               <input
                 type="text"
-                placeholder="Type candidate 10-digit mobile number (e.g. 9876543210) or name..."
+                placeholder="Search candidate mobile number (e.g. 9876543210), candidate name, skill (Cook/Maid/Nanny), or gated society..."
                 value={phoneSearch}
                 onChange={(e) => setPhoneSearch(e.target.value)}
                 className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-blue-200 rounded-2xl text-sm font-bold text-slate-900 focus:outline-none focus:border-[#1A73E8] focus:bg-white shadow-2xs"
               />
             </div>
+            <p className="text-[11px] text-slate-400 font-medium">
+              Only completed candidate profiles with verified live audit status are listed here to prevent incomplete applications.
+            </p>
           </div>
 
           {/* WORKER DIRECTORY GRID */}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
+import { logAuditAction } from '@/lib/auditLogger';
 
 export async function GET() {
   try {
@@ -58,6 +59,15 @@ export async function POST(req: NextRequest) {
       status: 'active',
       created_at: new Date().toISOString()
     };
+
+    logAuditAction({
+      action: 'Admin Moderator Provisioned',
+      category: 'admin_action',
+      severity: 'warning',
+      actor: 'Super Admin',
+      actorRole: 'Super Admin',
+      details: `Granted ${role.toUpperCase()} role to ${cleanName} (${cleanEmail})`
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

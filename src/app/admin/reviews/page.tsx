@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Star, ShieldCheck, CheckCircle2, XCircle, Clock, Filter, 
-  MessageSquare, UserCheck, ShieldAlert, Sparkles, Building, ArrowLeft 
+  MessageSquare, Sparkles, Building, ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown 
 } from 'lucide-react';
 import Link from 'next/link';
 import { useLanguage } from '@/context/LanguageContext';
-import { supabase } from '@/lib/supabaseClient';
 
 interface ReviewItem {
   id: string;
@@ -15,67 +14,63 @@ interface ReviewItem {
   reviewer_role: 'employer' | 'worker';
   target_name: string;
   target_role: 'employer' | 'worker';
-  interaction_type: 'worked' | 'interviewed' | 'interacted';
   rating: number;
-  punctuality_rating: number;
-  hygiene_behavior_rating: number;
-  work_quality_respect_rating: number;
+  categories: any;
   comment: string;
-  status: 'pending_approval' | 'approved' | 'rejected';
-  created_at: string;
-  society_name?: string;
+  status: 'pending' | 'approved' | 'rejected' | string;
+  timestamp: string;
 }
 
 export default function AdminReviewsPage() {
   const { t } = useLanguage();
-  const [filterStatus, setFilterStatus] = useState<'pending_approval' | 'approved' | 'rejected' | 'all'>('pending_approval');
+  const [filterStatus, setFilterStatus] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
   const [reviewsList, setReviewsList] = useState<ReviewItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  React.useEffect(() => {
-    const fetchReviews = async () => {
-      try {
-        const { data } = await supabase
-          .from('reviews')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (data && data.length > 0) {
-          const mapped: ReviewItem[] = data.map((r: any) => ({
-            id: r.id,
-            reviewer_name: r.reviewer_name || r.author_name || 'Verified User',
-            reviewer_role: r.reviewer_role || 'employer',
-            target_name: r.target_name || r.worker_name || 'Platform User',
-            target_role: r.target_role || 'worker',
-            interaction_type: r.interaction_type || 'worked',
-            rating: r.rating || 5,
-            punctuality_rating: r.punctuality_rating || 5,
-            hygiene_behavior_rating: r.hygiene_behavior_rating || 5,
-            work_quality_respect_rating: r.work_quality_respect_rating || 5,
-            comment: r.comment || r.feedback || '',
-            status: r.status || 'pending_approval',
-            created_at: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
-            society_name: r.society_name || 'General Locality'
-          }));
-          setReviewsList(mapped);
-        } else {
-          setReviewsList([]);
-        }
-      } catch (err) {
-        console.error("Error fetching reviews:", err);
+  const fetchReviews = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/super-admin/reviews?status=${filterStatus}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.reviews)) {
+        const mapped: ReviewItem[] = data.reviews.map((r: any) => ({
+          id: r.id,
+          reviewer_name: r.reviewer_name || 'Verified User',
+          reviewer_role: (r.reviewer_role || 'employer').toLowerCase() as any,
+          target_name: r.reviewee_name || r.target_name || 'Platform User',
+          target_role: (r.reviewee_role || r.target_role || 'worker').toLowerCase() as any,
+          rating: r.rating || 5,
+          categories: r.categories || {},
+          comment: r.comment || '',
+          status: r.status || 'pending',
+          timestamp: r.timestamp || 'Recently'
+        }));
+        setReviewsList(mapped);
+      } else {
+        setReviewsList([]);
       }
-    };
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchReviews();
-  }, []);
+  }, [filterStatus]);
 
   const handleApprove = async (id: string) => {
     setReviewsList(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r));
     setToastMessage('Review approved and published to public profiles ✓');
     setTimeout(() => setToastMessage(null), 3000);
     try {
-      await supabase.from('reviews').update({ status: 'approved' }).eq('id', id);
+      await fetch('/api/super-admin/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewId: id, status: 'approved', adminEmail: 'societyadmin@sevikaa.in' })
+      });
     } catch (err) {
       console.error(err);
     }
@@ -86,200 +81,204 @@ export default function AdminReviewsPage() {
     setToastMessage('Review rejected and archived.');
     setTimeout(() => setToastMessage(null), 3000);
     try {
-      await supabase.from('reviews').update({ status: 'rejected' }).eq('id', id);
+      await fetch('/api/super-admin/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewId: id, status: 'rejected', adminEmail: 'societyadmin@sevikaa.in' })
+      });
     } catch (err) {
       console.error(err);
     }
   };
 
-  const filteredReviews = reviewsList.filter(r => filterStatus === 'all' || r.status === filterStatus);
+  const filteredReviews = reviewsList.filter(r => {
+    if (filterStatus === 'all') return true;
+    if (filterStatus === 'pending') return r.status === 'pending' || r.status === 'pending_approval';
+    return r.status === filterStatus;
+  });
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto pb-20 p-4">
-      
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-4 right-4 bg-slate-900 text-white text-xs font-black px-4 py-3 rounded-2xl shadow-2xl z-[9999] flex items-center gap-2 animate-bounce border border-slate-700">
-          <CheckCircle2 size={16} className="text-emerald-400" />
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl z-50 text-xs font-bold flex items-center gap-2 animate-slide-up border border-slate-700">
+          <Sparkles size={16} className="text-amber-400" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="bg-blue-50 text-[#1A73E8] text-[9.5px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200/60 inline-flex items-center gap-1">
-              <ShieldCheck size={11} />
-              <span>Admin Moderation Panel</span>
-            </span>
+          <div className="flex items-center gap-2">
+            <Link href="/admin/dashboard" className="p-1 text-slate-400 hover:text-slate-700 transition-colors">
+              <ArrowLeft size={16} />
+            </Link>
+            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+              <Star size={18} className="text-amber-500 fill-amber-500" />
+              <span>Society &amp; Post-Interview Reviews Moderation</span>
+            </h3>
           </div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <MessageSquare size={20} className="text-[#1A73E8]" />
-            <span>{t('adminReviewsTitle') || "Review Moderation Queue"}</span>
-          </h2>
-          <p className="text-xs text-slate-500 font-semibold mt-0.5">
-            Audit 2-way reviews submitted by employers and workers. Only approved reviews appear on public profile cards.
+          <p className="text-[11px] text-slate-500 font-semibold mt-1">
+            Review and moderate mutual post-interview feedback before publication across Sevikaa.
           </p>
         </div>
 
-        <span className="bg-amber-100 text-amber-900 text-xs font-black px-3 py-1.5 rounded-2xl border border-amber-200 shrink-0">
-          {reviewsList.filter(r => r.status === 'pending_approval').length} Pending Approval
-        </span>
+        <button
+          onClick={fetchReviews}
+          className="py-2 px-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shrink-0"
+        >
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+          <span>Refresh</span>
+        </button>
       </div>
 
-      {/* Status Filter Tabs */}
-      <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl text-xs font-bold text-slate-600">
-        {[
-          { id: 'pending_approval', label: 'Pending Approval ⏳', count: reviewsList.filter(r => r.status === 'pending_approval').length },
-          { id: 'approved', label: 'Approved & Published ✓', count: reviewsList.filter(r => r.status === 'approved').length },
-          { id: 'rejected', label: 'Rejected ✕', count: reviewsList.filter(r => r.status === 'rejected').length },
-          { id: 'all', label: 'All Records', count: reviewsList.length },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setFilterStatus(tab.id as any)}
-            className={`flex-1 py-2 px-3 rounded-xl text-center cursor-pointer transition-all ${
-              filterStatus === tab.id 
-                ? 'bg-white text-[#1A73E8] shadow-xs font-black' 
-                : 'hover:text-slate-900'
-            }`}
-          >
-            {tab.label} ({tab.count})
-          </button>
-        ))}
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 text-xs font-bold w-fit">
+        <button
+          onClick={() => setFilterStatus('pending')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all cursor-pointer font-black ${
+            filterStatus === 'pending'
+              ? 'bg-white text-[#1A73E8] shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <Clock size={15} />
+          <span>Pending Moderation</span>
+        </button>
+
+        <button
+          onClick={() => setFilterStatus('approved')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all cursor-pointer font-black ${
+            filterStatus === 'approved'
+              ? 'bg-white text-[#34A853] shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <CheckCircle2 size={15} />
+          <span>Approved</span>
+        </button>
+
+        <button
+          onClick={() => setFilterStatus('rejected')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all cursor-pointer font-black ${
+            filterStatus === 'rejected'
+              ? 'bg-white text-[#EA4335] shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <XCircle size={15} />
+          <span>Rejected</span>
+        </button>
+
+        <button
+          onClick={() => setFilterStatus('all')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all cursor-pointer font-black ${
+            filterStatus === 'all'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <span>All</span>
+        </button>
       </div>
 
-      {/* Reviews Cards List */}
+      {/* Reviews List */}
       <div className="space-y-4">
         {filteredReviews.length === 0 ? (
-          <div className="bg-white p-10 rounded-3xl border border-slate-100 text-center space-y-2">
-            <CheckCircle2 size={32} className="mx-auto text-slate-300" />
-            <p className="text-xs font-black text-slate-400">No reviews found matching this moderation filter.</p>
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-12 text-center text-slate-400 font-bold text-xs">
+            No reviews matching this filter status.
           </div>
         ) : (
-          filteredReviews.map((rev) => (
-            <div
-              key={rev.id}
-              className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-4 relative"
-            >
-              {/* Header: Reviewer & Target info */}
-              <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-slate-900">{rev.reviewer_name}</span>
-                    <span className="text-[9px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-black uppercase">
-                      {rev.reviewer_role}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">&rarr; Reviewed &rarr;</span>
-                    <span className="text-xs font-black text-[#1A73E8]">{rev.target_name}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-[10.5px] font-bold text-slate-500">
-                    <Building size={12} className="text-slate-400" />
-                    <span>{rev.society_name || 'Gated Society Network'}</span>
-                    <span>&bull;</span>
-                    <span>{new Date(rev.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                  </div>
-                </div>
-
-                {/* Status Badge */}
-                <div>
-                  {rev.status === 'pending_approval' && (
-                    <span className="bg-amber-100 text-amber-900 text-[10px] font-black uppercase px-2.5 py-1 rounded-full border border-amber-200">
-                      Pending Audit ⏳
-                    </span>
-                  )}
-                  {rev.status === 'approved' && (
-                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2.5 py-1 rounded-full border border-emerald-200">
-                      Approved ✓
-                    </span>
-                  )}
-                  {rev.status === 'rejected' && (
-                    <span className="bg-red-100 text-red-800 text-[10px] font-black uppercase px-2.5 py-1 rounded-full border border-red-200">
-                      Rejected ✕
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Verified Interaction Badge */}
-              <div className="bg-emerald-50/70 p-2.5 rounded-2xl border border-emerald-200/80 flex items-center justify-between text-xs font-bold text-emerald-900">
-                <div className="flex items-center gap-1.5">
-                  <ShieldCheck size={14} className="text-emerald-600 shrink-0" />
-                  <span>
-                    Verified Interaction Proof: 
-                    {rev.interaction_type === 'worked' && ' Hired / Worked Together Record ✓'}
-                    {rev.interaction_type === 'interviewed' && ' Scheduled Interview Record ✓'}
-                    {rev.interaction_type === 'interacted' && ' Job Application Record ✓'}
+          filteredReviews.map((item) => (
+            <div key={item.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-50 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-slate-900 text-xs">{item.reviewer_name}</span>
+                  <span className="bg-blue-50 text-[#1A73E8] text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                    {item.reviewer_role}
+                  </span>
+                  <span className="text-slate-400 text-xs">→</span>
+                  <span className="font-black text-slate-900 text-xs">{item.target_name}</span>
+                  <span className="bg-purple-50 text-purple-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                    {item.target_role}
                   </span>
                 </div>
-                <span className="text-[9px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-black uppercase">
-                  Verified Proof
-                </span>
+
+                <span className="text-[10px] font-mono font-bold text-slate-400">{item.timestamp}</span>
               </div>
 
-              {/* Ratings & Breakdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-bold text-slate-700 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-black block">Overall Star Rating</span>
-                  <div className="flex items-center gap-1 text-amber-500 mt-0.5">
-                    {[1, 2, 3, 4, 5].map((st) => (
-                      <Star key={st} size={14} className={st <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'} />
+              {/* Rating breakdown */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      size={15}
+                      className={s <= item.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}
+                    />
+                  ))}
+                  <span className="font-black text-slate-900 text-xs ml-1">{item.rating}/5</span>
+                </div>
+
+                {item.categories && Object.keys(item.categories).length > 0 && (
+                  <div className="flex flex-wrap gap-2 text-[9px] font-bold">
+                    {Object.entries(item.categories).map(([k, v]) => (
+                      <span key={k} className="bg-white px-2 py-0.5 rounded-md border border-slate-200 text-slate-700 capitalize">
+                        {k.replace('_', ' ')}: <strong className="text-slate-900">{String(v)}/5</strong>
+                      </span>
                     ))}
-                    <span className="text-slate-900 font-black ml-1">({rev.rating}/5)</span>
                   </div>
-                </div>
-
-                <div className="space-y-1 text-[11px]">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-semibold">Punctuality:</span>
-                    <span className="text-slate-900 font-black">{rev.punctuality_rating} / 5</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-semibold">Hygiene / Behavior:</span>
-                    <span className="text-slate-900 font-black">{rev.hygiene_behavior_rating} / 5</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-semibold">Work Quality:</span>
-                    <span className="text-slate-900 font-black">{rev.work_quality_respect_rating} / 5</span>
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* Comment Box */}
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-black block">Written Feedback</span>
-                <p className="text-xs text-slate-800 font-medium bg-blue-50/40 p-3 rounded-2xl border border-blue-100/60 leading-relaxed italic">
-                  "{rev.comment}"
-                </p>
-              </div>
+              {/* Comment */}
+              <p className="p-3 bg-slate-50 text-slate-800 rounded-xl text-xs font-medium leading-relaxed border border-slate-100">
+                "{item.comment || 'No written comment provided'}"
+              </p>
 
-              {/* Action Buttons */}
-              {rev.status === 'pending_approval' && (
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                <div>
+                  {(item.status === 'pending' || item.status === 'pending_approval') && (
+                    <span className="bg-amber-50 text-amber-700 text-[9px] font-black px-2.5 py-0.5 rounded-full border border-amber-200/50 uppercase">
+                      Pending Moderation
+                    </span>
+                  )}
+                  {item.status === 'approved' && (
+                    <span className="bg-[#34A853]/10 text-[#34A853] text-[9px] font-black px-2.5 py-0.5 rounded-full border border-emerald-200/50 uppercase">
+                      Approved
+                    </span>
+                  )}
+                  {item.status === 'rejected' && (
+                    <span className="bg-[#EA4335]/10 text-[#EA4335] text-[9px] font-black px-2.5 py-0.5 rounded-full border border-red-200/50 uppercase">
+                      Rejected
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleReject(rev.id)}
-                    className="py-2 px-4 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-black cursor-pointer transition-all border border-red-200 flex items-center gap-1"
+                    onClick={() => handleReject(item.id)}
+                    className="py-1.5 px-3 bg-slate-100 hover:bg-red-50 hover:text-[#EA4335] text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border border-slate-200/60"
                   >
-                    <XCircle size={14} />
-                    <span>{t('rejectReviewBtn') || "Reject Review"}</span>
+                    <ThumbsDown size={13} />
+                    <span>Reject</span>
                   </button>
+
                   <button
-                    onClick={() => handleApprove(rev.id)}
-                    className="py-2 px-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md cursor-pointer transition-all flex items-center gap-1.5"
+                    onClick={() => handleApprove(item.id)}
+                    className="py-1.5 px-3.5 bg-[#34A853] hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs flex items-center gap-1 active:scale-95"
                   >
-                    <CheckCircle2 size={14} />
-                    <span>{t('approveAndPublishBtn') || "Approve & Publish ✓"}</span>
+                    <ThumbsUp size={13} />
+                    <span>Approve</span>
                   </button>
                 </div>
-              )}
-
+              </div>
             </div>
           ))
         )}
       </div>
-
     </div>
   );
 }
