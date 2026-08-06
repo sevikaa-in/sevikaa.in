@@ -1,0 +1,82 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{utf8}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{titlesec}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Sevikaa Interview Q&A Defense Guide},
+    pdfpagemode=FullScreen,
+}
+
+\definecolor{primaryblue}{RGB}{26, 115, 232}
+\definecolor{darkgray}{RGB}{32, 33, 36}
+
+\titleformat{\section}{\large\bfseries\color{primaryblue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\bfseries\color{darkgray}}{\thesubsection}{1em}{}
+
+\title{\textbf{\huge Sevikaa: On-Campus Placement Interview Q\&A Defense Guide}\\[0.5em]
+\large System Design, Architecture, Security \& Product Defense Cheat Sheet}
+\author{\textbf{Interview Defense Guide}}
+\date{Version 1.0.0 -- August 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{tcolorbox}[colback=blue!5white,colframe=primaryblue,title=\textbf{30-Second Elevator Pitch}]
+\textit{"Sevikaa is a mobile-first, verified domestic workforce platform for India. Built on Next.js 16, React 19, and Supabase PostgreSQL, it bridges the urban trust gap between households and domestic help (maids, cooks, nannies). Unlike unmoderated job portals, Sevikaa operates under a 'Verified by Default' model—combining Aadhaar checks, Police verification, Telephonic onboarding, and Video intros. It uses a 3-tier society-first matching algorithm to connect employers with nearby workers while keeping the platform 100\% free for workers."}
+\end{tcolorbox}
+
+\section{System Architecture \& Tech Stack Questions}
+
+\subsection{Q1: Why Next.js 16 (App Router) instead of React SPA (Vite/CRA)?}
+\textbf{Answer:}
+\begin{itemize}[noitemsep]
+    \item \textbf{SEO \& Pre-rendering:} Pages like \texttt{/find-workers}, \texttt{/pricing}, and society landing pages require search engine indexability (Google SEO). App Router supports Server-Side Rendering (SSR) and Static Site Generation (SSG).
+    \item \textbf{Mobile Performance:} Server-rendered HTML reduces client JavaScript bundle size, achieving LCP $<$ 1.5s on low-end smartphones.
+    \item \textbf{Unified Full-Stack:} Next.js Server Components eliminate the need for a separate Express backend server.
+\end{itemize}
+
+\subsection{Q2: Why Supabase (PostgreSQL) instead of MongoDB (NoSQL)?}
+\textbf{Answer:}
+\begin{itemize}[noitemsep]
+    \item \textbf{Relational Integrity:} Relational dependencies between \texttt{USERS}, \texttt{WORKER\_PROFILES}, \texttt{EMPLOYER\_PROFILES}, \texttt{SOCIETIES}, \texttt{JOBS}, and \texttt{APPLICATIONS} require SQL foreign key constraints.
+    \item \textbf{Row-Level Security (RLS):} Supabase applies security policies directly at the database layer (\texttt{auth.uid() = user\_id}).
+    \item \textbf{Native JSONB Support:} Combines relational power with JSONB flexibility for weekly availability grid storage and containment queries (\texttt{@>}).
+\end{itemize}
+
+\subsection{Q3: Why JSONB for Availability Grids instead of a separate table?}
+\textbf{Answer:}
+A relational table for 7 days $\times$ 5 time slots per worker would generate 35 rows per worker (350,000 rows for 10,000 workers). Storing availability as a JSONB object reduces storage to 1 row per worker while enabling fast GIN-indexed containment filtering.
+
+\section{Security, Privacy \& Data Protection Questions}
+
+\subsection{Q4: How do you secure government ID documents (Aadhaar)?}
+\textbf{Answer:}
+Uploads are stored in encrypted private Supabase Storage buckets. Access is restricted via Row-Level Security (RLS) policies and rendered to authorized moderators exclusively via short-lived (60-second) signed URLs.
+
+\subsection{Q5: How do you handle user location privacy?}
+\textbf{Answer:}
+Exact street addresses and GPS coordinates are never exposed in public APIs. The UI displays relative distance buckets (e.g., \textit{"Within 500 meters"}, \textit{"1.2 km away"}). Full phone numbers are protected behind Razorpay subscription passes.
+
+\section{Product Design \& Scalability Questions}
+
+\subsection{Q6: How do you support workers with low digital literacy?}
+\textbf{Answer:}
+Pre-login support for 8 Indian regional languages, passwordless SMS OTP login via MSG91, large touch targets ($\ge$ 48px), and phone-guided tele-onboarding assistance by platform support agents.
+
+\subsection{Q7: How would you scale Sevikaa to 1 Million users?}
+\textbf{Answer:}
+Implement Redis caching for high-frequency queries, deploy an Elasticsearch/Meilisearch cluster for complex multi-attribute searches, set up PostgreSQL read-replicas, and process SMS/Email/Media jobs asynchronously via worker queues.
+
+\end{document}

@@ -38,6 +38,14 @@ export async function POST(req: NextRequest) {
           const hasAadhaarFront = !!(aadhaar_front_url || row.aadhaar_front_url);
           const hasAadhaarBack = !!(aadhaar_back_url || row.aadhaar_back_url);
 
+          const isTelePassed = body.is_tele_onboarded === true || body.tele_onboarded === true || body.is_interview_verified === true || row.is_tele_onboarded === true || row.is_interview_verified === true;
+          if (!isTelePassed) {
+            return NextResponse.json({
+              success: false,
+              error: `Cannot mark worker Live: Telephonic Onboarding Verification required. Candidate must pass Tele-Onboarding before Live approval.`
+            }, { status: 400 });
+          }
+
           const steps = [hasName, hasPhone, hasGenderAge, hasSkills, hasSalary, hasExperience, hasLanguages, hasPhoto, hasAadhaarFront, hasAadhaarBack];
           const count = steps.filter(Boolean).length;
           if (count < 10) {
@@ -52,26 +60,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const displayName = full_name || 'Worker';
-    const numAge = Math.max(18, Math.min(80, parseInt(age) || 28));
-    const parsedSalary = parseInt(expected_salary);
-    const salary = (parsedSalary && parsedSalary > 0) ? parsedSalary : 15000;
-    const expYears = Math.max(0, parseInt(experience_years) || 0);
+    const displayName = (full_name && typeof full_name === 'string' && full_name.trim()) ? full_name.trim() : null;
+    const numAge = (age !== undefined && age !== null && age !== '') ? Math.max(18, Math.min(80, parseInt(age))) : null;
+    const salary = (expected_salary !== undefined && expected_salary !== null && expected_salary !== '') ? parseInt(expected_salary) : null;
+    const expYears = (experience_years !== undefined && experience_years !== null && experience_years !== '') ? parseInt(experience_years) : null;
 
-    let cleanGender = (gender || '').toLowerCase().trim();
-    if (!['male', 'female', 'other'].includes(cleanGender)) {
-      cleanGender = 'female';
+    let cleanGender = (gender && typeof gender === 'string' && gender.trim()) ? gender.toLowerCase().trim() : null;
+    if (cleanGender && !['male', 'female', 'other'].includes(cleanGender)) {
+      cleanGender = null;
     }
-    const skillsArr = Array.isArray(skills) ? skills : (skills ? [skills] : []);
-    const langsArr = Array.isArray(languages_spoken) ? languages_spoken : (languages_spoken ? [languages_spoken] : []);
+    const skillsArr = (skills !== undefined && skills !== null)
+      ? (Array.isArray(skills) ? skills : (typeof skills === 'string' && skills.trim() ? [skills] : null))
+      : null;
+    const langsArr = (languages_spoken !== undefined && languages_spoken !== null)
+      ? (Array.isArray(languages_spoken) ? languages_spoken : (typeof languages_spoken === 'string' && languages_spoken.trim() ? [languages_spoken] : null))
+      : null;
 
     const verificationNotes = asset_statuses ? JSON.stringify(asset_statuses) : null;
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let resolvedUserId = userId;
 
-    // 1. Ensure public.profiles entry exists to satisfy foreign key constraint
+    // 1. Ensure status column exists and profiles entry exists
     try {
+      await queryDb(`ALTER TABLE public.worker_profiles ADD COLUMN IF NOT EXISTS status text;`).catch(() => {});
+
       const existingP = await queryDb(
         `SELECT id FROM public.profiles WHERE id::text = $1 OR phone = $1 OR email = $1 LIMIT 1`,
         [userId]
@@ -83,8 +96,12 @@ export async function POST(req: NextRequest) {
           `UPDATE public.profiles 
            SET phone = COALESCE($1, phone),
                email = COALESCE($2, email),
-               status = COALESCE($3, status)
-           WHERE id::text = $4`,
+               status = CASE 
+                 WHEN $3::text IS NOT NULL AND $3::text != 'pending_verification' THEN $3::text 
+                 WHEN public.profiles.status = 'pending_verification' OR $3::text = 'pending_verification' THEN 'pending_review'
+                 ELSE public.profiles.status 
+               END
+           WHERE id::text = $4 OR id::text = (SELECT user_id::text FROM public.worker_profiles WHERE id::text = $4 LIMIT 1)`,
           [phone || null, email || null, status || null, resolvedUserId]
         );
       } else {
@@ -93,10 +110,11 @@ export async function POST(req: NextRequest) {
         }
         await queryDb(
           `INSERT INTO public.profiles (id, phone, email, role, status, created_at)
-           VALUES ($1::uuid, $2, $3, 'worker', COALESCE($4, 'live'), NOW())
+           VALUES ($1::uuid, $2, $3, 'worker', CASE WHEN $4::text = 'pending_verification' OR $4 IS NULL THEN 'pending_review' ELSE $4::text END, NOW())
            ON CONFLICT (id) DO UPDATE SET 
              phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
-             email = COALESCE(EXCLUDED.email, public.profiles.email)`,
+             email = COALESCE(EXCLUDED.email, public.profiles.email),
+             status = CASE WHEN EXCLUDED.status = 'pending_verification' THEN 'pending_review' ELSE COALESCE(EXCLUDED.status, public.profiles.status) END`,
           [resolvedUserId, phone || null, email || null, status || null]
         );
       }
@@ -106,8 +124,6 @@ export async function POST(req: NextRequest) {
 
     // 2. Direct PostgreSQL update for public.worker_profiles
     try {
-
-
       const isTelePassed = body.is_tele_onboarded === true || body.tele_onboarded === true || body.is_interview_verified === true;
       const isAadhaarFrontVer = body.is_aadhaar_front_verified === true || (isTelePassed && Boolean(aadhaar_front_url || body.aadhaar_front_url));
       const isAadhaarBackVer = body.is_aadhaar_back_verified === true || (isTelePassed && Boolean(aadhaar_back_url || body.aadhaar_back_url));
@@ -123,7 +139,7 @@ export async function POST(req: NextRequest) {
       const secondarySoc = body.secondary_gated_society || body.secondary_society_name || '';
       const prefAreas = Array.isArray(body.preferred_areas) && body.preferred_areas.length > 0 
         ? body.preferred_areas 
-        : [primarySoc, secondarySoc].filter(Boolean);
+        : (primarySoc || secondarySoc ? [primarySoc, secondarySoc].filter(Boolean) : null);
       const preferred_shift = body.preferred_shift || body.work_timing || body.preferredShift || null;
 
       let pSocId = body.primary_society_id || body.society_id || null;
@@ -138,50 +154,148 @@ export async function POST(req: NextRequest) {
       }
 
       if (checkRes && checkRes.rows.length > 0) {
-        await queryDb(
-          `UPDATE public.worker_profiles 
-           SET full_name = COALESCE($1, full_name), 
-               gender = COALESCE($2, gender), 
-               age = COALESCE($3, age), 
-               expected_salary = COALESCE($4, expected_salary), 
-               experience_years = COALESCE($5, experience_years),
-               emergency_contact = COALESCE($6, emergency_contact),
-               alternate_phone = COALESCE($6, alternate_phone),
-               profile_picture_url = COALESCE($7, profile_picture_url),
-               aadhaar_front_url = COALESCE($8, aadhaar_front_url),
-               aadhaar_back_url = COALESCE($9, aadhaar_back_url),
-               video_url = COALESCE($10, video_url),
-               skills = COALESCE($11, skills),
-               languages_spoken = COALESCE($12, languages_spoken),
-               preferred_areas = CASE WHEN $13::text[] IS NOT NULL AND array_length($13::text[], 1) > 0 THEN $13::text[] ELSE preferred_areas END,
-               preferred_shift = COALESCE($15, preferred_shift),
-               preferred_society_name = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE preferred_society_name END,
-               secondary_society_name = CASE WHEN $17::text IS NOT NULL AND $17::text != '' THEN $17::text ELSE secondary_society_name END,
-               preferred_society_id = CASE WHEN $18::text IS NOT NULL AND $18::text != '' AND $18::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $18::uuid ELSE preferred_society_id END,
-               bio = COALESCE($19, bio),
-               is_tele_onboarded = CASE WHEN $20::boolean THEN true ELSE is_tele_onboarded END,
-               is_interview_verified = CASE WHEN $20::boolean THEN true ELSE is_interview_verified END,
-               is_aadhaar_front_verified = CASE WHEN $21::boolean IS NOT NULL THEN $21::boolean ELSE is_aadhaar_front_verified END,
-               is_aadhaar_back_verified = CASE WHEN $22::boolean IS NOT NULL THEN $22::boolean ELSE is_aadhaar_back_verified END,
-               is_aadhaar_verified = CASE WHEN $23::boolean IS NOT NULL THEN $23::boolean ELSE is_aadhaar_verified END,
-               is_video_verified = CASE WHEN $24::boolean IS NOT NULL THEN $24::boolean ELSE is_video_verified END,
-               is_police_verified = CASE WHEN $25::boolean IS NOT NULL THEN $25::boolean ELSE is_police_verified END,
-               tele_onboarded_at = CASE WHEN $20::boolean THEN NOW() ELSE tele_onboarded_at END
-           WHERE user_id::text = $14 OR id::text = $14`,
-          [
-            displayName, cleanGender, numAge, salary, expYears, 
-            emergency_contact || null, profile_picture_url || null, 
-            aadhaar_front_url || null, aadhaar_back_url || null, 
-            video_url || null, skillsArr, langsArr, prefAreas, resolvedUserId,
-            preferred_shift, primarySoc || null, secondarySoc || null, pSocId,
-            workerBio, isTelePassed, 
-            body.is_aadhaar_front_verified !== undefined ? body.is_aadhaar_front_verified : isAadhaarFrontVer,
-            body.is_aadhaar_back_verified !== undefined ? body.is_aadhaar_back_verified : isAadhaarBackVer,
-            body.is_aadhaar_verified !== undefined ? body.is_aadhaar_verified : isAadhaarOverallVer,
-            body.is_video_verified !== undefined ? body.is_video_verified : (isTelePassed ? true : null),
-            body.is_police_verified !== undefined ? body.is_police_verified : null
-          ]
-        );
+        const updateFields: string[] = [];
+        const queryValues: any[] = [];
+        let pIdx = 1;
+
+        if (body.full_name !== undefined && body.full_name !== null && String(body.full_name).trim()) {
+          const fn = String(body.full_name).trim();
+          updateFields.push(`full_name = $${pIdx++}`);
+          queryValues.push(fn);
+          updateFields.push(`name = $${pIdx++}`);
+          queryValues.push(fn);
+        }
+
+        if (body.gender !== undefined && body.gender !== null && String(body.gender).trim()) {
+          const gen = String(body.gender).toLowerCase().trim();
+          if (['male', 'female', 'other'].includes(gen)) {
+            updateFields.push(`gender = $${pIdx++}`);
+            queryValues.push(gen);
+          }
+        }
+
+        if (body.age !== undefined && body.age !== null && body.age !== '') {
+          updateFields.push(`age = $${pIdx++}`);
+          queryValues.push(parseInt(body.age));
+        }
+
+        if (body.expected_salary !== undefined && body.expected_salary !== null && body.expected_salary !== '') {
+          updateFields.push(`expected_salary = $${pIdx++}`);
+          queryValues.push(parseInt(body.expected_salary));
+        }
+
+        if (body.experience_years !== undefined && body.experience_years !== null && body.experience_years !== '') {
+          updateFields.push(`experience_years = $${pIdx++}`);
+          queryValues.push(parseInt(body.experience_years));
+        }
+
+        if (body.emergency_contact !== undefined && body.emergency_contact !== null) {
+          updateFields.push(`emergency_contact = $${pIdx++}`);
+          queryValues.push(body.emergency_contact);
+          updateFields.push(`alternate_phone = $${pIdx++}`);
+          queryValues.push(body.emergency_contact);
+        }
+
+        if (body.profile_picture_url !== undefined && body.profile_picture_url !== null) {
+          updateFields.push(`profile_picture_url = $${pIdx++}`);
+          queryValues.push(body.profile_picture_url);
+          updateFields.push(`avatar_url = $${pIdx++}`);
+          queryValues.push(body.profile_picture_url);
+        }
+
+        if (body.aadhaar_front_url !== undefined && body.aadhaar_front_url !== null) {
+          updateFields.push(`aadhaar_front_url = $${pIdx++}`);
+          queryValues.push(body.aadhaar_front_url);
+        }
+
+        if (body.aadhaar_back_url !== undefined && body.aadhaar_back_url !== null) {
+          updateFields.push(`aadhaar_back_url = $${pIdx++}`);
+          queryValues.push(body.aadhaar_back_url);
+        }
+
+        if (body.video_url !== undefined && body.video_url !== null) {
+          updateFields.push(`video_url = $${pIdx++}`);
+          queryValues.push(body.video_url);
+        }
+
+        if (body.skills !== undefined && body.skills !== null) {
+          const sArr = Array.isArray(body.skills) ? body.skills : [body.skills];
+          updateFields.push(`skills = $${pIdx++}`);
+          queryValues.push(sArr);
+          updateFields.push(`category = $${pIdx++}`);
+          queryValues.push(sArr);
+        }
+
+        if (body.languages_spoken !== undefined && body.languages_spoken !== null) {
+          const lArr = Array.isArray(body.languages_spoken) ? body.languages_spoken : [body.languages_spoken];
+          updateFields.push(`languages_spoken = $${pIdx++}`);
+          queryValues.push(lArr);
+        }
+
+        if (primarySoc) {
+          updateFields.push(`preferred_society_name = $${pIdx++}`);
+          queryValues.push(primarySoc);
+          updateFields.push(`primary_gated_society = $${pIdx++}`);
+          queryValues.push(primarySoc);
+        }
+
+        if (secondarySoc) {
+          updateFields.push(`secondary_society_name = $${pIdx++}`);
+          queryValues.push(secondarySoc);
+        }
+
+        if (preferred_shift) {
+          updateFields.push(`preferred_shift = $${pIdx++}`);
+          queryValues.push(preferred_shift);
+        }
+
+        if (workerBio) {
+          updateFields.push(`bio = $${pIdx++}`);
+          queryValues.push(workerBio);
+        }
+
+        if (isTelePassed) {
+          updateFields.push(`is_tele_onboarded = true`);
+          updateFields.push(`is_interview_verified = true`);
+          updateFields.push(`tele_onboarded_at = NOW()`);
+        }
+
+        if (body.is_aadhaar_front_verified !== undefined && body.is_aadhaar_front_verified !== null) {
+          updateFields.push(`is_aadhaar_front_verified = $${pIdx++}`);
+          queryValues.push(Boolean(body.is_aadhaar_front_verified));
+        }
+
+        if (body.is_aadhaar_back_verified !== undefined && body.is_aadhaar_back_verified !== null) {
+          updateFields.push(`is_aadhaar_back_verified = $${pIdx++}`);
+          queryValues.push(Boolean(body.is_aadhaar_back_verified));
+        }
+
+        if (body.is_aadhaar_verified !== undefined && body.is_aadhaar_verified !== null) {
+          updateFields.push(`is_aadhaar_verified = $${pIdx++}`);
+          queryValues.push(Boolean(body.is_aadhaar_verified));
+        }
+
+        if (body.is_video_verified !== undefined && body.is_video_verified !== null) {
+          updateFields.push(`is_video_verified = $${pIdx++}`);
+          queryValues.push(Boolean(body.is_video_verified));
+        }
+
+        if (body.is_police_verified !== undefined && body.is_police_verified !== null) {
+          updateFields.push(`is_police_verified = $${pIdx++}`);
+          queryValues.push(Boolean(body.is_police_verified));
+        }
+
+        if (body.status !== undefined && body.status !== null) {
+          const cleanSt = body.status === 'pending_verification' ? 'pending_review' : body.status;
+          updateFields.push(`status = $${pIdx++}`);
+          queryValues.push(cleanSt);
+        }
+
+        if (updateFields.length > 0) {
+          queryValues.push(resolvedUserId);
+          const sql = `UPDATE public.worker_profiles SET ${updateFields.join(', ')} WHERE user_id::text = $${pIdx} OR id::text = $${pIdx}`;
+          await queryDb(sql, queryValues);
+        }
       } else {
         await queryDb(
           `INSERT INTO public.worker_profiles 
@@ -189,11 +303,22 @@ export async function POST(req: NextRequest) {
            VALUES 
              (gen_random_uuid(), CASE WHEN $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $1::uuid ELSE gen_random_uuid() END, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CASE WHEN $16::text IS NOT NULL AND $16::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $16::uuid ELSE NULL END, NOW())`,
           [
-            resolvedUserId, displayName, cleanGender, 
-            numAge, salary, expYears, emergency_contact || null, 
-            profile_picture_url || null, aadhaar_front_url || null, 
-            aadhaar_back_url || null, video_url || null, skillsArr, preferred_shift,
-            primarySoc || null, secondarySoc || null, pSocId
+            resolvedUserId, 
+            displayName || 'Worker', 
+            cleanGender || 'female', 
+            numAge || 28, 
+            salary || 15000, 
+            expYears || 0, 
+            emergency_contact || null, 
+            profile_picture_url || null, 
+            aadhaar_front_url || null, 
+            aadhaar_back_url || null, 
+            video_url || null, 
+            skillsArr || ['Domestic Worker'], 
+            preferred_shift,
+            primarySoc || null, 
+            secondarySoc || null, 
+            pSocId
           ]
         );
       }

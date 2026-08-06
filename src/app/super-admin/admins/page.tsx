@@ -9,11 +9,13 @@ export default function AdminsPage() {
     admins,
     newAdminEmail,
     setNewAdminEmail,
+    newAdminName,
+    setNewAdminName,
     handleAddAdmin
   } = useSuperAdminDashboard();
 
   return (
-    <div className="space-y-4 animate-fade-in max-w-4xl">
+    <div className="space-y-4 animate-fade-in max-w-5xl">
       <div>
         <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Admin Management</h3>
         <p className="text-[10px] text-gray-400 font-bold px-1 mt-0.5">Invite new moderators and adjust operational access levels.</p>
@@ -33,26 +35,41 @@ export default function AdminsPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-700 uppercase">
-                  <th className="p-4">Admin Email</th>
+                  <th className="p-4">Admin Name &amp; Email</th>
                   <th className="p-4">Created Date</th>
                   <th className="p-4 text-right">Access Role</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 text-xs font-bold text-slate-800">
-                {admins.map((adm) => (
-                  <tr key={adm.id} className="hover:bg-slate-50/20">
-                    <td className="p-4 flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>{adm.email}</span>
-                    </td>
-                    <td className="p-4 text-gray-400 font-medium">{adm.created}</td>
-                    <td className="p-4 text-right">
-                      <span className="bg-[#1A73E8]/10 text-[#1A73E8] text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                        Moderator
-                      </span>
+                {admins.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="p-8 text-center text-slate-400 font-medium text-xs">
+                      No admin accounts found in the database. Use the form on the right to provision new moderator access.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  admins.map((adm) => (
+                    <tr key={adm.id} className="hover:bg-slate-50/20">
+                      <td className="p-4 flex items-center gap-2.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                        <div>
+                          <span className="block text-xs font-black text-slate-900">{adm.full_name || adm.name || adm.email.split('@')[0]}</span>
+                          <span className="block text-[10px] font-mono text-slate-400 font-medium">{adm.email}</span>
+                        </div>
+                      </td>
+                      <td className="p-4 text-gray-400 font-medium text-xs">{adm.created || 'Active'}</td>
+                      <td className="p-4 text-right">
+                        <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                          (adm.role || '').includes('super') 
+                            ? 'bg-purple-100 text-purple-800 border border-purple-200' 
+                            : 'bg-[#1A73E8]/10 text-[#1A73E8]'
+                        }`}>
+                          {(adm.role || 'admin').replace('_', ' ').replace('-', ' ')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -65,8 +82,20 @@ export default function AdminsPage() {
             <h4 className="text-xs font-bold text-slate-800">Provision Moderator</h4>
           </div>
 
-          <form onSubmit={handleAddAdmin} className="space-y-4">
-            <div className="space-y-1.5">
+          <form onSubmit={handleAddAdmin} className="space-y-3.5">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Admin Full Name</label>
+              <input
+                type="text"
+                placeholder="e.g. Priya Sharma"
+                value={newAdminName}
+                onChange={(e) => setNewAdminName(e.target.value)}
+                className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-[#1A73E8] focus:outline-none transition-colors"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Email Address</label>
               <input
                 type="email"

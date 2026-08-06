@@ -1,0 +1,101 @@
+===============================================================================
+            SEVIKAA: REAL-WORLD PROBLEM STATEMENT & IMPACT REPORT
+===============================================================================
+Document Version : 1.0.0
+Project Name     : Sevikaa (Domestic Workforce Platform)
+Parent Entity    : Powered by YugaYatra Retail (OPC) Private Limited
+Focus Area       : Informal Labor Modernization & Hyper-Local Hiring
+===============================================================================
+
+-------------------------------------------------------------------------------
+1. INDUSTRY CONTEXT & BACKGROUND
+-------------------------------------------------------------------------------
+The domestic labor sector in India (maids, cooks, nannies) represents one of 
+the largest unorganized informal markets in the country.
+
+- Market Size      : Estimated at over $10 Billion USD.
+- Informal Share   : Over 90% of hiring relies on informal word-of-mouth or 
+                     predatory local placement agencies.
+- Infrastructure   : Severe absence of transparent, technology-driven trust 
+                     platforms for domestic household services.
+
+
+-------------------------------------------------------------------------------
+2. CORE EMPLOYER PAIN POINTS (DEMAND-SIDE)
+-------------------------------------------------------------------------------
+2.1 Trust & Security Gap in Gated Communities
+    - Gated apartment complexes enforce strict gate access. Unverified workers 
+      present safety and theft risks for residents.
+    - Conducting police checks or background verification independently is 
+      complex and time-consuming for individual households.
+
+2.2 Time-Slot Incompatibility & High Friction
+    - Household help is required during strict time windows (e.g. 7:00-8:30 AM).
+    - Traditional hiring provides no visibility into a worker's daily schedule, 
+      causing schedule clashes and high turnover.
+
+2.3 Middleman Exploitation & High Costs
+    - Unregulated placement agencies charge employers heavy upfront fees 
+      (1-2 months salary) without retention guarantees or background checks.
+
+2.4 Skill & Language Mismatch
+    - Specific household needs (dietary preferences, infant care) are rarely 
+      matched accurately, causing repeated hiring failures.
+
+
+-------------------------------------------------------------------------------
+3. CORE DOMESTIC WORKER PAIN POINTS (SUPPLY-SIDE)
+-------------------------------------------------------------------------------
+3.1 Predatory Agent Cut
+    - Unregulated placement agencies demand upfront registration fees from 
+      workers or deduct ongoing cuts from monthly earnings.
+
+3.2 Digital & Language Barriers
+    - Standard hiring apps are built in English for white-collar jobs. Domestic 
+      workers face literacy and digital navigation hurdles.
+
+3.3 Absence of Portable Work Identity
+    - Workers build years of reliable work experience but lack verifiable 
+      records or digital profiles to prove credentials to new employers.
+
+3.4 Wage Instability & Unclear Hours
+    - Lack of transparent wage benchmarking leaves workers vulnerable to 
+      underpayment and unpredictable working hours.
+
+
+-------------------------------------------------------------------------------
+4. THE SEVIKAA SOLUTION & ARCHITECTURAL INNOVATIONS
+-------------------------------------------------------------------------------
+4.1 Curated Trust Architecture
+    - Every profile undergoes mandatory verification (Aadhaar, Police clearance 
+      status, Tele-interview, and Video Intro audit) before going live.
+
+4.2 Society-Centric Hyper-Local Matching
+    - Gated societies are structured as database entities. Workers are matched 
+      with employers in their immediate apartment complex or neighborhood.
+
+4.3 Granular Slot Availability Engine
+    - Workers select precise weekly availability, enabling employers to filter 
+      specifically for candidates matching their daily routine.
+
+4.4 100% Free Platform for Workers
+    - Sevikaa strictly charges ZERO fees to workers. Revenue relies entirely 
+      on transparent employer subscriptions for unlocking contact details.
+
+4.5 Multilingual Accessibility & Tele-Onboarding
+    - Support for 8 Indian regional languages + phone-guided tele-onboarding 
+      ensures accessibility for workers of all literacy levels.
+
+
+-------------------------------------------------------------------------------
+5. SOCIO-ECONOMIC IMPACT & VISION
+-------------------------------------------------------------------------------
+1. Women Empowerment     : Direct employment access and wage transparency for 
+                           female domestic workers.
+2. Labor Formalization    : Building verifiable digital work identities for 
+                           unorganized informal workers.
+3. Community Security     : Pre-verified workforce access for gated society 
+                           residents and security committees.
+4. Scalable Growth Vision : Repeatable digital blueprint scaling across urban 
+                           metropolitan centers in India.
+===============================================================================

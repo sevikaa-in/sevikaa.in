@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, Check, Camera, FileText, Video, RotateCw, RotateCcw, ZoomIn, ZoomOut, 
-  ShieldCheck, Calendar, MapPin, Phone, PhoneCall, Mail, User, ShieldAlert, Award, Globe, Clock, Building
+  ShieldCheck, Calendar, MapPin, Phone, PhoneCall, Mail, User, ShieldAlert, Award, Globe, Clock, Building, Lock
 } from 'lucide-react';
 import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
 import { formatWorkerShift } from '@/utils/formatWorkerShift';
@@ -512,13 +512,13 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                 { key: 'profile', label: 'Overall Profile Approval Status' }
               ].map((badge) => {
                 const currentStatus = worker.badges?.[badge.key] || (
-                  badge.key === 'aadhaar_front' ? (worker.is_aadhaar_front_verified === true ? 'Verified' : 'Pending') :
-                  badge.key === 'aadhaar_back' ? (worker.is_aadhaar_back_verified === true ? 'Verified' : 'Pending') :
-                  badge.key === 'interview' ? (worker.is_interview_verified === true || worker.is_tele_onboarded === true ? 'Verified' : 'Pending') :
-                  badge.key === 'video' ? (worker.is_video_verified === true ? 'Verified' : 'Pending') :
-                  badge.key === 'police' ? (worker.is_police_verified === true ? 'Verified' : 'Pending') :
+                  badge.key === 'aadhaar_front' ? (worker.is_aadhaar_front_verified === true || worker.is_aadhaar_verified === true || worker.is_tele_onboarded === true || worker.status === 'approved' || worker.status === 'live' || Boolean(worker.aadhaar_front_url) ? 'Verified' : 'Pending') :
+                  badge.key === 'aadhaar_back' ? (worker.is_aadhaar_back_verified === true || worker.is_aadhaar_verified === true || worker.is_tele_onboarded === true || worker.status === 'approved' || worker.status === 'live' || Boolean(worker.aadhaar_back_url) ? 'Verified' : 'Pending') :
+                  badge.key === 'interview' ? (worker.is_interview_verified === true || worker.is_tele_onboarded === true || worker.status === 'approved' || worker.status === 'live' ? 'Verified' : 'Pending') :
+                  badge.key === 'video' ? (worker.is_video_verified === true || worker.is_tele_onboarded === true || worker.status === 'approved' || worker.status === 'live' || Boolean(worker.video_url) ? 'Verified' : 'Pending') :
+                  badge.key === 'police' ? (worker.is_police_verified === true || Boolean(worker.police_verification_url) ? 'Verified' : 'Pending') :
                   badge.key === 'mobile' ? (worker.phone ? 'Verified' : 'Pending') :
-                  badge.key === 'profile' ? (worker.status === 'approved' || worker.status === 'live' ? 'Verified' : 'Pending') :
+                  badge.key === 'profile' ? (worker.status === 'approved' || worker.status === 'live' || worker.status === 'active' ? 'Verified' : 'Pending') :
                   'Pending'
                 );
                 return (
@@ -668,12 +668,6 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <button
-                  onClick={onClose}
-                  className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
-                >
-                  Close Drawer
-                </button>
                 {(worker.status === 'live' || worker.status === 'approved') ? (
                   <button
                     onClick={() => {
@@ -688,6 +682,12 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                 ) : (
                   <button
                     onClick={() => {
+                      const isTelePassed = worker?.is_tele_onboarded === true || worker?.is_interview_verified === true || worker?.badges?.interview === 'Verified';
+                      if (!isTelePassed) {
+                        alert(`⛔ Restricted Action: Telephonic Onboarding Verification Required!\n\nThis candidate has not passed Stage 1 Telephonic Verification yet.\n\nPlease perform Tele-Onboarding verification first before marking the profile Live for employers.`);
+                        return;
+                      }
+
                       const hasName = !!(worker?.full_name || worker?.name)?.trim();
                       const hasPhone = (worker?.phone || '').replace(/\D/g, '').length >= 10;
                       const hasGenderAge = !!worker?.gender && !!worker?.age;
@@ -710,10 +710,23 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                       onUpdateStatus(worker.id, 'live');
                       onClose();
                     }}
-                    className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#34A853]/20 flex items-center gap-1.5"
+                    className={`py-2.5 px-5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                      !(worker?.is_tele_onboarded === true || worker?.is_interview_verified === true || worker?.badges?.interview === 'Verified')
+                        ? 'bg-amber-100/90 text-amber-900 border border-amber-300/80 hover:bg-amber-200/90 cursor-pointer shadow-xs'
+                        : 'bg-[#34A853] hover:bg-[#2b8a43] text-white cursor-pointer shadow-md shadow-[#34A853]/20 active:scale-95'
+                    }`}
                   >
-                    <Check size={15} strokeWidth={3} />
-                    Approve Live Profile
+                    {!(worker?.is_tele_onboarded === true || worker?.is_interview_verified === true || worker?.badges?.interview === 'Verified') ? (
+                      <>
+                        <Lock size={14} />
+                        <span>🔒 Approve Live (Tele-Call Pending)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={15} strokeWidth={3} />
+                        <span>Approve Live Profile</span>
+                      </>
+                    )}
                   </button>
                 )}
               </div>

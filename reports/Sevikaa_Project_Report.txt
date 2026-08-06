@@ -1,0 +1,154 @@
+===============================================================================
+               SEVIKAA: TECHNICAL ARCHITECTURE & PROJECT REPORT
+===============================================================================
+Document Version : 1.0.0
+Project Name     : Sevikaa (Domestic Workforce Platform)
+Target Platform  : Web (Next.js 16 + React 19 + Supabase PostgreSQL)
+Parent Entity    : Powered by YugaYatra Retail (OPC) Private Limited
+===============================================================================
+
+-------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY & CORE PLATFORM VISION
+-------------------------------------------------------------------------------
+Sevikaa is a mobile-first web platform designed to bridge the trust gap between 
+verified domestic workers (maids, cooks, nannies) and employers residing in urban 
+households and gated apartment societies across India.
+
+Unlike traditional unmoderated job portals, Sevikaa operates under a strict 
+"Verified and Moderated by Default" operational philosophy. Every worker profile, 
+identity document, video introduction, job posting, and user review must undergo 
+verification and content curation before becoming publicly visible.
+
+Key Highlights:
+- Core Categories  : Maid (Cleaning), Cook (Meals), Nanny (Childcare).
+- Worker Pricing   : 100% Free Forever (Zero application or registration fees).
+- Employer Model   : Subscription-based contact unlock and job posting system.
+- Primary Mission  : Trust, simplicity, mobile-first accessibility, and safety.
+
+
+-------------------------------------------------------------------------------
+2. TECHNICAL STACK & SYSTEM ARCHITECTURE
+-------------------------------------------------------------------------------
+Frontend Framework : Next.js 16 (App Router for SSR and SEO optimization)
+UI Framework       : React 19 (Component-driven architecture)
+Styling Engine     : Tailwind CSS v4 (Mobile-first responsive design tokens)
+Iconography        : Lucide React (Clean vector iconography)
+Database & Auth    : Supabase (PostgreSQL with Row-Level Security & Supabase Auth)
+Storage Engine     : Supabase Private Storage Buckets (Encrypted document storage)
+SMS Gateway        : MSG91 (Mobile OTP authentication & multilingual SMS alerts)
+Email Gateway      : Amazon SES (Transactional emails, billing, notifications)
+Payment Gateway    : Razorpay (Employer subscription plans & payment webhooks)
+Media Processing   : Cloudinary / Supabase Storage (Video intro CDN & processing)
+
+
+-------------------------------------------------------------------------------
+3. SYSTEM USER ROLES & ACCESS HIERARCHY
+-------------------------------------------------------------------------------
+[VISITOR] 
+  - Access marketing pages, pricing tiers, safety statements, public FAQs.
+
+[WORKER] (Always Free)
+  - Multilingual profile registration, availability grid configuration, 
+    document upload (Aadhaar/Police), video intro upload, job applications.
+
+[EMPLOYER] (Subscription-Based)
+  - Household/company profile, job wizard, hyper-local society search, 
+    verification badges inspection, unlock contact details (Phone/WhatsApp).
+
+[PLATFORM GOVERNANCE & SUPPORT] (Admin Layer)
+  - High-level verification of documents & video clips, telephonic onboarding 
+    assistance, gated society list approval, review & anti-abuse moderation.
+
+
+-------------------------------------------------------------------------------
+4. WORKER LIFECYCLE & FUNCTIONAL MODULES
+-------------------------------------------------------------------------------
+4.1 Multilingual Onboarding Funnel
+    - Languages Supported: English, Hindi, Hinglish, Kannada, Tamil, Telugu, 
+      Assamese, Nepali.
+    - Passwordless OTP login via Mobile Number or Email.
+
+4.2 Availability Grid Engine
+    - Day Selection : Monday through Sunday.
+    - Time Slots    : Early Morning (6-9 AM), Morning (9 AM-12 PM), 
+                      Afternoon (12-3 PM), Evening (3-6 PM), Night (6-9 PM).
+    - Work Types    : Full-Day, Part-Time, Live-In.
+
+4.3 User Document & Intro Upload
+    - Identity Docs : Aadhaar Card (Front/Back), Selfie, Police Check (PCC).
+    - Video Intro   : 30-60 second smartphone browser self-introduction video.
+    - Status Flow   : Pending Review -> Tele Verification -> Approved -> Live.
+
+
+-------------------------------------------------------------------------------
+5. EMPLOYER MODULE & HYPER-LOCAL MATCHING ENGINE
+-------------------------------------------------------------------------------
+5.1 Job Creation & Slot Requirements
+    - Category selection (Maid, Cook, Nanny), specific skills, requested 
+      time slots, budget/salary range, target society locality.
+
+5.2 Society-First Geo-Matching Algorithm
+    - Level 1 : Same Society (Worker preferred society matches Employer society).
+    - Level 2 : Nearby Society (Societies within 1-2 km radius).
+    - Level 3 : Sub-locality / Postal code / Service Radius.
+    - Privacy Shield : Exact addresses & GPS coordinates are NEVER exposed. 
+      Only approximate distance (e.g. "Within 500m") is displayed.
+
+5.3 Subscription & Contact Unlock Engine
+    - Employers use Razorpay subscriptions to unlock full worker phone numbers 
+      and initiate direct WhatsApp conversations.
+
+
+-------------------------------------------------------------------------------
+6. CURATED GOVERNANCE, TELE-ONBOARDING & VERIFICATION
+-------------------------------------------------------------------------------
+6.1 Tele-Onboarding Assistance
+    - Support team provides phone-guided registration for workers with low digital 
+      literacy, conducting structured background interviews.
+
+6.2 Gated Societies Approval & Management
+    - Maintenance of verified apartment complex listings to power hyper-local 
+      matching and neighborhood search accuracy.
+
+6.3 Document & Video Moderation
+    - Aadhaar and background check images stored in encrypted private buckets, 
+      inspected via temporary RLS signed URLs.
+    - Intro videos audited for clarity, language appropriateness, and safety.
+
+6.4 Community Review Moderation
+    - Two-way ratings (1-5 Stars) stored in "Pending" status to prevent spam, 
+      contact leaks, or abusive claims before public display.
+
+
+-------------------------------------------------------------------------------
+7. DATABASE SCHEMA & DATA ARCHITECTURE (POSTGRESQL)
+-------------------------------------------------------------------------------
+Core Entities & Relationships:
+- USERS             : Base auth table (email, phone, role, status).
+- WORKER_PROFILES   : Skills, expected salary, preferred_society_id, 
+                      availability_slots (JSONB), verification badges.
+- EMPLOYER_PROFILES : Household details, billing address, subscription_status.
+- SOCIETIES         : Complex name, city, location coordinates.
+- JOBS              : Employer_id, category, required_slots (JSONB), salary.
+- APPLICATIONS      : Job_id, worker_id, status tracker.
+- REVIEWS           : Author_id, target_id, rating, comment, status (pending/approved).
+
+
+-------------------------------------------------------------------------------
+8. DATA SECURITY, PRIVACY & COMPLIANCE
+-------------------------------------------------------------------------------
+1. Row-Level Security (RLS) : Supabase database rules prevent unauthorized edits.
+2. Document Protection      : Government IDs restricted to signed private URLs.
+3. Location Obfuscation     : Server-side distance calculations hide raw coordinates.
+4. Razorpay Compliance      : Full incorporation of Privacy, Terms, Refund, and 
+                              Digital Delivery Policies.
+
+
+-------------------------------------------------------------------------------
+9. CONCLUSION
+-------------------------------------------------------------------------------
+Sevikaa modernizes domestic labor hiring in India by combining Next.js SSR speed, 
+Supabase PostgreSQL data isolation, multi-stage trust verification (Aadhaar, 
+Police, Telephonic Onboarding, Video Intros), and hyper-local society matching 
+while keeping the platform 100% free for domestic workers.
+===============================================================================

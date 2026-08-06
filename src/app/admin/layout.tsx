@@ -612,30 +612,36 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   };
 
   const handleUpdateWorkerStatus = async (workerId: string, newStatus: string, adminNote?: string) => {
-    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
     try {
-      if (!isPlaceholder) {
-        const { error: updateErr } = await supabase
-          .from('profiles')
-          .update({ status: newStatus })
-          .eq('id', workerId);
-        if (updateErr) throw updateErr;
-
-        if (newStatus === 'changes_requested') {
-          fetch('/api/admin/worker/send-upload-sms', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: workerId })
-          }).catch(err => console.warn('Send upload SMS error:', err));
-        }
+      const res = await fetch('/api/admin/worker/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: workerId,
+          status: newStatus,
+          is_tele_onboarded: true,
+          is_interview_verified: true,
+          notes: adminNote
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to update candidate status');
       }
 
-      setWorkersList(prev => prev.map(w => w.id === workerId ? { ...w, status: newStatus, admin_note: adminNote || w.admin_note } : w));
+      if (newStatus === 'changes_requested') {
+        fetch('/api/admin/worker/send-upload-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: workerId })
+        }).catch(err => console.warn('Send upload SMS error:', err));
+      }
+
+      setWorkersList(prev => prev.map(w => w.id === workerId ? { ...w, status: newStatus, is_tele_onboarded: true, is_interview_verified: true, admin_note: adminNote || w.admin_note } : w));
       if (selectedWorker?.id === workerId) {
-        setSelectedWorker((prev: any) => ({ ...prev, status: newStatus, admin_note: adminNote || prev.admin_note }));
+        setSelectedWorker((prev: any) => ({ ...prev, status: newStatus, is_tele_onboarded: true, is_interview_verified: true, admin_note: adminNote || prev.admin_note }));
       }
-      showToast(`Worker status updated to: ${newStatus.replace('_', ' ')}`);
+      showToast(`✓ Worker status updated to: ${newStatus.replace('_', ' ').toUpperCase()}`, 'success');
       fetchDashboardData();
     } catch (err: any) {
       showToast(`Update failed: ${err.message}`, 'error');
@@ -654,18 +660,14 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     const noteText = adminNote || (isChanges ? 'Admin Audit Feedback: Please clarify if ironing duties are included and update morning shift start time.' : undefined);
 
     try {
-      if (!isPlaceholder) {
-        const { error: updateErr } = await supabase
-          .from('jobs')
-          .update({ 
-            status: newStatus,
-            admin_note: noteText
-          })
-          .eq('id', jobId);
-        if (updateErr) throw updateErr;
-      }
+      // 1. Call Backend API
+      await fetch('/api/admin/job/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: jobId, status: newStatus, admin_note: noteText })
+      });
 
-      // Trigger multi-channel SMS & Email alert to employer if changes requested
+      // 2. Trigger multi-channel SMS & Email alert to employer if changes requested
       if (isChanges) {
         try {
           await fetch('/api/notifications/trigger', {
@@ -684,15 +686,21 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         }
       }
 
-      setPendingJobsList(prev => prev.filter(j => j.id !== jobId));
-      setCounts(prev => ({ ...prev, pendingJobs: Math.max(0, prev.pendingJobs - 1) }));
+      setPendingJobsList(prev => prev.map(j => j.id === jobId ? { ...j, status: isApprove ? 'active' : newStatus } : j));
+      setCounts(prev => ({ 
+        ...prev, 
+        pendingJobs: isApprove ? Math.max(0, prev.pendingJobs - 1) : prev.pendingJobs 
+      }));
+
       showToast(
         isApprove 
-          ? 'Job approved and published live!' 
+          ? '✓ Job approved and published live!' 
           : isChanges 
           ? 'Feedback note sent to employer! Requisition marked as Action Required.' 
+          : isRevert
+          ? 'Job reverted to Pending Approval status.'
           : 'Job rejected and returned to draft.', 
-        isApprove ? 'success' : 'warning'
+        isApprove ? 'success' : 'info'
       );
     } catch (err: any) {
       showToast(`Job action failed: ${err.message}`, 'error');

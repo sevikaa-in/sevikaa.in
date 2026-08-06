@@ -70,8 +70,10 @@ export default function AssistedJobMatcherPage() {
     setLoadingData(true);
     try {
       const qParam = query.trim() ? `&q=${encodeURIComponent(query.trim())}` : '';
+      // Strictly filter candidate directory to Live & Approved verified candidates only
+      const statusParam = 'approved';
       const [wRes, jRes] = await Promise.all([
-        fetch(`/api/admin/data?tab=workers&status=approved&page=${targetPage}&limit=${limit}${qParam}`).then(r => r.json()),
+        fetch(`/api/admin/data?tab=workers&status=${statusParam}&page=${targetPage}&limit=${limit}${qParam}`).then(r => r.json()),
         fetch('/api/admin/data?tab=jobs&limit=100').then(r => r.json()).catch(() => ({ jobs: [] }))
       ]);
 
@@ -285,11 +287,27 @@ export default function AssistedJobMatcherPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-1 pt-1">
-                        {Array.isArray(worker.skills) && worker.skills.slice(0, 3).map((skill: string) => (
-                          <span key={skill} className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[10px] font-bold">
-                            {skill}
+                        {(() => {
+                          const skillsArr = Array.isArray(worker.skills) 
+                            ? worker.skills 
+                            : (typeof worker.skills === 'string' && worker.skills.trim()) 
+                            ? worker.skills.split(',').map((s: string) => s.trim()).filter(Boolean) 
+                            : (worker.category ? [worker.category] : ['Domestic Worker']);
+                          return skillsArr.slice(0, 3).map((skill: string) => (
+                            <span key={skill} className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[10px] font-bold">
+                              {skill}
+                            </span>
+                          ));
+                        })()}
+                        {worker.status === 'live' || worker.status === 'approved' ? (
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md text-[9.5px] font-bold">
+                            ✓ Live
                           </span>
-                        ))}
+                        ) : (
+                          <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200/80 rounded-md text-[9.5px] font-bold">
+                            ⚡ {worker.status || 'Pending'}
+                          </span>
+                        )}
                       </div>
 
                       <div className="text-[10.5px] text-slate-500 font-medium space-y-0.5 pt-1">

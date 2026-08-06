@@ -49,17 +49,29 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
                           (w.phone || '').includes(searchTerm) ||
                           (w.email || '').toLowerCase().includes(searchTerm.toLowerCase());
     
-    const isLeadIncomplete = !w.skills || w.skills.length === 0 || w.name === 'Registered Candidate' || w.full_name === 'Verified Worker' || w.full_name === 'Worker Candidate';
-    
+    const statusStr = (w.status || 'pending_review').toLowerCase();
+    const isLiveApproved = statusStr === 'live' || statusStr === 'approved' || statusStr === 'active';
+    const isPending = statusStr === 'pending' || statusStr === 'pending_review';
+    const isAdminInterview = statusStr === 'admin_interview';
+    const isSuspended = statusStr === 'suspended' || statusStr === 'rejected' || statusStr === 'deactivated' || statusStr === 'changes_requested';
+    const isDeletion = statusStr === 'deletion_requested' || statusStr === 'pending_deletion';
+    const isLeadIncomplete = !isLiveApproved && (!w.skills || w.skills.length === 0 || w.name === 'Registered Candidate' || w.full_name === 'Verified Worker' || w.full_name === 'Worker Candidate');
+
     const matchesStatus = filterStatus === 'all' 
       ? true 
       : filterStatus === 'incomplete_lead' 
-        ? isLeadIncomplete 
-        : filterStatus === 'suspended'
-          ? (w.status === 'suspended' || w.status === 'rejected' || w.status === 'deactivated' || w.status === 'changes_requested')
-          : filterStatus === 'deletion_requested'
-            ? (w.status === 'deletion_requested' || w.status === 'pending_deletion')
-            : w.status === filterStatus;
+        ? isLeadIncomplete
+        : filterStatus === 'pending_review'
+          ? isPending
+          : filterStatus === 'admin_interview'
+            ? isAdminInterview
+            : filterStatus === 'live'
+              ? isLiveApproved
+              : filterStatus === 'suspended'
+                ? isSuspended
+                : filterStatus === 'deletion_requested'
+                  ? isDeletion
+                  : w.status === filterStatus;
     
     return matchesSearch && matchesStatus;
   });
@@ -184,25 +196,43 @@ export const WorkerQueue: React.FC<WorkerQueueProps> = ({
                     )}
                   </div>
 
-                  {/* Visual Progress Timeline (PRD Lifecycle) */}
+                  {/* Visual Progress Timeline (4-Step Verification Sequence) */}
                   <div className="flex items-center gap-1 py-1">
-                    {lifecycleStages.map((stage, idx) => {
-                      const currentIdx = lifecycleStages.indexOf(worker.status);
-                      const passed = currentIdx >= idx;
-                      return (
+                    {(() => {
+                      const isProfileComplete = Boolean(
+                        (worker.full_name || worker.name)?.trim() &&
+                        worker.gender && worker.age &&
+                        worker.expected_salary &&
+                        (Array.isArray(worker.skills) ? worker.skills.length > 0 : !!worker.skills) &&
+                        (worker.profile_picture_url || worker.avatar_url) &&
+                        (worker.aadhaar_front_url || worker.is_aadhaar_front_verified) &&
+                        (worker.aadhaar_back_url || worker.is_aadhaar_back_verified)
+                      );
+                      const isTelePassed = Boolean(worker.is_tele_onboarded || worker.is_interview_verified || worker.status === 'admin_interview' || worker.status === 'live' || worker.status === 'approved');
+                      const isLiveApproved = Boolean(worker.status === 'live' || worker.status === 'approved' || worker.status === 'active');
+                      const isSuspended = Boolean(worker.status === 'suspended' || worker.status === 'deactivated' || worker.status === 'rejected');
+
+                      const steps = [
+                        { name: '1. OTP Registered Lead', active: true },
+                        { name: '2. Profile & Documents (100% Complete)', active: isProfileComplete || isLiveApproved },
+                        { name: '3. Telephonic Onboarding Verification Passed', active: isTelePassed },
+                        { name: '4. Final Admin Approval (Marked Live)', active: isLiveApproved }
+                      ];
+
+                      return steps.map((step) => (
                         <div 
-                          key={stage}
-                          title={stage.replace('_', ' ')}
-                          className={`h-1.5 rounded-full transition-colors ${
-                            passed 
-                              ? worker.status === 'suspended'
+                          key={step.name}
+                          title={step.name}
+                          className={`h-1.5 rounded-full transition-all ${
+                            step.active 
+                              ? isSuspended
                                 ? 'bg-[#EA4335] w-6'
                                 : 'bg-[#34A853] w-6'
                               : 'bg-slate-200 w-3'
                           }`}
                         />
-                      );
-                    })}
+                      ));
+                    })()}
                   </div>
 
                   {/* Skills summary & society */}

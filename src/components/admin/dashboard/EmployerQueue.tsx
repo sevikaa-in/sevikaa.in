@@ -49,7 +49,13 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
     const matchesSearch = (e.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (e.company_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (e.billing_address || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || e.status === filterStatus;
+    const matchesStatus = filterStatus === 'all'
+      ? true
+      : filterStatus === 'incomplete_lead'
+        ? (e.status === 'incomplete_lead' || (!e.society_name && !e.billing_address))
+        : filterStatus === 'admin_interview'
+          ? (e.status === 'admin_interview' || e.is_tele_onboarded === true)
+          : e.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
@@ -91,7 +97,7 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
 
       {/* Filter Tabs */}
       <div className="flex overflow-x-auto whitespace-nowrap gap-1 pb-2 scrollbar-hide">
-        {['all', 'pending_review', 'live', 'suspended', 'deletion_requested'].map((status) => (
+        {['all', 'incomplete_lead', 'pending_review', 'admin_interview', 'live', 'suspended', 'deletion_requested'].map((status) => (
           <button
             key={status}
             onClick={() => {
@@ -100,11 +106,26 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
             }}
             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all active:scale-95 cursor-pointer ${
               filterStatus === status 
-                ? status === 'deletion_requested' ? 'bg-amber-600 text-white shadow-sm' : 'bg-[#1A73E8] text-white shadow-sm' 
-                : status === 'deletion_requested' ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-slate-50 text-gray-500 hover:bg-slate-100/75'
+                ? status === 'deletion_requested' 
+                  ? 'bg-amber-600 text-white shadow-sm' 
+                  : status === 'incomplete_lead'
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-[#1A73E8] text-white shadow-sm' 
+                : status === 'deletion_requested' 
+                  ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' 
+                  : status === 'incomplete_lead'
+                    ? 'bg-amber-50/90 text-amber-900 border border-amber-200/80 hover:bg-amber-100'
+                    : 'bg-slate-50 text-gray-500 hover:bg-slate-100/75'
             }`}
           >
-            {status === 'deletion_requested' ? '⚠️ Deletion Pending' : status.replace('_', ' ')}
+            {status === 'deletion_requested' 
+              ? '⚠️ Deletion Pending' 
+              : status === 'incomplete_lead'
+                ? '⚡ Dropped Leads (OTP Verified)'
+                : status === 'admin_interview'
+                  ? 'Tele-Onboarded'
+                  : status.replace('_', ' ')
+            }
           </button>
         ))}
       </div>
@@ -142,6 +163,38 @@ export const EmployerQueue: React.FC<EmployerQueueProps> = ({
                       </span>
                     )}
                   </div>
+                  
+                  {/* Visual Progress Timeline (4-Step Employer Onboarding Sequence) */}
+                  <div className="flex items-center gap-1 py-1">
+                    {(() => {
+                      const hasAddress = Boolean(emp.society_name || emp.tower_block || emp.billing_address || emp.address);
+                      const isTelePassed = Boolean(emp.is_tele_onboarded || emp.is_interview_verified);
+                      const isLiveApproved = Boolean(emp.status === 'live' || emp.status === 'approved' || emp.status === 'active');
+                      const isSuspended = Boolean(emp.status === 'suspended' || emp.status === 'deactivated' || emp.status === 'rejected');
+
+                      const steps = [
+                        { name: '1. Phone OTP Registered', active: true },
+                        { name: '2. Society & Household Address Added', active: hasAddress },
+                        { name: '3. Telephonic / Identity Verification', active: isTelePassed || isLiveApproved },
+                        { name: '4. Verified & Active Employer (Live)', active: isLiveApproved }
+                      ];
+
+                      return steps.map((step) => (
+                        <div 
+                          key={step.name}
+                          title={step.name}
+                          className={`h-1.5 rounded-full transition-all ${
+                            step.active 
+                              ? isSuspended
+                                ? 'bg-[#EA4335] w-6'
+                                : 'bg-[#34A853] w-6'
+                              : 'bg-slate-200 w-3'
+                          }`}
+                        />
+                      ));
+                    })()}
+                  </div>
+
                   <span className="block text-[9.5px] text-slate-500 font-bold">Household / Entity: {emp.company_name || 'Individual Household'}</span>
                   <span className="block text-[9.5px] text-slate-500 font-semibold flex items-center gap-1"><MapPin size={9} className="text-[#1A73E8]" /> Society / Locality: {emp.society_name || emp.billing_address || 'Bangalore'}</span>
                 </div>

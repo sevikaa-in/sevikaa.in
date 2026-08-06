@@ -1,0 +1,104 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{utf8}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{listings}
+\usepackage{titlesec}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Sevikaa Resume & Live Coding Strategy},
+    pdfpagemode=FullScreen,
+}
+
+\definecolor{primaryblue}{RGB}{26, 115, 232}
+\definecolor{darkgray}{RGB}{32, 33, 36}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!5},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{orange}
+}
+
+\titleformat{\section}{\large\bfseries\color{primaryblue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\bfseries\color{darkgray}}{\thesubsection}{1em}{}
+
+\title{\textbf{\huge Sevikaa: Resume Points \& Live Coding Strategy Guide}\\[0.5em]
+\large Resume Bullets, Whiteboard Architecture, SQL Queries \& HR Behavioral Preparation}
+\author{\textbf{Placement Interview Supplement}}
+\date{Version 1.0.0 -- August 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Resume / CV Project Bullet Points (STAR Format)}
+\begin{itemize}[noitemsep]
+    \item \textbf{Engineered a mobile-first domestic workforce platform} using \textbf{Next.js 16 (App Router), React 19, and Supabase (PostgreSQL)} serving urban households and 10,000+ domestic workers.
+    \item \textbf{Implemented a 3-tier Society-First Geo-Matching Algorithm} using PostgreSQL spatial indexing and Haversine distance, reducing search friction and worker commute time by prioritizing same-society matches.
+    \item \textbf{Designed an RLS-backed Document \& Media Security Pipeline}, encrypting Aadhaar and Police clearance verification files in private storage buckets accessible only via short-lived signed URLs.
+    \item \textbf{Optimized weekly schedule filtering} by engineering a PostgreSQL \texttt{JSONB} availability matrix, enabling high-speed GIN-indexed slot queries (\texttt{@>}) while reducing database row overhead by 95\%.
+    \item \textbf{Integrated multi-channel transactional communications} (MSG91 SMS OTPs, Amazon SES transactional emails, and Razorpay subscription webhooks) with passwordless multi-lingual authentication across 8 Indian languages.
+\end{itemize}
+
+\section{Live Whiteboard SQL Snippets}
+
+\subsection{JSONB Slot Availability Filtering Query}
+\begin{lstlisting}[language=SQL]
+SELECT id, full_name, skills, expected_salary
+FROM worker_profiles
+WHERE preferred_society_id = 'c1a2b3c4-0000-0000-0000-123456789abc'
+  AND status = 'live'
+  AND availability_slots->'Monday' @> '["Morning"]'
+ORDER BY created_at DESC;
+\end{lstlisting}
+
+\subsection{Row-Level Security (RLS) Policy}
+\begin{lstlisting}[language=SQL]
+CREATE POLICY "Allow workers to update own profile"
+ON public.worker_profiles
+FOR UPDATE
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+\end{lstlisting}
+
+\subsection{Haversine Geo-Proximity SQL Function}
+\begin{lstlisting}[language=SQL]
+CREATE OR REPLACE FUNCTION get_nearby_societies(
+    lat DOUBLE PRECISION, lng DOUBLE PRECISION, radius_km DOUBLE PRECISION
+)
+RETURNS TABLE(id UUID, name VARCHAR, distance_km DOUBLE PRECISION) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT s.id, s.name,
+        (6371 * acos(cos(radians(lat)) * cos(radians(s.latitude)) * 
+         cos(radians(s.longitude) - radians(lng)) + 
+         sin(radians(lat)) * sin(radians(s.latitude)))) AS distance_km
+    FROM societies s
+    WHERE (6371 * acos(cos(radians(lat)) * cos(radians(s.latitude)) * 
+           cos(radians(s.longitude) - radians(lng)) + 
+           sin(radians(lat)) * sin(radians(s.latitude)))) <= radius_km
+    ORDER BY distance_km ASC;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\section{HR \& Behavioral Round Strategy}
+\begin{itemize}[noitemsep]
+    \item \textbf{Social Impact:} Highlight how Sevikaa solves a \$10B+ informal sector issue, giving dignity of labor, transparency, and 100\% free access to domestic workers.
+    \item \textbf{Technical Challenge:} Explain the complexity of balancing location privacy obfuscation with hyper-local matching while keeping queries under 200ms on low-bandwidth mobile networks.
+\end{itemize}
+
+\end{document}

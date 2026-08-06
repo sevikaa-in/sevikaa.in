@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       INSERT INTO public.worker_profiles 
            (user_id, id, name, full_name, gender, age, experience_years, expected_salary, skills, category, languages_spoken, primary_gated_society, preferred_shift, aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url, status)
       VALUES 
-           ($1, $1, $2, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, $13, $13, 'pending_verification')
+           ($1, $1, $2, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, $13, $13, 'pending_review')
       ON CONFLICT (user_id) DO UPDATE SET
            name = EXCLUDED.name,
            full_name = EXCLUDED.full_name,
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
            aadhaar_back_url = COALESCE(EXCLUDED.aadhaar_back_url, public.worker_profiles.aadhaar_back_url),
            avatar_url = COALESCE(EXCLUDED.avatar_url, public.worker_profiles.avatar_url),
            profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, public.worker_profiles.profile_picture_url),
-           status = 'pending_verification';
+           status = 'pending_review';
     `, [
       activeUserId,
       displayName,
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
       UPDATE public.profiles
       SET full_name = COALESCE($1, full_name),
           phone = COALESCE($2, phone),
-          status = 'pending_verification'
+          status = 'pending_review'
       WHERE id = $3 OR id::text = $3::text;
     `, [displayName, formattedPhone, activeUserId]);
 

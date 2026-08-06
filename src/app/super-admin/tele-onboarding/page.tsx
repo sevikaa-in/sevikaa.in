@@ -13,6 +13,34 @@ import { useAdminData, prefetchAdminData, invalidateAdminCache } from '@/hooks/u
 import { formatWorkerShift, ALL_SHIFT_OPTIONS, normalizeShiftOption } from '@/utils/formatWorkerShift';
 import { resolveMediaUrl } from '@/utils/resolveMediaUrl';
 
+const getAdminId = () => {
+  if (typeof window === 'undefined') return 'admin_default';
+  let id = sessionStorage.getItem('sevikaa_admin_session_id');
+  if (!id) {
+    id = 'admin_' + Math.random().toString(36).substring(2, 9);
+    sessionStorage.setItem('sevikaa_admin_session_id', id);
+  }
+  return id;
+};
+
+const getAdminName = () => {
+  if (typeof window === 'undefined') return 'Super Admin';
+  let name = localStorage.getItem('admin_display_name') || sessionStorage.getItem('admin_display_name');
+  if (!name) {
+    try {
+      const uStr = localStorage.getItem('sevikaa_user') || sessionStorage.getItem('sevikaa_user');
+      if (uStr) {
+        const u = JSON.parse(uStr);
+        name = u.full_name || u.name || u.user_metadata?.full_name || u.email?.split('@')[0];
+      }
+    } catch (e) {}
+  }
+  if (!name) {
+    name = 'Super Admin ' + getAdminId().slice(-4).toUpperCase();
+  }
+  return name;
+};
+
 export default function TeleOnboardingPage() {
   const { showToast } = useSuperAdminDashboard();
   const [mounted, setMounted] = useState(false);
@@ -26,6 +54,106 @@ export default function TeleOnboardingPage() {
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [interviewSubFilter, setInterviewSubFilter] = useState<'all' | 'today' | 'tomorrow'>('all');
+
+  // MULTI-ADMIN LEAD LOCKS & SHARED CALL NOTES STATES
+  const [activeLocks, setActiveLocks] = useState<Record<string, { admin_id: string; admin_name: string; expires_at: string }>>({});
+  const [sharedNotes, setSharedNotes] = useState<any[]>([]);
+  const [loadingSharedNotes, setLoadingSharedNotes] = useState(false);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [newCallOutcome, setNewCallOutcome] = useState('connected');
+  const [addingNote, setAddingNote] = useState(false);
+
+  // Poll active locks every 4 seconds
+  useEffect(() => {
+    const pollLocks = async () => {
+      try {
+        const res = await fetch('/api/admin/lead-lock');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.locks)) {
+          const map: Record<string, any> = {};
+          data.locks.forEach((l: any) => { map[l.lead_id] = l; });
+          setActiveLocks(map);
+        }
+      } catch (err) {
+        console.warn("Poll locks error:", err);
+      }
+    };
+    pollLocks();
+    const interval = setInterval(pollLocks, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Heartbeat & Sheet Lock Effect
+  useEffect(() => {
+    if (!selectedLead || !isSheetOpen) return;
+
+    const adminId = getAdminId();
+    const adminName = getAdminName();
+
+    const acquireLock = async () => {
+      try {
+        await fetch('/api/admin/lead-lock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead_id: selectedLead.id, admin_id: adminId, admin_name: adminName })
+        });
+      } catch (e) {
+        console.warn("Acquire lock notice:", e);
+      }
+    };
+
+    const fetchSharedNotes = async () => {
+      setLoadingSharedNotes(true);
+      try {
+        const res = await fetch(`/api/admin/tele-notes?lead_id=${selectedLead.id}`);
+        const data = await res.json();
+        if (data.success) {
+          setSharedNotes(data.notes || []);
+        }
+      } catch (e) {
+        console.warn("Fetch notes notice:", e);
+      } finally {
+        setLoadingSharedNotes(false);
+      }
+    };
+
+    acquireLock();
+    fetchSharedNotes();
+
+    const heartbeatTimer = setInterval(acquireLock, 20000);
+
+    return () => {
+      clearInterval(heartbeatTimer);
+      fetch(`/api/admin/lead-lock?lead_id=${selectedLead.id}&admin_id=${adminId}`, { method: 'DELETE' }).catch(() => {});
+    };
+  }, [selectedLead, isSheetOpen]);
+
+  const handleAddSharedNote = async () => {
+    if (!selectedLead || !newNoteText.trim()) return;
+    setAddingNote(true);
+    try {
+      const res = await fetch('/api/admin/tele-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead_id: selectedLead.id,
+          admin_name: getAdminName(),
+          note_text: newNoteText.trim(),
+          call_outcome: newCallOutcome
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.note) {
+        setSharedNotes(prev => [data.note, ...prev]);
+        setNewNoteText('');
+        showToast("✓ Shared call note logged!", "success");
+      }
+    } catch (e) {
+      console.warn("Add shared note notice:", e);
+    } finally {
+      setAddingNote(false);
+    }
+  };
 
   // PAGINATION & SWR CACHING STATES
   const [page, setPage] = useState(1);
@@ -115,6 +243,7 @@ export default function TeleOnboardingPage() {
   });
   const [callStatusFilter, setCallStatusFilter] = useState<string>('all');
   const [editCallNotes, setEditCallNotes] = useState('');
+  const [hidePassedLeads, setHidePassedLeads] = useState(false);
 
   const getCallStatus = (leadId: string) => callStatuses[leadId] || 'not_called';
   const getCallStatusMeta = (val: string) => CALL_STATUS_OPTIONS.find(o => o.value === val) || CALL_STATUS_OPTIONS[0];
@@ -180,11 +309,17 @@ export default function TeleOnboardingPage() {
 
   // Filter worker leads (Includes both incomplete & verified candidates)
   const workerLeads = workersList.filter(w => {
+    const isPassed = Boolean(w.is_tele_onboarded || w.is_interview_verified || w.status === 'admin_interview' || w.status === 'approved' || w.status === 'active' || w.status === 'live');
+    if (hidePassedLeads && isPassed) return false;
     const matchesSearch = (w.name || w.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (w.phone || '').includes(searchTerm);
     const matchesStatus = callStatusFilter === 'all' || getCallStatus(w.id) === callStatusFilter;
     return matchesSearch && matchesStatus;
   }).sort((a, b) => {
+    const aPassed = Boolean(a.is_tele_onboarded || a.is_interview_verified || a.status === 'admin_interview' || a.status === 'approved');
+    const bPassed = Boolean(b.is_tele_onboarded || b.is_interview_verified || b.status === 'admin_interview' || b.status === 'approved');
+    if (!aPassed && bPassed) return -1;
+    if (aPassed && !bPassed) return 1;
     const aIncomplete = !a.skills || a.skills.length === 0 || a.status === 'pending_review' || a.status === 'incomplete';
     const bIncomplete = !b.skills || b.skills.length === 0 || b.status === 'pending_review' || b.status === 'incomplete';
     if (aIncomplete && !bIncomplete) return -1;
@@ -290,33 +425,44 @@ export default function TeleOnboardingPage() {
     setSavingLead(true);
     try {
       if (isWorkerLead(selectedLead)) {
+        const workerPayload: any = { userId: selectedLead.id };
+        if (editName && editName.trim()) workerPayload.full_name = editName.trim();
+        if (editAge) workerPayload.age = Number(editAge);
+        if (editGender) workerPayload.gender = editGender;
+        if (editSkills && editSkills.length > 0) workerPayload.skills = editSkills;
+        if (editSalary) workerPayload.expected_salary = Number(editSalary);
+        if (editExperience !== undefined && editExperience !== '') workerPayload.experience_years = Number(editExperience);
+        if (editShiftSlot) {
+          workerPayload.work_timing = editShiftSlot;
+          workerPayload.preferred_shift = editShiftSlot;
+        }
+        if (cleanAlt) {
+          workerPayload.emergency_contact = `+91 ${cleanAlt}`;
+          workerPayload.alternate_phone = `+91 ${cleanAlt}`;
+        }
+        if (editBio && editBio.trim()) workerPayload.bio = editBio.trim();
+        if (editLanguages && editLanguages.length > 0) workerPayload.languages_spoken = editLanguages;
+        if (editSociety && editSociety.trim()) {
+          workerPayload.primary_gated_society = editSociety.trim();
+          workerPayload.preferred_society_name = editSociety.trim();
+        }
+        if (editSecondarySocieties && editSecondarySocieties.length > 0) {
+          workerPayload.secondary_gated_society = editSecondarySocieties.join(', ');
+          workerPayload.secondary_society_name = editSecondarySocieties.join(', ');
+        }
+        workerPayload.is_tele_onboarded = true;
+        workerPayload.tele_onboarded = true;
+        workerPayload.is_interview_verified = true;
+        workerPayload.status = 'approved';
+
         const res = await fetch('/api/admin/worker/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: selectedLead.id,
-            full_name: editName,
-            age: editAge ? Number(editAge) : null,
-            gender: editGender,
-            skills: editSkills,
-            expected_salary: editSalary ? Number(editSalary) : null,
-            experience_years: editExperience ? Number(editExperience) : 0,
-            work_timing: editShiftSlot,
-            preferred_shift: editShiftSlot,
-            emergency_contact: cleanAlt ? `+91 ${cleanAlt}` : '',
-            alternate_phone: cleanAlt ? `+91 ${cleanAlt}` : '',
-            alt_phone: cleanAlt ? `+91 ${cleanAlt}` : '',
-            bio: editBio,
-            languages_spoken: editLanguages,
-            primary_gated_society: editSociety,
-            secondary_gated_society: editSecondarySocieties.join(', '),
-            preferred_areas: [editSociety, ...editSecondarySocieties].filter(Boolean),
-            status: 'admin_interview'
-          })
+          body: JSON.stringify(workerPayload)
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to save worker lead');
-        showToast("Worker candidate profile saved & updated!", "success");
+        showToast("✓ Worker candidate profile verified & tele-onboarded!", "success");
       } else {
         const cleanAlt = editAlternatePhone ? editAlternatePhone.replace(/\D/g, '') : '';
         if (cleanAlt && cleanAlt.length !== 10) {
@@ -616,6 +762,19 @@ export default function TeleOnboardingPage() {
               callStatusFilter === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
             }`}
           >All Leads</button>
+
+          <button
+            type="button"
+            onClick={() => setHidePassedLeads(!hidePassedLeads)}
+            className={`py-1.5 px-3 rounded-xl text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+              hidePassedLeads 
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs' 
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200/80 hover:bg-emerald-100'
+            }`}
+          >
+            <span>{hidePassedLeads ? '✓ Hiding Passed Leads' : '👁️ Hide Passed Leads'}</span>
+          </button>
+
           {CALL_STATUS_OPTIONS.map(opt => (
             <button
               key={opt.value}
@@ -776,9 +935,21 @@ export default function TeleOnboardingPage() {
               >
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
-                    {(lead.status === 'approved' || lead.status === 'active' || lead.status === 'live' || lead.status === 'completed') ? (
+                    {(() => {
+                      const lock = activeLocks[lead.id];
+                      const isLockedByOther = lock && lock.admin_id !== getAdminId();
+                      if (isLockedByOther) {
+                        return (
+                          <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500 text-white animate-pulse flex items-center gap-1 shadow-xs mb-1 inline-flex">
+                            <PhoneCall size={9} /> In Call with {lock.admin_name}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                    {(lead.is_tele_onboarded || lead.is_interview_verified || lead.status === 'admin_interview' || lead.status === 'approved' || lead.status === 'active' || lead.status === 'live' || lead.status === 'completed') ? (
                       <span className="text-[9px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 inline-block">
-                        ✓ Verified Lead
+                        ✓ Tele-Onboarded &amp; Verified
                       </span>
                     ) : (
                       <span className="text-[9px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 inline-block">
@@ -794,13 +965,28 @@ export default function TeleOnboardingPage() {
                   </div>
 
                   <div className="flex flex-col items-end gap-1.5">
-                    <a
-                      href={`tel:${lead.phone}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-xs transition-transform active:scale-95 flex items-center gap-1 text-xs font-bold"
-                    >
-                      <PhoneCall size={13} /> Call
-                    </a>
+                    {(() => {
+                      const lock = activeLocks[lead.id];
+                      const isLockedByOther = lock && lock.admin_id !== getAdminId();
+                      return (
+                        <a
+                          href={isLockedByOther ? undefined : `tel:${lead.phone}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isLockedByOther) {
+                              e.preventDefault();
+                              showToast(`📞 Call Disabled: Admin ${lock.admin_name} is currently on a call with this candidate.`, "info");
+                            }
+                          }}
+                          className={`py-2 px-3 rounded-2xl shadow-xs transition-transform flex items-center gap-1 text-xs font-bold ${
+                            isLockedByOther ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
+                          }`}
+                          title={isLockedByOther ? `Admin ${lock.admin_name} is currently on a call with this candidate` : "Call Lead"}
+                        >
+                          <PhoneCall size={13} /> {isLockedByOther ? 'In Call' : 'Call'}
+                        </a>
+                      );
+                    })()}
                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${callMeta.color}`}>
                       {callMeta.label}
                     </span>
@@ -854,7 +1040,7 @@ export default function TeleOnboardingPage() {
       )}
 
       {/* 👑 TELE-ONBOARDING PORTAL MODAL WINDOW */}
-      {mounted && isSheetOpen && selectedLead && createPortal(
+      {mounted && isSheetOpen && selectedLead && typeof window !== 'undefined' && createPortal(
         <div 
           className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 sm:p-6 animate-fade-in"
           onClick={() => setIsSheetOpen(false)}
@@ -868,8 +1054,13 @@ export default function TeleOnboardingPage() {
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
               <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Active Telephonic Onboarding Interview</span>
-                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2 flex-wrap">
                   <span>{editName || selectedLead.company_name || selectedLead.full_name || selectedLead.profile_name || 'Unnamed Lead'}</span>
+                  {(selectedLead.is_tele_onboarded || selectedLead.is_interview_verified || selectedLead.status === 'admin_interview' || selectedLead.status === 'approved' || selectedLead.status === 'active' || selectedLead.status === 'live') && (
+                    <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                      <CheckCircle2 size={11} className="text-emerald-700" /> Verified &amp; Onboarded
+                    </span>
+                  )}
                   <span className="text-xs font-mono font-bold text-[#1A73E8] bg-blue-50 px-2.5 py-0.5 rounded-xl border border-blue-200">
                     {formatPhone(editPhone)}
                   </span>
@@ -899,24 +1090,85 @@ export default function TeleOnboardingPage() {
             {/* Modal Body - Scrollable Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-slate-50/30">
 
-              {/* Quick Action Dialing & SMS Bar */}
-              <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70">
-                <a
-                  href={`tel:${editPhone}`}
-                  className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5"
-                >
-                  <PhoneCall size={14} /> <span>Call Lead Now ({formatPhone(editPhone)})</span>
-                </a>
+              {/* Active Call Presence Banner */}
+              {(() => {
+                const lock = activeLocks[selectedLead?.id];
+                const isLockedByOther = lock && lock.admin_id !== getAdminId();
+                if (!isLockedByOther) return null;
+                return (
+                  <div className="p-3.5 bg-amber-500 text-white rounded-2xl flex items-center justify-between text-xs font-bold shadow-md animate-pulse">
+                    <div className="flex items-center gap-2">
+                      <PhoneCall size={16} />
+                      <span>🔒 Active Call in Progress: Admin {lock.admin_name} is currently on a call with this candidate.</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-                <button
-                  type="button"
-                  onClick={handleSendUploadSms}
-                  className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <MessageSquare size={14} />
-                  <span>{smsSent ? 'SMS Upload Link Sent ✓' : 'Send 1-Click Upload SMS Link'}</span>
-                </button>
-              </div>
+              {/* Quick Action Dialing & SMS Bar */}
+              {(() => {
+                const lock = activeLocks[selectedLead?.id];
+                const isLockedByOther = lock && lock.admin_id !== getAdminId();
+                const cleanPhone = (editPhone || '').replace(/\D/g, '');
+                return (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70">
+                      <a
+                        href={isLockedByOther ? undefined : `tel:${editPhone}`}
+                        onClick={(e) => {
+                          if (isLockedByOther) {
+                            e.preventDefault();
+                            showToast(`📞 Call Disabled: Admin ${lock.admin_name} is currently on a call with this candidate.`, "info");
+                          }
+                        }}
+                        className={`py-2.5 px-4 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 ${
+                          isLockedByOther ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        }`}
+                        title={isLockedByOther ? `Admin ${lock.admin_name} is currently on a call with this candidate` : "Call Lead"}
+                      >
+                        <PhoneCall size={14} /> <span>{isLockedByOther ? `In Call (${lock.admin_name})` : `Call Lead Now (${formatPhone(editPhone)})`}</span>
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={handleSendUploadSms}
+                        className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <MessageSquare size={14} />
+                        <span>{smsSent ? '✓ SMS Sent to Lead' : 'Send WhatsApp / SMS Link'}</span>
+                      </button>
+                    </div>
+
+                    {/* WhatsApp Quick Verification Templates */}
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <a
+                        href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent('Hello! Please complete your Sevikaa profile setup here: https://sevikaa.in/worker/profile')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-1 px-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[9.5px] font-black uppercase flex items-center gap-1 hover:bg-emerald-100 transition-all"
+                      >
+                        📲 Send Profile Link
+                      </a>
+                      <a
+                        href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent('Hello! Please upload your Aadhaar card front & back scan for verification on Sevikaa.')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-1 px-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[9.5px] font-black uppercase flex items-center gap-1 hover:bg-emerald-100 transition-all"
+                      >
+                        📑 Request Aadhaar Scan
+                      </a>
+                      <a
+                        href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent('Congratulations! Your Sevikaa Tele-Onboarding verification has been approved!')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-1 px-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[9.5px] font-black uppercase flex items-center gap-1 hover:bg-emerald-100 transition-all"
+                      >
+                        ✅ Send Verification Alert
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* 📞 CALL LOG — Status & Notes */}
               {selectedLead && (
@@ -1791,6 +2043,65 @@ export default function TeleOnboardingPage() {
 
                 </div>
               )}
+
+              {/* Shared Team Call Notes & History Timeline */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 mt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                    <MessageSquare size={12} className="text-[#1A73E8]" /> Shared Team Call Notes &amp; Outcome History
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-400">{sharedNotes.length} notes logged</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={newCallOutcome}
+                    onChange={(e) => setNewCallOutcome(e.target.value)}
+                    className="text-xs font-bold py-1.5 px-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none shrink-0"
+                  >
+                    <option value="connected">Connected ✓</option>
+                    <option value="no_answer">No Answer ⏳</option>
+                    <option value="callback_requested">Callback Set 🕒</option>
+                    <option value="invalid_number">Invalid Number ✕</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Log shared call note (e.g. Requested callback at 4 PM)..."
+                    value={newNoteText}
+                    onChange={(e) => setNewNoteText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddSharedNote(); }}
+                    className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#1A73E8]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSharedNote}
+                    disabled={addingNote || !newNoteText.trim()}
+                    className="px-3.5 py-1.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    {addingNote ? 'Logging...' : 'Log Note'}
+                  </button>
+                </div>
+
+                {/* Notes History Timeline */}
+                <div className="space-y-2 max-h-36 overflow-y-auto scrollbar-thin pt-1">
+                  {loadingSharedNotes ? (
+                    <p className="text-[10px] text-slate-400 font-bold italic text-center py-2">Loading team notes...</p>
+                  ) : sharedNotes.length === 0 ? (
+                    <p className="text-[10px] text-slate-400 font-bold italic text-center py-2">No team call notes logged yet for this lead.</p>
+                  ) : (
+                    sharedNotes.map((n: any) => (
+                      <div key={n.id} className="p-2.5 bg-white rounded-xl border border-slate-100 text-xs space-y-1 shadow-2xs">
+                        <div className="flex justify-between items-center text-[9px] font-bold text-slate-400">
+                          <span className="text-[#1A73E8] uppercase">{n.admin_name}</span>
+                          <span>{new Date(n.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                        </div>
+                        <p className="text-slate-800 font-medium">{n.note_text}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
             </div>
 
             {/* Modal Footer */}

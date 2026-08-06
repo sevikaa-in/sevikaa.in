@@ -1,0 +1,100 @@
+===============================================================================
+            SEVIKAA: ON-CAMPUS INTERVIEW Q&A DEFENSE GUIDE (CHEAT SHEET)
+===============================================================================
+Purpose: Expert-level answers to technical, architectural, product design, 
+         and operational questions for campus placement interviews.
+===============================================================================
+
+-------------------------------------------------------------------------------
+1. SYSTEM ARCHITECTURE & TECH STACK QUESTIONS
+-------------------------------------------------------------------------------
+Q1: Why Next.js 16 (App Router) instead of React SPA (Vite/CRA)?
+A1: 
+  - SEO & Pre-rendering : Sevikaa is a public directory (sevikaa.in). SSR/SSG 
+    ensures search engine crawlers index search pages, pricing, and society landing pages.
+  - Mobile Performance  : Server-side HTML generation reduces client JS bundle 
+    size, achieving LCP < 1.5s on low-end 3G/4G mobile devices.
+  - Unified Full-Stack  : Next.js Server Components handle server logic without 
+    maintaining a separate Express server.
+
+Q2: Why Supabase (PostgreSQL) instead of MongoDB (NoSQL)?
+A2: 
+  - Relational Integrity: Relational linkages between Users, Worker Profiles, 
+    Employer Profiles, Societies, Jobs, Applications, and Reviews require SQL foreign keys.
+  - Row-Level Security  : Native DB-level security policies (auth.uid() = user_id) 
+    isolate data directly at the database layer.
+  - Native JSONB Support: Combines relational power with JSONB flexibility for 
+    weekly availability grid storage and containment queries (@>).
+
+Q3: Why JSONB for the Availability Grid instead of a separate table?
+A3: 
+  - Query Efficiency    : 7 days x 5 time slots = 35 rows per worker. For 10,000 
+    workers, a separate table would require 350,000 rows. JSONB reduces this to 
+    1 row per worker with GIN indexing for fast filtering.
+
+Q4: How does the Society-First Geo-Matching Algorithm work?
+A4: 
+  - Level 1 : Direct foreign key match on society_id (Rank 1).
+  - Level 2 : Haversine distance calculation using society lat/long within 1-2 km.
+  - Level 3 : Sub-locality or postal code lookup based on worker service radius.
+
+
+-------------------------------------------------------------------------------
+2. SECURITY, PRIVACY & DATA PROTECTION QUESTIONS
+-------------------------------------------------------------------------------
+Q5: How do you secure government ID documents (Aadhaar, Police Check)?
+A5: 
+  - Private Storage     : Documents saved in private Supabase buckets, isolated from web.
+  - Signed URLs         : Moderators view documents via short-lived (60s) signed URLs.
+  - RLS Policies        : Access strictly restricted to document owner and governance role.
+
+Q6: How do you handle location privacy and prevent worker harassment?
+A6: 
+  - Location Obfuscation: Exact street addresses and GPS coordinates are NEVER exposed.
+  - Distance Bucketing  : UI displays relative distance ("Within 500m", "1.2 km away").
+  - Contact Protection  : Phone numbers hidden behind Razorpay subscription passes.
+
+
+-------------------------------------------------------------------------------
+3. PRODUCT DESIGN & OPERATIONAL QUESTIONS
+-------------------------------------------------------------------------------
+Q7: How do you handle domestic workers with low digital literacy?
+A7: 
+  - Multilingual UI     : Pre-login support for 8 Indian regional languages.
+  - Passwordless OTP    : Mobile OTP authentication via MSG91 (no password friction).
+  - Tele-Onboarding     : Guided phone onboarding by support agents for illiterate workers.
+  - Mobile-First UX     : Large touch targets (48px min) and visual icon buttons.
+
+Q8: Why are ratings and reviews moderated by an Admin before going live?
+A8: 
+  - Abuse Prevention    : Prevent vulgarity, spam, contact leaks, or fake reviews.
+  - Two-Way Fairness    : Ensures disputes between workers and employers are handled fairly.
+
+Q9: What is the business and monetization model?
+A9: 
+  - Workers   : 100% Free Forever (Zero fees or placement commissions).
+  - Employers : Monetized via Razorpay subscription plans & single contact unlock passes.
+
+
+-------------------------------------------------------------------------------
+4. SCALABILITY & SYSTEM TRADE-OFFS QUESTIONS
+-------------------------------------------------------------------------------
+Q10: How would you scale Sevikaa to 1 Million active users?
+A10:
+  1. Caching Layer       : Implement Redis for high-frequency queries (societies, stats).
+  2. Search Engine       : Integrate Elasticsearch/Meilisearch for complex skill/slot searches.
+  3. Database Replicas   : Deploy PostgreSQL read-replicas for heavy search traffic.
+  4. Async Queues        : Offload SMS, email, and video processing to background workers.
+
+
+-------------------------------------------------------------------------------
+5. ELEVATOR PITCH (30-SECOND INTERVIEW SUMMARY)
+-------------------------------------------------------------------------------
+"Sevikaa is a mobile-first, verified domestic workforce platform for India. 
+Built on Next.js 16, React 19, and Supabase PostgreSQL, it bridges the urban 
+trust gap between households and domestic help (maids, cooks, nannies). 
+Unlike unmoderated job portals, Sevikaa operates under a 'Verified by Default' 
+model—combining Aadhaar checks, Police verification, Telephonic onboarding, 
+and Video intros. It uses a 3-tier society-first matching algorithm to connect 
+employers with nearby workers while keeping the platform 100% free for workers."
+===============================================================================

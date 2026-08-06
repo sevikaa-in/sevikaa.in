@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { 
   X, Check, Mail, Phone, MapPin, Calendar, CreditCard, 
   Briefcase, Sparkles, ShieldAlert, AlertTriangle, ShieldCheck,
-  ZoomIn, ZoomOut, RotateCw, Camera, FileText, Maximize2, Globe, RotateCcw
+  ZoomIn, ZoomOut, RotateCw, Camera, FileText, Maximize2, Globe, RotateCcw, Lock
 } from 'lucide-react';
 import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
 import { supabase } from '../../../lib/supabaseClient';
@@ -649,6 +649,12 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 ) : (
                   <button
                     onClick={() => {
+                      const isTelePassed = employer?.is_tele_onboarded === true || employer?.is_interview_verified === true;
+                      if (!isTelePassed) {
+                        alert(`⛔ Restricted Action: Telephonic Verification Required!\n\nThis employer account has not passed Telephonic Verification yet.\n\nPlease perform Tele-Onboarding verification first before approving the employer account Live.`);
+                        return;
+                      }
+
                       const hasName = !!(employer?.company_name || employer?.name)?.trim();
                       const hasPhone = (employer?.phone || '').replace(/\D/g, '').length >= 10;
                       const hasEmail = !!(employer?.email)?.trim();
@@ -671,10 +677,23 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                       onApproveEmployer(employer.id);
                       onClose();
                     }}
-                    className="py-2.5 px-5 bg-[#34A853] hover:bg-[#2b8a43] text-white rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-md shadow-[#34A853]/20 flex items-center gap-1.5"
+                    className={`py-2.5 px-5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                      !(employer?.is_tele_onboarded === true || employer?.is_interview_verified === true)
+                        ? 'bg-amber-100/90 text-amber-900 border border-amber-300/80 hover:bg-amber-200/90 cursor-pointer shadow-xs'
+                        : 'bg-[#34A853] hover:bg-[#2b8a43] text-white cursor-pointer shadow-md shadow-[#34A853]/20 active:scale-95'
+                    }`}
                   >
-                    <Check size={15} strokeWidth={3} />
-                    Approve Live Profile
+                    {!(employer?.is_tele_onboarded === true || employer?.is_interview_verified === true) ? (
+                      <>
+                        <Lock size={14} />
+                        <span>🔒 Approve Live (Tele-Call Pending)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={15} strokeWidth={3} />
+                        <span>Approve Live Profile</span>
+                      </>
+                    )}
                   </button>
                 )}
               </div>

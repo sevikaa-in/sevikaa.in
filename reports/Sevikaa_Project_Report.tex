@@ -1,0 +1,151 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{utf8}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{amsmath}
+\usepackage{titlesec}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Sevikaa Technical Architecture Report},
+    pdfpagemode=FullScreen,
+}
+
+\definecolor{primaryblue}{RGB}{26, 115, 232}
+\definecolor{darkgray}{RGB}{32, 33, 36}
+
+\titleformat{\section}{\large\bfseries\color{primaryblue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\bfseries\color{darkgray}}{\thesubsection}{1em}{}
+
+\title{\textbf{\huge Sevikaa: Technical Architecture \& System Implementation Report}\\[0.5em]
+\large A Curated, Verified Domestic Workforce Platform for India}
+\author{\textbf{System Design \& Engineering Report}}
+\date{Version 1.0.0 -- August 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{tcolorbox}[colback=blue!5white,colframe=primaryblue,title=\textbf{Executive Summary}]
+\textbf{Sevikaa} is a mobile-first platform connecting verified domestic workers (maids, cooks, nannies) with urban employers and gated societies across India. Operating on a \textit{"Verified and Moderated by Default"} paradigm, Sevikaa ensures that worker profiles, identity documents, self-introduction videos, job postings, and user reviews undergo curated moderation before public deployment.
+\end{tcolorbox}
+
+\section{Introduction \& Core Platform Philosophy}
+Traditional job directories in the informal sector suffer from a severe trust deficit, unverified listings, and middleman exploitation. Sevikaa addresses these challenges through a curated operational model focused on four core pillars:
+\begin{itemize}[noitemsep]
+    \item \textbf{Trust \& Verification:} Multi-tier background checks (Aadhaar, Police clearance status, Tele-onboarding, and Video Intros).
+    \item \textbf{100\% Free for Workers:} Zero registration fees, zero placement commissions.
+    \item \textbf{Hyper-Local Matching:} Apartment society-first matching algorithms prioritising proximity.
+    \item \textbf{Granular Availability Engine:} Time-slot matching across daily routines.
+\end{itemize}
+
+\section{Technology Stack Specifications}
+The platform leverages a modern, high-performance tech stack designed for mobile optimization, data security, and fast server-side execution.
+
+\begin{table}[h!]
+\centering
+\caption{Sevikaa Technology Stack}
+\vspace{0.5em}
+\begin{tabular}{lll}
+\toprule
+\textbf{Layer} & \textbf{Technology} & \textbf{Primary Function} \\
+\midrule
+Frontend Framework & Next.js 16 (App Router) & Server-Side Rendering (SSR), Dynamic Routing \& SEO \\
+UI Library & React 19 & Client-Side Interactive Components \& State \\
+Styling Engine & Tailwind CSS v4 & Mobile-First Utilities \& Design Tokens \\
+Database \& Auth & Supabase (PostgreSQL) & Managed Relational DB, Row Level Security (RLS) \\
+Storage & Supabase Private Buckets & Encrypted Government ID \& Video Intro Storage \\
+SMS Gateway & MSG91 & Mobile OTP Verification \& Multi-lingual Alerts \\
+Email Engine & Amazon SES & Transactional Email \& Payment Invoicing \\
+Payments & Razorpay & Employer Subscriptions \& Payment Webhooks \\
+Media CDN & Cloudinary / Supabase & Video Intro Transcoding \& Fast Media Delivery \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{User Roles \& Security Hierarchy}
+System capabilities are strictly segmented using Supabase Row-Level Security (RLS):
+\begin{enumerate}[noitemsep]
+    \item \textbf{Visitor:} Accesses marketing landing pages, pricing structures, safety guides, and public FAQs.
+    \item \textbf{Worker (Free Tier):} Configures multilingual profile, availability grid, uploads documents, records video intro, and applies for jobs.
+    \item \textbf{Employer (Subscription Tier):} Posts job listings, executes society-first worker searches, inspects verification badges, and unlocks worker contacts.
+    \item \textbf{Platform Governance \& Support (Admin):} High-level governance layer responsible for inspecting worker documents, approving intro videos, providing tele-onboarding support, verifying gated societies, and moderating reviews.
+\end{enumerate}
+
+\section{Worker Modules \& Technical Workflows}
+
+\subsection{Multilingual Onboarding \& OTP Authentication}
+To cater to varying digital literacy levels, workers select their preferred language prior to login. Supported languages include English, Hindi, Hinglish, Kannada, Tamil, Telugu, Assamese, and Nepali. Passwordless authentication is managed via Mobile OTP (MSG91) and Email OTP (Supabase Auth).
+
+\subsection{Availability Grid Engine}
+Workers specify precise availability using a weekly time-slot matrix:
+\begin{equation*}
+\text{Availability} = \text{Day} \times \text{Slot} \times \text{Work Type}
+\end{equation*}
+Where:
+\begin{itemize}[noitemsep]
+    \item \textbf{Days:} Monday through Sunday.
+    \item \textbf{Time Slots:} Early Morning (6--9 AM), Morning (9 AM--12 PM), Afternoon (12--3 PM), Evening (3--6 PM), Night (6--9 PM).
+    \item \textbf{Work Types:} Full-Time (8--12 hrs), Part-Time, Live-In.
+\end{itemize}
+
+\subsection{Document \& Self-Intro Video Upload}
+Worker onboarding captures:
+\begin{itemize}[noitemsep]
+    \item \textbf{Identity Documents:} Aadhaar Card (Front/Back), Live Selfie, optional Police Clearance Certificate (PCC).
+    \item \textbf{Video Introduction:} A short 30--60 second self-introduction clip uploaded directly via smartphone browser.
+\end{itemize}
+
+\section{Employer Module \& Society-First Geo-Matching}
+
+\subsection{3-Level Geo-Matching Algorithm}
+Search indexing prioritizes candidates based on proximity:
+\begin{enumerate}
+    \item \textbf{Level 1 (Same Society):} Direct match between worker preferred apartment complex and employer society.
+    \item \textbf{Level 2 (Nearby Society):} Worker preferred society located within a 1--2 km radius.
+    \item \textbf{Level 3 (Locality / Postal Code):} Proximity match based on sub-locality and service radius.
+\end{enumerate}
+
+\begin{tcolorbox}[colback=gray!5white,colframe=gray!50white,title=\textbf{Location Privacy Shield}]
+To protect user safety, exact street addresses and GPS coordinates are never exposed publicly. The platform displays distance vectors (e.g., \textit{"Within 500 meters"}, \textit{"1.2 km away"}).
+\end{tcolorbox}
+
+\section{Curated Governance, Tele-Onboarding \& Moderation}
+
+\subsection{Tele-Onboarding Support}
+For workers requiring digital assistance, platform support agents conduct guided telephone onboarding to verify employment background, record skill details, and configure availability grids.
+
+\subsection{Gated Societies Management}
+Apartment societies are configured as structured database entities. Verified society names and boundaries ensure accurate hyper-local matching for residents.
+
+\subsection{Document Verification \& Media Curation}
+Uploads of sensitive documents (Aadhaar, Police check) are stored in encrypted private buckets accessible only via temporary, signed URLs. Video introductions undergo content curation to ensure clarity and safety.
+
+\subsection{Two-Way Review Moderation}
+Ratings (1--5 Stars) and text reviews enter a \texttt{Pending} state. Moderation rules filter out personal contact details, inappropriate language, and unauthorized promotional content prior to public rendering.
+
+\section{Database Architecture (Supabase PostgreSQL)}
+
+Primary relational entities include:
+\begin{itemize}[noitemsep]
+    \item \texttt{users}: Base authentication and role assignment (\texttt{id}, \texttt{email}, \texttt{phone}, \texttt{role}, \texttt{status}).
+    \item \texttt{worker\_profiles}: Personal details, category skills, \texttt{availability\_slots} (JSONB), verification badges (\texttt{is\_aadhaar\_verified}, \texttt{is\_police\_verified}, \texttt{is\_interview\_verified}).
+    \item \texttt{employer\_profiles}: Household billing details, active subscription status.
+    \item \texttt{societies}: Gated society names, pin codes, and locality coordinates.
+    \item \texttt{jobs}: Category requirements, offered salary, \texttt{required\_slots} (JSONB).
+    \item \texttt{applications}: Job application state tracking (\texttt{submitted}, \texttt{shortlisted}, \texttt{hired}).
+    \item \texttt{reviews}: Two-way feedback entries stored with moderation status.
+\end{itemize}
+
+\section{Conclusion}
+Sevikaa establishes a secure, scalable, and trusted ecosystem for domestic workforce recruitment in India. By combining modern web technologies (Next.js 16, React 19, Supabase PostgreSQL) with multi-stage verification (Aadhaar, Police Check, Telephonic Onboarding, Video Intros) and hyper-local society matching, Sevikaa delivers high operational quality while championing social impact and worker dignity.
+
+\end{document}

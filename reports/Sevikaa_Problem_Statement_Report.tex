@@ -1,0 +1,88 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{utf8}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{titlesec}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Sevikaa Real-World Problem Statement Report},
+    pdfpagemode=FullScreen,
+}
+
+\definecolor{primaryblue}{RGB}{26, 115, 232}
+\definecolor{darkgray}{RGB}{32, 33, 36}
+
+\titleformat{\section}{\large\bfseries\color{primaryblue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\bfseries\color{darkgray}}{\thesubsection}{1em}{}
+
+\title{\textbf{\huge Sevikaa: Real-World Problem Statement \& Impact Analysis}\\[0.5em]
+\large Addressable Market, Stakeholder Pain Points, and Architectural Solutions}
+\author{\textbf{Public Initiative \& Problem Statement Report}}
+\date{Version 1.0.0 -- August 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{tcolorbox}[colback=blue!5white,colframe=primaryblue,title=\textbf{Executive Overview}]
+The domestic workforce sector in India represents a \$10B+ unorganized market operating largely through informal word-of-mouth recommendations and predatory middlemen. \textbf{Sevikaa} was initiated to solve critical market failures: severe trust deficits in gated communities, time-slot mismatches, digital literacy barriers, and middleman exploitation of vulnerable domestic workers.
+\end{tcolorbox}
+
+\section{Industry Context \& Market Fragmentation}
+In urban India, domestic services (maids, cooks, nannies) are essential to daily household operation. However, the market remains highly fragmented:
+\begin{itemize}[noitemsep]
+    \item \textbf{Informal Dominance:} Over 90\% of hiring occurs without verified background checks or digital contracts.
+    \item \textbf{Predatory Middlemen:} Local placement agencies charge exorbitant upfront fees to employers and take cuts from worker salaries without guaranteeing background safety or job security.
+    \item \textbf{Absence of Technology Infrastructure:} Lack of tailored mobile-first platforms for informal sector workers.
+\end{itemize}
+
+\section{Demand-Side Pain Points (Employers \& Gated Societies)}
+
+\subsection{Trust \& Security Gap}
+Urban residents and gated society management committees face safety risks when admitting unverified personnel into private homes. Independent police verification is cumbersome and rarely executed by individual employers.
+
+\subsection{Time-Slot Incompatibility}
+Household routines require help at specific times (e.g., meal prep between 7:00--8:30 AM). Traditional hiring provides zero visibility into worker availability, leading to frequent schedule clashes.
+
+\subsection{Exploitative Agency Commissions}
+Unregulated agencies charge employers upfront fees equivalent to 1--2 months of worker salary without offering background validity or retention guarantees.
+
+\section{Supply-Side Pain Points (Domestic Workers)}
+
+\subsection{Agent Exploitation}
+Domestic workers—predominantly women—frequently pay upfront fees to agents or surrender portions of their monthly earnings.
+
+\subsection{Language \& Digital Literacy Barriers}
+Conventional job applications cater to English-speaking white-collar professionals. Domestic workers encounter severe digital navigation hurdles.
+
+\subsection{Lack of Portable Work Reputation}
+Workers build years of experience but possess no formal work history or digital profile to prove credentials to prospective employers.
+
+\section{The Sevikaa Solution}
+
+Sevikaa addresses these core problems through five architectural pillars:
+\begin{enumerate}
+    \item \textbf{Curated Multi-Stage Trust Verification:} Mandatory Aadhaar verification, Police clearance check, Telephonic onboarding interview, and Video Introduction clip audit.
+    \item \textbf{Hyper-Local Society-Centric Matching:} Database indexing anchored to gated apartment societies, prioritizing nearby candidates to minimize commute friction.
+    \item \textbf{Granular Availability Engine:} Weekly time-slot matrix enabling precise routine matching.
+    \item \textbf{100\% Free Model for Workers:} Zero commissions or registration fees charged to workers; sustainable revenue derived from employer contact subscriptions.
+    \item \textbf{Multilingual \& Tele-Onboarding Support:} Platform support in 8 Indian regional languages alongside phone-guided onboarding.
+\end{enumerate}
+
+\section{Socio-Economic Impact \& Scalability Vision}
+\begin{itemize}[noitemsep]
+    \item \textbf{Women Empowerment:} Direct economic access and fair wage visibility for female domestic workers.
+    \item \textbf{Labor Formalization:} Transitioning informal workers into recognized service professionals with portable digital reputations.
+    \item \textbf{Community Security:} Enhancing safety standards across urban gated apartment complexes.
+\end{itemize}
+
+\end{document}

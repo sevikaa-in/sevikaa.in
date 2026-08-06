@@ -39,6 +39,8 @@ interface SuperAdminContextProps {
   admins: any[];
   newAdminEmail: string;
   setNewAdminEmail: React.Dispatch<React.SetStateAction<string>>;
+  newAdminName: string;
+  setNewAdminName: React.Dispatch<React.SetStateAction<string>>;
   pricing: any;
   setPricing: React.Dispatch<React.SetStateAction<any>>;
   availabilityMetrics: {
@@ -156,11 +158,9 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
   const [pendingJobsList, setPendingJobsList] = useState<any[]>([]);
   const [pendingReviewsList, setPendingReviewsList] = useState<any[]>([]);
   const [societiesList, setSocietiesList] = useState<any[]>([]);
-  const [admins, setAdmins] = useState([
-    { id: 'a1', email: 'moderator1@sevikaa.com', created: '2026-07-20' },
-    { id: 'a2', email: 'moderator2@sevikaa.com', created: '2026-07-21' }
-  ]);
+  const [admins, setAdmins] = useState<any[]>([]);
   const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminName, setNewAdminName] = useState('');
 
   // Pricing configuration - Worker Free Forever & Tiered Employer Plans
   const [pricing, setPricing] = useState<any>({
@@ -539,11 +539,6 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         { id: 'l3', actor: 'System Trigger', action: 'Auth User created: Sunita Sharma', time: '2 hours ago' }
       ]);
 
-      setAdmins([
-        { id: 'a1', email: 'moderator1@sevikaa.com', created: '2026-07-20' },
-        { id: 'a2', email: 'moderator2@sevikaa.com', created: '2026-07-21' }
-      ]);
-
       setLoading(false);
       return;
     }
@@ -671,6 +666,15 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
           email: j.email || '',
           status: j.status || 'pending',
           created_at: j.created_at ? new Date(j.created_at).toISOString().split('T')[0] : 'Today'
+        })));
+      }
+
+      if (admins && Array.isArray(admins) && admins.length > 0) {
+        setAdmins(admins.map((a: any) => ({
+          id: a.id,
+          email: a.email,
+          role: a.role || 'admin',
+          created: a.created_at ? new Date(a.created_at).toISOString().split('T')[0] : (a.created || 'Active')
         })));
       }
     };
@@ -1029,6 +1033,21 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
   }, [pathname]);
 
   useEffect(() => {
+    const fetchAdminsList = async () => {
+      try {
+        const res = await fetch('/api/super-admin/admins');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.admins)) {
+          setAdmins(data.admins);
+        }
+      } catch (e) {
+        console.warn("Fetch admins list error:", e);
+      }
+    };
+    fetchAdminsList();
+  }, [pathname]);
+
+  useEffect(() => {
     if (pathname.includes('/sms')) {
       fetchSmsData();
     }
@@ -1068,19 +1087,24 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
   };
 
   const handleUpdateWorkerStatus = async (workerId: string, newStatus: string) => {
-    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
     try {
-      if (!isPlaceholder) {
-        const { error: updateErr } = await supabase
-          .from('profiles')
-          .update({ status: newStatus })
-          .eq('id', workerId);
-        if (updateErr) throw updateErr;
+      const res = await fetch('/api/admin/worker/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: workerId,
+          status: newStatus,
+          is_tele_onboarded: true,
+          is_interview_verified: true
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to update candidate status');
       }
 
-      setWorkersList(prev => prev.map(w => w.id === workerId ? { ...w, status: newStatus } : w));
-      showToast(`Worker status updated to: ${newStatus}`);
+      setWorkersList(prev => prev.map(w => w.id === workerId ? { ...w, status: newStatus, is_tele_onboarded: true, is_interview_verified: true } : w));
+      showToast(`✓ Worker candidate status updated to: ${newStatus.toUpperCase()}`, 'success');
       fetchDashboardData();
     } catch (err: any) {
       showToast(`Update failed: ${err.message}`, 'error');
@@ -1099,17 +1123,14 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     const noteText = adminNote || (isChanges ? 'Admin Audit Feedback: Please clarify duty details and update morning shift start time.' : undefined);
 
     try {
-      if (!isPlaceholder) {
-        const { error: updateErr } = await supabase
-          .from('jobs')
-          .update({ 
-            status: newStatus
-          })
-          .eq('id', jobId);
-        if (updateErr) throw updateErr;
-      }
+      // 1. Call Backend API
+      await fetch('/api/admin/job/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: jobId, status: newStatus, admin_note: noteText })
+      });
 
-      // Trigger SMS & Email notification alert to employer if changes requested
+      // 2. Trigger SMS & Email notification alert to employer if changes requested
       if (isChanges) {
         try {
           await fetch('/api/notifications/trigger', {
@@ -1128,15 +1149,22 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         }
       }
 
-      setPendingJobsList(prev => prev.filter(j => j.id !== jobId));
-      setDbStats(prev => ({ ...prev, pendingJobs: Math.max(0, prev.pendingJobs - 1) }));
+      // Update state in job list with new status
+      setPendingJobsList(prev => prev.map(j => j.id === jobId ? { ...j, status: isApprove ? 'active' : newStatus } : j));
+      setDbStats(prev => ({ 
+        ...prev, 
+        pendingJobs: isApprove ? Math.max(0, prev.pendingJobs - 1) : prev.pendingJobs 
+      }));
+
       showToast(
         isApprove 
-          ? 'Job approved and published live!' 
+          ? '✓ Job approved and published live!' 
           : isChanges 
           ? 'Feedback note sent to employer! Requisition marked as Action Required.' 
+          : isRevert
+          ? 'Job reverted to Pending Approval status.'
           : 'Job rejected and returned to draft.', 
-        isApprove ? 'success' : 'warning'
+        isApprove ? 'success' : 'info'
       );
     } catch (err: any) {
       showToast(`Job action failed: ${err.message}`, 'error');
@@ -1165,41 +1193,33 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
 
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAdminEmail.includes('@')) {
+    if (!newAdminEmail || !newAdminEmail.includes('@')) {
       showToast('Please enter a valid email address.', 'error');
       return;
     }
-    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') ||
-                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-    if (!isPlaceholder) {
-      try {
-        // Insert a profile row with role='admin' — the auth user must already exist
-        // or be invited separately. This marks an existing email as admin.
-        const { error: insertErr } = await supabase
-          .from('profiles')
-          .upsert({ email: newAdminEmail, role: 'admin', status: 'active' }, { onConflict: 'email' });
-        if (insertErr) throw insertErr;
-        // Re-fetch admins from DB
-        await fetchDashboardData();
+    try {
+      const res = await fetch('/api/super-admin/admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newAdminEmail.trim().toLowerCase(),
+          full_name: newAdminName.trim(),
+          role: 'admin'
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.admin) {
+        setAdmins(prev => [data.admin, ...prev.filter(a => a.id !== data.admin.id)]);
         setNewAdminEmail('');
-        showToast('Admin account provisioned!', 'success');
-        return;
-      } catch (err: any) {
-        showToast(`Failed to provision admin: ${err.message}`, 'error');
-        return;
+        setNewAdminName('');
+        showToast(`✓ Admin moderator ${data.admin.name || ''} provisioned successfully!`, 'success');
+      } else {
+        showToast(`Failed to provision admin: ${data.error || 'Database error'}`, 'error');
       }
+    } catch (err: any) {
+      showToast(`Failed to provision admin: ${err.message}`, 'error');
     }
-
-    // Placeholder mode — optimistic local update
-    const newAdmin = {
-      id: `a${Date.now()}`,
-      email: newAdminEmail,
-      created: new Date().toISOString().split('T')[0]
-    };
-    setAdmins(prev => [...prev, newAdmin]);
-    setNewAdminEmail('');
-    showToast('New admin moderator account provisioned!', 'success');
   };
 
 
@@ -1250,7 +1270,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
   return (
     <SuperAdminDashboardContext.Provider value={{
       loading, error, user, dbStats, workersList: filteredWorkers, employersList: filteredEmployers, setEmployersList, pendingJobsList: filteredJobs,
-      pendingReviewsList: filteredReviews, societiesList, setSocietiesList, admins, newAdminEmail, setNewAdminEmail,
+      pendingReviewsList: filteredReviews, societiesList, setSocietiesList, admins, newAdminEmail, setNewAdminEmail, newAdminName, setNewAdminName,
       selectedWorker, setSelectedWorker,
       pricing, setPricing, availabilityMetrics, societyAnalytics, activities,
       smsTemplates, smsLogs, smsLoading, previewTemplate, setPreviewTemplate,

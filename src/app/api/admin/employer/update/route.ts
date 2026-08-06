@@ -34,6 +34,14 @@ export async function POST(req: NextRequest) {
           const hasAadhaarFront = !!row.aadhaar_front_url;
           const hasAadhaarBack = !!row.aadhaar_back_url;
 
+          const isTelePassed = body.is_tele_onboarded === true || body.tele_onboarded === true || row.is_tele_onboarded === true || row.is_interview_verified === true;
+          if (!isTelePassed) {
+            return NextResponse.json({
+              success: false,
+              error: `Cannot mark employer Live: Telephonic Verification required. Employer must pass Tele-Onboarding before Live approval.`
+            }, { status: 400 });
+          }
+
           const steps = [hasName, hasPhone, hasEmail, hasSociety, hasTower, hasAddress, hasPhoto, hasResidency, hasAadhaarFront, hasAadhaarBack];
           const count = steps.filter(Boolean).length;
           if (count < 10) {
