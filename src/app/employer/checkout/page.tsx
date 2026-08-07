@@ -16,6 +16,11 @@ function CheckoutFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planParam = searchParams.get('plan') || 'standard';
+  const queryUserId = searchParams.get('userId') || searchParams.get('user_id');
+  const queryPhone = searchParams.get('phone') || searchParams.get('mobile');
+  const queryName = searchParams.get('name') || searchParams.get('company_name');
+  const queryEmail = searchParams.get('email');
+
   const { employerProfile, setEmployerProfile, showToast } = useEmployerDashboard();
   const { t } = useLanguage();
 
@@ -88,15 +93,21 @@ function CheckoutFormContent() {
   const [upiId, setUpiId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const displayCompanyName = employerProfile.company_name || queryName || 'Verma Household';
+  const displayPhone = employerProfile.phone || queryPhone || '+91 98765 43210';
+  const displayEmail = employerProfile.email || queryEmail || 'employer@sevikaa.in';
+  const displaySociety = employerProfile.society_name || 'DLF Westend Heights';
+  const displayAddress = employerProfile.address || employerProfile.tower || 'Tower B - Flat 402';
+
   const handleProcessPayment = async () => {
     setIsProcessing(true);
 
     executeRazorpayCheckout({
       amount: plan.price,
       planName: plan.name,
-      userName: employerProfile.company_name,
-      userEmail: employerProfile.email,
-      userPhone: employerProfile.phone,
+      userName: displayCompanyName,
+      userEmail: displayEmail,
+      userPhone: displayPhone,
       paymentMethod,
       onSuccess: async (paymentId: string) => {
         try {
@@ -112,21 +123,23 @@ function CheckoutFormContent() {
 
           if (!isPlaceholder) {
             const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user?.id) {
+            const activeUserId = session?.user?.id || queryUserId;
+
+            if (activeUserId) {
               await supabase
                 .from('employer_profiles')
                 .update({
                   subscription_status: `${plan.name}`,
                   updated_at: new Date().toISOString()
                 })
-                .eq('id', session.user.id);
+                .eq('id', activeUserId);
 
               // Log transaction entry
               try {
                 await supabase
                   .from('transactions')
                   .insert([{
-                    user_id: session.user.id,
+                    user_id: activeUserId,
                     amount: plan.price,
                     status: 'captured',
                     payment_id: paymentId,
@@ -215,19 +228,19 @@ function CheckoutFormContent() {
         <div className="grid grid-cols-2 gap-3 text-xs font-bold text-slate-700">
           <div>
             <span className="text-[10px] text-slate-400 uppercase block">{t('employerFullNameLabel') || "Employer Name"}</span>
-            <span className="text-slate-900 font-black truncate block mt-0.5">{employerProfile.company_name}</span>
+            <span className="text-slate-900 font-black truncate block mt-0.5">{displayCompanyName}</span>
           </div>
           <div>
             <span className="text-[10px] text-slate-400 uppercase block">{t('primaryPhoneLabel') || "Mobile Contact"}</span>
-            <span className="text-slate-900 font-mono truncate block mt-0.5">{employerProfile.phone}</span>
+            <span className="text-slate-900 font-mono truncate block mt-0.5">{displayPhone}</span>
           </div>
           <div>
             <span className="text-[10px] text-slate-400 uppercase block">{t('gatedSocietyLabel') || "Gated Community"}</span>
-            <span className="text-slate-900 truncate block mt-0.5">{employerProfile.society_name}</span>
+            <span className="text-slate-900 truncate block mt-0.5">{displaySociety}</span>
           </div>
           <div>
             <span className="text-[10px] text-slate-400 uppercase block">{t('flatAddressLabel') || "Flat Address"}</span>
-            <span className="text-slate-900 truncate block mt-0.5">{employerProfile.address || employerProfile.tower}</span>
+            <span className="text-slate-900 truncate block mt-0.5">{displayAddress}</span>
           </div>
         </div>
       </div>

@@ -149,14 +149,31 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         }
       }
 
-      // Fetch live jobs unconditionally
+      // Fetch live jobs from Supabase or direct PostgreSQL API
+      let rawLiveJobs: any[] = [];
       const { data: liveJobs } = await supabase
         .from('jobs')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (liveJobs) {
-        const mappedJobs = liveJobs.map((j: any) => {
+      if (liveJobs && liveJobs.length > 0) {
+        rawLiveJobs = liveJobs;
+      } else {
+        try {
+          const res = await fetch('/api/admin/data?tab=jobs&limit=50');
+          if (res.ok) {
+            const apiData = await res.json();
+            if (apiData.success && Array.isArray(apiData.jobs)) {
+              rawLiveJobs = apiData.jobs;
+            }
+          }
+        } catch (apiErr) {
+          console.warn("Jobs API fetch notice:", apiErr);
+        }
+      }
+
+      if (rawLiveJobs && rawLiveJobs.length > 0) {
+        const mappedJobs = rawLiveJobs.map((j: any) => {
           let resolvedSociety = j.society_name && j.society_name !== 'Residential Society' ? j.society_name : null;
           if (!resolvedSociety && j.societies?.name) {
             resolvedSociety = j.societies.name;
@@ -428,8 +445,8 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
 
   const navItems = [
     { id: 'overview', label: t('navOverview') || 'Home', href: '/worker', icon: <Home size={20} /> },
-    { id: 'jobs', label: t('navJobs') || 'Jobs', href: '/worker/jobs', icon: <Briefcase size={20} />, badge: availableJobs.length },
-    { id: 'interviews', label: t('navInterviews') || 'Interviews', href: '/worker/interviews', icon: <Calendar size={20} />, badge: applications.length },
+    { id: 'jobs', label: t('navJobs') || 'Jobs', href: '/worker/jobs', icon: <Briefcase size={20} /> },
+    { id: 'interviews', label: t('navInterviews') || 'Interviews', href: '/worker/interviews', icon: <Calendar size={20} /> },
     { id: 'societies', label: t('navSocieties') || 'Societies', href: '/worker/societies', icon: <Building2 size={20} /> },
     { id: 'profile', label: t('navProfile') || 'Settings', href: '/worker/profile', icon: <User size={20} /> },
   ];
@@ -674,11 +691,6 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                   >
                     <div className="shrink-0">{item.icon}</div>
                     <span className="text-center leading-tight text-xs">{item.label}</span>
-                    {item.badge && item.badge > 0 ? (
-                      <span className="absolute -top-1 -right-1 bg-[#1A73E8] text-white text-[9px] font-semibold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs">
-                        {item.badge}
-                      </span>
-                    ) : null}
                   </Link>
                 );
               })}

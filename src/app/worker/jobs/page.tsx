@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { useLanguage } from '@/context/LanguageContext';
+import { JobCard } from '@/components/worker/JobCard';
 
 export default function WorkerJobsPage() {
   const { workerProfile, applications, availableJobs, showToast } = useWorkerDashboard();
@@ -179,11 +180,15 @@ export default function WorkerJobsPage() {
 
   const getTranslatedDesc = (job: any) => {
     if (!job) return 'Looking for an experienced domestic helper for household work.';
-    if (job.description && job.description.trim().length > 0) return job.description;
+    if (job.description && job.description.trim().length > 25) return job.description;
+    if (job.description && job.description.trim().length > 0) {
+      const titleStr = job.title ? `${job.title}: ` : '';
+      return `${titleStr}${job.description}. Looking for an experienced, honest and reliable helper with good hygiene standards.`;
+    }
     if (job.id === 'c9bf0b7b-3b02-44e1-a20d-70498b8c2d1b') return 'Looking for an experienced and reliable maid for daily dusting, mopping, utensil washing, and laundry for our family in a 3BHK flat.';
     if (job.id === 'd78a9e4f-8f12-4c22-921a-5b12847a98b1') return 'Family of 4 needs an experienced home cook for North Indian thali (roti, sabzi, dal, rice) and South Indian breakfast preparation.';
     if (job.id === 'e412a89c-1120-4e55-901b-1b918a204910') return 'Loving and attentive nanny needed to take care of an 18-month-old baby boy. Responsibilities include feeding, playtime, reading stories, and hygiene.';
-    return 'Looking for an experienced domestic helper for household work.';
+    return 'Looking for an experienced domestic helper for household work. Reliable and hygienic work habits required.';
   };
 
   const getTranslatedShift = (shift: string) => {
@@ -219,7 +224,7 @@ export default function WorkerJobsPage() {
   };
 
   const { societiesList } = useWorkerDashboard();
-  const rawJobs = availableJobs.length > 0 ? availableJobs : fallbackJobs;
+  const rawJobs = availableJobs;
 
   const jobsToDisplay = useMemo(() => {
     return rawJobs.map((job: any) => {
@@ -285,6 +290,8 @@ export default function WorkerJobsPage() {
       return matchesSkill && matchesCategory && matchesSearch && matchesLocation;
     });
   }, [jobsToDisplay, skillFilterMode, locationTier, categoryFilter, searchQuery, workerProfile]);
+
+  const finalDisplayJobs = filteredJobs.length > 0 ? filteredJobs : jobsToDisplay;
 
   const handleApply = async (job: any) => {
     if (!isWorkerVerified) {
@@ -422,8 +429,6 @@ export default function WorkerJobsPage() {
                   { id: 'cook', label: t('cooksCategory') || "Cooks", isMatching: false },
                   { id: 'maid', label: t('maidsCategory') || "Maids & Housekeeping", isMatching: false },
                   { id: 'nanny', label: t('nanniesCategory') || "Nannies & Childcare", isMatching: false },
-                  { id: 'driver', label: t('driversCategory') || "Private Drivers", isMatching: false },
-                  { id: 'caregiver', label: t('caregiverCategory') || "Caregivers", isMatching: false },
                 ].map(opt => {
                   const isSelected = opt.isMatching 
                     ? skillFilterMode === 'matching' 
@@ -544,14 +549,14 @@ export default function WorkerJobsPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-            <span>{t('verifiedHouseholdJobs')} ({filteredJobs.length})</span>
+            <span>{t('verifiedHouseholdJobs')} ({finalDisplayJobs.length})</span>
             <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-[9.5px] font-black uppercase rounded-full border border-emerald-200">
               {t('freeApplicationBadge')}
             </span>
           </h3>
         </div>
 
-        {filteredJobs.length === 0 ? (
+        {finalDisplayJobs.length === 0 ? (
           <div className="bg-white p-8 rounded-3xl border border-slate-100 text-center space-y-3 shadow-xs">
             <Briefcase size={36} className="mx-auto text-slate-300" />
             <div>
@@ -569,117 +574,17 @@ export default function WorkerJobsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredJobs.map((job: any) => {
-              const matchingApp = applications.find((a: any) => a.jobId === job.id || a.jobTitle === job.title || a.id === job.id);
-              const hasApplied = appliedJobIds.includes(job.id) || !!matchingApp;
-              const cleanSalary = job.salary_offered ? Number(job.salary_offered).toLocaleString('en-IN') : '15,000';
-
-              return (
-                <div 
-                  key={job.id} 
-                  className="group relative bg-gradient-to-b from-white via-slate-50/30 to-slate-50/80 rounded-[28px] border border-slate-200/80 hover:border-[#1A73E8]/40 shadow-xs hover:shadow-xl transition-all duration-300 p-5 flex flex-col justify-between space-y-4 overflow-hidden"
-                >
-                  {/* Glass highlight background */}
-                  <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-br from-blue-500/5 via-indigo-500/5 to-transparent rounded-full blur-2xl pointer-events-none group-hover:from-blue-500/10 group-hover:to-indigo-500/10 transition-all" />
-
-                  {/* Left Column / Info Area */}
-                  <div className="space-y-3 min-w-0 flex-1 relative z-10 w-full">
-                    {/* Employer header */}
-                    <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2.5 border-b border-slate-200/60 pb-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 via-[#1A73E8] to-indigo-700 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20 ring-2 ring-blue-100">
-                          {(job.employer_name || job.society_name || 'H')[0]}
-                        </div>
-                        <div className="min-w-0 space-y-0.5">
-                          <p className="text-xs sm:text-sm font-black text-slate-900 tracking-tight leading-tight truncate">{job.employer_name || 'Verified Household'}</p>
-                          <span className="text-[9.5px] font-black text-emerald-700 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 inline-flex items-center gap-1">
-                            <ShieldCheck size={11} className="text-emerald-600 shrink-0" />
-                            <span>{t('sevikaaVerifiedHousehold')}</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 self-start xs:self-auto">
-                        <span className="text-xs font-black text-emerald-800 font-mono bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100/60 px-3 py-1.5 rounded-2xl border border-emerald-300/70 shadow-xs inline-flex items-center gap-1 whitespace-nowrap">
-                          <IndianRupee size={12} className="text-emerald-600 stroke-[2.5] shrink-0" />
-                          <span>{cleanSalary} / mo</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Job Title & Location */}
-                    <div className="space-y-1">
-                      <h4 className="text-base font-black text-slate-900 group-hover:text-[#1A73E8] transition-colors leading-snug tracking-tight">
-                        {getTranslatedTitle(job)}
-                      </h4>
-                      <p className="text-xs font-bold text-slate-600 flex items-center gap-1.5 bg-slate-100/70 px-2.5 py-1 rounded-xl w-fit border border-slate-200/60">
-                        <MapPin size={13} className="text-[#1A73E8] shrink-0" />
-                        <span className="truncate">{getTranslatedSocietyName(job.society_name) || job.society_name || job.locality || workerProfile?.society || 'Residential Society'}</span>
-                      </p>
-                    </div>
-
-                    {/* Description Snippet */}
-                    <p className="text-xs text-slate-600 font-medium leading-relaxed bg-slate-50/80 p-3 rounded-2xl border border-slate-100/80 line-clamp-2 w-full">
-                      {getTranslatedDesc(job)}
-                    </p>
-
-                    {/* Shift & Perks Tags */}
-                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                      {job.shift_hours && (
-                        <span className="px-2.5 py-1 bg-indigo-50/90 text-indigo-700 text-[10.5px] font-bold rounded-xl border border-indigo-100 flex items-center gap-1 whitespace-nowrap">
-                          <Clock size={11} className="text-indigo-600 shrink-0" /> {getTranslatedShift(job.shift_hours)}
-                        </span>
-                      )}
-                      {job.perks?.map((perk: string, i: number) => (
-                        <span key={i} className="px-2.5 py-1 bg-emerald-50/90 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-200/60 flex items-center gap-1 whitespace-nowrap">
-                          <Check size={11} strokeWidth={3} className="text-emerald-600 shrink-0" /> {getTranslatedPerk(perk)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* BOTTOM ACTION BUTTONS: Always anchored at the very bottom */}
-                  <div className="pt-3.5 border-t border-slate-200/70 w-full shrink-0 flex flex-col sm:flex-row items-center gap-2 relative z-10">
-                    <Link
-                      href={`/worker/jobs/${job.id}`}
-                      className="w-full sm:w-1/2 py-2.5 px-3.5 bg-slate-100 hover:bg-slate-200/80 text-slate-800 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs active:scale-95 border border-slate-200/60 whitespace-nowrap"
-                    >
-                      <Eye size={14} className="text-slate-500 shrink-0" />
-                      <span className="whitespace-nowrap">{t('viewDetails')}</span>
-                    </Link>
-
-                    <button
-                      onClick={() => handleApply(job)}
-                      disabled={hasApplied || !isWorkerVerified || isApplying}
-                      className={`w-full sm:w-1/2 py-2.5 px-4 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap ${
-                        hasApplied 
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20' 
-                          : !isWorkerVerified
-                            ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-amber-950 shadow-md shadow-amber-300/40 border border-amber-300/80 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-[#1A73E8] to-blue-600 hover:from-blue-600 hover:to-indigo-600 text-white shadow-md shadow-blue-500/25'
-                      }`}
-                    >
-                      {hasApplied ? (
-                        <>
-                          <CheckCircle2 size={14} className="shrink-0" />
-                          <span className="whitespace-nowrap">{t('applied')}</span>
-                        </>
-                      ) : !isWorkerVerified ? (
-                        <>
-                          <Lock size={13} className="shrink-0" />
-                          <span className="whitespace-nowrap">{t('pendingAuditBadge')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send size={13} className="shrink-0" />
-                          <span className="whitespace-nowrap">{isApplying ? t('applying') : t('applyNow')}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            {finalDisplayJobs.map((job: any) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                applications={applications}
+                appliedJobIds={appliedJobIds}
+                isWorkerVerified={isWorkerVerified}
+                onApply={handleApply}
+                isApplying={isApplying}
+              />
+            ))}
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useWorkerDashboard } from './layout';
 import { useLanguage } from '@/context/LanguageContext';
+import { JobCard } from '@/components/worker/JobCard';
 import { 
   User, CheckCircle2, Briefcase, MapPin, IndianRupee, 
   Calendar, ShieldCheck, ArrowRight, HeartHandshake, PhoneCall, Check, X, Clock, Bell, BellRing, Sparkles, Award, Star, Zap, Shield, ChevronRight
@@ -94,7 +95,7 @@ export default function WorkerOverviewPage() {
     }
   ];
 
-  const rawJobs = availableJobs.length > 0 ? availableJobs : fallbackJobs;
+  const rawJobs = availableJobs;
 
   // Targeted Home Feed Filter: Filter by Worker's Registered Skill + Primary Society
   const workerSkillsList = (
@@ -117,19 +118,7 @@ export default function WorkerOverviewPage() {
     return workerSkillsList.some((sk: string) => jobCat.includes(sk) || sk.includes(jobCat));
   });
 
-  const primarySocietyJobs = skillMatchingJobs.filter((job: any) => {
-    const socName = (job.society_name || '').toLowerCase();
-    return workerSociety !== '' && (socName.includes(workerSociety) || workerSociety.includes(socName));
-  });
-
-  const secondarySocietyJobs = skillMatchingJobs.filter((job: any) => {
-    const socName = (job.society_name || '').toLowerCase();
-    return workerSecondarySocieties.some((secSoc: string) => socName.includes(secSoc));
-  });
-
-  const displayJobs = primarySocietyJobs.length > 0 
-    ? [...primarySocietyJobs, ...secondarySocietyJobs, ...skillMatchingJobs].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
-    : (skillMatchingJobs.length > 0 ? skillMatchingJobs : rawJobs);
+  const displayJobs = skillMatchingJobs.length > 0 ? skillMatchingJobs : rawJobs;
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto pb-20 font-sans">
@@ -238,6 +227,41 @@ export default function WorkerOverviewPage() {
           </span>
           <span className="text-[10px] sm:text-xs text-slate-500 font-normal leading-tight block">Verified Member</span>
         </div>
+      </div>
+
+      {/* 💼 TOP RECOMMENDED JOBS SECTION FOR WORKER HOME */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between pb-1 px-1">
+          <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <Briefcase size={16} className="text-[#1A73E8]" />
+            <span>Top Recommended Jobs ({displayJobs.length})</span>
+          </h3>
+          <Link 
+            href="/worker/jobs" 
+            className="text-xs font-black text-[#1A73E8] hover:text-blue-700 hover:underline flex items-center gap-1 transition-all"
+          >
+            <span>View All Jobs</span>
+            <ChevronRight size={13} />
+          </Link>
+        </div>
+
+        {displayJobs.length === 0 ? (
+          <div className="text-center py-8 space-y-2 bg-white rounded-3xl border border-slate-200">
+            <Briefcase size={36} className="mx-auto text-slate-300" />
+            <p className="text-xs font-bold text-slate-600">No Open Jobs Right Now</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {displayJobs.slice(0, 2).map((job: any) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                applications={applications}
+                isWorkerVerified={isLive}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 🔔 PUSH NOTIFICATIONS & UPDATES BOX */}

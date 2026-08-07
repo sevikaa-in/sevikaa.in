@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
-import { sendEmail as dispatchEmail } from '@/lib/notifications';
+import { sendEmail as dispatchEmail, sendSMS } from '@/lib/notifications';
 import { getMagicLinkOrLoginOtpEmailHtml } from '@/lib/emailTemplates';
 
 // In-memory OTP storage
@@ -80,7 +80,6 @@ export async function POST(req: NextRequest) {
 
       if (cleanPhone) {
         try {
-          const { sendSMS } = require('@/lib/notifications');
           await sendSMS(cleanPhone, 'LOGIN_OTP', { otp: generatedOtp });
         } catch (smsErr) {
           console.warn("SMS send notice:", smsErr);
@@ -162,7 +161,7 @@ export async function POST(req: NextRequest) {
       try { await queryDb(`DELETE FROM public.otp_verifications WHERE target_key = $1`, [targetKey]); } catch (e) {}
 
       // Fetch or Create user profile in Supabase
-      let userObj: { id: string; phone?: string; email?: string; role?: string } | null = null;
+      let userObj: { id: string; phone?: string; email?: string; role?: string; full_name?: string; society?: string } | null = null;
       let isExistingUser = false;
       let hasCompletedProfile = false;
       const formattedPhone = cleanPhone ? `+91${cleanPhone}` : undefined;
@@ -171,10 +170,18 @@ export async function POST(req: NextRequest) {
         const cleanDigits = cleanPhone.slice(-10);
         const searchEmail = (email || '').toLowerCase().trim();
 
-        // 1. Query public.profiles and sub-profile existence
+        // 1. Query public.profiles and sub-profile existence & resolved role
         const dbRes = await queryDb(
-          `SELECT p.id, p.email, p.phone, p.role,
-                  (wp.id IS NOT NULL OR ep.id IS NOT NULL) AS has_sub_profile
+          `SELECT p.id, p.email, p.phone, p.role, p.full_name,
+                  COALESCE(wp.full_name, p.full_name) AS worker_name,
+                  COALESCE(ep.company_name, p.full_name) AS employer_name,
+                  COALESCE(wp.preferred_society_name, ep.society_name, '') AS society_name,
+                  (wp.id IS NOT NULL OR ep.id IS NOT NULL) AS has_sub_profile,
+                  CASE 
+                    WHEN ep.id IS NOT NULL THEN 'employer'
+                    WHEN wp.id IS NOT NULL THEN 'worker'
+                    ELSE p.role 
+                  END AS resolved_role
            FROM public.profiles p
            LEFT JOIN public.worker_profiles wp ON wp.user_id = p.id OR wp.id = p.id
            LEFT JOIN public.employer_profiles ep ON ep.user_id = p.id OR ep.id = p.id
@@ -188,11 +195,16 @@ export async function POST(req: NextRequest) {
           const prof = dbRes.rows[0];
           isExistingUser = true;
           hasCompletedProfile = !!prof.has_sub_profile;
+          const resolvedName = prof.resolved_role === 'employer' 
+            ? (prof.employer_name || prof.full_name || 'Employer Household') 
+            : (prof.worker_name || prof.full_name || 'Verified Helper');
           userObj = {
             id: prof.id,
             email: prof.email || email,
             phone: prof.phone || formattedPhone,
-            role: prof.role || 'worker'
+            role: prof.resolved_role || prof.role || 'worker',
+            full_name: resolvedName,
+            society: prof.society_name || ''
           };
         }
       } catch (err) {
@@ -329,7 +341,7 @@ export async function POST(req: NextRequest) {
         const displayPhone = formattedPhone || userObj.phone || null;
         const displayEmail = email || userObj.email || null;
 
-        // 1. Upsert into profiles (sets role = worker so lead appears in admin)
+        // 1. Upsert into profiles (preserves existing super_admin/admin/employer/worker role)
         try {
           await queryDb(
             `INSERT INTO public.profiles (id, phone, email, role, status, created_at)
@@ -344,28 +356,28 @@ export async function POST(req: NextRequest) {
           console.warn("Lead profile upsert notice:", profUpsertErr.detail || profUpsertErr.message);
         }
 
-        // 2. Create worker_profiles or employer_profiles stub if not exists (required for tele-onboarding lead)
+        // 2. Create worker_profiles or employer_profiles stub if not exists (only for worker/employer roles)
         if (userRole === 'worker') {
           try {
             await queryDb(
               `INSERT INTO public.worker_profiles (id, user_id, full_name, created_at)
                VALUES ($1, $1, $2, NOW())
-               ON CONFLICT DO NOTHING`,
+               ON CONFLICT (id) DO NOTHING`,
               [resolvedId, 'Worker Candidate']
             );
           } catch (wpStubErr: any) {
-            console.warn("Worker profile stub notice:", wpStubErr.detail || wpStubErr.message);
+            // Silence harmless ON CONFLICT notices for existing worker profiles
           }
         } else if (userRole === 'employer') {
           try {
             await queryDb(
               `INSERT INTO public.employer_profiles (id, user_id, company_name, created_at)
                VALUES ($1, $1, $2, NOW())
-               ON CONFLICT DO NOTHING`,
+               ON CONFLICT (id) DO NOTHING`,
               [resolvedId, 'Employer Candidate']
             );
           } catch (epStubErr: any) {
-            console.warn("Employer profile stub notice:", epStubErr.detail || epStubErr.message);
+            // Silence harmless ON CONFLICT notices for existing employer profiles
           }
         }
       }
