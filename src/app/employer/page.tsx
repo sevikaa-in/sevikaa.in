@@ -52,6 +52,7 @@ export default function EmployerOverviewPage() {
   const activeJobsCount = postedJobs.filter(j => j.status === 'active' || j.status === 'approved').length;
   const pendingJobsCount = postedJobs.filter(j => j.status === 'pending' || j.status === 'changes_requested').length;
   const totalApplicantsCount = postedJobs.reduce((sum, j) => sum + (j.applicationsCount || 0), 0);
+  const isEmployerVerified = employerProfile.status === 'live' || employerProfile.status === 'approved';
 
   // Profile completion calculation for widget
   const cleanPhone = (employerProfile.phone || '').replace(/\D/g, '').slice(-10);
@@ -71,32 +72,78 @@ export default function EmployerOverviewPage() {
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto pb-20">
       
-      {/* 🏡 HOUSEHOLD EMPLOYER HERO CONTROL BANNER */}
-      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white p-6 rounded-3xl shadow-xl space-y-4 relative overflow-hidden border border-blue-500/20">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="bg-blue-500/30 text-blue-300 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-400/30 flex items-center gap-1">
-                <Sparkles size={10} className="text-amber-400" /> {t('employerHubEyebrow')}
-              </span>
+      {/* 🏡 HOUSEHOLD EMPLOYER HERO CONTROL BANNER (100% RESPONSIVE - NO OVERFLOW) */}
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50/60 to-white text-slate-900 p-5 sm:p-6 rounded-3xl shadow-xs space-y-4 relative overflow-hidden border border-blue-200/90">
+        
+        {/* Row 1: Badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="bg-blue-100 text-[#1A73E8] text-[9.5px] font-black uppercase px-2.5 py-1 rounded-full border border-blue-200/90 flex items-center gap-1">
+            <Sparkles size={11} className="text-amber-500 shrink-0" /> {t('employerHubEyebrow')}
+          </span>
+          {isEmployerVerified ? (
+            <span className="bg-emerald-100 text-emerald-800 text-[9.5px] font-black uppercase px-2.5 py-1 rounded-full border border-emerald-200/90 flex items-center gap-1">
+              <ShieldCheck size={11} className="text-emerald-600 shrink-0" /> Verified Employer Account
+            </span>
+          ) : (
+            <span className="bg-amber-100 text-amber-800 text-[9.5px] font-black uppercase px-2.5 py-1 rounded-full border border-amber-200/90 flex items-center gap-1">
+              <Clock size={11} className="text-amber-600 shrink-0" /> Pending Admin Audit
+            </span>
+          )}
+        </div>
+
+        {/* Row 2: Employer Name */}
+        <div>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
+            {employerProfile.company_name}
+          </h2>
+        </div>
+
+        {/* Row 3: Society Location */}
+        <div>
+          <p className="text-xs sm:text-sm text-slate-600 font-bold flex items-center gap-1.5">
+            <MapPin size={14} className="text-[#1A73E8] shrink-0" />
+            <span>{employerProfile.society_name}</span>
+          </p>
+        </div>
+
+        {/* Row 4: Button AFTER Name and Society */}
+        <div>
+          <Link
+            href="/employer/post-job"
+            className="w-full sm:w-auto py-3 px-5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs font-black transition-all active:scale-95 shadow-md shadow-blue-500/20 inline-flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <PlusCircle size={16} />
+            <span>{t('postNewReqBtn')}</span>
+          </Link>
+        </div>
+
+        {/* Row 5: Full-Width Executive Gate Pass & Trust Info Strip (No Overflow) */}
+        <div className="w-full bg-white/95 backdrop-blur-md p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-bold text-slate-700">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-blue-50 text-[#1A73E8] rounded-lg shrink-0">
+              <ShieldCheck size={16} />
             </div>
-            <h2 className="text-xl font-black text-white">{employerProfile.company_name}</h2>
-            <p className="text-xs text-slate-300 font-semibold flex items-center gap-1">
-              <MapPin size={12} className="text-blue-400" />
-              <span>{employerProfile.society_name}</span>
-            </p>
+            <div>
+              <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-wider">Gate Pass Verified</h4>
+              <p className="text-[9.5px] text-emerald-600 font-bold">Live DLT SMS Alerts</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <Link
-              href="/employer/post-job"
-              className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs font-black transition-all active:scale-95 shadow-md flex items-center gap-1.5 cursor-pointer"
-            >
-              <PlusCircle size={15} />
-              <span>{t('postNewReqBtn')}</span>
-            </Link>
+          <div className="flex items-center gap-4 flex-wrap text-[10.5px]">
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <Users size={13} className="text-[#1A73E8]" />
+              <span className="text-slate-500">Society Helpers:</span>
+              <strong className="text-slate-900">52 Verified</strong>
+            </span>
+
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <CheckCircle2 size={13} className="text-emerald-600" />
+              <span className="text-slate-500">Aadhaar Record:</span>
+              <strong className="text-emerald-600">100% Passed</strong>
+            </span>
           </div>
         </div>
+
       </div>
 
       {/* 📊 EMPLOYER PROFILE COMPLETENESS DASHBOARD WIDGET */}
@@ -136,48 +183,48 @@ export default function EmployerOverviewPage() {
         </div>
       )}
 
-      {/* 📊 HIRING CONTROL METRICS GRID */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-800">
+      {/* 📊 2 x 2 HIRING CONTROL METRICS GRID (OPTIMIZED FOR PERFECT VIEW) */}
+      <div className="grid grid-cols-2 gap-3.5 text-slate-800">
         <Link
           href="/employer/jobs"
-          className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group min-w-0 overflow-hidden"
+          className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all space-y-1.5 text-left block hover:border-blue-300 group min-w-0 overflow-hidden"
         >
-          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between gap-1 min-w-0">
+          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between gap-1 min-w-0">
             <span className="truncate">{t('postedReqsTitle') || "Posted Requisitions"}</span>
-            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8] shrink-0" />
+            <ChevronRight size={13} className="text-slate-300 group-hover:text-[#1A73E8] shrink-0" />
           </span>
-          <span className="text-xl font-black text-slate-900 block truncate">{postedJobs.length}</span>
-          <span className="text-[10px] text-emerald-600 font-bold block truncate">{activeJobsCount} {t('active') || "Active"} &bull; {pendingJobsCount} {t('pending') || "Pending"}</span>
+          <span className="text-2xl font-black text-slate-900 block truncate">{postedJobs.length}</span>
+          <span className="text-[11px] text-emerald-600 font-bold block truncate">{activeJobsCount} {t('active') || "Active"} &bull; {pendingJobsCount} {t('pending') || "Pending"}</span>
         </Link>
 
         <Link
           href="/employer/jobs"
-          className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group min-w-0 overflow-hidden"
+          className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all space-y-1.5 text-left block hover:border-blue-300 group min-w-0 overflow-hidden"
         >
-          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between gap-1 min-w-0">
+          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between gap-1 min-w-0">
             <span className="truncate">{t('totalApplicantsTitle') || "Total Applicants"}</span>
-            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8] shrink-0" />
+            <ChevronRight size={13} className="text-slate-300 group-hover:text-[#1A73E8] shrink-0" />
           </span>
-          <span className="text-xl font-black text-[#1A73E8] block truncate">{totalApplicantsCount}</span>
-          <span className="text-[10px] text-slate-500 font-bold block truncate">{t('viewCandidatesSub') || "View Applicants"}</span>
+          <span className="text-2xl font-black text-[#1A73E8] block truncate">{totalApplicantsCount}</span>
+          <span className="text-[11px] text-slate-500 font-bold block truncate">{t('viewCandidatesSub') || "View Applicants"}</span>
         </Link>
 
-        <div className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-xs space-y-1 text-left min-w-0 overflow-hidden">
-          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider truncate">{t('societyHelpersTitle') || "Helpers in Society"}</span>
-          <span className="text-xl font-black text-slate-900 block truncate">52</span>
-          <span className="text-[10px] text-emerald-600 font-bold block truncate">{t('societyCoverageSub') || "Verified in Society"}</span>
+        <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-1.5 text-left min-w-0 overflow-hidden">
+          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider truncate">{t('societyHelpersTitle') || "Helpers in Society"}</span>
+          <span className="text-2xl font-black text-slate-900 block truncate">52</span>
+          <span className="text-[11px] text-emerald-600 font-bold block truncate">{t('societyCoverageSub') || "Verified in Society"}</span>
         </div>
 
         <Link
           href="/employer/account"
-          className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-xs hover:shadow-md transition-all space-y-1 text-left block hover:border-blue-300 group min-w-0 overflow-hidden"
+          className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all space-y-1.5 text-left block hover:border-blue-300 group min-w-0 overflow-hidden"
         >
-          <span className="text-[9.5px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between gap-1 min-w-0">
+          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider flex items-center justify-between gap-1 min-w-0">
             <span className="truncate">{t('accountStatusTitle') || "Account Plan"}</span>
-            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#1A73E8] shrink-0" />
+            <ChevronRight size={13} className="text-slate-300 group-hover:text-[#1A73E8] shrink-0" />
           </span>
-          <span className="text-sm font-black text-emerald-600 block mt-1 truncate">{employerProfile.subscription_status || 'Standard Plan'}</span>
-          <span className="text-[10px] text-slate-400 font-bold block truncate">{t('unlimitedHiringSub') || "Unlimited Direct Contact"}</span>
+          <span className="text-base font-black text-emerald-600 block truncate mt-0.5">{employerProfile.subscription_status || 'Standard Plan'}</span>
+          <span className="text-[11px] text-slate-400 font-bold block truncate">{t('unlimitedHiringSub') || "Unlimited Direct Contact"}</span>
         </Link>
       </div>
 

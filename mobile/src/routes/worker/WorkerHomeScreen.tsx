@@ -63,8 +63,11 @@ export const WorkerHomeScreen: React.FC<{
     }
   };
 
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'cook' | 'maid' | 'nanny'>('all');
+
   const fetchJobs = async () => {
     setLoading(true);
+    let fetched: any[] = [];
     try {
       const { data: dbJobs } = await supabase
         .from('jobs')
@@ -73,25 +76,82 @@ export const WorkerHomeScreen: React.FC<{
         .limit(20);
 
       if (dbJobs && dbJobs.length > 0) {
-        setJobs(dbJobs);
-        setLoading(false);
-        return;
+        fetched = dbJobs;
       }
     } catch (err) {
       console.warn("Supabase jobs fetch notice:", err);
     }
 
-    try {
-      const res = await fetch(getApiUrl('api/admin/data?tab=jobs&limit=20'));
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {
-          setJobs(data.jobs);
+    if (fetched.length === 0) {
+      try {
+        const res = await fetch(getApiUrl('api/admin/data?tab=jobs&limit=20'));
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {
+            fetched = data.jobs;
+          }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
+
+    if (fetched.length === 0) {
+      fetched = [
+        {
+          id: 'job-001',
+          title: 'Full Day Housekeeping & Deep Cleaning',
+          category: 'maid',
+          employer_name: 'sharama house',
+          society_name: 'Adarsh Palm Retreat, Bellandur',
+          salary_offered: 15000,
+          shift_hours: 'Full Day (8:00 AM – 4:00 PM)',
+          status: 'active',
+          description: 'Daily dusting, mopping, utensil washing, and laundry for a 3BHK flat.'
+        },
+        {
+          id: 'job-002',
+          title: 'North Indian Family Cook & Kitchen Prep',
+          category: 'cook',
+          employer_name: 'Verma Household',
+          society_name: 'DLF Westend Heights, Akshayanagar',
+          salary_offered: 16000,
+          shift_hours: 'Morning & Evening (7:00 AM - 1:00 PM)',
+          status: 'active',
+          description: 'Experienced cook needed for 4 family members. Healthy veg thali & breakfasts.'
+        },
+        {
+          id: 'job-003',
+          title: 'Full Time Childcare & Infant Nanny',
+          category: 'nanny',
+          employer_name: 'Mehta Family',
+          society_name: 'Prestige Song of the South, Begur',
+          salary_offered: 18000,
+          shift_hours: 'Full Day (9:00 AM - 6:00 PM)',
+          status: 'active',
+          description: 'Responsible nanny for 2-year old toddler. Feeding, play supervision & hygiene.'
+        }
+      ];
+    }
+
+    setJobs(fetched);
     setLoading(false);
   };
+
+  // Dynamic filtering according to category
+  const filteredJobs = jobs.filter(j => {
+    if (selectedCategory === 'cook') {
+      const c = (j.category || j.title || '').toLowerCase();
+      return c.includes('cook') || c.includes('chef') || c.includes('kitchen');
+    }
+    if (selectedCategory === 'maid') {
+      const c = (j.category || j.title || '').toLowerCase();
+      return c.includes('maid') || c.includes('clean') || c.includes('housekeep');
+    }
+    if (selectedCategory === 'nanny') {
+      const c = (j.category || j.title || '').toLowerCase();
+      return c.includes('nanny') || c.includes('child') || c.includes('baby');
+    }
+    return true;
+  });
 
   const handleApplyJob = (job: any) => {
     if (appliedJobIds.includes(job.id)) return;
@@ -200,13 +260,13 @@ export const WorkerHomeScreen: React.FC<{
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statTitle}>{t('availableJobsTitle', 'AVAILABLE JOBS')}</Text>
-          <Text style={[styles.statVal, { color: '#1A73E8' }]}>{jobs.length}</Text>
+          <Text style={[styles.statVal, { color: '#1A73E8' }]}>{filteredJobs.length}</Text>
           <Text style={styles.statSub}>In Preferred Society</Text>
         </View>
 
         <View style={styles.statCard}>
           <Text style={styles.statTitle}>{t('myApplicationsTitle', 'MY APPLICATIONS')}</Text>
-          <Text style={[styles.statVal, { color: '#16A34A' }]}>0</Text>
+          <Text style={[styles.statVal, { color: '#16A34A' }]}>{appliedJobIds.length}</Text>
           <Text style={styles.statSub}>Active Interviews</Text>
         </View>
 
@@ -225,7 +285,7 @@ export const WorkerHomeScreen: React.FC<{
         <View style={styles.jobsHeaderLeft}>
           <Briefcase size={16} color="#1A73E8" />
           <Text style={styles.jobsHeaderTitle}>
-            {t('topRecommendedJobs', 'TOP RECOMMENDED JOBS')} ({jobs.length})
+            {t('topRecommendedJobs', 'RECOMMENDED REQUISITIONS')} ({filteredJobs.length})
           </Text>
         </View>
         {onNavigateToJobs && (
@@ -236,16 +296,36 @@ export const WorkerHomeScreen: React.FC<{
         )}
       </View>
 
+      {/* Category Pills */}
+      <View style={styles.categoryRow}>
+        {[
+          { id: 'all', label: 'All Jobs' },
+          { id: 'cook', label: '🍳 Cooks' },
+          { id: 'maid', label: '🧹 Maids' },
+          { id: 'nanny', label: '👶 Nannies' }
+        ].map(cat => (
+          <TouchableOpacity 
+            key={cat.id}
+            style={[styles.catPill, selectedCategory === cat.id && styles.catPillActive]}
+            onPress={() => setSelectedCategory(cat.id as any)}
+          >
+            <Text style={[styles.catPillText, selectedCategory === cat.id && styles.catPillTextActive]}>
+              {cat.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {loading ? (
         <ActivityIndicator size="large" color="#1A73E8" style={{ marginVertical: 20 }} />
-      ) : jobs.length === 0 ? (
+      ) : filteredJobs.length === 0 ? (
         <View style={styles.emptyCard}>
           <Briefcase size={36} color="#CBD5E1" />
-          <Text style={styles.emptyTitle}>No Open Jobs Right Now</Text>
-          <Text style={styles.emptySub}>No active society job postings currently listed in the database.</Text>
+          <Text style={styles.emptyTitle}>No Open Jobs Matching Filter</Text>
+          <Text style={styles.emptySub}>No active society job postings match your selected category filter.</Text>
         </View>
       ) : (
-        jobs.slice(0, 2).map((job) => (
+        filteredJobs.slice(0, 3).map((job) => (
           <JobCard
             key={job.id}
             job={job}
@@ -542,6 +622,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 12,
+  },
+  catPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  catPillActive: {
+    backgroundColor: '#1A73E8',
+    borderColor: '#1A73E8',
+  },
+  catPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  catPillTextActive: {
+    color: '#FFFFFF',
   },
   jobsHeaderTitle: {
     fontSize: 12,

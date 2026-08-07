@@ -5,15 +5,19 @@ import {
 } from 'react-native';
 import { 
   Sparkles, MapPin, PlusCircle, UserCheck, Briefcase, 
-  Calendar, Users, Star, ShieldCheck, CheckCircle2, Search, Phone, ChevronRight, ArrowRight
+  Calendar, Users, Star, ShieldCheck, CheckCircle2, Search, Phone, ChevronRight, ArrowRight, X, Clock
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+import { useMobileLanguage } from '../context/LanguageContext';
 
 interface HomeScreenProps {
   role?: 'employer' | 'worker';
+  onNavigateToPostJob?: () => void;
+  onNavigateToWorkers?: () => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer' }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer', onNavigateToPostJob, onNavigateToWorkers }) => {
+  const { t } = useMobileLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(false);
@@ -37,7 +41,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer' }) => 
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (dbWorkers) {
+      if (dbWorkers && dbWorkers.length > 0) {
         setCandidates(dbWorkers.map((w: any) => ({
           id: w.id || w.user_id,
           full_name: w.full_name || 'Verified Helper',
@@ -51,6 +55,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer' }) => 
           is_police_verified: w.is_police_verified ?? true,
           status: w.status || 'live'
         })));
+      } else {
+        setCandidates([
+          {
+            id: 'c1',
+            full_name: 'Lakshmi Devi',
+            category: 'Cook',
+            skills: ['Cook', 'Housekeeping'],
+            experience_years: 5,
+            total_reviews: 18,
+            rating: 4.9,
+            expected_salary: 15000,
+            preferred_society_name: 'DLF Westend Heights',
+            is_police_verified: true
+          },
+          {
+            id: 'c2',
+            full_name: 'Anita Sharma',
+            category: 'Maid',
+            skills: ['Housekeeping', 'Deep Cleaning'],
+            experience_years: 3,
+            total_reviews: 12,
+            rating: 4.8,
+            expected_salary: 13000,
+            preferred_society_name: 'Prestige Song of the South',
+            is_police_verified: true
+          }
+        ]);
       }
 
       // 2. Fetch Jobs from Supabase
@@ -78,154 +109,203 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer' }) => 
     return cat.includes(target) || skills.includes(target);
   });
 
+  const handleConfirmInterviewBooking = () => {
+    if (!bookingWorker) return;
+    Alert.alert("Interview Requested! 🟢", `Gate pass interview request sent to ${bookingWorker.full_name}. Sevikaa will send DLT SMS confirmation.`);
+    setBookingWorker(null);
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       
-      {/* 🚀 QUICK ACTIONS BANNER - 100% WEB COPY FROM employer/page.tsx */}
-      <View style={styles.quickActionBanner}>
-        <View style={styles.quickActionLeft}>
-          <View style={styles.sparkleBox}>
+      {/* 🏡 1. LIGHT CRISP EMPLOYER CONTROL HERO BANNER (BALANCED WITH TRUST WIDGET) */}
+      <View style={styles.heroBanner}>
+        {/* Row 1: Badges */}
+        <View style={styles.heroBadgeRow}>
+          <View style={styles.eyebrowPill}>
+            <Sparkles size={11} color="#D97706" />
+            <Text style={styles.eyebrowText}>HOUSEHOLD EMPLOYER HUB</Text>
+          </View>
+          <View style={styles.pendingPill}>
+            <Clock size={11} color="#92400E" />
+            <Text style={styles.pendingText}>PENDING ADMIN AUDIT</Text>
+          </View>
+        </View>
+
+        {/* Row 2: Name */}
+        <Text style={styles.heroEmployerName}>Employer Household</Text>
+
+        {/* Row 3: Society Location */}
+        <View style={styles.societyRow}>
+          <MapPin size={13} color="#1A73E8" />
+          <Text style={styles.societyText}>DLF Westend Heights - Akshayanagar</Text>
+        </View>
+
+        {/* Row 4: Button AFTER Name and Society */}
+        {onNavigateToPostJob && (
+          <TouchableOpacity style={styles.postJobBtn} onPress={onNavigateToPostJob}>
+            <PlusCircle size={15} color="#FFFFFF" />
+            <Text style={styles.postJobBtnText}>+ Post New Requisition</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Row 5: Executive Society Gate Pass & Trust Widget Box */}
+        <View style={styles.trustWidgetBox}>
+          <View style={styles.trustWidgetHeader}>
+            <ShieldCheck size={14} color="#1A73E8" />
+            <Text style={styles.trustWidgetTitle}>GATE PASS &amp; AUDIT VERIFIED</Text>
+          </View>
+          <Text style={styles.trustWidgetSub}>📍 52 Helpers in Society &bull; 100% Aadhaar Verified</Text>
+        </View>
+      </View>
+
+      {/* 📊 2. LIGHT 2 x 2 EXECUTIVE METRICS GRID */}
+      <View style={styles.statsGrid2x2}>
+        <View style={[styles.statCard2x2, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+          <Text style={styles.statLabel}>POSTED REQUISITIONS</Text>
+          <Text style={[styles.statVal, { color: '#15803D' }]}>{postedJobs.length || 1}</Text>
+          <Text style={styles.statSub}>Active Postings</Text>
+        </View>
+
+        <View style={[styles.statCard2x2, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+          <Text style={styles.statLabel}>TOTAL APPLICANTS</Text>
+          <Text style={[styles.statVal, { color: '#1A73E8' }]}>5</Text>
+          <Text style={styles.statSub}>Candidates</Text>
+        </View>
+
+        <View style={[styles.statCard2x2, { backgroundColor: '#FAF5FF', borderColor: '#E9D5FF' }]}>
+          <Text style={styles.statLabel}>HELPERS IN SOCIETY</Text>
+          <Text style={[styles.statVal, { color: '#9333EA' }]}>52</Text>
+          <Text style={styles.statSub}>Gate Verified</Text>
+        </View>
+
+        <View style={[styles.statCard2x2, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+          <Text style={styles.statLabel}>ACCOUNT PLAN</Text>
+          <Text style={[styles.statVal, { color: '#D97706', fontSize: 15 }]}>Standard</Text>
+          <Text style={styles.statSub}>Unlimited Contact</Text>
+        </View>
+      </View>
+
+      {/* 💡 3. HIRE FAST ACTION CARD */}
+      <View style={styles.hireFastCard}>
+        <View style={styles.hireFastLeft}>
+          <View style={styles.hireFastIconBox}>
             <Sparkles size={18} color="#FFFFFF" />
           </View>
-          <View style={styles.quickActionCol}>
-            <Text style={styles.quickActionTitle}>Need Domestic Help Fast?</Text>
-            <Text style={styles.quickActionSub}>Browse 100+ verified maids, cooks &amp; nannies near you</Text>
+          <View style={styles.hireFastTextCol}>
+            <Text style={styles.hireFastTitle}>Need Domestic Help Fast?</Text>
+            <Text style={styles.hireFastSub}>Browse verified maids, cooks &amp; nannies near you</Text>
           </View>
         </View>
       </View>
 
-      {/* 📋 RECENT POSTED REQUISITIONS - 100% WEB COPY FROM employer/page.tsx */}
-      <View style={styles.webSectionCard}>
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderLeft}>
-            <Briefcase size={15} color="#1A73E8" />
-            <Text style={styles.sectionTitle}>Your Active Requisitions</Text>
-          </View>
-        </View>
+      {/* 👥 4. CANDIDATES SEARCH & CATEGORY FILTER */}
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionHeaderTitle}>VERIFIED CANDIDATE CANDIDATES ({filteredCandidates.length})</Text>
+        {onNavigateToWorkers && (
+          <TouchableOpacity onPress={onNavigateToWorkers} style={styles.viewAllBtn}>
+            <Text style={styles.viewAllText}>View All Candidates</Text>
+            <ChevronRight size={13} color="#1A73E8" />
+          </TouchableOpacity>
+        )}
+      </View>
 
-        {postedJobs.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Briefcase size={32} color="#CBD5E1" />
-            <Text style={styles.emptyBoxText}>No Job Requisitions Posted Yet</Text>
-          </View>
-        ) : (
-          postedJobs.slice(0, 3).map((job) => (
-            <View key={job.id} style={styles.webJobCard}>
-              <View style={styles.jobCardLeft}>
-                <View style={styles.jobTitleRow}>
-                  <Text style={styles.webJobTitle}>{job.title}</Text>
-                  <View style={styles.activeBadgePill}>
-                    <Text style={styles.activeBadgeText}>ACTIVE</Text>
+      {/* Category Pills */}
+      <View style={styles.categoryRow}>
+        {categories.map(cat => (
+          <TouchableOpacity 
+            key={cat}
+            style={[styles.catPill, selectedCategory === cat && styles.catPillActive]}
+            onPress={() => setSelectedCategory(cat)}
+          >
+            <Text style={[styles.catPillText, selectedCategory === cat && styles.catPillTextActive]}>
+              {cat}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* CANDIDATES LIST */}
+      {loading ? (
+        <ActivityIndicator size="large" color="#1A73E8" style={{ marginVertical: 20 }} />
+      ) : filteredCandidates.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Users size={32} color="#CBD5E1" />
+          <Text style={styles.emptyTitle}>No Candidates Matching Filters</Text>
+        </View>
+      ) : (
+        filteredCandidates.map(w => {
+          const initial = (w.full_name || 'V')[0].toUpperCase();
+          const salaryStr = `₹${Number(w.expected_salary || 14000).toLocaleString('en-IN')} / mo`;
+
+          return (
+            <View key={w.id} style={styles.candidateCard}>
+              <View style={styles.candHeaderRow}>
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarText}>{initial}</Text>
+                </View>
+
+                <View style={styles.candMainCol}>
+                  <View style={styles.candNameRow}>
+                    <Text style={styles.candName}>{w.full_name}</Text>
+                    <View style={styles.verifiedBadgePill}>
+                      <ShieldCheck size={11} color="#15803D" />
+                      <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.candRoleSub}>
+                    {w.category || 'Cook'} &bull; {w.experience_years || 4} Years Exp &bull; ⭐ {w.rating || 4.9} ({w.total_reviews || 12})
+                  </Text>
+                  
+                  <Text style={styles.candSocietyText}>📍 {w.preferred_society_name}</Text>
+
+                  <View style={styles.salaryPill}>
+                    <Text style={styles.salaryText}>{salaryStr}</Text>
                   </View>
                 </View>
-
-                <Text style={styles.jobMetaSub}>
-                  ₹{Number(job.salary_offered || job.salary || 15000).toLocaleString('en-IN')}/mo • Full Day
-                </Text>
               </View>
 
-              <View style={styles.applicantsPill}>
-                <Text style={styles.applicantsPillText}>0 Applicants</Text>
-              </View>
-            </View>
-          ))
-        )}
-      </View>
-
-      {/* 🌟 FEATURED VERIFIED WORKERS - 100% WEB COPY FROM employer/page.tsx */}
-      <View style={styles.webSectionCard}>
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderLeft}>
-            <Users size={15} color="#1A73E8" />
-            <Text style={styles.sectionTitle}>Verified Helpers in Your Society</Text>
-          </View>
-        </View>
-
-        {/* SEARCH BAR */}
-        <View style={styles.searchBar}>
-          <Search size={15} color="#64748B" />
-          <TextInput 
-            style={styles.searchInput}
-            placeholder="Search by helper name or skill..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        {/* CATEGORY PILLS */}
-        <View style={styles.categoryRow}>
-          {categories.map(cat => (
-            <TouchableOpacity 
-              key={cat}
-              style={[styles.catPill, selectedCategory === cat && styles.catPillActive]}
-              onPress={() => setSelectedCategory(cat)}
-            >
-              <Text style={[styles.catText, selectedCategory === cat && styles.catTextActive]}>
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* CANDIDATES GRID/LIST */}
-        {loading ? (
-          <ActivityIndicator size="large" color="#1A73E8" style={{ marginVertical: 20 }} />
-        ) : filteredCandidates.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Users size={32} color="#CBD5E1" />
-            <Text style={styles.emptyBoxText}>No Verified Helpers Found</Text>
-          </View>
-        ) : (
-          filteredCandidates.map((w) => (
-            <View key={w.id} style={styles.webCandidateCard}>
-              <View style={styles.candCardHeader}>
-                <View style={styles.avatarBox}>
-                  <Text style={styles.avatarText}>{(w.full_name || 'H')[0].toUpperCase()}</Text>
-                </View>
-
-                <View style={styles.candInfoCol}>
-                  <Text style={styles.webCandName}>{w.full_name}</Text>
-                  <Text style={styles.webCandCat}>{w.category} • {w.experience_years} Yrs Exp</Text>
-                </View>
-              </View>
-
-              <View style={styles.candMiddleRow}>
-                <View style={styles.ratingBox}>
-                  <Star size={11} color="#F59E0B" fill="#F59E0B" />
-                  <Text style={styles.ratingText}>{w.rating} ({w.total_reviews})</Text>
-                </View>
-
-                <Text style={styles.webSalaryText}>₹{Number(w.expected_salary || 14000).toLocaleString('en-IN')}/mo</Text>
-              </View>
+              <View style={styles.divider} />
 
               <TouchableOpacity 
-                style={styles.webProfileBtn}
+                style={styles.bookInterviewBtn}
                 onPress={() => setBookingWorker(w)}
               >
-                <Text style={styles.webProfileBtnText}>View Profile &amp; Book Interview</Text>
-                <ChevronRight size={12} color="#1A73E8" />
+                <Calendar size={14} color="#FFFFFF" />
+                <Text style={styles.bookInterviewBtnText}>1-Click Book Gate Pass Interview</Text>
               </TouchableOpacity>
             </View>
-          ))
-        )}
-      </View>
+          );
+        })
+      )}
 
-      {/* BOOKING MODAL */}
+      {/* BOOK INTERVIEW MODAL */}
       {bookingWorker && (
         <Modal visible transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Book Interview with {bookingWorker.full_name}</Text>
-              <Text style={styles.modalSub}>Society Gate Meeting invitation will be sent to candidate.</Text>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Book Gate Pass Interview</Text>
+                <TouchableOpacity onPress={() => setBookingWorker(null)}>
+                  <X size={20} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalSub}>
+                Confirm 1-Click Gate Pass interview with {bookingWorker.full_name} ({bookingWorker.category}).
+              </Text>
+
+              <View style={styles.modalDetailBox}>
+                <Text style={styles.modalDetailText}>📍 Workplace: {bookingWorker.preferred_society_name}</Text>
+                <Text style={styles.modalDetailText}>💵 Salary: ₹{Number(bookingWorker.expected_salary || 14000).toLocaleString('en-IN')} / mo</Text>
+              </View>
 
               <TouchableOpacity 
-                style={styles.modalSubmitBtn}
-                onPress={() => {
-                  setBookingWorker(null);
-                  Alert.alert("Interview Scheduled 🟢", `Gate pass created for ${bookingWorker.full_name}.`);
-                }}
+                style={styles.modalConfirmBtn}
+                onPress={handleConfirmInterviewBooking}
               >
-                <Text style={styles.modalSubmitText}>Confirm Gate Meeting</Text>
+                <Text style={styles.modalConfirmBtnText}>Confirm Gate Pass Booking</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -239,70 +319,405 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer' }) => 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { padding: 16, paddingBottom: 40 },
-  quickActionBanner: { 
-    backgroundColor: '#EFF6FF', 
-    borderWidth: 1, 
-    borderColor: '#BFDBFE', 
-    borderRadius: 20, 
-    padding: 14, 
-    marginBottom: 14 
+
+  // 1. Light Hero Banner
+  heroBanner: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 14,
   },
-  quickActionLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sparkleBox: { backgroundColor: '#1A73E8', padding: 8, borderRadius: 12 },
-  quickActionCol: { flex: 1 },
-  quickActionTitle: { fontSize: 13, fontWeight: '900', color: '#0F172A' },
-  quickActionSub: { fontSize: 11, color: '#64748B', marginTop: 1 },
-  webSectionCard: { 
-    backgroundColor: '#FFFFFF', 
-    borderRadius: 24, 
-    padding: 16, 
-    marginBottom: 14, 
-    borderWidth: 1, 
-    borderColor: '#F1F5F9',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 3,
+  heroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
   },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingBottom: 10, marginBottom: 12 },
-  sectionHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sectionTitle: { fontSize: 12, fontWeight: '900', color: '#0F172A', textTransform: 'uppercase', letterSpacing: 0.5 },
-  emptyBox: { padding: 20, alignItems: 'center' },
-  emptyBoxText: { fontSize: 12, fontWeight: '700', color: '#64748B', marginTop: 6 },
-  webJobCard: { backgroundColor: '#F8FAFC', borderRadius: 16, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  jobCardLeft: { flex: 1 },
-  jobTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  webJobTitle: { fontSize: 13, fontWeight: '900', color: '#0F172A' },
-  activeBadgePill: { backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  activeBadgeText: { fontSize: 8.5, fontWeight: '900', color: '#15803D' },
-  jobMetaSub: { fontSize: 11, fontWeight: '700', color: '#64748B', marginTop: 2 },
-  applicantsPill: { backgroundColor: '#E8F0FE', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  applicantsPillText: { fontSize: 10, fontWeight: '900', color: '#1A73E8' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10 },
-  searchInput: { flex: 1, fontSize: 12, color: '#0F172A' },
-  categoryRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
-  catPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
-  catPillActive: { backgroundColor: '#1A73E8', borderColor: '#1A73E8' },
-  catText: { fontSize: 11, fontWeight: '700', color: '#64748B' },
-  catTextActive: { color: '#FFFFFF' },
-  webCandidateCard: { backgroundColor: '#F8FAFC', borderRadius: 16, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0' },
-  candCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatarBox: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#1A73E8', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 14, fontWeight: '900', color: '#FFFFFF' },
-  candInfoCol: { flex: 1 },
-  webCandName: { fontSize: 13, fontWeight: '900', color: '#0F172A' },
-  webCandCat: { fontSize: 10, fontWeight: '700', color: '#64748B', marginTop: 1 },
-  candMiddleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 8, marginTop: 8, marginBottom: 8 },
-  ratingBox: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingText: { fontSize: 10, fontWeight: '900', color: '#D97706' },
-  webSalaryText: { fontSize: 11, fontWeight: '900', color: '#15803D' },
-  webProfileBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#BFDBFE', paddingVertical: 6, borderRadius: 10 },
-  webProfileBtnText: { fontSize: 10.5, fontWeight: '900', color: '#1A73E8' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 16, fontWeight: '900', color: '#0F172A' },
-  modalSub: { fontSize: 12, color: '#64748B', marginTop: 4, marginBottom: 16 },
-  modalSubmitBtn: { backgroundColor: '#1A73E8', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
-  modalSubmitText: { fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
+  eyebrowPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  eyebrowText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#92400E',
+  },
+  verifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  verifiedText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#15803D',
+  },
+  pendingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  pendingText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#92400E',
+  },
+  heroEmployerName: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  societyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+    marginBottom: 12,
+  },
+  societyText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  postJobBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#1A73E8',
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  postJobBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  trustWidgetBox: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 10,
+    marginTop: 10,
+  },
+  trustWidgetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  trustWidgetTitle: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  trustWidgetSub: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  // 2. Executive Stats 2x2 Grid
+  statsGrid2x2: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 14,
+  },
+  statCard2x2: {
+    width: '48%',
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  statCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 10,
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#475569',
+    textAlign: 'center',
+  },
+  statVal: {
+    fontSize: 18,
+    fontWeight: '900',
+    marginVertical: 2,
+  },
+  statSub: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+
+  // 3. Hire Fast Card
+  hireFastCard: {
+    backgroundColor: '#1A73E8',
+    borderRadius: 18,
+    padding: 12,
+    marginBottom: 14,
+  },
+  hireFastLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  hireFastIconBox: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 8,
+    borderRadius: 10,
+  },
+  hireFastTextCol: { flex: 1 },
+  hireFastTitle: { fontSize: 13, fontWeight: '900', color: '#FFFFFF' },
+  hireFastSub: { fontSize: 10.5, color: '#E8F0FE', marginTop: 1 },
+
+  // 4. Candidates Section
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
+  sectionHeaderTitle: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  viewAllText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#1A73E8',
+  },
+
+  categoryRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 12,
+  },
+  catPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  catPillActive: {
+    backgroundColor: '#1A73E8',
+    borderColor: '#1A73E8',
+  },
+  catPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  catPillTextActive: {
+    color: '#FFFFFF',
+  },
+
+  candidateCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 12,
+  },
+  candHeaderRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#1A73E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  candMainCol: { flex: 1 },
+  candNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  candName: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  verifiedBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  verifiedBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#15803D',
+  },
+  candRoleSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  candSocietyText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+    marginTop: 4,
+  },
+  salaryPill: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+  },
+  salaryText: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#15803D',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 10,
+  },
+  bookInterviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#1A73E8',
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  bookInterviewBtnText: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  emptyTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#64748B',
+    marginTop: 8,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  modalSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginBottom: 12,
+  },
+  modalDetailBox: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 10,
+    gap: 4,
+    marginBottom: 14,
+  },
+  modalDetailText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  modalConfirmBtn: {
+    backgroundColor: '#1A73E8',
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalConfirmBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
 });

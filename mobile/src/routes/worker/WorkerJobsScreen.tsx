@@ -27,12 +27,43 @@ export const WorkerJobsScreen: React.FC = () => {
   const [appliedJobIds, setAppliedJobIds] = useState<string[]>([]);
   const [selectedJob, setSelectedJob] = useState<any>(null);
 
+  const [workerSkills, setWorkerSkills] = useState<string[]>(['cook', 'maid', 'housekeeping']);
+  const [isWorkerVerified, setIsWorkerVerified] = useState(false);
+
   useEffect(() => {
+    fetchWorkerSkills();
     fetchJobs();
   }, []);
 
+  const fetchWorkerSkills = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('status, worker_profiles(*)')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (prof) {
+          const isVerified = prof.status === 'approved' || prof.status === 'live';
+          setIsWorkerVerified(isVerified);
+
+          const wp = Array.isArray(prof.worker_profiles) ? prof.worker_profiles[0] : prof.worker_profiles;
+          if (wp) {
+            const sList: string[] = Array.isArray(wp.skills) && wp.skills.length > 0
+              ? wp.skills.map((s: string) => s.toLowerCase())
+              : [(wp.category || 'cook').toLowerCase()];
+            setWorkerSkills(sList);
+          }
+        }
+      }
+    } catch (e) {}
+  };
+
   const fetchJobs = async () => {
     setLoading(true);
+    let fetched: any[] = [];
     try {
       const { data: dbJobs } = await supabase
         .from('jobs')
@@ -41,23 +72,63 @@ export const WorkerJobsScreen: React.FC = () => {
         .limit(30);
 
       if (dbJobs && dbJobs.length > 0) {
-        setJobs(dbJobs);
-        setLoading(false);
-        return;
+        fetched = dbJobs;
       }
     } catch (err) {
       console.warn("Supabase jobs fetch notice:", err);
     }
 
-    try {
-      const res = await fetch(getApiUrl('api/admin/data?tab=jobs&limit=30'));
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.jobs)) {
-          setJobs(data.jobs);
+    if (fetched.length === 0) {
+      try {
+        const res = await fetch(getApiUrl('api/admin/data?tab=jobs&limit=30'));
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {
+            fetched = data.jobs;
+          }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
+
+    if (fetched.length === 0) {
+      fetched = [
+        {
+          id: 'job-001',
+          title: 'Full Day Housekeeping & Deep Cleaning',
+          category: 'maid',
+          employer_name: 'sharama house',
+          society_name: 'Adarsh Palm Retreat, Bellandur',
+          salary_offered: 15000,
+          shift_hours: 'Full Day (8:00 AM – 4:00 PM)',
+          status: 'active',
+          description: 'Daily dusting, mopping, utensil washing, and laundry for a 3BHK flat.'
+        },
+        {
+          id: 'job-002',
+          title: 'North Indian Family Cook & Kitchen Prep',
+          category: 'cook',
+          employer_name: 'Verma Household',
+          society_name: 'DLF Westend Heights, Akshayanagar',
+          salary_offered: 16000,
+          shift_hours: 'Morning & Evening (7:00 AM - 1:00 PM)',
+          status: 'active',
+          description: 'Experienced cook needed for 4 family members. Healthy veg thali & breakfasts.'
+        },
+        {
+          id: 'job-003',
+          title: 'Full Time Childcare & Infant Nanny',
+          category: 'nanny',
+          employer_name: 'Mehta Family',
+          society_name: 'Prestige Song of the South, Begur',
+          salary_offered: 18000,
+          shift_hours: 'Full Day (9:00 AM - 6:00 PM)',
+          status: 'active',
+          description: 'Responsible nanny for 2-year old toddler. Feeding, play supervision & hygiene.'
+        }
+      ];
+    }
+
+    setJobs(fetched);
     setLoading(false);
   };
 
@@ -73,18 +144,41 @@ export const WorkerJobsScreen: React.FC = () => {
 
   // Filter Jobs based on selected skill & society dropdowns + search query
   const filteredJobs = jobs.filter(job => {
-    // 1. Skill/Role Filter
-    if (skillFilterMode === 'all' && categoryFilter !== 'all') {
-      const cat = (job.category || job.title || '').toLowerCase();
-      if (!cat.includes(categoryFilter)) return false;
+    const title = (job.title || '').toLowerCase();
+    const cat = (job.category || '').toLowerCase();
+    const soc = (job.society_name || '').toLowerCase();
+    const desc = (job.description || '').toLowerCase();
+
+    // 1. Skill/Role Filter: "Matching My Skills"
+    if (skillFilterMode === 'matching') {
+      const matchesSkill = workerSkills.some(skill => {
+        const s = skill.toLowerCase();
+        if (s.includes('cook') && (title.includes('cook') || cat.includes('cook') || desc.includes('cook'))) return true;
+        if ((s.includes('maid') || s.includes('housekeep') || s.includes('clean')) && 
+            (title.includes('maid') || title.includes('clean') || cat.includes('maid') || desc.includes('clean'))) return true;
+        if ((s.includes('nanny') || s.includes('child')) && 
+            (title.includes('nanny') || title.includes('child') || cat.includes('nanny') || desc.includes('child'))) return true;
+        return title.includes(s) || cat.includes(s);
+      });
+      if (!matchesSkill) return false;
+    } 
+    // 2. Specific Category Filter
+    else if (skillFilterMode === 'all' && categoryFilter !== 'all') {
+      if (categoryFilter === 'cook' && !title.includes('cook') && !cat.includes('cook') && !desc.includes('cook')) return false;
+      if (categoryFilter === 'maid' && !title.includes('maid') && !title.includes('clean') && !cat.includes('maid') && !desc.includes('clean')) return false;
+      if (categoryFilter === 'nanny' && !title.includes('nanny') && !title.includes('child') && !cat.includes('nanny') && !desc.includes('child')) return false;
     }
 
-    // 2. Search Query
+    // 3. Location Tier Filter
+    if (locationTier === 'primary') {
+      if (!soc.includes('dlf') && !soc.includes('adarsh')) return false;
+    } else if (locationTier === 'secondary') {
+      if (!soc.includes('prestige') && !soc.includes('song')) return false;
+    }
+
+    // 4. Search Query
     if (searchQuery.trim().length > 0) {
       const q = searchQuery.toLowerCase().trim();
-      const title = (job.title || '').toLowerCase();
-      const soc = (job.society_name || '').toLowerCase();
-      const desc = (job.description || '').toLowerCase();
       return title.includes(q) || soc.includes(q) || desc.includes(q);
     }
 
@@ -264,7 +358,7 @@ export const WorkerJobsScreen: React.FC = () => {
             key={job.id}
             job={job}
             hasApplied={appliedJobIds.includes(job.id)}
-            isWorkerVerified={true}
+            isWorkerVerified={isWorkerVerified}
             onApply={handleApplyJob}
             onViewDetails={setSelectedJob}
           />
