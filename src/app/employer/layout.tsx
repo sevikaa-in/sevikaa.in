@@ -437,6 +437,8 @@ export default function EmployerDashboardLayout({ children }: { children: React.
     );
   }
 
+  const isOnboarding = pathname === '/employer/onboarding';
+
   return (
     <EmployerDashboardContext.Provider value={{
       user, loading, employerProfile, setEmployerProfile, isPremium,
@@ -450,93 +452,154 @@ export default function EmployerDashboardLayout({ children }: { children: React.
         {/* Mobile Viewport Container - Clean Flat Interface */}
         <div className="w-full max-w-md bg-slate-50 min-h-screen border-x border-slate-200/80 shadow-xl flex flex-col relative">
 
-          {/* Clean Mobile App Header with Integrated Dropdown Menu */}
+          {/* Clean Mobile App Header */}
           <header className="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-xs">
             <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const isDashboardHome = pathname === '/employer' || pathname === '/employer/dashboard';
-                  const logoHref = isDashboardHome ? '/?browse=true' : '/employer/dashboard';
-                  const logoTitle = isDashboardHome ? 'Go to Sevikaa Public Homepage' : 'Return to Employer Dashboard Home';
-                  return (
-                    <Link href={logoHref} className="flex items-center gap-2 group cursor-pointer" title={logoTitle}>
-                      {!isDashboardHome && (
-                        <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
-                      )}
-                      <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain transition-transform group-hover:scale-105" />
-                      <span className="font-black text-xs text-slate-800">{t('headerEmployer')}</span>
+              {isOnboarding ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
+                    <span className="font-black text-xs text-slate-800">Sevikaa</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-[#1A73E8] border border-blue-200">
+                      {t('employerSetup') || 'Employer Setup'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowMobileMenu(!showMobileMenu)}
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      aria-label="Toggle Navigation Menu"
+                    >
+                      {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const isDashboardHome = pathname === '/employer' || pathname === '/employer/dashboard';
+                      const logoHref = isDashboardHome ? '/?browse=true' : '/employer/dashboard';
+                      const logoTitle = isDashboardHome ? 'Go to Sevikaa Public Homepage' : 'Return to Employer Dashboard Home';
+                      return (
+                        <Link href={logoHref} className="flex items-center gap-2 group cursor-pointer" title={logoTitle}>
+                          {!isDashboardHome && (
+                            <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
+                          )}
+                          <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain transition-transform group-hover:scale-105" />
+                          <span className="font-black text-xs text-slate-800">{t('headerEmployer')}</span>
+                        </Link>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="bg-emerald-50 text-emerald-700 border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-black flex items-center gap-1">
+                      <CheckCircle2 size={10} />
+                      <span>{t('subscribedBadge')}</span>
+                    </div>
+
+                    {/* Notifications Bell Button */}
+                    <Link
+                      href="/employer/notifications"
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
+                      title="Notifications & Alerts"
+                    >
+                      <Bell size={18} />
+                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#EA4335] border border-white animate-pulse" />
                     </Link>
-                  );
-                })()}
-              </div>
 
-              <div className="flex items-center gap-2">
-              <div className="bg-emerald-50 text-emerald-700 border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-black flex items-center gap-1">
-                  <CheckCircle2 size={10} />
-                  <span>{t('subscribedBadge')}</span>
-                </div>
-
-                {/* Notifications Bell Button */}
-                <Link
-                  href="/employer/notifications"
-                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
-                  title="Notifications & Alerts"
-                >
-                  <Bell size={18} />
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#EA4335] border border-white animate-pulse" />
-                </Link>
-
-                {/* Hamburger Mobile Menu Toggle Button */}
-                <button
-                  onClick={() => setShowMobileMenu(!showMobileMenu)}
-                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
-                  aria-label="Toggle Navigation Menu"
-                >
-                  {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
-                </button>
-              </div>
+                    {/* Hamburger Mobile Menu Toggle Button */}
+                    <button
+                      onClick={() => setShowMobileMenu(!showMobileMenu)}
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      aria-label="Toggle Navigation Menu"
+                    >
+                      {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Slide-Down Mobile Header Menu Overlay Drawer (Floats over the screen content) */}
             {showMobileMenu && (
-              <div className="absolute top-full left-0 right-0 bg-white border-b border-slate-200 p-4 space-y-4 shadow-2xl animate-fade-in z-[100]">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div>
-                    <h4 className="text-xs font-black text-slate-900">{employerProfile.company_name}</h4>
-                    <p className="text-[10px] text-slate-400 font-semibold">{employerProfile.society_name}</p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
-                    deletionRequested 
-                      ? 'bg-amber-100 text-amber-800' 
-                      : 'bg-blue-50 text-[#1A73E8]'
-                  }`}>
-                    {deletionRequested ? 'Pending' : 'Active'}
-                  </span>
-                </div>
+              <>
+                <div
+                  className="fixed inset-0 z-[99]"
+                  onClick={() => setShowMobileMenu(false)}
+                  onTouchStart={() => setShowMobileMenu(false)}
+                />
+                <div className="absolute top-full left-0 right-0 bg-white border-b border-slate-200 p-4 space-y-4 shadow-2xl animate-fade-in z-[100]">
+                  {isOnboarding ? (
+                    <>
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900">Employer Account</h4>
+                          <p className="text-[10px] text-slate-400 font-semibold">{user?.email || employerProfile.email || 'Setup Pending'}</p>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase bg-blue-50 text-[#1A73E8]">
+                          Setup Pending
+                        </span>
+                      </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-xs font-bold text-slate-500">App Language:</span>
-                  <GlobalLanguageSelector />
-                </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-xs font-bold text-slate-500">App Language:</span>
+                        <GlobalLanguageSelector />
+                      </div>
 
-                <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
-                  <Link
-                    href="/?browse=true"
-                    onClick={() => setShowMobileMenu(false)}
-                    className="w-full py-2.5 px-4 bg-blue-50 hover:bg-blue-100 text-[#1A73E8] border border-blue-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>🌐 Visit Public Homepage</span>
-                  </Link>
+                      <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                        <button
+                          onClick={() => { setShowMobileMenu(false); handleLogout(); }}
+                          className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <LogOut size={14} />
+                          <span>Log Out Session</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900">{employerProfile.company_name}</h4>
+                          <p className="text-[10px] text-slate-400 font-semibold">{employerProfile.society_name}</p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                          deletionRequested 
+                            ? 'bg-amber-100 text-amber-800' 
+                            : 'bg-blue-50 text-[#1A73E8]'
+                        }`}>
+                          {deletionRequested ? 'Pending' : 'Active'}
+                        </span>
+                      </div>
 
-                  <button
-                    onClick={() => { setShowMobileMenu(false); handleLogout(); }}
-                    className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <LogOut size={14} />
-                    <span>Log Out Session</span>
-                  </button>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-xs font-bold text-slate-500">App Language:</span>
+                        <GlobalLanguageSelector />
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                        <Link
+                          href="/?browse=true"
+                          onClick={() => setShowMobileMenu(false)}
+                          className="w-full py-2.5 px-4 bg-blue-50 hover:bg-blue-100 text-[#1A73E8] border border-blue-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <span>🌐 Visit Public Homepage</span>
+                        </Link>
+
+                        <button
+                          onClick={() => { setShowMobileMenu(false); handleLogout(); }}
+                          className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <LogOut size={14} />
+                          <span>Log Out Session</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
+              </>
             )}
           </header>
 
@@ -572,30 +635,32 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           )}
 
           {/* Main Scrollable Screen Area */}
-          <main className="flex-1 p-4 space-y-5 pb-24 pt-4">
+          <main className={`flex-1 p-4 space-y-5 pt-4 ${isOnboarding ? 'pb-6' : 'pb-24'}`}>
             {children}
           </main>
 
-          {/* Sticky Mobile Bottom Navigation Bar */}
-          <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200/90 py-2.5 px-2 flex justify-around items-center z-50 shadow-lg shrink-0">
-            {navItems.map((item) => {
-              const isActive = (item.id === 'overview' && pathname === '/employer') || (item.id !== 'overview' && pathname === item.href);
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-[9.5px] font-bold transition-all relative ${
-                    isActive 
-                      ? 'text-[#1A73E8] font-black bg-blue-50/80 scale-105' 
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Sticky Mobile Bottom Navigation Bar (Hidden during onboarding) */}
+          {!isOnboarding && (
+            <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200/90 py-2.5 px-2 flex justify-around items-center z-50 shadow-lg shrink-0">
+              {navItems.map((item) => {
+                const isActive = (item.id === 'overview' && pathname === '/employer') || (item.id !== 'overview' && pathname === item.href);
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-[9.5px] font-bold transition-all relative ${
+                      isActive 
+                        ? 'text-[#1A73E8] font-black bg-blue-50/80 scale-105' 
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
         </div>
       </div>
     </EmployerDashboardContext.Provider>

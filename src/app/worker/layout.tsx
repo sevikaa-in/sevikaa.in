@@ -445,6 +445,8 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
     );
   }
 
+  const isOnboarding = pathname === '/worker/onboarding';
+
   return (
     <WorkerDashboardContext.Provider value={{
       user, loading, workerProfile, setWorkerProfile, availability, setAvailability,
@@ -457,59 +459,82 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         {/* Mobile Viewport Container - Clean Flat Interface */}
         <div className="w-full max-w-md bg-slate-50 min-h-screen border-x border-slate-200/80 shadow-xl flex flex-col relative">
 
-          {/* Clean Mobile App Header with Integrated Dropdown Menu */}
+          {/* Clean Mobile App Header */}
           <header className="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-xs">
             <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const isDashboardHome = pathname === '/worker' || pathname === '/worker/dashboard';
-                  const logoHref = isDashboardHome ? '/?browse=true' : '/worker';
-                  const logoTitle = isDashboardHome ? 'Go to Sevikaa Public Homepage' : 'Return to Worker Dashboard Home';
-                  return (
-                    <Link href={logoHref} className="flex items-center gap-2 group cursor-pointer" title={logoTitle}>
-                      {!isDashboardHome && (
-                        <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
-                      )}
-                      <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain transition-transform group-hover:scale-105" />
-                      <span className="font-semibold text-xs text-slate-800">{t('headerWorker')}</span>
+              {isOnboarding ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
+                    <span className="font-semibold text-xs text-slate-800">Sevikaa</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-[#34A853] border border-emerald-200">
+                      {t('workerSetup') || 'Worker Setup'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowMobileMenu(!showMobileMenu)}
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      aria-label="Toggle Navigation Menu"
+                    >
+                      {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const isDashboardHome = pathname === '/worker' || pathname === '/worker/dashboard';
+                      const logoHref = isDashboardHome ? '/?browse=true' : '/worker';
+                      const logoTitle = isDashboardHome ? 'Go to Sevikaa Public Homepage' : 'Return to Worker Dashboard Home';
+                      return (
+                        <Link href={logoHref} className="flex items-center gap-2 group cursor-pointer" title={logoTitle}>
+                          {!isDashboardHome && (
+                            <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
+                          )}
+                          <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain transition-transform group-hover:scale-105" />
+                          <span className="font-semibold text-xs text-slate-800">{t('headerWorker')}</span>
+                        </Link>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Verification Pill */}
+                    {workerProfile.status === 'live' || workerProfile.status === 'approved' ? (
+                      <div className="bg-emerald-50 text-[#34A853] border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
+                        <CheckCircle2 size={10} />
+                        <span>{t('aadhaarVerifiedBadge')}</span>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50 text-amber-700 border border-amber-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
+                        <Lock size={10} />
+                        <span>{t('pendingAdminAudit')}</span>
+                      </div>
+                    )}
+
+                    {/* Notifications Bell Button */}
+                    <Link
+                      href="/worker/notifications"
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
+                      title="Notifications & Alerts"
+                    >
+                      <Bell size={18} />
+                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#EA4335] border border-white animate-pulse" />
                     </Link>
-                  );
-                })()}
-              </div>
 
-              <div className="flex items-center gap-2">
-                {/* Verification Pill */}
-                {workerProfile.status === 'live' || workerProfile.status === 'approved' ? (
-                  <div className="bg-emerald-50 text-[#34A853] border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
-                    <CheckCircle2 size={10} />
-                    <span>{t('aadhaarVerifiedBadge')}</span>
+                    {/* Hamburger Mobile Menu Toggle Button */}
+                    <button
+                      onClick={() => setShowMobileMenu(!showMobileMenu)}
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      aria-label="Toggle Navigation Menu"
+                    >
+                      {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+                    </button>
                   </div>
-                ) : (
-                  <div className="bg-amber-50 text-amber-700 border border-amber-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
-                    <Lock size={10} />
-                    <span>{t('pendingAdminAudit')}</span>
-                  </div>
-                )}
-
-                {/* Notifications Bell Button */}
-                <Link
-                  href="/worker/notifications"
-                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
-                  title="Notifications & Alerts"
-                >
-                  <Bell size={18} />
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#EA4335] border border-white animate-pulse" />
-                </Link>
-
-                {/* Hamburger Mobile Menu Toggle Button */}
-                <button
-                  onClick={() => setShowMobileMenu(!showMobileMenu)}
-                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
-                  aria-label="Toggle Navigation Menu"
-                >
-                  {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
-                </button>
-              </div>
+                </>
+              )}
             </div>
 
             {/* Slide-Down Mobile Header Menu Overlay Drawer */}
@@ -522,44 +547,75 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                   onTouchStart={() => setShowMobileMenu(false)}
                 />
                 <div ref={menuRef} className="absolute top-full left-0 right-0 bg-white border-b border-slate-200 p-4 space-y-4 shadow-2xl animate-fade-in z-[100]">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <div>
-                      <h4 className="text-xs font-semibold text-slate-900">{workerProfile.name || 'Worker Candidate'}</h4>
-                      <p className="text-[10px] text-slate-400 font-normal">{workerProfile.society}</p>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded text-[8px] font-semibold uppercase ${
-                      deletionRequested 
-                        ? 'bg-amber-100 text-amber-800' 
-                        : (workerProfile.status === 'live' || workerProfile.status === 'approved')
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-amber-50 text-amber-700'
-                    }`}>
-                      {deletionRequested ? 'Pending Offboarding' : (workerProfile.status === 'live' || workerProfile.status === 'approved') ? 'VERIFIED' : 'PENDING AUDIT'}
-                    </span>
-                  </div>
+                  {isOnboarding ? (
+                    <>
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div>
+                          <h4 className="text-xs font-semibold text-slate-900">Worker Candidate</h4>
+                          <p className="text-[10px] text-slate-400 font-normal">{user?.email || user?.phone || 'Setup Pending'}</p>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[8px] font-semibold uppercase bg-amber-50 text-amber-700">
+                          Setup Pending
+                        </span>
+                      </div>
 
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-xs font-medium text-slate-500">App Language:</span>
-                    <GlobalLanguageSelector />
-                  </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-xs font-medium text-slate-500">App Language:</span>
+                        <GlobalLanguageSelector />
+                      </div>
 
-                  <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
-                    <Link
-                      href="/?browse=true"
-                      onClick={() => setShowMobileMenu(false)}
-                      className="w-full py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100 text-[#34A853] border border-emerald-200 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <span>🌐 Visit Public Homepage</span>
-                    </Link>
+                      <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                        <button
+                          onClick={() => { setShowMobileMenu(false); handleLogout(); }}
+                          className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <LogOut size={14} />
+                          <span>Log Out Session</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div>
+                          <h4 className="text-xs font-semibold text-slate-900">{workerProfile.name || 'Worker Candidate'}</h4>
+                          <p className="text-[10px] text-slate-400 font-normal">{workerProfile.society}</p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-semibold uppercase ${
+                          deletionRequested 
+                            ? 'bg-amber-100 text-amber-800' 
+                            : (workerProfile.status === 'live' || workerProfile.status === 'approved')
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-amber-50 text-amber-700'
+                        }`}>
+                          {deletionRequested ? 'Pending Offboarding' : (workerProfile.status === 'live' || workerProfile.status === 'approved') ? 'VERIFIED' : 'PENDING AUDIT'}
+                        </span>
+                      </div>
 
-                    <button
-                      onClick={() => { setShowMobileMenu(false); handleLogout(); }}
-                      className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <LogOut size={14} />
-                      <span>Log Out Session</span>
-                    </button>
-                  </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-xs font-medium text-slate-500">App Language:</span>
+                        <GlobalLanguageSelector />
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                        <Link
+                          href="/?browse=true"
+                          onClick={() => setShowMobileMenu(false)}
+                          className="w-full py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100 text-[#34A853] border border-emerald-200 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <span>🌐 Visit Public Homepage</span>
+                        </Link>
+
+                        <button
+                          onClick={() => { setShowMobileMenu(false); handleLogout(); }}
+                          className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <LogOut size={14} />
+                          <span>Log Out Session</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -597,35 +653,37 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           )}
 
           {/* Main Scrollable Screen Area */}
-          <main className="flex-1 p-4 space-y-4 pb-6">
+          <main className={`flex-1 p-4 space-y-4 ${isOnboarding ? 'pb-6' : 'pb-20'}`}>
             {children}
           </main>
 
-          {/* Sticky Mobile Bottom Navigation Bar */}
-          <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2.5 px-2 flex justify-around items-center z-50 shadow-xl shrink-0">
-            {navItems.map((item) => {
-              const isActive = (item.id === 'overview' && pathname === '/worker') || (item.id !== 'overview' && pathname === item.href);
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`flex flex-col items-center justify-center gap-1 py-1 px-2.5 rounded-xl transition-all relative text-center cursor-pointer ${
-                    isActive 
-                      ? 'text-[#1A73E8] font-bold bg-blue-50/90 border border-blue-200/80 scale-105 shadow-xs' 
-                      : 'text-slate-600 font-medium hover:text-slate-900'
-                  }`}
-                >
-                  <div className="shrink-0">{item.icon}</div>
-                  <span className="text-center leading-tight text-xs">{item.label}</span>
-                  {item.badge && item.badge > 0 ? (
-                    <span className="absolute -top-1 -right-1 bg-[#1A73E8] text-white text-[9px] font-semibold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs">
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Sticky Mobile Bottom Navigation Bar (Hidden during onboarding) */}
+          {!isOnboarding && (
+            <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2.5 px-2 flex justify-around items-center z-50 shadow-xl shrink-0">
+              {navItems.map((item) => {
+                const isActive = (item.id === 'overview' && pathname === '/worker') || (item.id !== 'overview' && pathname === item.href);
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className={`flex flex-col items-center justify-center gap-1 py-1 px-2.5 rounded-xl transition-all relative text-center cursor-pointer ${
+                      isActive 
+                        ? 'text-[#1A73E8] font-bold bg-blue-50/90 border border-blue-200/80 scale-105 shadow-xs' 
+                        : 'text-slate-600 font-medium hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="shrink-0">{item.icon}</div>
+                    <span className="text-center leading-tight text-xs">{item.label}</span>
+                    {item.badge && item.badge > 0 ? (
+                      <span className="absolute -top-1 -right-1 bg-[#1A73E8] text-white text-[9px] font-semibold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
         </div>
       </div>
     </WorkerDashboardContext.Provider>
