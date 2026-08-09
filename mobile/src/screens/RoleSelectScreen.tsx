@@ -3,6 +3,7 @@ import {
   StyleSheet, Text, View, TouchableOpacity, Image, SafeAreaView, StatusBar, ScrollView, Platform 
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMobileLanguage } from '../context/LanguageContext';
 
 interface RoleSelectProps {
   onSelectRole?: (role: 'employer' | 'worker') => void;
@@ -14,6 +15,8 @@ export const RoleSelectScreen: React.FC<RoleSelectProps> = ({
   onSelectRole, onSelectEmployer, onSelectWorker 
 }) => {
   const insets = useSafeAreaInsets();
+  const { t } = useMobileLanguage();
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
@@ -29,7 +32,7 @@ export const RoleSelectScreen: React.FC<RoleSelectProps> = ({
         {/* HEADER BRANDING */}
         <View style={styles.header}>
           <View style={styles.pillBadge}>
-            <Text style={styles.pillBadgeText}>✨ WELCOME TO SEVIKAA PLATFORM</Text>
+            <Text style={styles.pillBadgeText}>{t('welcomeBadge', '✨ WELCOME TO SEVIKAA PLATFORM')}</Text>
           </View>
           
           <View style={styles.logoRow}>
@@ -40,9 +43,9 @@ export const RoleSelectScreen: React.FC<RoleSelectProps> = ({
             />
           </View>
 
-          <Text style={styles.title}>How would you like to use Sevikaa?</Text>
+          <Text style={styles.title}>{t('roleSelectTitle', 'How would you like to use Sevikaa?')}</Text>
           <Text style={styles.subtitle}>
-            Select your account type to customize your experience. You can switch roles anytime.
+            {t('roleSelectSub', 'Select your account type to customize your experience. You can switch roles anytime.')}
           </Text>
         </View>
 
@@ -63,22 +66,22 @@ export const RoleSelectScreen: React.FC<RoleSelectProps> = ({
                 <Text style={styles.iconEmoji}>🏠</Text>
               </View>
               <View style={styles.badgeTagBlue}>
-                <Text style={styles.badgeTagBlueText}>EMPLOYER</Text>
+                <Text style={styles.badgeTagBlueText}>{t('employerBadge', 'EMPLOYER')}</Text>
               </View>
             </View>
 
-            <Text style={styles.cardTitleBlue}>I Want to Hire Household Help</Text>
+            <Text style={styles.cardTitleBlue}>{t('employerCardTitle', 'I Want to Hire Household Help')}</Text>
             <Text style={styles.cardDesc}>
-              Browse &amp; hire verified Cooks, Maids, and Nannies. Schedule 1-click gate meetings &amp; download GST invoices.
+              {t('employerCardDesc', 'Browse & hire verified Cooks, Maids, and Nannies. Schedule 1-click gate meetings & download GST invoices.')}
             </Text>
 
             <View style={styles.featureRow}>
-              <Text style={styles.featureCheck}>✓ Aadhaar Verified Staff</Text>
-              <Text style={styles.featureCheck}>✓ Gate Interview Pass</Text>
+              <Text style={styles.featureCheck}>{t('featureVerifiedStaff', '✓ Aadhaar Verified Staff')}</Text>
+              <Text style={styles.featureCheck}>{t('featureGatePass', '✓ Gate Interview Pass')}</Text>
             </View>
 
             <View style={styles.selectBtnBlue}>
-              <Text style={styles.selectBtnBlueText}>Continue as Employer →</Text>
+              <Text style={styles.selectBtnBlueText}>{t('continueEmployerBtn', 'Continue as Employer →')}</Text>
             </View>
           </TouchableOpacity>
 
@@ -96,22 +99,22 @@ export const RoleSelectScreen: React.FC<RoleSelectProps> = ({
                 <Text style={styles.iconEmoji}>🧹</Text>
               </View>
               <View style={styles.badgeTagGreen}>
-                <Text style={styles.badgeTagGreenText}>WORKER / HELPER</Text>
+                <Text style={styles.badgeTagGreenText}>{t('workerBadge', 'WORKER / HELPER')}</Text>
               </View>
             </View>
 
-            <Text style={styles.cardTitleGreen}>I Am Looking for Household Work</Text>
+            <Text style={styles.cardTitleGreen}>{t('workerCardTitle', 'I Am Looking for Household Work')}</Text>
             <Text style={styles.cardDesc}>
-              Find trusted, high-paying jobs in premium gated societies. Get instant interview requests &amp; verified society entry passes.
+              {t('workerCardDesc', 'Find trusted, high-paying jobs in premium gated societies. Get instant interview requests & verified society entry passes.')}
             </Text>
 
             <View style={styles.featureRow}>
-              <Text style={styles.featureCheckGreen}>✓ 0% Commission Jobs</Text>
-              <Text style={styles.featureCheckGreen}>✓ Direct Society Hiring</Text>
+              <Text style={styles.featureCheckGreen}>{t('featureFreeJobCalls', '✓ 0% Commission Jobs')}</Text>
+              <Text style={styles.featureCheckGreen}>{t('featureZeroCommission', '✓ Direct Society Hiring')}</Text>
             </View>
 
             <View style={styles.selectBtnGreen}>
-              <Text style={styles.selectBtnGreenText}>Continue as Helper →</Text>
+              <Text style={styles.selectBtnGreenText}>{t('continueWorkerBtn', 'Continue as Helper →')}</Text>
             </View>
           </TouchableOpacity>
 

@@ -215,6 +215,7 @@ export async function GET(req: NextRequest) {
            LEFT JOIN public.profiles pe ON pe.id = j.employer_id
            LEFT JOIN public.employer_profiles ep ON ep.user_id = j.employer_id OR ep.id = j.employer_id
            LEFT JOIN public.societies s ON s.id = j.society_id
+           WHERE ja.status IN ('interview_scheduled', 'confirmed')
            ORDER BY ja.created_at DESC
            LIMIT 50`
         );

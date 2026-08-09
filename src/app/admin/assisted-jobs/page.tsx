@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAdminDashboard } from '../layout';
+import { supabase } from '@/lib/supabaseClient';
 import { 
   Users, Building, PhoneCall, CheckCircle2, Search, RefreshCw, Briefcase, 
   MapPin, Sparkles, Send, Clock, AlertCircle, Loader2, Home, Utensils, 
@@ -18,10 +19,72 @@ export default function AssistedJobMatcherPage() {
     setMounted(true);
   }, []);
 
+  // Tab State: Candidate Job Matcher vs Tele-Assisted Employer Invitations Queue
+  const [activeAdminTab, setActiveAdminTab] = useState<'job_matcher' | 'tele_invitations'>('job_matcher');
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
+
   // Data States
   const [workersList, setWorkersList] = useState<any[]>([]);
   const [jobsList, setJobsList] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(false);
+
+  const fetchPendingInvitations = async () => {
+    setLoadingInvitations(true);
+    try {
+      const { data: dbInvites } = await supabase
+        .from('applications')
+        .select('*, worker:profiles(*, worker_profiles(*)), job:jobs(*)')
+        .or('status.eq.invited,status.eq.pending_worker_approval')
+        .order('created_at', { ascending: false });
+
+      if (dbInvites) {
+        setPendingInvitations(dbInvites);
+      }
+    } catch (err) {
+      console.warn("Tele-invitations fetch notice:", err);
+    } finally {
+      setLoadingInvitations(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeAdminTab === 'tele_invitations') {
+      fetchPendingInvitations();
+    }
+  }, [activeAdminTab]);
+
+  const handleTeleConfirmAccept = async (invite: any) => {
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ status: 'accepted', admin_note: 'Confirmed via Admin Tele-Assisted Call' })
+        .eq('id', invite.id);
+
+      if (!error) {
+        showToast(`Tele-Confirmed worker interest for ${invite.worker?.full_name || 'Worker'}! Moved to Employer Applicants Pipeline.`, 'success');
+        fetchPendingInvitations();
+      }
+    } catch (err: any) {
+      showToast(`Error updating invitation: ${err.message}`, 'error');
+    }
+  };
+
+  const handleTeleDecline = async (invite: any) => {
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ status: 'declined', admin_note: 'Declined via Admin Tele-Call' })
+        .eq('id', invite.id);
+
+      if (!error) {
+        showToast(`Logged Tele-Decline for ${invite.worker?.full_name || 'Worker'}.`, 'info');
+        fetchPendingInvitations();
+      }
+    } catch (err: any) {
+      showToast(`Error updating invitation: ${err.message}`, 'error');
+    }
+  };
 
   // Pagination States for Worker Directory
   const [page, setPage] = useState(1);
@@ -229,27 +292,154 @@ export default function AssistedJobMatcherPage() {
       
       {/* 👑 HEADER BANNER */}
       <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
-              <Sparkles className="text-[#1A73E8]" size={22} />
-              <span>Assisted Job Matcher &amp; Targeted Application Hub</span>
-            </h2>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Search verified live candidates by mobile number, candidate name, skill, or society. Only complete, verified profiles can apply for jobs.
-            </p>
-          </div>
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-2 border-t border-slate-100 pt-4 flex-wrap">
+          <button
+            onClick={() => setActiveAdminTab('job_matcher')}
+            className={`py-2.5 px-4 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+              activeAdminTab === 'job_matcher'
+                ? 'bg-[#1A73E8] text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+            }`}
+          >
+            <Briefcase size={15} />
+            <span>🔍 Candidate Job Matcher</span>
+          </button>
 
           <button
-            onClick={() => fetchPaginatedData(page)}
-            className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs transition-colors"
+            onClick={() => {
+              setActiveAdminTab('tele_invitations');
+              fetchPendingInvitations();
+            }}
+            className={`py-2.5 px-4 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+              activeAdminTab === 'tele_invitations'
+                ? 'bg-[#1A73E8] text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+            }`}
           >
-            <RefreshCw size={14} className={loadingData ? 'animate-spin' : ''} /> Refresh Data
+            <PhoneCall size={15} />
+            <span>📨 Employer Invitations Tele-Queue ({pendingInvitations.length})</span>
           </button>
         </div>
       </div>
 
-      {!selectedWorker ? (
+      {activeAdminTab === 'tele_invitations' ? (
+        /* TAB 2: TELE-ASSISTED EMPLOYER INVITATIONS QUEUE */
+        <div className="space-y-6 animate-fade-in">
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <PhoneCall size={18} className="text-[#1A73E8]" />
+                  <span>Employer Job Invitations Tele-Confirmation Queue</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                  Call non-tech or feature-phone domestic helpers over phone to inform them about employer job invitations and tele-confirm acceptance.
+                </p>
+              </div>
+
+              <button
+                onClick={fetchPendingInvitations}
+                className="py-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw size={13} className={loadingInvitations ? 'animate-spin' : ''} />
+                <span>Refresh Queue</span>
+              </button>
+            </div>
+
+            {loadingInvitations ? (
+              <div className="p-12 text-center space-y-3">
+                <Loader2 size={32} className="text-[#1A73E8] animate-spin mx-auto" />
+                <p className="text-xs font-bold text-slate-600">Fetching Pending Employer Job Invitations...</p>
+              </div>
+            ) : pendingInvitations.length === 0 ? (
+              <div className="p-12 text-center space-y-2 bg-slate-50 rounded-2xl border border-slate-200">
+                <CheckCircle2 size={36} className="text-emerald-500 mx-auto" />
+                <h4 className="text-sm font-black text-slate-800">All Invitations Processed!</h4>
+                <p className="text-xs font-semibold text-slate-500">
+                  There are no pending un-accepted employer invitations in the queue right now.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px] font-black tracking-wider">
+                      <th className="py-3 px-3">Invited Candidate</th>
+                      <th className="py-3 px-3">Target Requisition</th>
+                      <th className="py-3 px-3">Employer &amp; Society</th>
+                      <th className="py-3 px-3">Invitation Date</th>
+                      <th className="py-3 px-3 text-right">Tele-Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
+                    {pendingInvitations.map((invite) => {
+                      const workerName = invite.worker?.full_name || invite.worker?.name || 'Domestic Helper';
+                      const workerPhone = invite.worker?.phone || 'N/A';
+                      const jobTitle = invite.job?.title || 'Household Job';
+                      const salaryStr = invite.job?.salary ? `₹${Number(invite.job.salary).toLocaleString('en-IN')}/mo` : '₹15,000/mo';
+                      const employerName = invite.job?.company_name || 'Employer Household';
+                      const societyName = invite.job?.society_name || 'Gated Society';
+
+                      return (
+                        <tr key={invite.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-3">
+                            <div className="font-black text-slate-900">{workerName}</div>
+                            <div className="text-[11px] text-[#1A73E8] font-mono mt-0.5">📞 {workerPhone}</div>
+                          </td>
+
+                          <td className="py-3.5 px-3">
+                            <div className="font-black text-slate-900">{jobTitle}</div>
+                            <div className="text-[11px] text-emerald-700 font-mono mt-0.5">{salaryStr}</div>
+                          </td>
+
+                          <td className="py-3.5 px-3">
+                            <div className="font-bold text-slate-800">{employerName}</div>
+                            <div className="text-[11px] text-slate-500 font-medium mt-0.5">📍 {societyName}</div>
+                          </td>
+
+                          <td className="py-3.5 px-3 text-slate-500 font-medium">
+                            {new Date(invite.created_at || Date.now()).toLocaleDateString('en-IN', {
+                              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </td>
+
+                          <td className="py-3.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <a
+                                href={`tel:${workerPhone}`}
+                                className="py-1.5 px-3 bg-blue-50 hover:bg-blue-100 text-[#1A73E8] rounded-xl text-[11px] font-black flex items-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <PhoneCall size={12} />
+                                <span>Call Helper</span>
+                              </a>
+
+                              <button
+                                onClick={() => handleTeleConfirmAccept(invite)}
+                                className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-black flex items-center gap-1 cursor-pointer shadow-2xs transition-colors"
+                              >
+                                <Check size={12} />
+                                <span>Tele-Confirm Accept</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleTeleDecline(invite)}
+                                className="py-1.5 px-2.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl text-[11px] font-black cursor-pointer transition-colors"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : !selectedWorker ? (
         /* STEP 1: PAGINATED WORKER CANDIDATE DIRECTORY */
         <div className="space-y-6">
           

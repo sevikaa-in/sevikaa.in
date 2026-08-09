@@ -8,6 +8,7 @@ import {
   MapPin, Search, Building2, CheckCircle2, ShieldCheck, Plus, 
   Sparkles, Briefcase, Users, Star, Compass, Send, X, Check, ArrowRight, ShieldAlert, Home, Clock
 } from 'lucide-react';
+import { SocietyCard } from '@/components/society/SocietyCard';
 
 // Haversine formula to compute exact distance in km between two GPS coordinates
 function calculateHaversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -497,135 +498,17 @@ export default function WorkerSocietiesPage() {
             </button>
           </div>
         ) : (
-          filteredSocieties.map((soc) => {
-            const isPrimary = primarySocietyId === soc.id;
-            const isSecondary = secondarySocietyIds.includes(soc.id);
-            const isSelected = isPrimary || isSecondary;
-
-            return (
-              <div 
-                key={soc.id}
-                onClick={() => {
-                  if (!isPrimary) handleSetPrimary(soc);
-                }}
-                className={`p-4 rounded-3xl border transition-all space-y-3 ${
-                  isPrimary 
-                    ? 'bg-gradient-to-r from-blue-50/80 to-indigo-50/50 border-[#1A73E8] ring-2 ring-[#1A73E8]/20 shadow-md' 
-                    : isSecondary
-                    ? 'bg-emerald-50/40 border-emerald-300 ring-1 ring-emerald-200 shadow-xs cursor-pointer hover:border-emerald-400'
-                    : 'bg-white border-slate-200/80 hover:border-blue-300 shadow-xs cursor-pointer'
-                }`}
-              >
-                {/* Header Row */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className={`p-3 rounded-2xl shrink-0 mt-0.5 ${
-                      isPrimary 
-                        ? 'bg-[#1A73E8] text-white shadow-md shadow-[#1A73E8]/20' 
-                        : isSecondary
-                        ? 'bg-emerald-600 text-white shadow-md'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      <Building2 size={20} />
-                    </div>
-                    <div className="min-w-0 space-y-0.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-xs font-semibold text-slate-900 leading-tight">{soc.name}</h4>
-                        {isPrimary && (
-                          <span className="bg-[#1A73E8] text-white text-[8.5px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <Star size={9} fill="currentColor" /> {t('primaryWorkplaceBadge') || "Primary Workplace"}
-                          </span>
-                        )}
-                        {isSecondary && (
-                          <span className="bg-emerald-100 text-emerald-800 text-[8.5px] font-semibold uppercase px-2 py-0.5 rounded-full border border-emerald-300 inline-flex items-center gap-1">
-                            <CheckCircle2 size={9} /> {t('secondaryWorkplaceBadge') || "Secondary Workplace"}
-                          </span>
-                        )}
-                        {soc.activeJobsCount >= highHiringThreshold && (
-                          <span className="bg-amber-500 text-white text-[8.5px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
-                            <Sparkles size={9} /> 🔥 {t('highHiringBadge') || "High Hiring"}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10.5px] text-slate-500 font-medium flex items-center gap-1">
-                        <MapPin size={10} className="text-slate-400 shrink-0" />
-                        <span className="truncate">{soc.locality}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="bg-slate-100 text-slate-700 text-[9.5px] font-semibold px-2.5 py-1 rounded-xl shrink-0 border border-slate-200">
-                    {soc.distance}
-                  </span>
-                </div>
-
-                {/* Metrics Badges */}
-                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100 text-center">
-                  <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-medium block uppercase">{t('metricLiveJobs') || "Live Jobs"}</span>
-                    <span className="text-xs font-semibold text-[#1A73E8] flex items-center justify-center gap-1 mt-0.5">
-                      <Briefcase size={11} /> {soc.activeJobsCount} {t('metricOpenings') || "Openings"}
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-medium block uppercase">RESIDENT EMPLOYERS</span>
-                    <span className="text-xs font-semibold text-slate-800 flex items-center justify-center gap-1 mt-0.5">
-                      <Home size={11} className="text-slate-500" /> {soc.employersCount} Households
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-medium block uppercase">{t('metricGateSecurity') || "Gate Security"}</span>
-                    <span className="text-[10px] font-semibold text-emerald-700 truncate block mt-0.5">
-                      ✓ {soc.securityType.split(' ')[0]} {t('gateSuffix') || "Gate"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Selection Action Controls */}
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    {isPrimary 
-                      ? (t('primaryNotifSub') || '⭐ Receiving priority hiring notifications') 
-                      : isSecondary 
-                      ? (t('secondaryNotifSub') || '✓ Receiving secondary job alerts') 
-                      : (t('notSelectedSub') || 'Not selected in your workplace preferences')}
-                  </span>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    {!isPrimary && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSetPrimary(soc);
-                        }}
-                        className="py-1.5 px-3 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-semibold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1"
-                      >
-                        <Star size={11} /> {t('makePrimaryBtn') || "Make Primary"}
-                      </button>
-                    )}
-
-                    {!isPrimary && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleSecondary(soc);
-                        }}
-                        className={`py-1.5 px-3 rounded-xl text-[10.5px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
-                          isSecondary 
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' 
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                        }`}
-                      >
-                        {isSecondary ? (t('removeBtn') || 'Remove') : (t('addSecondaryBtn') || '+ Add Secondary')}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
+          filteredSocieties.map((soc) => (
+            <SocietyCard 
+              key={soc.id}
+              society={soc}
+              isPrimary={primarySocietyId === soc.id}
+              isSecondary={secondarySocietyIds.includes(soc.id)}
+              highHiringThreshold={highHiringThreshold}
+              onSetPrimary={handleSetPrimary}
+              onToggleSecondary={handleToggleSecondary}
+            />
+          ))
         )}
       </div>
 

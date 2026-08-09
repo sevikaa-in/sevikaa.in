@@ -3,6 +3,7 @@ import {
   StyleSheet, Text, View, TouchableOpacity, ScrollView, Image, SafeAreaView, StatusBar, Platform 
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMobileLanguage } from '../context/LanguageContext';
 
 export interface LanguageInfo {
   code: string;
@@ -36,6 +37,7 @@ interface LanguageSelectProps {
 
 export const LanguageSelectScreen: React.FC<LanguageSelectProps> = ({ onSelectLanguage, onLanguageSelect }) => {
   const insets = useSafeAreaInsets();
+  const { setLanguage } = useMobileLanguage();
   const [selectedCode, setSelectedCode] = useState<string>('en');
 
   const selectedObj = SUPPORTED_LANGUAGES.find(l => l.code === selectedCode) || SUPPORTED_LANGUAGES[0];
@@ -117,6 +119,7 @@ export const LanguageSelectScreen: React.FC<LanguageSelectProps> = ({ onSelectLa
           activeOpacity={0.85}
           style={styles.continueBtn}
           onPress={() => {
+            setLanguage(selectedCode);
             if (onLanguageSelect) onLanguageSelect(selectedCode);
             if (onSelectLanguage) onSelectLanguage(selectedCode);
           }}

@@ -3,6 +3,7 @@ import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, SafeAreaView, Linking 
 } from 'react-native';
 import { getApiUrl } from '../../config/api';
+import { useMobileLanguage } from '../../context/LanguageContext';
 
 interface EmployerCheckoutProps {
   onBack?: () => void;
@@ -13,6 +14,7 @@ interface EmployerCheckoutProps {
 export const EmployerCheckoutScreen: React.FC<EmployerCheckoutProps> = ({ 
   onBack, selectedPlanId = 'standard', onPaymentSuccess 
 }) => {
+  const { t } = useMobileLanguage();
   const [loading, setLoading] = useState(false);
 
   const PLAN_DATA: Record<string, any> = {
@@ -117,11 +119,11 @@ export const EmployerCheckoutScreen: React.FC<EmployerCheckoutProps> = ({
           )}
 
           <View style={styles.pillBadge}>
-            <Text style={styles.pillBadgeText}>💳 100% SECURE WEB RAZORPAY CHECKOUT</Text>
+            <Text style={styles.pillBadgeText}>{t('checkoutEyebrow','SECURE CHECKOUT')}</Text>
           </View>
-          <Text style={styles.title}>Checkout &amp; Payment</Text>
+          <Text style={styles.title}>{t('checkoutTitle','Complete Your Subscription')}</Text>
           <Text style={styles.subtitle}>
-            Redirects directly to Sevikaa Web Portal Razorpay Checkout with instant GPay, PhonePe, Paytm &amp; Card activation.
+            {t('checkoutSub','You are upgrading to a verified employer plan for your gated society household.')}
           </Text>
         </View>
 
@@ -129,17 +131,17 @@ export const EmployerCheckoutScreen: React.FC<EmployerCheckoutProps> = ({
         <View style={styles.orderSummaryCard}>
           <View style={styles.summaryTopRow}>
             <View>
-              <Text style={styles.planCategoryText}>SELECTED SUBSCRIPTION TIER</Text>
+              <Text style={styles.planCategoryText}>{t('orderSummaryLabel','ORDER SUMMARY').toUpperCase()}</Text>
               <Text style={styles.planNameText}>{plan.name}</Text>
             </View>
             <View style={styles.priceCol}>
-              <Text style={styles.payableLabelText}>TOTAL PAYABLE</Text>
+              <Text style={styles.payableLabelText}>{t('planPriceLabel','TOTAL PAYABLE').replace(':','').toUpperCase()}</Text>
               <Text style={styles.priceAmountText}>₹{plan.price}</Text>
             </View>
           </View>
 
           <View style={styles.validityBadge}>
-            <Text style={styles.validityBadgeText}>Validity: {plan.validity}</Text>
+            <Text style={styles.validityBadgeText}>{t('planValidityLabel','Validity:')} {plan.validity}</Text>
           </View>
 
           <View style={styles.divider} />
@@ -193,7 +195,7 @@ export const EmployerCheckoutScreen: React.FC<EmployerCheckoutProps> = ({
             onPress={handleOpenWebCheckout}
           >
             <Text style={styles.payNowBtnText}>
-              {loading ? 'Opening Web Portal...' : `Proceed to Web Checkout (₹${plan.price}) 🌐`}
+              {loading ? t('processingPayment','Opening Razorpay...') : `${t('proceedToPaymentBtn','Proceed to Web Checkout')} (₹${plan.price}) 🌐`}
             </Text>
           </TouchableOpacity>
         </View>

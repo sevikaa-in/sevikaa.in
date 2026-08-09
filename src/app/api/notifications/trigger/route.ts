@@ -29,39 +29,120 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { type, userId, name, email, phone, note, userLanguage = 'en' } = await request.json();
+    const { 
+      type, userId, role = 'worker', name = 'User', email, phone, 
+      title, message, pushToken, actionUrl, actionLabel, note, userLanguage = 'en' 
+    } = await request.json();
 
     if (!type) {
       return NextResponse.json({ error: 'type parameter is required' }, { status: 400 });
     }
 
-    // Resolve language-specific templates
     const lang = TRANSLATIONS[userLanguage] ? userLanguage : 'en';
     const templates = TRANSLATIONS[lang];
 
+    let notifTitle = title || 'Sevikaa Platform Alert';
+    let notifMessage = message || '';
     let smsContent = '';
     let emailSubject = '';
     let emailBody = '';
+    let defaultActionUrl = actionUrl || '/worker/notifications';
+    let defaultActionLabel = actionLabel || 'View Details';
 
     if (type === 'profile_approved') {
+      notifTitle = notifTitle || 'Worker Passport Verified & Live 🟢';
+      notifMessage = notifMessage || 'Your candidate profile passed Aadhaar & background audit. Employers in your preferred society can now view and contact you.';
       smsContent = templates.approved_sms.replace('{name}', name);
       emailSubject = templates.approved_email_sub;
       emailBody = templates.approved_email_body.replace('{name}', name);
+      defaultActionUrl = '/worker/profile';
+      defaultActionLabel = 'View Candidate Passport';
     } else if (type === 'interview_scheduled') {
+      notifTitle = notifTitle || 'Gate Pass Interview Scheduled 📅';
+      notifMessage = notifMessage || `An employer scheduled an interview for you. Log into Sevikaa to view contact and gate pass details.`;
       smsContent = templates.interview_sms.replace('{name}', name);
       emailSubject = templates.interview_email_sub;
       emailBody = templates.interview_email_body.replace('{name}', name);
+      defaultActionUrl = role === 'employer' ? '/employer/interviews' : '/worker/interviews';
+      defaultActionLabel = 'View Interview Gate Pass';
+    } else if (type === 'applicant_received') {
+      notifTitle = notifTitle || 'New Candidate Applied for Requisition 👤';
+      notifMessage = notifMessage || `A background-verified helper applied for your job requisition. Tap to review profile.`;
+      defaultActionUrl = '/employer/jobs';
+      defaultActionLabel = 'Review Candidate Profile';
     } else if (type === 'job_changes_requested') {
+      notifTitle = notifTitle || 'Action Required on Job Requisition ⚠️';
+      notifMessage = notifMessage || `Admin note: ${note || 'Please revise requisition details.'}`;
       smsContent = templates.job_changes_requested_sms.replace('{note}', note || 'Please revise requisition details.');
       emailSubject = templates.job_changes_requested_email_sub;
       emailBody = templates.job_changes_requested_email_body.replace('{note}', note || 'Please revise requisition details.');
+      defaultActionUrl = '/employer/jobs';
+      defaultActionLabel = 'Revise Job Requisition';
     } else {
-      return NextResponse.json({ error: 'Unsupported notification event type' }, { status: 400 });
+      notifMessage = notifMessage || 'You have a new update from Sevikaa Platform.';
     }
 
     console.log(`[Notification Engine] Triggering event: ${type} for user: ${name} (${userId})`);
 
-    // 1. Dispatch SMS if phone number exists using DLT Template mapping
+    // 1. SAVE PERMANENTLY TO POSTGRESQL SUPABASE DB
+    let dbResult = null;
+    if (userId && supabaseAdmin) {
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('notifications')
+          .insert([{
+            user_id: userId,
+            role,
+            type,
+            title: notifTitle,
+            message: notifMessage,
+            read: false,
+            action_url: defaultActionUrl,
+            action_label: defaultActionLabel,
+            created_at: new Date().toISOString()
+          }])
+          .select();
+
+        if (error) {
+          console.warn("[DB Notification Save Notice]:", error.message);
+        } else {
+          dbResult = data;
+        }
+      } catch (dbErr) {
+        console.warn("[DB Notification Save Exception]:", dbErr);
+      }
+    }
+
+    // 2. DISPATCH EXPO PUSH NOTIFICATION TO MOBILE DEVICE
+    let pushResult = null;
+    if (pushToken && pushToken.startsWith('ExponentPushToken')) {
+      try {
+        const pushRes = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            to: pushToken,
+            sound: 'default',
+            title: notifTitle,
+            body: notifMessage,
+            data: {
+              type,
+              actionUrl: defaultActionUrl,
+              userId
+            },
+            priority: 'high',
+          })
+        });
+        pushResult = await pushRes.json();
+      } catch (pErr) {
+        console.warn("[Push Notification Dispatch Notice]:", pErr);
+      }
+    }
+
+    // 3. DISPATCH SMS IF PHONE EXISTS
     let smsResult = null;
     if (phone) {
       let templateKey = 'SECURITY_ALERT';
@@ -72,21 +153,21 @@ export async function POST(request: NextRequest) {
       } else if (type === 'interview_scheduled') {
         templateKey = 'INTERVIEW_SCHEDULED';
         vars = { date: 'Today', time: '10:30 AM' };
-      } else if (type === 'job_changes_requested') {
-        templateKey = 'SECURITY_ALERT';
       }
 
-      smsResult = await sendSMS(phone, templateKey, vars);
+      smsResult = await sendSMS(phone, templateKey, vars).catch(() => null);
     }
 
-    // 2. Dispatch Email if email address exists
+    // 4. DISPATCH EMAIL IF EMAIL EXISTS
     let emailResult = null;
-    if (email) {
-      emailResult = await sendEmail(email, emailSubject, emailBody);
+    if (email && emailSubject && emailBody) {
+      emailResult = await sendEmail(email, emailSubject, emailBody).catch(() => null);
     }
 
     return NextResponse.json({
       success: true,
+      dbSaved: !!dbResult,
+      pushSent: !!pushResult,
       sms: smsResult,
       email: emailResult
     });

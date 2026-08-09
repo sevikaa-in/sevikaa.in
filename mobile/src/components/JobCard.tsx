@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { 
   ShieldCheck, MapPin, Clock, Check, Eye, CheckCircle2, Lock, Send, ChevronRight 
 } from 'lucide-react-native';
+import { useMobileLanguage } from '../context/LanguageContext';
 
 export interface MobileJobCardProps {
   job: any;
@@ -21,17 +22,62 @@ export const JobCard: React.FC<MobileJobCardProps> = ({
   onViewDetails,
   isApplying = false
 }) => {
+  const { t } = useMobileLanguage();
   const cleanSalary = job.salary_offered || job.salary 
     ? Number(job.salary_offered || job.salary).toLocaleString('en-IN') 
     : '15,000';
 
   const employerInitial = (job.employer_name || job.society_name || 'H')[0].toUpperCase();
-  const titleStr = job.title || 'Domestic Worker Job';
-  
-  let descStr = job.description || '';
-  if (!descStr || descStr.trim().length < 25) {
-    descStr = `${titleStr}: ${descStr || 'Household work required'}. Looking for an experienced, honest and reliable helper with good hygiene standards.`;
-  }
+  const getTranslatedTitle = (j: any) => {
+    if (!j) return t('titleHousekeeping', 'Full Day Housekeeping & Deep Cleaning');
+    if (j.id === 'c9bf0b7b-3b02-44e1-a20d-70498b8c2d1b') return t('titleHousekeeping', 'Full Day Housekeeping & Deep Cleaning');
+    if (j.id === 'd78a9e4f-8f12-4c22-921a-5b12847a98b1') return t('titleCook', 'North & South Indian Family Cook');
+    if (j.id === 'e412a89c-1120-4e55-901b-1b918a204910') return t('titleNanny', 'Toddler Nanny & Infant Caregiver');
+    
+    const titleLower = String(j.title || '').toLowerCase();
+    if (titleLower.includes('cook')) return t('titleCook', j.title);
+    if (titleLower.includes('maid') || titleLower.includes('housekeeping')) return t('titleHousekeeping', j.title);
+    if (titleLower.includes('nanny') || titleLower.includes('child')) return t('titleNanny', j.title);
+    return j.title || 'Domestic Worker Job';
+  };
+
+  const getTranslatedDesc = (j: any) => {
+    if (!j) return t('descHousekeeping', 'Looking for an experienced domestic helper.');
+    if (j.id === 'c9bf0b7b-3b02-44e1-a20d-70498b8c2d1b') return t('descHousekeeping', 'Looking for an experienced and reliable maid for daily dusting, mopping, utensil washing, and laundry for our family in a 3BHK flat.');
+    if (j.id === 'd78a9e4f-8f12-4c22-921a-5b12847a98b1') return t('descCook', 'Family of 4 needs an experienced home cook for North Indian thali (roti, sabzi, dal, rice) and South Indian breakfast preparation.');
+    if (j.id === 'e412a89c-1120-4e55-901b-1b918a204910') return t('descNanny', 'Loving and attentive nanny needed to take care of an 18-month-old baby boy. Responsibilities include feeding, playtime, reading stories, and hygiene.');
+
+    if (j.description && j.description.trim().length > 25) return j.description;
+    const titleStr = getTranslatedTitle(j);
+    return `${titleStr}: ${j.description || 'Household work required'}.`;
+  };
+
+  const getTranslatedShift = (shift: string) => {
+    if (!shift) return '';
+    if (shift.includes('8:00 AM') || shift.includes('8 AM')) return t('shiftFullDay84', 'Full Day (8:00 AM – 4:00 PM)');
+    if (shift.includes('9:00 AM') || shift.includes('9 AM')) return t('shiftFullDay96', 'Full Day (9:00 AM – 6:00 PM)');
+    if (shift.includes('Split Shift')) return t('shiftSplit710', 'Split Shift (7–10 AM & 5–8 PM)');
+    if (shift.includes('10 Hours')) return t('shift10Hours', '10 Hours (8:00 AM – 6:00 PM)');
+    return shift;
+  };
+
+  const getTranslatedPerk = (perk: string) => {
+    if (!perk) return '';
+    if (perk.includes('Meals Included')) return t('perkMealsOnDuty', 'Meals Included on Duty');
+    if (perk.includes('Tea')) return t('perkTeaSnacks', 'Tea & Morning Snacks');
+    if (perk.includes('Sunday Off')) return t('perkSundayOff', 'Sunday Off');
+    if (perk.includes('Diwali Bonus')) return t('perkDiwaliBonus', 'Diwali Bonus');
+    if (perk.includes('Festival Bonus')) return t('perkFestivalBonus', 'Festival Bonus');
+    if (perk.includes('Annual')) return t('perkAnnualRevision', 'Annual Salary Revision');
+    if (perk.includes('Lunch')) return t('perkLunchProvided', 'Lunch Provided');
+    if (perk.includes('Leaves')) return t('perkPaidLeaves', 'Paid Annual Leaves');
+    if (perk.includes('Overtime')) return t('perkOvertimePay', 'Overtime Pay Allowance');
+    if (perk.includes('Uniform')) return t('perkUniform', 'Uniform Allowance Provided');
+    return perk;
+  };
+
+  const titleStr = getTranslatedTitle(job);
+  const descStr = getTranslatedDesc(job);
 
   return (
     <View style={styles.cardContainer}>
@@ -44,17 +90,17 @@ export const JobCard: React.FC<MobileJobCardProps> = ({
           </View>
           <View style={styles.employerTextCol}>
             <Text style={styles.employerName} numberOfLines={1}>
-              {job.employer_name || 'Verified Household'}
+              {job.employer_name || t('verifiedHousehold', 'Verified Household')}
             </Text>
             <View style={styles.verifiedBadge}>
               <ShieldCheck size={11} color="#16A34A" />
-              <Text style={styles.verifiedText}>Sevikaa Verified Household</Text>
+              <Text style={styles.verifiedText}>{t('verifiedHouseholdBadge', 'Sevikaa Verified Household')}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.salaryPill}>
-          <Text style={styles.salaryText}>₹{cleanSalary} / mo</Text>
+          <Text style={styles.salaryText}>₹{cleanSalary} / {t('perMonth', 'mo')}</Text>
         </View>
       </View>
 
@@ -66,7 +112,7 @@ export const JobCard: React.FC<MobileJobCardProps> = ({
         <View style={styles.locationPill}>
           <MapPin size={13} color="#1A73E8" />
           <Text style={styles.locationText} numberOfLines={1}>
-            {job.society_name || job.locality || 'Residential Society'}
+            {job.society_name || job.locality || t('residentialSociety', 'Residential Society')}
           </Text>
         </View>
       </View>
@@ -83,13 +129,13 @@ export const JobCard: React.FC<MobileJobCardProps> = ({
         {job.shift_hours && (
           <View style={styles.shiftTag}>
             <Clock size={11} color="#4338CA" />
-            <Text style={styles.shiftTagText}>{job.shift_hours}</Text>
+            <Text style={styles.shiftTagText}>{getTranslatedShift(job.shift_hours)}</Text>
           </View>
         )}
         {Array.isArray(job.perks) && job.perks.map((perk: string, idx: number) => (
           <View key={idx} style={styles.perkTag}>
             <Check size={11} color="#15803D" />
-            <Text style={styles.perkTagText}>{perk}</Text>
+            <Text style={styles.perkTagText}>{getTranslatedPerk(perk)}</Text>
           </View>
         ))}
       </View>
@@ -101,7 +147,7 @@ export const JobCard: React.FC<MobileJobCardProps> = ({
           onPress={() => onViewDetails && onViewDetails(job)}
         >
           <Eye size={14} color="#475569" />
-          <Text style={styles.viewDetailsBtnText}>View Details</Text>
+          <Text style={styles.viewDetailsBtnText}>{t('viewDetailsBtn', 'View Details')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -116,18 +162,18 @@ export const JobCard: React.FC<MobileJobCardProps> = ({
           {hasApplied ? (
             <>
               <CheckCircle2 size={14} color="#FFFFFF" />
-              <Text style={styles.applyBtnText}>Applied ✓</Text>
+              <Text style={styles.applyBtnText}>{t('appliedBadge', 'Applied ✓')}</Text>
             </>
           ) : !isWorkerVerified ? (
             <>
               <Lock size={13} color="#78350F" />
-              <Text style={styles.applyBtnPendingText}>Pending Audit</Text>
+              <Text style={styles.applyBtnPendingText}>{t('pendingAuditBadge', 'Pending Audit')}</Text>
             </>
           ) : (
             <>
               <Send size={13} color="#FFFFFF" />
               <Text style={styles.applyBtnText}>
-                {isApplying ? 'Applying...' : '1-Click Apply'}
+                {isApplying ? t('applyingState', 'Applying...') : t('oneClickApplyBtn', '1-Click Apply')}
               </Text>
             </>
           )}

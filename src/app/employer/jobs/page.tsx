@@ -42,6 +42,12 @@ export default function EmployerMyJobsPage() {
   const totalApplicants = postedJobs.reduce((sum, j) => sum + (j.applicationsCount || 0), 0);
 
   const handleOpenEdit = (job: any) => {
+    const isApproved = job.status === 'active' || job.status === 'approved' || job.status === 'live';
+    if (isApproved) {
+      alert("Requisition Approved & Live 🔒: This job requisition has already been audited & approved by Sevikaa Admin. Salary & core terms are locked once live to protect candidate applications.");
+      return;
+    }
+
     setEditingJob(job);
     setEditTitle(job.title || '');
     setEditCategory(job.category || 'cook');
@@ -193,7 +199,7 @@ export default function EmployerMyJobsPage() {
               </p>
             </div>
             <Link
-              href="/employer/dashboard/post-job"
+              href="/employer/post-job"
               className="py-2.5 px-5 bg-[#1A73E8] text-white rounded-xl text-xs font-black shadow-md cursor-pointer hover:bg-blue-600 transition-all inline-flex items-center gap-1.5"
             >
               <PlusCircle size={14} /> {t('postFirstJobBtn')}
@@ -304,21 +310,43 @@ export default function EmployerMyJobsPage() {
                 {/* Action Buttons Row */}
                 <div className="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
                   <div className="flex items-center gap-2 flex-wrap">
+                    {isActive && (
+                      <Link
+                        href={`/employer/jobs/${job.id}/invite`}
+                        className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                      >
+                        <Sparkles size={13} />
+                        <span>📨 Invite Helpers in Society</span>
+                      </Link>
+                    )}
+
                     <Link
-                      href="/employer/dashboard/workers"
+                      href="/employer/workers"
                       className="py-2 px-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
                     >
                       <Users size={13} />
                       <span>{t('viewCandidates')} ({job.applicationsCount || 0})</span>
                     </Link>
 
-                    <button
-                      onClick={() => handleOpenEdit(job)}
-                      className="py-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Edit3 size={13} />
-                      <span>{t('editRequisition')}</span>
-                    </button>
+                    {isActive ? (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(job)}
+                        className="py-2 px-3.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Lock size={13} />
+                        <span>{t('editLockedLive') || '🔒 Edit Locked (Live)'}</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(job)}
+                        className="py-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Edit3 size={13} />
+                        <span>{t('editRequisition')}</span>
+                      </button>
+                    )}
                   </div>
 
                   <span className="text-[10px] text-slate-400 font-semibold">

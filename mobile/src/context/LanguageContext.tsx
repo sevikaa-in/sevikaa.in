@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import en from '../locales/en.json';
 import hi from '../locales/hi.json';
+import hn from '../locales/hn.json';
 import bn from '../locales/bn.json';
 import kn from '../locales/kn.json';
 import ta from '../locales/ta.json';
@@ -13,25 +14,28 @@ import pa from '../locales/pa.json';
 import or from '../locales/or.json';
 import ml from '../locales/ml.json';
 import as from '../locales/as.json';
+import ne from '../locales/ne.json';
 
-// Native Indian Script Languages & Flags
+// Native Indian Script Languages & Flags with Icons
 export const SUPPORTED_LANGUAGES = [
-  { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧' },
-  { code: 'hi', name: 'हिंदी', nativeName: 'हिंदी', flag: '🇮🇳' },
-  { code: 'bn', name: 'বাংলা', nativeName: 'বাংলা', flag: '🇮🇳' },
-  { code: 'kn', name: 'ಕನ್ನಡ', nativeName: 'ಕನ್ನಡ', flag: '🇮🇳' },
-  { code: 'ta', name: 'தமிழ்', nativeName: 'தமிழ்', flag: '🇮🇳' },
-  { code: 'te', name: 'తెలుగు', nativeName: 'తెలుగు', flag: '🇮🇳' },
-  { code: 'mr', name: 'मराठी', nativeName: 'मराठी', flag: '🇮🇳' },
-  { code: 'gu', name: 'ગુજરાતી', nativeName: 'ગુજરાતી', flag: '🇮🇳' },
-  { code: 'pa', name: 'ਪੰਜਾਬੀ', nativeName: 'ਪੰਜਾਬੀ', flag: '🇮🇳' },
-  { code: 'or', name: 'ଓଡ଼ିଆ', nativeName: 'ଓଡ଼ିଆ', flag: '🇮🇳' },
-  { code: 'ml', name: 'മലയാളം', nativeName: 'മലയാളം', flag: '🇮🇳' },
-  { code: 'as', name: 'অসমীয়া', nativeName: 'অসমীয়া', flag: '🇮🇳' }
+  { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧', icon: require('../../assets/icons/languages/en.png') },
+  { code: 'hi', name: 'हिंदी', nativeName: 'हिंदी', flag: '🇮🇳', icon: require('../../assets/icons/languages/hi.png') },
+  { code: 'hn', name: 'Hinglish', nativeName: 'Hinglish', flag: '🇮🇳', icon: require('../../assets/icons/languages/hn.png') },
+  { code: 'bn', name: 'বাংলা', nativeName: 'বাংলা', flag: '🇮🇳', icon: require('../../assets/icons/languages/bn.jpg') },
+  { code: 'kn', name: 'ಕನ್ನಡ', nativeName: 'ಕನ್ನಡ', flag: '🇮🇳', icon: require('../../assets/icons/languages/kn.png') },
+  { code: 'ta', name: 'தமிழ்', nativeName: 'தமிழ்', flag: '🇮🇳', icon: require('../../assets/icons/languages/ta.png') },
+  { code: 'te', name: 'తెలుగు', nativeName: 'తెలుగు', flag: '🇮🇳', icon: require('../../assets/icons/languages/te.png') },
+  { code: 'mr', name: 'मराठी', nativeName: 'मराठी', flag: '🇮🇳', icon: require('../../assets/icons/languages/mr.png') },
+  { code: 'gu', name: 'ગુજરાતી', nativeName: 'ગુજરાતી', flag: '🇮🇳', icon: require('../../assets/icons/languages/gu.png') },
+  { code: 'pa', name: 'ਪੰਜਾਬੀ', nativeName: 'ਪੰਜਾਬੀ', flag: '🇮🇳', icon: require('../../assets/icons/languages/pa.png') },
+  { code: 'or', name: 'ଓଡ଼ିଆ', nativeName: 'ଓଡ଼ିଆ', flag: '🇮🇳', icon: require('../../assets/icons/languages/or.png') },
+  { code: 'ml', name: 'മലയാളം', nativeName: 'മലയാളം', flag: '🇮🇳', icon: require('../../assets/icons/languages/ml.png') },
+  { code: 'as', name: 'অসমীয়া', nativeName: 'অসমীয়া', flag: '🇮🇳', icon: require('../../assets/icons/languages/as.png') },
+  { code: 'ne', name: 'नेपाली', nativeName: 'नेपाली', flag: '🇳🇵', icon: require('../../assets/icons/languages/ne.png') }
 ];
 
 const translations: Record<string, Record<string, any>> = {
-  en, hi, bn, kn, ta, te, mr, gu, pa, or, ml, as
+  en, hi, hn, bn, kn, ta, te, mr, gu, pa, or, ml, as, ne
 };
 
 interface LanguageContextType {

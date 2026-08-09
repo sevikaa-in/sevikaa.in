@@ -17,10 +17,19 @@ export default function EmployerOverviewPage() {
   const { t } = useLanguage();
 
   const [nearbyWorkers, setNearbyWorkers] = useState<any[]>([]);
+  const [totalWorkersCount, setTotalWorkersCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
+        const { count } = await supabase
+          .from('worker_profiles')
+          .select('*', { count: 'exact', head: true });
+
+        if (count !== null) {
+          setTotalWorkersCount(count);
+        }
+
         const { data: dbWorkers } = await supabase
           .from('worker_profiles')
           .select('*, profiles(*)')
@@ -29,16 +38,16 @@ export default function EmployerOverviewPage() {
         if (dbWorkers && dbWorkers.length > 0) {
           setNearbyWorkers(dbWorkers.map((w: any) => ({
             id: w.id,
-            name: w.full_name || 'Domestic Helper',
+            name: w.full_name || w.profiles?.full_name || 'Domestic Helper',
             category: Array.isArray(w.skills) && w.skills[0] ? w.skills[0] : 'Cook / Maid',
             categoryLabel: Array.isArray(w.skills) ? w.skills.join(', ') : 'Cook / Maid',
             rating: w.rating || 4.9,
             reviews: w.total_reviews || 12,
             experience: `${w.experience_years || 4} Years Exp`,
-            society: w.preferred_society_name || 'DLF Westend Heights',
+            society: w.preferred_society_name || employerProfile.society_name || 'Gated Society',
             badge: w.is_police_verified ? 'Police Clearance' : 'Aadhaar Verified',
             salary: w.expected_salary ? `₹${Number(w.expected_salary).toLocaleString('en-IN')}/mo` : '₹15,000/mo',
-            photo: (w.full_name || 'S')[0].toUpperCase()
+            photo: (w.full_name || w.profiles?.full_name || 'S')[0].toUpperCase()
           })));
         }
       } catch (err) {
@@ -47,7 +56,7 @@ export default function EmployerOverviewPage() {
     };
 
     fetchWorkers();
-  }, []);
+  }, [employerProfile.society_name]);
 
   const activeJobsCount = postedJobs.filter(j => j.status === 'active' || j.status === 'approved').length;
   const pendingJobsCount = postedJobs.filter(j => j.status === 'pending' || j.status === 'changes_requested').length;
@@ -133,7 +142,7 @@ export default function EmployerOverviewPage() {
             <span className="flex items-center gap-1.5 whitespace-nowrap">
               <Users size={13} className="text-[#1A73E8]" />
               <span className="text-slate-500">Society Helpers:</span>
-              <strong className="text-slate-900">52 Verified</strong>
+              <strong className="text-slate-900">{totalWorkersCount} Verified</strong>
             </span>
 
             <span className="flex items-center gap-1.5 whitespace-nowrap">
@@ -211,7 +220,7 @@ export default function EmployerOverviewPage() {
 
         <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-1.5 text-left min-w-0 overflow-hidden">
           <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider truncate">{t('societyHelpersTitle') || "Helpers in Society"}</span>
-          <span className="text-2xl font-black text-slate-900 block truncate">52</span>
+          <span className="text-2xl font-black text-slate-900 block truncate">{totalWorkersCount}</span>
           <span className="text-[11px] text-emerald-600 font-bold block truncate">{t('societyCoverageSub') || "Verified in Society"}</span>
         </div>
 
@@ -225,27 +234,6 @@ export default function EmployerOverviewPage() {
           </span>
           <span className="text-base font-black text-emerald-600 block truncate mt-0.5">{employerProfile.subscription_status || 'Standard Plan'}</span>
           <span className="text-[11px] text-slate-400 font-bold block truncate">{t('unlimitedHiringSub') || "Unlimited Direct Contact"}</span>
-        </Link>
-      </div>
-
-      {/* 🚀 QUICK ACTIONS BANNER */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50/60 border border-blue-200/80 p-4 rounded-3xl flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-[#1A73E8] text-white rounded-2xl shrink-0 shadow-md">
-            <Sparkles size={18} />
-          </div>
-          <div>
-            <h4 className="text-xs font-black text-slate-900">{t('hireFastTitle') || "Need Domestic Help Fast?"}</h4>
-            <p className="text-[11px] text-slate-500 font-medium">{t('hireFastSub') || "Browse 100+ verified maids, cooks & nannies near you"}</p>
-          </div>
-        </div>
-
-        <Link
-          href="/employer/workers"
-          className="py-2 px-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shrink-0 whitespace-nowrap cursor-pointer transition-all flex items-center gap-1 shadow-xs"
-        >
-          <span>{t('browseHelpersBtn') || "Browse Helpers"}</span>
-          <ArrowRight size={13} />
         </Link>
       </div>
 
@@ -313,49 +301,59 @@ export default function EmployerOverviewPage() {
         )}
       </div>
 
-      {/* 🌟 FEATURED VERIFIED WORKERS IN YOUR SOCIETY */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-            <Users size={15} className="text-[#1A73E8]" />
-            <span>{t('nearbySocietyHelpersTitle') || "Verified Helpers in Your Society"}</span>
-          </h3>
-          <Link href="/employer/workers" className="text-[11px] font-black text-[#1A73E8] hover:underline flex items-center gap-1">
-            <span>{t('viewAllBtn') || "View All"}</span>
-            <ChevronRight size={12} />
+      {/* 🌟 VERIFIED HELPERS IN YOUR SOCIETY (TOP-TO-BOTTOM PREMIUM VERTICAL STACK BANNER) */}
+      <div className="bg-gradient-to-br from-blue-50 via-indigo-50/60 to-blue-50/90 p-5 sm:p-6 rounded-3xl border border-blue-200/90 shadow-xs space-y-4 relative overflow-hidden">
+        
+        {/* Top Header Row */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-[#1A73E8] text-white rounded-2xl shrink-0 shadow-md shadow-blue-500/20">
+              <Users size={20} />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-snug">
+                {t('verifiedHelpersTitle') || "VERIFIED HELPERS IN YOUR SOCIETY"}
+              </h3>
+            </div>
+          </div>
+
+          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2.5 py-1 rounded-full border border-emerald-200 shrink-0 flex items-center gap-1">
+            <ShieldCheck size={12} className="text-emerald-600" />
+            <span>{totalWorkersCount} {t('verifiedBadgeText') || "Verified"}</span>
+          </span>
+        </div>
+
+        {/* Middle Description Text */}
+        <p className="text-xs sm:text-sm text-slate-600 font-semibold leading-relaxed">
+          {t('discoverInviteDesc') || "Discover & invite verified maids, cooks & nannies registered in"} <strong className="text-slate-900 font-black">{employerProfile.society_name || t('yourSocietyFallback') || 'your society'}</strong>.
+        </p>
+
+        {/* Bottom Full-Width Premium Action Button */}
+        <div>
+          <Link
+            href={postedJobs.some(j => j.status === 'active' || j.status === 'approved') ? `/employer/jobs/${postedJobs.find(j => j.status === 'active' || j.status === 'approved')?.id}/invite` : '/employer/workers'}
+            className="w-full py-3.5 px-5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-2xl text-xs sm:text-sm font-black transition-all shadow-md shadow-blue-500/20 flex items-center justify-between cursor-pointer active:scale-98 group"
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles size={16} className="text-amber-300 shrink-0" />
+              <span>{t('browseInviteSocietyHelpersBtn') || "Browse & Invite Society Helpers"}</span>
+            </span>
+            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform shrink-0" />
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {nearbyWorkers.map((w) => (
-            <div key={w.id} className="p-3.5 bg-slate-50/70 rounded-2xl border border-slate-200/60 space-y-2.5 hover:bg-white hover:shadow-xs transition-all">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 bg-[#1A73E8] text-white font-black rounded-xl flex items-center justify-center text-xs shadow-xs shrink-0">
-                  {w.photo}
-                </div>
-                <div className="min-w-0">
-                  <h4 className="text-xs font-black text-slate-900 truncate">{w.name}</h4>
-                  <p className="text-[10px] text-slate-500 font-bold truncate">{w.categoryLabel}</p>
-                </div>
-              </div>
+      </div>
 
-              <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold border-t border-slate-200/50 pt-2">
-                <span className="flex items-center gap-1 text-amber-600 font-black">
-                  <Star size={11} fill="currentColor" /> {w.rating} ({w.reviews})
-                </span>
-                <span className="text-emerald-700 font-black">{w.salary}</span>
-              </div>
-
-              <Link
-                href={`/employer/workers?id=${w.id}`}
-                className="w-full py-1.5 bg-white hover:bg-blue-50 text-[#1A73E8] border border-blue-200 rounded-xl text-[10.5px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer block text-center"
-              >
-                <span>{t('viewProfileBtn')}</span>
-                <ChevronRight size={12} />
-              </Link>
-            </div>
-          ))}
-        </div>
+      {/* 🛡️ POWERED BY YGAYATRA BRAND FOOTER */}
+      <div className="pt-8 pb-2 flex flex-col items-center justify-center gap-1.5 opacity-75 hover:opacity-100 transition-opacity select-none border-t border-slate-200/60">
+        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+          Powered By
+        </span>
+        <img 
+          src="/ygayatra.png" 
+          alt="Ygayatra" 
+          className="h-6 sm:h-7 object-contain grayscale hover:grayscale-0 transition-all opacity-80 hover:opacity-100" 
+        />
       </div>
 
     </div>

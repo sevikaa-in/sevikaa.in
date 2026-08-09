@@ -15,10 +15,17 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "in.sevikaa.app"
+      "bundleIdentifier": "in.sevikaa.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Sevikaa requires your location to calculate accurate distances to gated working societies."
+      }
     },
     "android": {
       "package": "in.sevikaa.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#1A73E8",
         "foregroundImage": "./assets/icon.png"
@@ -30,6 +37,15 @@
       },
       "predictiveBackGestureEnabled": false
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Sevikaa requires your location to calculate accurate distances to gated working societies."
+        }
+      ],
+      "expo-video"
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }

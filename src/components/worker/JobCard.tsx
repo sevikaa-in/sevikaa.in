@@ -65,7 +65,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             </div>
             <div className="min-w-0 space-y-0.5">
               <p className="text-xs sm:text-sm font-black text-slate-900 tracking-tight leading-tight truncate">
-                {job.employer_name || 'Verified Household'}
+                {job.employer_name || t('verifiedHousehold') || 'Verified Household'}
               </p>
               <span className="text-[9.5px] font-black text-emerald-700 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 inline-flex items-center gap-1">
                 <ShieldCheck size={11} className="text-emerald-600 shrink-0" />
@@ -77,7 +77,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           <div className="shrink-0 self-start xs:self-auto">
             <span className="text-xs font-black text-emerald-800 font-mono bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100/60 px-3 py-1.5 rounded-2xl border border-emerald-300/70 shadow-xs inline-flex items-center gap-1 whitespace-nowrap">
               <IndianRupee size={12} className="text-emerald-600 stroke-[2.5] shrink-0" />
-              <span>{cleanSalary} / mo</span>
+              <span>{cleanSalary} / {t('perMonth') || 'mo'}</span>
             </span>
           </div>
         </div>
@@ -89,7 +89,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           </h4>
           <p className="text-xs font-bold text-slate-600 flex items-center gap-1.5 bg-slate-100/70 px-2.5 py-1 rounded-xl w-fit border border-slate-200/60">
             <MapPin size={13} className="text-[#1A73E8] shrink-0" />
-            <span className="truncate">{job.society_name || job.locality || 'Residential Society'}</span>
+            <span className="truncate">{job.society_name || job.locality || t('residentialSociety') || 'Residential Society'}</span>
           </p>
         </div>
 

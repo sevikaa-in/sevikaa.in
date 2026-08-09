@@ -1,17 +1,18 @@
 /**
  * Sevikaa Mobile Centralized Environment & API Configuration
- * Automatically switches between Ngrok Tunnel (Development) and Live Production Server
+ * Dynamically loads environment variables via EXPO_PUBLIC_ prefix
  */
 
 declare const __DEV__: boolean;
 
-// Production Live Server Domain
-export const PROD_API_BASE_URL = 'https://www.sevikaa.in';
+export const PROD_API_BASE_URL = 
+  process.env.EXPO_PUBLIC_PROD_API_URL || 
+  'https://www.sevikaa.in';
 
-// Development Ngrok Tunnel URL (Points to Localhost Port 3000)
-export const DEV_NGROK_URL = 'https://reselect-posh-sixties.ngrok-free.dev';
+export const DEV_NGROK_URL = 
+  process.env.EXPO_PUBLIC_API_BASE_URL || 
+  'https://reselect-posh-sixties.ngrok-free.dev';
 
-// Automatically detect build environment (__DEV__ flag in React Native)
 export const IS_DEV = typeof __DEV__ !== 'undefined' ? __DEV__ : true;
 export const API_BASE_URL = IS_DEV ? DEV_NGROK_URL : PROD_API_BASE_URL;
 

@@ -87,32 +87,33 @@ export default function EmployerWorkersPage() {
           });
           setCandidatesList(mapped);
         } else {
-          // If no job_applications table entries exist yet, fetch direct worker_profiles from database
+          // Strictly filter candidate directory to Live & Approved verified candidates only
           const { data: dbWorkers } = await supabase
             .from('worker_profiles')
-            .select('*, profiles(*)');
+            .select('*, profiles(*)')
+            .or('status.eq.live,status.eq.approved');
 
           if (dbWorkers && dbWorkers.length > 0) {
             const mappedWorkers: Candidate[] = dbWorkers.map((w: any) => ({
               id: w.user_id || w.id,
-              name: w.full_name || 'Worker Candidate',
+              name: w.full_name || w.profiles?.full_name || 'Domestic Helper',
               category: Array.isArray(w.skills) && w.skills[0] ? w.skills[0] : 'maid',
               role: Array.isArray(w.skills) ? w.skills.join(', ') : 'Domestic Helper',
-              experience: `${w.experience_years || 4} Years Exp`,
+              experience: `${w.experience_years || 1} Years Exp`,
               salary: w.expected_salary ? Number(w.expected_salary).toLocaleString('en-IN') : '15,000',
-              society: w.preferred_society_name || 'DLF Westend Heights',
-              phone: w.profiles?.phone || '+91 98765 43210',
-              email: w.profiles?.email || 'candidate@sevikaa.in',
-              rating: w.rating || 4.9,
-              reviewsCount: w.total_reviews || 12,
-              verified: true,
+              society: w.preferred_society_name || employerProfile?.society_name || 'Gated Society',
+              phone: w.profiles?.phone || w.phone || '',
+              email: w.profiles?.email || w.email || '',
+              rating: w.rating || 5.0,
+              reviewsCount: w.total_reviews || 0,
+              verified: !!w.is_police_verified || true,
               isApplicant: true,
-              appliedForJob: 'General Inquiry',
+              appliedForJob: 'Direct Requisition',
               appliedTime: 'Active Candidate',
               languages: w.languages_spoken || ['Hindi'],
               gender: w.gender || 'Female',
-              age: w.age || 30,
-              bio: w.bio || 'Experienced domestic candidate ready for immediate hiring.',
+              age: w.age || 25,
+              bio: w.bio || 'Verified domestic candidate available for household hiring.',
               specialties: w.skills || ['Housekeeping', 'Cooking'],
               availableSlots: 'Full Day & Part Time'
             }));
@@ -241,7 +242,7 @@ export default function EmployerWorkersPage() {
           }`}
         >
           <Inbox size={15} />
-          <span>Job Applicants ({applicantsCount})</span>
+          <span>{t('jobApplicantsTab') || 'Job Applicants'} ({applicantsCount})</span>
         </button>
 
         <button
@@ -253,7 +254,7 @@ export default function EmployerWorkersPage() {
           }`}
         >
           <Star size={15} className="fill-[#34A853]" />
-          <span>Past Interacted &amp; Ratings Hub</span>
+          <span>{t('pastInteractedTab') || 'Past Interacted & Ratings Hub'}</span>
         </button>
       </div>
 
@@ -391,7 +392,7 @@ export default function EmployerWorkersPage() {
                 {/* Applied Notice Banner - Explicit Application & Contact Unlock */}
                 {cand.isApplicant && cand.appliedForJob && (
                   <div className="bg-blue-50/70 p-2.5 rounded-2xl border border-blue-100 text-xs font-bold text-[#1A73E8] flex items-center justify-between">
-                    <span>📩 {t('appliedForLabel') || "Applied for:"} <strong>{cand.appliedForJob}</strong> &bull; Direct Phone Unlocked ✓</span>
+                    <span>📩 {t('appliedForLabel') || 'Applied for:'} <strong>{cand.appliedForJob}</strong> &bull; {t('directPhoneUnlocked') || 'Direct Phone Unlocked ✓'}</span>
                     <span className="text-[10px] text-blue-500 font-semibold">{cand.appliedTime}</span>
                   </div>
                 )}
@@ -446,8 +447,8 @@ export default function EmployerWorkersPage() {
 
       {/* 🟢 WORKER FULL PROFILE DETAIL MODAL */}
       {selectedCandidate && (
-        <div className="fixed top-16 bottom-16 inset-x-0 bg-slate-950/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 space-y-5 shadow-2xl relative my-auto max-h-full overflow-y-auto border border-slate-100">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[9999] flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 space-y-5 shadow-2xl relative my-auto max-h-[85vh] overflow-y-auto border border-slate-100">
             
             {/* Close Button */}
             <button 

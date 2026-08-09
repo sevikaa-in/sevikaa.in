@@ -304,7 +304,7 @@ export default function EmployerRelocatePage() {
             Please attach a copy of your Rent Agreement, Maintenance Bill, Electricity Bill, or Society Allotment Letter for the target society.
           </p>
 
-          <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
             <input 
               ref={fileInputRef}
               type="file" 
@@ -314,22 +314,22 @@ export default function EmployerRelocatePage() {
             <button 
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black cursor-pointer flex items-center gap-2 shadow-sm transition-all shrink-0 active:scale-95"
+              className="py-2.5 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black cursor-pointer flex items-center justify-center gap-2 shadow-sm transition-all shrink-0 active:scale-95"
             >
               <Upload size={14} className={uploadingProof ? 'animate-bounce' : ''} />
               <span>{uploadingProof ? 'Uploading Proof...' : relocationProofUrl ? 'Change Residence Proof' : 'Upload Residence Proof'}</span>
             </button>
-            <span className="text-xs font-bold text-slate-700 truncate flex-1">
+            <span className="text-xs font-bold text-slate-700 truncate flex-1 text-center sm:text-left">
               {uploadingProof ? '⏳ Uploading file to secure Cloudinary storage...' : relocationProofUrl ? '✓ Residence proof document uploaded' : 'No document selected yet'}
             </span>
           </div>
         </div>
 
         {/* Submit Actions */}
-        <div className="pt-5 border-t border-slate-100 flex items-center justify-end gap-3">
+        <div className="pt-5 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3">
           <Link
             href="/employer/account"
-            className="py-2.5 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+            className="py-2.5 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all text-center"
           >
             Cancel
           </Link>
@@ -337,7 +337,7 @@ export default function EmployerRelocatePage() {
             type="button"
             onClick={handleSubmitRelocationRequest}
             disabled={relocationSubmitLoading || !targetSociety.trim() || !relocationProofUrl}
-            className="py-2.5 px-6 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-300 disabled:text-slate-500 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
+            className="py-2.5 px-6 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-300 disabled:text-slate-500 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
           >
             <Save size={14} className="shrink-0" />
             <span>{relocationSubmitLoading ? 'Submitting Transfer...' : 'Submit Society Transfer Request'}</span>

@@ -29,9 +29,7 @@ export default function WorkerJobsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [appliedJobIds, setAppliedJobIds] = useState<string[]>([]);
-  const [selectedJobModal, setSelectedJobModal] = useState<any>(null);
   const [isApplying, setIsApplying] = useState(false);
-
   // Body scroll lock when detail modal is active
   useEffect(() => {
     if (selectedJobModal) {
@@ -318,7 +316,7 @@ export default function WorkerJobsPage() {
 
       setAppliedJobIds(prev => [...prev, job.id]);
       showToast(`Application submitted for "${job.title}"! Track status in Interviews.`, 'success');
-      setSelectedJobModal(null);
+      // No modal to close; navigating to full job page instead.
     } catch (err: any) {
       console.error(err);
       setAppliedJobIds(prev => [...prev, job.id]);

@@ -236,12 +236,11 @@ export default function WorkerOverviewPage() {
             <Briefcase size={16} className="text-[#1A73E8]" />
             <span>Top Recommended Jobs ({displayJobs.length})</span>
           </h3>
-          <Link 
-            href="/worker/jobs" 
-            className="text-xs font-black text-[#1A73E8] hover:text-blue-700 hover:underline flex items-center gap-1 transition-all"
-          >
-            <span>View All Jobs</span>
-            <ChevronRight size={13} />
+          <Link href="/worker/jobs" className="inline-block">
+            <button className="text-xs font-black text-[#1A73E8] bg-transparent hover:bg-[#1A73E8] hover:text-white border border-[#1A73E8] rounded px-2 py-1 flex items-center gap-1 transition-all">
+              View All
+              <ChevronRight size={13} />
+            </button>
           </Link>
         </div>
 

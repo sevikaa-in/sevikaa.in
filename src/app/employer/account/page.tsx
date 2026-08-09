@@ -13,6 +13,7 @@ import { ChangeMobileInlineSection } from '@/components/profile/ChangeMobileInli
 import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInlineSection';
 import { secureUpload } from '@/utils/secureUpload';
 import { usePrivateUrl } from '@/hooks/usePrivateUrl';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function EmployerAccountPage() {
   const { 
@@ -78,21 +79,33 @@ export default function EmployerAccountPage() {
   const [isSocietyPickerOpen, setIsSocietyPickerOpen] = useState(false);
   const [societySearchQuery, setSocietySearchQuery] = useState('');
 
-  const VERIFIED_SOCIETIES = [
-    { value: "DLF Westend Heights - Akshayanagar, Bengaluru", label: "DLF Westend Heights", locality: "Akshayanagar, Bengaluru" },
-    { value: "Prestige Song of the South - Begur, Bengaluru", label: "Prestige Song of the South", locality: "Begur Main Rd, Bengaluru" },
-    { value: "SNN Raj Serenity - Yelenahalli, Bengaluru", label: "SNN Raj Serenity", locality: "Yelenahalli, Begur, Bengaluru" },
-    { value: "Purva Westend - Kudlu Gate, Bengaluru", label: "Purva Westend", locality: "Kudlu Gate, Hosur Rd, Bengaluru" },
-    { value: "Sobha Royal Pavilion - Sarjapur Road, Bengaluru", label: "Sobha Royal Pavilion", locality: "Sarjapur Road, Bengaluru" },
-    { value: "Godrej Eternity - Kanakapura Road, Bengaluru", label: "Godrej Eternity", locality: "Kanakapura Road, Bengaluru" },
-    { value: "Prestige Falcon City - Kanakapura Road, Bengaluru", label: "Prestige Falcon City", locality: "Kanakapura Road, Bengaluru" },
-    { value: "Brigade Lakefront - Whitefield, Bengaluru", label: "Brigade Lakefront", locality: "Whitefield, Bengaluru" },
-    { value: "Hiranandani Meadows - Thane, Mumbai", label: "Hiranandani Meadows", locality: "Thane West, Mumbai" },
-    { value: "DLF Pinnacle - Phase 5, Gurgaon", label: "DLF Pinnacle", locality: "DLF Phase 5, Gurgaon" },
-    { value: "Naya Gaon Gated Community - Kolkata", label: "Naya Gaon Gated Community", locality: "Naya Gaon, Kolkata" },
-  ];
+  // Real Dynamic Societies from Supabase Database (Zero Mock Data)
+  const [dbSocieties, setDbSocieties] = useState<any[]>([]);
 
-  const filteredVerifiedSocieties = VERIFIED_SOCIETIES.filter((soc) =>
+  React.useEffect(() => {
+    async function loadRealDBSocieties() {
+      try {
+        const { data, error } = await supabase
+          .from('societies')
+          .select('*')
+          .order('name', { ascending: true });
+
+        if (!error && data) {
+          setDbSocieties(data.map((soc: any) => ({
+            id: soc.id,
+            value: soc.name + (soc.locality ? ` - ${soc.locality}` : ''),
+            label: soc.name,
+            locality: soc.locality || soc.city || soc.address || 'Verified Society'
+          })));
+        }
+      } catch (err) {
+        console.error("Error fetching dynamic societies:", err);
+      }
+    }
+    loadRealDBSocieties();
+  }, []);
+
+  const filteredVerifiedSocieties = dbSocieties.filter((soc) =>
     soc.label.toLowerCase().includes(societySearchQuery.toLowerCase()) ||
     soc.locality.toLowerCase().includes(societySearchQuery.toLowerCase())
   );
@@ -600,7 +613,7 @@ export default function EmployerAccountPage() {
       <div className="bg-gradient-to-r from-blue-50/90 via-white to-emerald-50/90 text-slate-900 p-5 sm:p-7 rounded-3xl space-y-5 border-2 border-slate-200/90 relative overflow-hidden">
         
         {/* Top Header Row: 100% Width Available for Avatar, Long Employer Name & Full Society Location */}
-        <div className="flex items-center gap-4 relative z-10">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 relative z-10">
           {/* Avatar Container with Sophisticated Circular SVG Progress Ring */}
           <div className="relative group shrink-0 flex items-center justify-center">
             {/* SVG Circular Progress Ring */}
@@ -650,19 +663,19 @@ export default function EmployerAccountPage() {
           </div>
 
           {/* Employer Name, Dedicated Society Location Row, and Plan/Readiness Badges */}
-          <div className="space-y-2 min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="space-y-2 min-w-0 flex-1 w-full">
+            <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
               <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{companyName || 'Household Employer'}</h3>
             </div>
 
             {/* Dedicated Row for Society Location */}
-            <p className="text-xs sm:text-sm font-extrabold text-slate-700 flex items-center gap-1.5 leading-snug">
+            <p className="text-xs sm:text-sm font-extrabold text-slate-700 flex items-center justify-center sm:justify-start gap-1.5 leading-snug">
               <MapPin size={15} className="text-[#1A73E8] shrink-0" />
               <span>{employerProfile.society_name || 'DLF Westend Heights'}{city ? `, ${city}` : ''}</span>
             </p>
 
             {/* Badges Row: Account Ready & Subscription Plan */}
-            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+            <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap pt-0.5">
               <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs ${
                 completionPercent === 100
                   ? 'bg-emerald-100 text-[#34A853] border border-emerald-300'
@@ -918,6 +931,28 @@ export default function EmployerAccountPage() {
                 placeholder="e.g. 19AAAAA0000A1Z5"
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:bg-white focus:border-[#1A73E8] focus:outline-none font-mono uppercase"
               />
+            </div>
+
+            {/* Tax Invoices Access Card */}
+            <div className="pt-2 sm:col-span-2 bg-blue-50/70 p-4 rounded-2xl border border-blue-100 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-blue-100 text-[#1A73E8] rounded-xl shrink-0">
+                  <FileText size={18} />
+                </div>
+                <div className="space-y-0.5">
+                  <h4 className="text-xs sm:text-sm font-black text-slate-900 leading-snug">Official GST Tax Invoices &amp; Receipts</h4>
+                  <p className="text-[11px] sm:text-xs text-slate-500 font-semibold leading-relaxed">
+                    View and download tax invoices for your subscription &amp; hiring plans.
+                  </p>
+                </div>
+              </div>
+
+              <Link 
+                href="/employer/account/invoices" 
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer shadow-xs active:scale-95 text-center"
+              >
+                <span>{t('viewTaxInvoicesBtn') || '🧾 View Tax Invoices & Download Receipts'} ↗</span>
+              </Link>
             </div>
           </div>
 

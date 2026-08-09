@@ -5,6 +5,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../config/api';
+import { useMobileLanguage } from '../context/LanguageContext';
 
 interface AuthLoginProps {
   onLoginSuccess: (
@@ -18,6 +19,7 @@ interface AuthLoginProps {
 
 export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBack }) => {
   const insets = useSafeAreaInsets();
+  const { t } = useMobileLanguage();
   const [authMode, setAuthMode] = useState<'phone' | 'email'>('phone');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -159,7 +161,7 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
         {/* HEADER BRANDING */}
         <View style={styles.header}>
           <View style={styles.pillBadge}>
-            <Text style={styles.pillBadgeText}>🔒 SECURE SEVIKAA PORTAL ACCESS</Text>
+            <Text style={styles.pillBadgeText}>{t('secureAccessBadge', '🔒 SECURE SEVIKAA PORTAL ACCESS')}</Text>
           </View>
           
           <View style={styles.logoRow}>
@@ -182,14 +184,14 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
 
           <Text style={styles.cardTitle}>
             {otpSent 
-              ? 'Enter Verification Code' 
-              : 'Sign In / Register'}
+              ? t('enterOtp', 'Enter Verification Code') 
+              : t('loginTitle', 'Sign In / Register')}
           </Text>
           
           <Text style={styles.cardSub}>
             {otpSent 
-              ? `We have sent a verification code to ${authMode === 'phone' ? `+91 ${phone}` : email}`
-              : 'Enter your Mobile Number or Email to receive an OTP'}
+              ? `${t('otpSubWithDetail', 'We have sent a verification code to')} ${authMode === 'phone' ? `+91 ${phone}` : email}`
+              : t('loginSub', 'Enter your Mobile Number or Email to receive an OTP')}
           </Text>
 
           {/* ERROR BANNER */}
@@ -209,7 +211,7 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
                   onPress={() => { setAuthMode('phone'); setErrorMsg(''); }}
                 >
                   <Text style={[styles.tabBtnText, authMode === 'phone' && styles.tabBtnTextActive]}>
-                    📱 Mobile Number
+                    {t('mobileTab', '📱 Mobile Number')}
                   </Text>
                 </TouchableOpacity>
 
@@ -219,7 +221,7 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
                   onPress={() => { setAuthMode('email'); setErrorMsg(''); }}
                 >
                   <Text style={[styles.tabBtnText, authMode === 'email' && styles.tabBtnTextActive]}>
-                    ✉️ Email Address
+                    {t('emailTab', '✉️ Email Address')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -233,7 +235,7 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
                   </View>
                   <TextInput
                     style={styles.phoneInput}
-                    placeholder="10-digit Mobile Number"
+                    placeholder={t('mobilePlaceholder', '10-digit Mobile Number')}
                     placeholderTextColor="#94A3B8"
                     keyboardType="number-pad"
                     maxLength={10}
@@ -246,7 +248,7 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
                   <Text style={styles.inputIcon}>✉️</Text>
                   <TextInput
                     style={styles.emailInput}
-                    placeholder="name@example.com"
+                    placeholder={t('emailPlaceholder', 'name@example.com')}
                     placeholderTextColor="#94A3B8"
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -269,15 +271,15 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.ctaButtonText}>Get Verification Code →</Text>
+                  <Text style={styles.ctaButtonText}>{t('sendOtp', 'Get Verification Code →')}</Text>
                 )}
               </TouchableOpacity>
 
               {/* TRUST CALLOUTS */}
               <View style={styles.trustRow}>
-                <Text style={styles.trustItem}>✓ Instant DLT OTP</Text>
+                <Text style={styles.trustItem}>{t('instantOtpTrust', '✓ Instant DLT OTP')}</Text>
                 <Text style={styles.trustDot}>•</Text>
-                <Text style={styles.trustItem}>🔒 256-Bit SSL Encryption</Text>
+                <Text style={styles.trustItem}>{t('encryptionTrust', '🔒 256-Bit SSL Encryption')}</Text>
               </View>
             </>
           ) : (
@@ -315,7 +317,7 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.ctaButtonText}>Verify &amp; Sign In →</Text>
+                  <Text style={styles.ctaButtonText}>{t('verifyOtp', 'Verify & Sign In →')}</Text>
                 )}
               </TouchableOpacity>
 

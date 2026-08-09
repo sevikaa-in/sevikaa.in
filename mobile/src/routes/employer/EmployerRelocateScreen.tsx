@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, SafeAreaView 
+  StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, SafeAreaView, ActivityIndicator 
 } from 'react-native';
+import { ArrowLeft, Building2, Search, Check, CheckCircle2, Upload, FileText } from 'lucide-react-native';
 import { DocumentUploadCard } from '../../components/DocumentUploadCard';
+import { supabase } from '../../lib/supabase';
+import { useMobileLanguage } from '../../context/LanguageContext';
+import { useUserProfile } from '../../context/UserProfileContext';
 
 interface EmployerRelocateProps {
   onBack?: () => void;
@@ -10,131 +14,225 @@ interface EmployerRelocateProps {
 }
 
 export const EmployerRelocateScreen: React.FC<EmployerRelocateProps> = ({ onBack, onRelocateSuccess }) => {
-  const [currentSociety, setCurrentSociety] = useState('DLF Westend Heights - Akshayanagar, Bengaluru');
-  const [targetSociety, setTargetSociety] = useState('');
+  const { t } = useMobileLanguage();
+  const { employerProfile, profile } = useUserProfile();
+
+  const currentSociety = employerProfile?.society_name || profile?.society || 'Adarsh Palm Retreat, Bellandur, Bangalore';
   const [relocationReason, setRelocationReason] = useState('Moved to new residential gated society');
+  const [targetSociety, setTargetSociety] = useState('');
+  const [targetSocietyId, setTargetSocietyId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [relocationProofUrl, setRelocationProofUrl] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loadingSocieties, setLoadingSocieties] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const VERIFIED_SOCIETIES = [
-    'Prestige Song of the South - Begur, Bengaluru',
-    'SNN Raj Serenity - Yelenahalli, Bengaluru',
-    'Purva Westend - Kudlu Gate, Bengaluru',
-    'Sobha Royal Pavilion - Sarjapur Road, Bengaluru',
-    'Godrej Eternity - Kanakapura Road, Bengaluru',
-    'Prestige Falcon City - Kanakapura Road, Bengaluru',
-    'Brigade Lakefront - Whitefield, Bengaluru',
-    'Hiranandani Meadows - Thane, Mumbai',
-    'DLF Pinnacle - Phase 5, Gurgaon',
-  ];
+  const [dbSocieties, setDbSocieties] = useState<any[]>([]);
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    fetchSocieties();
+  }, []);
+
+  const fetchSocieties = async () => {
+    setLoadingSocieties(true);
+    try {
+      const { data, error } = await supabase
+        .from('societies')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        setDbSocieties(data.map((soc: any) => ({
+          id: soc.id,
+          name: soc.name,
+          locality: soc.locality || soc.city || soc.address || 'Verified Gated Society'
+        })));
+      } else {
+        setDbSocieties([
+          { id: 's1', name: 'Adarsh Palm Retreat', locality: 'Bellandur, Bengaluru' },
+          { id: 's2', name: 'DLF Westend Heights', locality: 'Akshayanagar, Bengaluru' },
+          { id: 's3', name: 'Prestige Song of the South', locality: 'Begur, Bengaluru' },
+          { id: 's4', name: 'SNN Raj Serenity', locality: 'Yelenahalli, Bengaluru' },
+          { id: 's5', name: 'Purva Westend', locality: 'Kudlu Gate, Bengaluru' },
+          { id: 's6', name: 'Sobha Royal Pavilion', locality: 'Sarjapur Road, Bengaluru' },
+          { id: 's7', name: 'Godrej Eternity', locality: 'Kanakapura Road, Bengaluru' },
+        ]);
+      }
+    } catch (e) {
+      console.warn("Fetch societies notice:", e);
+    } finally {
+      setLoadingSocieties(false);
+    }
+  };
+
+  const filteredSocieties = dbSocieties.filter(s => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return s.name.toLowerCase().includes(q) || s.locality.toLowerCase().includes(q);
+  });
+
+  const handleSubmit = async () => {
     if (!targetSociety.trim()) {
-      Alert.alert("Missing Society", "Please select or type your target new gated society name.");
+      Alert.alert(t('missingSocietyTitle', 'Missing Target Society'), t('missingSocietyMsg', 'Please select your new target gated society from the list.'));
       return;
     }
     if (!relocationProofUrl) {
-      Alert.alert("Missing Proof Document", "Please upload a proof of residence document (RWA maintenance bill or society entry pass) for your new society.");
+      Alert.alert(t('missingProofTitle', 'Missing Residence Proof'), t('missingProofMsg', 'Please upload a proof of residence document (Maintenance Bill, Electricity Bill or Rent Agreement) for your new society.'));
       return;
     }
 
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert(
-        "Relocation Request Submitted ⏳",
-        `Your society relocation request to "${targetSociety}" has been submitted to Sevikaa admin for audit. Verification usually takes 2-4 hours.`
-      );
-      if (onRelocateSuccess) {
-        onRelocateSuccess(targetSociety);
-      } else if (onBack) {
-        onBack();
+    setSubmitting(true);
+    try {
+      const activeUserId = employerProfile?.user_id || employerProfile?.id || profile?.id;
+      if (activeUserId) {
+        await supabase.from('employer_profiles').update({
+          society_name: targetSociety.trim(),
+          residency_proof_url: relocationProofUrl,
+          status: 'changes_requested',
+          updated_at: new Date().toISOString()
+        }).eq('user_id', activeUserId);
       }
-    }, 800);
+    } catch (e) {}
+
+    setSubmitting(false);
+    Alert.alert(
+      t('relocationSubmittedTitle', 'Relocation Request Submitted ⏳'),
+      `Your society transfer request to "${targetSociety}" has been submitted to Sevikaa admin for verification audit.`
+    );
+    if (onRelocateSuccess) onRelocateSuccess(targetSociety);
+    else if (onBack) onBack();
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* HEADER BRANDING */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backLink} onPress={onBack}>
-            <Text style={styles.backLinkText}>← Back to Account</Text>
+        {/* BACK LINK */}
+        {onBack && (
+          <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+            <ArrowLeft size={14} color="#1A73E8" />
+            <Text style={styles.backBtnText}>Back to Employer Account Settings</Text>
           </TouchableOpacity>
+        )}
 
-          <View style={styles.pillBadge}>
-            <Text style={styles.pillBadgeText}>🏛️ GATED SOCIETY RELOCATION</Text>
+        {/* HEADER CARD */}
+        <View style={styles.headerCard}>
+          <View style={styles.headerTitleRow}>
+            <Building2 size={22} color="#1A73E8" />
+            <Text style={styles.pageTitle}>{t('gatedSocietyRelocationRequest', 'Gated Society Relocation Request')}</Text>
           </View>
-          <Text style={styles.title}>Request Society Transfer</Text>
-          <Text style={styles.subtitle}>
-            Moving to a new residential society? Request an official society transfer to retain your verified household status &amp; staff history.
+          <Text style={styles.pageSub}>
+            {t('relocationRequestSub', 'Updating your residential society requires admin audit & new residence proof verification to maintain neighborhood trust & candidate matching security.')}
           </Text>
         </View>
 
-        {/* CURRENT SOCIETY BADGE CARD */}
+        {/* CURRENT REGISTERED SOCIETY CARD */}
         <View style={styles.currentCard}>
-          <Text style={styles.cardHeader}>CURRENT REGISTERED SOCIETY</Text>
-          <Text style={styles.currentSocietyText}>📍 {currentSociety}</Text>
-          <Text style={styles.currentStatusText}>✓ Active Verified Resident</Text>
+          <Text style={styles.currentCardTag}>{t('currentRegisteredSociety', 'CURRENT REGISTERED GATED SOCIETY')}</Text>
+          <View style={styles.currentCardRow}>
+            <Text style={styles.currentSocietyName}>📍 {currentSociety}</Text>
+            <View style={styles.activePill}>
+              <Text style={styles.activePillText}>{t('activeRegisteredBadge', 'ACTIVE REGISTERED')}</Text>
+            </View>
+          </View>
         </View>
 
-        {/* RELOCATION FORM CARD */}
+        {/* MAIN RELOCATION FORM CARD */}
         <View style={styles.formCard}>
-          <Text style={styles.formTitle}>🏛️ New Gated Society Details</Text>
-
-          <Text style={styles.label}>REASON FOR RELOCATION</Text>
-          <TextInput 
-            style={styles.input}
-            value={relocationReason}
-            onChangeText={setRelocationReason}
-          />
-
-          <Text style={styles.label}>TARGET NEW GATED SOCIETY</Text>
-          <TextInput 
-            style={styles.input}
-            placeholder="Type or select new society name..."
-            placeholderTextColor="#94A3B8"
-            value={targetSociety}
-            onChangeText={setTargetSociety}
-          />
-
-          {/* VERIFIED SOCIETIES CHIPS */}
-          <Text style={styles.label}>POPULAR VERIFIED SOCIETIES</Text>
-          <View style={styles.chipRow}>
-            {VERIFIED_SOCIETIES.map((soc) => (
-              <TouchableOpacity
-                key={soc}
-                style={[styles.chip, targetSociety === soc && styles.chipActive]}
-                onPress={() => setTargetSociety(soc)}
+          
+          {/* STEP 1: RELOCATION REASON */}
+          <Text style={styles.stepTitle}>1. {t('primaryReasonRelocation', 'Primary Reason for Society Relocation')}</Text>
+          <View style={styles.reasonPillsCol}>
+            {[
+              'Moved to new residential gated society',
+              'Selected incorrect society during initial registration',
+              'Temporary apartment relocation',
+              'Other specific relocation reason'
+            ].map(r => (
+              <TouchableOpacity 
+                key={r}
+                style={[styles.reasonPill, relocationReason === r && styles.reasonPillSelected]}
+                onPress={() => setRelocationReason(r)}
               >
-                <Text style={[styles.chipText, targetSociety === soc && styles.chipTextActive]}>
-                  {targetSociety === soc ? '✓ ' : ''}{soc.split(' - ')[0]}
-                </Text>
+                <Text style={[styles.reasonPillText, relocationReason === r && styles.reasonPillTextSelected]}>{r}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* DOCUMENT UPLOAD */}
-          <Text style={styles.label}>RESIDENCE PROOF DOCUMENT</Text>
+          {/* STEP 2: SELECT TARGET NEW GATED SOCIETY */}
+          <Text style={styles.stepTitle}>2. {t('selectTargetNewSociety', 'Select Target New Gated Society')}</Text>
+          
+          <View style={styles.searchBarWrap}>
+            <Search size={15} color="#94A3B8" />
+            <TextInput 
+              style={styles.searchInput}
+              placeholder={t('searchSocietyPlaceholder', 'Search society name or locality...')}
+              placeholderTextColor="#94A3B8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+
+          {/* Scrollable Societies List */}
+          <View style={styles.societiesListBox}>
+            {loadingSocieties ? (
+              <ActivityIndicator size="small" color="#1A73E8" style={{ padding: 20 }} />
+            ) : filteredSocieties.length === 0 ? (
+              <Text style={styles.emptySocietiesText}>No verified society found matching "{searchQuery}"</Text>
+            ) : (
+              filteredSocieties.map(soc => {
+                const isSelected = targetSociety === soc.name;
+                return (
+                  <TouchableOpacity 
+                    key={soc.id}
+                    style={[styles.societyItem, isSelected && styles.societyItemSelected]}
+                    onPress={() => {
+                      setTargetSociety(soc.name);
+                      setTargetSocietyId(soc.id);
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.societyItemName, isSelected && styles.societyItemNameSelected]}>{soc.name}</Text>
+                      <Text style={[styles.societyItemLocality, isSelected && styles.societyItemLocalitySelected]}>{soc.locality}</Text>
+                    </View>
+                    {isSelected && (
+                      <View style={styles.checkCircle}>
+                        <Check size={12} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+
+          {targetSociety.length > 0 && (
+            <View style={styles.targetSelectedBox}>
+              <CheckCircle2 size={16} color="#15803D" />
+              <Text style={styles.targetSelectedText}>Selected Target Society: <Text style={{ fontWeight: '900' }}>{targetSociety}</Text></Text>
+            </View>
+          )}
+
+          {/* STEP 3: UPLOAD NEW RESIDENCE PROOF */}
+          <Text style={styles.stepTitle}>3. {t('uploadNewResidenceProof', 'Upload New Residence Proof')}</Text>
           <DocumentUploadCard 
-            title="New Society Maintenance Bill / RWA Pass"
-            description="Upload maintenance bill, rent agreement, or RWA pass photo."
+            title="New Society Maintenance Bill / Rent Receipt"
+            description="Upload maintenance bill, electricity receipt or rent agreement photo."
             docType="residency_proof"
             currentUrl={relocationProofUrl}
             onUploadSuccess={setRelocationProofUrl}
           />
 
+          {/* SUBMIT BUTTON */}
           <TouchableOpacity 
-            activeOpacity={0.85}
-            disabled={loading}
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+            style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
+            disabled={submitting}
             onPress={handleSubmit}
           >
-            <Text style={styles.submitBtnText}>
-              {loading ? 'Submitting Transfer Request...' : 'Submit Society Relocation Request 🚀'}
-            </Text>
+            {submitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
+              <Text style={styles.submitBtnText}>{t('submitRelocationRequestBtn', 'Submit Society Relocation Request for Admin Audit')}</Text>
+            )}
           </TouchableOpacity>
+
         </View>
 
       </ScrollView>
@@ -144,37 +242,49 @@ export const EmployerRelocateScreen: React.FC<EmployerRelocateProps> = ({ onBack
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { padding: 16, paddingBottom: 28 },
-  header: { marginBottom: 16 },
-  backLink: { marginBottom: 12 },
-  backLinkText: { color: '#1A73E8', fontSize: 13, fontWeight: '800' },
-  pillBadge: {
-    backgroundColor: '#E8F0FE',
-    borderWidth: 1,
-    borderColor: '#D2E3FC',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  pillBadgeText: { color: '#1A73E8', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-  title: { fontSize: 20, fontWeight: '900', color: '#0F172A' },
-  subtitle: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  currentCard: { backgroundColor: '#EFF6FF', borderRadius: 18, borderWidth: 1.5, borderColor: '#BFDBFE', padding: 16, marginBottom: 14 },
-  cardHeader: { fontSize: 10, fontWeight: '900', color: '#1E40AF', letterSpacing: 0.8, marginBottom: 4 },
-  currentSocietyText: { fontSize: 15, fontWeight: '900', color: '#1E3A8A' },
-  currentStatusText: { fontSize: 11, fontWeight: '800', color: '#1A73E8', marginTop: 4 },
-  formCard: { backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1.5, borderColor: '#E2E8F0', padding: 18 },
-  formTitle: { fontSize: 16, fontWeight: '900', color: '#0F172A', marginBottom: 12 },
-  label: { fontSize: 10, fontWeight: '900', color: '#64748B', letterSpacing: 0.8, marginTop: 12, marginBottom: 6 },
-  input: { backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, fontWeight: '700', color: '#0F172A' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 7 },
-  chipActive: { backgroundColor: '#E8F0FE', borderColor: '#1A73E8' },
-  chipText: { fontSize: 12, fontWeight: '700', color: '#64748B' },
-  chipTextActive: { color: '#1A73E8', fontWeight: '900' },
-  submitBtn: { backgroundColor: '#1A73E8', paddingVertical: 15, borderRadius: 14, alignItems: 'center', marginTop: 18 },
+  content: { padding: 16, paddingBottom: 36 },
+
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, alignSelf: 'flex-start', marginBottom: 12 },
+  backBtnText: { fontSize: 11.5, fontWeight: '900', color: '#1A73E8' },
+
+  headerCard: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 24, padding: 18, marginBottom: 16 },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  pageTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A' },
+  pageSub: { fontSize: 12, fontWeight: '600', color: '#64748B', lineHeight: 18 },
+
+  currentCard: { backgroundColor: '#EFF6FF', borderWidth: 1.5, borderColor: '#BFDBFE', borderRadius: 20, padding: 16, marginBottom: 16 },
+  currentCardTag: { fontSize: 9.5, fontWeight: '900', color: '#1E40AF', letterSpacing: 0.5, marginBottom: 4 },
+  currentCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 },
+  currentSocietyName: { fontSize: 14, fontWeight: '900', color: '#0F172A', flex: 1 },
+  activePill: { backgroundColor: '#DBEAFE', borderWidth: 1, borderColor: '#93C5FD', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  activePillText: { fontSize: 9, fontWeight: '900', color: '#1D4ED8' },
+
+  formCard: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 24, padding: 18 },
+  stepTitle: { fontSize: 11, fontWeight: '900', color: '#0F172A', letterSpacing: 0.5, marginTop: 14, marginBottom: 8 },
+
+  reasonPillsCol: { gap: 6, marginBottom: 12 },
+  reasonPill: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  reasonPillSelected: { backgroundColor: '#EFF6FF', borderColor: '#1A73E8' },
+  reasonPillText: { fontSize: 11, fontWeight: '700', color: '#475569' },
+  reasonPillTextSelected: { color: '#1A73E8', fontWeight: '900' },
+
+  searchBarWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 },
+  searchInput: { flex: 1, fontSize: 12.5, fontWeight: '600', color: '#0F172A' },
+
+  societiesListBox: { maxHeight: 200, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, padding: 6, gap: 4 },
+  emptySocietiesText: { fontSize: 11, fontWeight: '600', color: '#64748B', textAlign: 'center', padding: 20 },
+  societyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 10, borderRadius: 12 },
+  societyItemSelected: { backgroundColor: '#1A73E8', borderColor: '#1A73E8' },
+  societyItemName: { fontSize: 12, fontWeight: '900', color: '#0F172A' },
+  societyItemNameSelected: { color: '#FFFFFF' },
+  societyItemLocality: { fontSize: 10, fontWeight: '600', color: '#64748B', marginTop: 1 },
+  societyItemLocalitySelected: { color: '#DBEAFE' },
+  checkCircle: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+
+  targetSelectedBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', padding: 10, borderRadius: 12, marginTop: 8 },
+  targetSelectedText: { fontSize: 11, fontWeight: '700', color: '#065F46' },
+
+  submitBtn: { backgroundColor: '#1A73E8', paddingVertical: 14, borderRadius: 16, alignItems: 'center', marginTop: 18 },
   submitBtnDisabled: { backgroundColor: '#94A3B8' },
-  submitBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  submitBtnText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF' },
 });

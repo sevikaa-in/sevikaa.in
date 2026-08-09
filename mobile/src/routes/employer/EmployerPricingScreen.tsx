@@ -3,13 +3,15 @@ import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator 
 } from 'react-native';
 import { getApiUrl } from '../../config/api';
+import { useMobileLanguage } from '../../context/LanguageContext';
 
 interface EmployerPricingProps {
   onSelectPlan?: (planId: string) => void;
 }
 
 export const EmployerPricingScreen: React.FC<EmployerPricingProps> = ({ onSelectPlan }) => {
-  const currentPlanName = 'Standard Family Plan';
+  const { t } = useMobileLanguage();
+  const currentPlanName = t('planStandardName','Standard Family Plan');
   const [loading, setLoading] = useState(false);
   const [livePricing, setLivePricing] = useState<any>(null);
 
@@ -112,17 +114,16 @@ export const EmployerPricingScreen: React.FC<EmployerPricingProps> = ({ onSelect
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
             <View style={styles.pillBadge}>
-              <Text style={styles.pillBadgeText}>💳 LIVE SUPER-ADMIN CONTROLLED PRICING</Text>
+              <Text style={styles.pillBadgeText}>{t('pricingEyebrow','SUBSCRIPTION PLANS')}</Text>
             </View>
-
             <TouchableOpacity style={styles.refreshBtn} onPress={fetchLivePricing}>
-              <Text style={styles.refreshBtnText}>🔄 Sync Live</Text>
+              <Text style={styles.refreshBtnText}>🔄 {t('syncLiveLabel','Sync Live')}</Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.title}>Employer Subscription Plans</Text>
+          <Text style={styles.title}>{t('pricingTitle','Choose Your Hiring Plan')}</Text>
           <Text style={styles.subtitle}>
-            Controlled live via Super Admin (http://localhost:3000/super-admin/pricing). Zero commission &amp; no hidden fees.
+            {t('pricingSub','Transparent, affordable plans for verified gated society employers.')}
           </Text>
         </View>
 
@@ -130,15 +131,15 @@ export const EmployerPricingScreen: React.FC<EmployerPricingProps> = ({ onSelect
         <View style={styles.activeBanner}>
           <View style={styles.activeBannerTopRow}>
             <View>
-              <Text style={styles.activeBannerLabel}>YOUR CURRENT ACTIVE PLAN</Text>
+              <Text style={styles.activeBannerLabel}>{t('currentPlanLabel','YOUR CURRENT ACTIVE PLAN')}</Text>
               <Text style={styles.activeBannerTitle}>{currentPlanName}</Text>
             </View>
             <View style={styles.activeBadgeGreen}>
-              <Text style={styles.activeBadgeGreenText}>✓ Active 🟢</Text>
+              <Text style={styles.activeBadgeGreenText}>✓ {t('activeBadge','Active')} 🟢</Text>
             </View>
           </View>
           <Text style={styles.activeBannerSub}>
-            Full direct calling, video bios &amp; verified candidate access active in your society.
+            {t('activePlanBannerSub','Full direct calling, video bios & verified candidate access active in your society.')}
           </Text>
         </View>
 
@@ -196,7 +197,7 @@ export const EmployerPricingScreen: React.FC<EmployerPricingProps> = ({ onSelect
                   onPress={() => onSelectPlan ? onSelectPlan(p.id) : null}
                 >
                   <Text style={[styles.selectPlanBtnText, isPopular && styles.selectPlanBtnTextBlue]}>
-                    Select Plan &amp; Continue →
+                    {t('selectPlanBtn','Select Plan')} →
                   </Text>
                 </TouchableOpacity>
 

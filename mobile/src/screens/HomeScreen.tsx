@@ -14,30 +14,80 @@ interface HomeScreenProps {
   role?: 'employer' | 'worker';
   onNavigateToPostJob?: () => void;
   onNavigateToWorkers?: () => void;
+  onNavigateToAccount?: () => void;
+  onNavigateToInvite?: (job: any) => void;
+  onNavigateToPricing?: () => void;
+  onNavigateToRelocate?: () => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer', onNavigateToPostJob, onNavigateToWorkers }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ 
+  role = 'employer', 
+  onNavigateToPostJob, 
+  onNavigateToWorkers,
+  onNavigateToAccount,
+  onNavigateToInvite,
+  onNavigateToPricing,
+  onNavigateToRelocate
+}) => {
   const { t } = useMobileLanguage();
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(false);
   const [candidates, setCandidates] = useState<any[]>([]);
   const [postedJobs, setPostedJobs] = useState<any[]>([]);
   const [bookingWorker, setBookingWorker] = useState<any | null>(null);
+  const [totalWorkersCount, setTotalWorkersCount] = useState<number>(0);
+  const [employerProfile, setEmployerProfile] = useState<any>({
+    company_name: 'Employer Household',
+    society_name: 'Adarsh Palm Retreat, Bellandur',
+    status: 'pending_review',
+    subscription_status: 'premium'
+  });
 
   const categories = ['All', 'Cook', 'Maid', 'Nanny'];
 
   useEffect(() => {
     fetchData();
-  }, [searchQuery]);
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Candidates from Supabase
+      // 1. Fetch Session / Employer Profile
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        const { data: empProf } = await supabase
+          .from('employer_profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (empProf) {
+          setEmployerProfile({
+            ...empProf,
+            company_name: empProf.company_name || empProf.name || empProf.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Employer Household'
+          });
+        } else if (session.user?.user_metadata) {
+          setEmployerProfile((prev: any) => ({
+            ...prev,
+            company_name: session.user.user_metadata.full_name || session.user.user_metadata.name || 'Employer Household'
+          }));
+        }
+      }
+
+      // 2. Fetch Total Worker Count
+      const { count } = await supabase
+        .from('worker_profiles')
+        .select('*', { count: 'exact', head: true });
+
+      if (count !== null) {
+        setTotalWorkersCount(count);
+      }
+
+      // 3. Fetch Candidates from Supabase (Live & Approved Workers Only)
       const { data: dbWorkers } = await supabase
         .from('worker_profiles')
         .select('*')
+        .or('status.eq.live,status.eq.approved')
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -47,44 +97,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer', onNav
           full_name: w.full_name || 'Verified Helper',
           category: Array.isArray(w.skills) && w.skills[0] ? w.skills[0] : (w.category || 'Cook'),
           skills: Array.isArray(w.skills) ? w.skills : [w.category || 'Cook'],
-          experience_years: w.experience_years || 4,
+          experience_years: (w.experience_years !== undefined && w.experience_years !== null) ? w.experience_years : (w.experience !== undefined && w.experience !== null ? Number(w.experience) : 0),
           total_reviews: w.total_reviews || 14,
           rating: w.rating || 4.9,
           expected_salary: w.expected_salary || 14000,
-          preferred_society_name: w.preferred_society_name || w.society || 'DLF Westend Heights',
+          preferred_society_name: w.preferred_society_name || w.society || employerProfile.society_name || 'Gated Society',
           is_police_verified: w.is_police_verified ?? true,
           status: w.status || 'live'
         })));
-      } else {
-        setCandidates([
-          {
-            id: 'c1',
-            full_name: 'Lakshmi Devi',
-            category: 'Cook',
-            skills: ['Cook', 'Housekeeping'],
-            experience_years: 5,
-            total_reviews: 18,
-            rating: 4.9,
-            expected_salary: 15000,
-            preferred_society_name: 'DLF Westend Heights',
-            is_police_verified: true
-          },
-          {
-            id: 'c2',
-            full_name: 'Anita Sharma',
-            category: 'Maid',
-            skills: ['Housekeeping', 'Deep Cleaning'],
-            experience_years: 3,
-            total_reviews: 12,
-            rating: 4.8,
-            expected_salary: 13000,
-            preferred_society_name: 'Prestige Song of the South',
-            is_police_verified: true
-          }
-        ]);
       }
 
-      // 2. Fetch Jobs from Supabase
+      // 4. Fetch Employer Jobs from Supabase
       const { data: dbJobs } = await supabase
         .from('jobs')
         .select('*')
@@ -101,6 +124,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer', onNav
     }
   };
 
+  const activeJobsCount = postedJobs.filter(j => j.status === 'active' || j.status === 'approved').length;
+  const pendingJobsCount = postedJobs.filter(j => j.status === 'pending' || j.status === 'changes_requested').length;
+  const totalApplicantsCount = postedJobs.reduce((sum, j) => sum + (j.applications_count || j.applicationsCount || 0), 0);
+  const isEmployerVerified = employerProfile.status === 'live' || employerProfile.status === 'approved';
+
   const filteredCandidates = candidates.filter(c => {
     if (selectedCategory === 'All') return true;
     const cat = (c.category || '').toLowerCase();
@@ -116,169 +144,232 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer', onNav
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       
-      {/* 🏡 1. LIGHT CRISP EMPLOYER CONTROL HERO BANNER (BALANCED WITH TRUST WIDGET) */}
+      {/* 🏡 1. LIGHT CRISP EMPLOYER CONTROL HERO BANNER (MATCHES WEB DESIGN EXACTLY) */}
       <View style={styles.heroBanner}>
         {/* Row 1: Badges */}
         <View style={styles.heroBadgeRow}>
           <View style={styles.eyebrowPill}>
-            <Sparkles size={11} color="#D97706" />
-            <Text style={styles.eyebrowText}>HOUSEHOLD EMPLOYER HUB</Text>
+            <Sparkles size={11} color="#1A73E8" />
+            <Text style={styles.eyebrowText}>SEVIKAA HOUSEHOLD EMPLOYER HUB</Text>
           </View>
-          <View style={styles.pendingPill}>
-            <Clock size={11} color="#92400E" />
-            <Text style={styles.pendingText}>PENDING ADMIN AUDIT</Text>
-          </View>
+          {isEmployerVerified ? (
+            <View style={styles.verifiedPill}>
+              <ShieldCheck size={11} color="#15803D" />
+              <Text style={styles.verifiedText}>VERIFIED EMPLOYER ACCOUNT</Text>
+            </View>
+          ) : (
+            <View style={styles.pendingPill}>
+              <Clock size={11} color="#92400E" />
+              <Text style={styles.pendingText}>PENDING ADMIN AUDIT</Text>
+            </View>
+          )}
         </View>
 
-        {/* Row 2: Name */}
-        <Text style={styles.heroEmployerName}>Employer Household</Text>
+        {/* Row 2: Employer Name */}
+        <Text style={styles.heroEmployerName}>
+          {employerProfile.company_name || employerProfile.name || employerProfile.full_name || 'Employer Household'}
+        </Text>
 
         {/* Row 3: Society Location */}
         <View style={styles.societyRow}>
-          <MapPin size={13} color="#1A73E8" />
-          <Text style={styles.societyText}>DLF Westend Heights - Akshayanagar</Text>
+          <MapPin size={14} color="#1A73E8" />
+          <Text style={styles.societyText}>
+            {employerProfile.society_name || 'Adarsh Palm Retreat, Bellandur'}
+          </Text>
         </View>
 
         {/* Row 4: Button AFTER Name and Society */}
         {onNavigateToPostJob && (
-          <TouchableOpacity style={styles.postJobBtn} onPress={onNavigateToPostJob}>
-            <PlusCircle size={15} color="#FFFFFF" />
-            <Text style={styles.postJobBtnText}>+ Post New Requisition</Text>
+          <TouchableOpacity style={styles.postJobBtn} onPress={onNavigateToPostJob} activeOpacity={0.85}>
+            <PlusCircle size={16} color="#FFFFFF" />
+            <Text style={styles.postJobBtnText}>Post New Requisition</Text>
           </TouchableOpacity>
         )}
 
         {/* Row 5: Executive Society Gate Pass & Trust Widget Box */}
         <View style={styles.trustWidgetBox}>
-          <View style={styles.trustWidgetHeader}>
-            <ShieldCheck size={14} color="#1A73E8" />
-            <Text style={styles.trustWidgetTitle}>GATE PASS &amp; AUDIT VERIFIED</Text>
+          <View style={styles.trustWidgetLeft}>
+            <View style={styles.trustIconCircle}>
+              <ShieldCheck size={16} color="#1A73E8" />
+            </View>
+            <View>
+              <Text style={styles.trustWidgetTitle}>GATE PASS VERIFIED</Text>
+              <Text style={styles.trustWidgetSubGreen}>Live DLT SMS Alerts</Text>
+            </View>
           </View>
-          <Text style={styles.trustWidgetSub}>📍 52 Helpers in Society &bull; 100% Aadhaar Verified</Text>
-        </View>
-      </View>
 
-      {/* 📊 2. LIGHT 2 x 2 EXECUTIVE METRICS GRID */}
-      <View style={styles.statsGrid2x2}>
-        <View style={[styles.statCard2x2, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-          <Text style={styles.statLabel}>POSTED REQUISITIONS</Text>
-          <Text style={[styles.statVal, { color: '#15803D' }]}>{postedJobs.length || 1}</Text>
-          <Text style={styles.statSub}>Active Postings</Text>
-        </View>
-
-        <View style={[styles.statCard2x2, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
-          <Text style={styles.statLabel}>TOTAL APPLICANTS</Text>
-          <Text style={[styles.statVal, { color: '#1A73E8' }]}>5</Text>
-          <Text style={styles.statSub}>Candidates</Text>
-        </View>
-
-        <View style={[styles.statCard2x2, { backgroundColor: '#FAF5FF', borderColor: '#E9D5FF' }]}>
-          <Text style={styles.statLabel}>HELPERS IN SOCIETY</Text>
-          <Text style={[styles.statVal, { color: '#9333EA' }]}>52</Text>
-          <Text style={styles.statSub}>Gate Verified</Text>
-        </View>
-
-        <View style={[styles.statCard2x2, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-          <Text style={styles.statLabel}>ACCOUNT PLAN</Text>
-          <Text style={[styles.statVal, { color: '#D97706', fontSize: 15 }]}>Standard</Text>
-          <Text style={styles.statSub}>Unlimited Contact</Text>
-        </View>
-      </View>
-
-      {/* 💡 3. HIRE FAST ACTION CARD */}
-      <View style={styles.hireFastCard}>
-        <View style={styles.hireFastLeft}>
-          <View style={styles.hireFastIconBox}>
-            <Sparkles size={18} color="#FFFFFF" />
-          </View>
-          <View style={styles.hireFastTextCol}>
-            <Text style={styles.hireFastTitle}>Need Domestic Help Fast?</Text>
-            <Text style={styles.hireFastSub}>Browse verified maids, cooks &amp; nannies near you</Text>
+          <View style={styles.trustWidgetRight}>
+            <Text style={styles.trustRightText}>
+              <Text style={{ color: '#64748B' }}>Society Helpers: </Text>
+              <Text style={{ color: '#0F172A', fontWeight: '900' }}>{totalWorkersCount} Verified</Text>
+            </Text>
+            <Text style={styles.trustRightText}>
+              <Text style={{ color: '#64748B' }}>Aadhaar Record: </Text>
+              <Text style={{ color: '#15803D', fontWeight: '900' }}>100% Passed</Text>
+            </Text>
           </View>
         </View>
       </View>
 
-      {/* 👥 4. CANDIDATES SEARCH & CATEGORY FILTER */}
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeaderTitle}>VERIFIED CANDIDATE CANDIDATES ({filteredCandidates.length})</Text>
-        {onNavigateToWorkers && (
-          <TouchableOpacity onPress={onNavigateToWorkers} style={styles.viewAllBtn}>
-            <Text style={styles.viewAllText}>View All Candidates</Text>
-            <ChevronRight size={13} color="#1A73E8" />
+      {/* 📊 2. PROFILE COMPLETENESS WIDGET (MATCHES WEB DESIGN EXACTLY) */}
+      <View style={styles.completenessCard}>
+        <View style={styles.completenessHeader}>
+          <View style={styles.completenessLeft}>
+            <View style={styles.completenessIconCircle}>
+              <UserCheck size={18} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.completenessTitle}>
+                Profile Completeness <Text style={{ color: '#1A73E8' }}>( 88% )</Text>
+              </Text>
+              <Text style={styles.completenessSub} numberOfLines={1}>
+                1 steps remaining to activate job postings
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity 
+            style={styles.completeBtn} 
+            onPress={onNavigateToAccount} 
+            activeOpacity={0.85}
+          >
+            <Text style={styles.completeBtnText}>Complete Profile</Text>
+            <ChevronRight size={14} color="#FFFFFF" />
           </TouchableOpacity>
+        </View>
+
+        {/* Progress Bar */}
+        <View style={styles.progressBarTrack}>
+          <View style={[styles.progressBarFill, { width: '88%' }]} />
+        </View>
+      </View>
+
+      {/* 📊 3. 2 x 2 EXECUTIVE METRICS GRID (MATCHES WEB DESIGN EXACTLY) */}
+      <View style={styles.statsGrid2x2}>
+        <TouchableOpacity style={styles.statCard} onPress={onNavigateToPostJob} activeOpacity={0.85}>
+          <View style={styles.statHeaderRow}>
+            <Text style={styles.statLabel}>POSTED REQUISITIONS</Text>
+            <ChevronRight size={13} color="#94A3B8" />
+          </View>
+          <Text style={styles.statVal}>{postedJobs.length}</Text>
+          <Text style={styles.statSubGreen}>{activeJobsCount} Active &bull; {pendingJobsCount} Pending</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.statCard} onPress={onNavigateToWorkers} activeOpacity={0.85}>
+          <View style={styles.statHeaderRow}>
+            <Text style={styles.statLabel}>TOTAL APPLICANTS</Text>
+            <ChevronRight size={13} color="#94A3B8" />
+          </View>
+          <Text style={[styles.statVal, { color: '#1A73E8' }]}>{totalApplicantsCount}</Text>
+          <Text style={styles.statSubGray}>View Applicants</Text>
+        </TouchableOpacity>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>HELPERS IN SOCIETY</Text>
+          <Text style={styles.statVal}>{totalWorkersCount}</Text>
+          <Text style={styles.statSubGreen}>Verified in Society</Text>
+        </View>
+
+        <TouchableOpacity style={styles.statCard} onPress={onNavigateToAccount} activeOpacity={0.85}>
+          <View style={styles.statHeaderRow}>
+            <Text style={styles.statLabel}>ACCOUNT PLAN</Text>
+            <ChevronRight size={13} color="#94A3B8" />
+          </View>
+          <Text style={[styles.statVal, { color: '#15803D', fontSize: 16, textTransform: 'lowercase' }]}>
+            {employerProfile.subscription_status || 'premium'}
+          </Text>
+          <Text style={styles.statSubGray}>Unlimited Direct Contact</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 📋 4. YOUR ACTIVE REQUISITIONS CARD */}
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionCardHeader}>
+          <View style={styles.sectionTitleRow}>
+            <Briefcase size={16} color="#1A73E8" />
+            <Text style={styles.sectionTitle}>YOUR ACTIVE REQUISITIONS</Text>
+          </View>
+          <TouchableOpacity onPress={onNavigateToPostJob}>
+            <Text style={styles.viewAllText}>View All ›</Text>
+          </TouchableOpacity>
+        </View>
+
+        {postedJobs.length === 0 ? (
+          <View style={styles.emptyCardBox}>
+            <Briefcase size={36} color="#CBD5E1" style={{ alignSelf: 'center', marginBottom: 6 }} />
+            <Text style={styles.emptyText}>No Jobs Posted Yet</Text>
+            {onNavigateToPostJob && (
+              <TouchableOpacity style={styles.postFirstJobBtn} onPress={onNavigateToPostJob} activeOpacity={0.85}>
+                <PlusCircle size={15} color="#FFFFFF" />
+                <Text style={styles.postFirstJobBtnText}>Post First Household Job</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          postedJobs.slice(0, 3).map((job) => (
+            <View key={job.id} style={styles.jobItemRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.jobItemTitle}>{job.title}</Text>
+                <Text style={styles.jobItemSub}>₹{job.salary_offered || job.salary || '15,000'}/mo &bull; {job.category || 'General'}</Text>
+              </View>
+              <View style={styles.applicantBadgePill}>
+                <Text style={styles.applicantBadgeText}>{job.applications_count || 0} Applicants</Text>
+              </View>
+            </View>
+          ))
         )}
       </View>
 
-      {/* Category Pills */}
-      <View style={styles.categoryRow}>
-        {categories.map(cat => (
-          <TouchableOpacity 
-            key={cat}
-            style={[styles.catPill, selectedCategory === cat && styles.catPillActive]}
-            onPress={() => setSelectedCategory(cat)}
-          >
-            <Text style={[styles.catPillText, selectedCategory === cat && styles.catPillTextActive]}>
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      {/* 👥 5. VERIFIED HELPERS IN YOUR SOCIETY (TOP-TO-BOTTOM PREMIUM VERTICAL STACK CARD) */}
+      <View style={styles.societyHeroCard}>
+        {/* Top Header Row */}
+        <View style={styles.societyHeroTopRow}>
+          <View style={styles.societyTitleLeft}>
+            <View style={styles.societyHeroIconCircle}>
+              <Users size={18} color="#1A73E8" />
+            </View>
+            <Text style={styles.societyHeroTitle}>{t('verifiedHelpersTitle') || "VERIFIED HELPERS IN YOUR SOCIETY"}</Text>
+          </View>
+
+          <View style={styles.verifiedCountPill}>
+            <ShieldCheck size={10} color="#15803D" />
+            <Text style={styles.verifiedCountText}>{totalWorkersCount} {t('verifiedBadgeText') || "Verified"}</Text>
+          </View>
+        </View>
+
+        {/* Middle Description Text */}
+        <Text style={styles.societyHeroSub}>
+          {t('discoverInviteDesc') || "Discover & invite verified maids, cooks & nannies registered in"} {employerProfile.society_name || t('yourSocietyFallback') || 'Adarsh Palm Retreat, Bellandur'}.
+        </Text>
+
+        {/* Bottom Full-Width Premium Action Button */}
+        <TouchableOpacity 
+          style={styles.browseSocietyBtn} 
+          onPress={() => {
+            const firstApprovedJob = postedJobs.find(j => j.status === 'active' || j.status === 'approved');
+            if (firstApprovedJob && onNavigateToInvite) {
+              onNavigateToInvite(firstApprovedJob);
+            } else if (onNavigateToWorkers) {
+              onNavigateToWorkers();
+            }
+          }}
+          activeOpacity={0.85}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Sparkles size={15} color="#FDE68A" />
+            <Text style={styles.browseSocietyBtnText}>{t('browseInviteSocietyHelpersBtn') || "Browse & Invite Society Helpers"}</Text>
+          </View>
+          <ArrowRight size={15} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
 
-      {/* CANDIDATES LIST */}
-      {loading ? (
-        <ActivityIndicator size="large" color="#1A73E8" style={{ marginVertical: 20 }} />
-      ) : filteredCandidates.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Users size={32} color="#CBD5E1" />
-          <Text style={styles.emptyTitle}>No Candidates Matching Filters</Text>
-        </View>
-      ) : (
-        filteredCandidates.map(w => {
-          const initial = (w.full_name || 'V')[0].toUpperCase();
-          const salaryStr = `₹${Number(w.expected_salary || 14000).toLocaleString('en-IN')} / mo`;
-
-          return (
-            <View key={w.id} style={styles.candidateCard}>
-              <View style={styles.candHeaderRow}>
-                <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarText}>{initial}</Text>
-                </View>
-
-                <View style={styles.candMainCol}>
-                  <View style={styles.candNameRow}>
-                    <Text style={styles.candName}>{w.full_name}</Text>
-                    <View style={styles.verifiedBadgePill}>
-                      <ShieldCheck size={11} color="#15803D" />
-                      <Text style={styles.verifiedBadgeText}>Verified</Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.candRoleSub}>
-                    {w.category || 'Cook'} &bull; {w.experience_years || 4} Years Exp &bull; ⭐ {w.rating || 4.9} ({w.total_reviews || 12})
-                  </Text>
-                  
-                  <Text style={styles.candSocietyText}>📍 {w.preferred_society_name}</Text>
-
-                  <View style={styles.salaryPill}>
-                    <Text style={styles.salaryText}>{salaryStr}</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.divider} />
-
-              <TouchableOpacity 
-                style={styles.bookInterviewBtn}
-                onPress={() => setBookingWorker(w)}
-              >
-                <Calendar size={14} color="#FFFFFF" />
-                <Text style={styles.bookInterviewBtnText}>1-Click Book Gate Pass Interview</Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })
-      )}
+      {/* 🛡️ BRAND TRUST FOOTER */}
+      <View style={styles.brandFooter}>
+        <Text style={styles.brandFooterLabel}>POWERED BY</Text>
+        <Text style={styles.brandFooterText}>YUGAYATRA</Text>
+      </View>
 
       {/* BOOK INTERVIEW MODAL */}
       {bookingWorker && (
@@ -318,9 +409,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ role = 'employer', onNav
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { padding: 16, paddingBottom: 40 },
+  content: { padding: 14, paddingBottom: 40 },
 
-  // 1. Light Hero Banner
+  // 1. Hero Banner
   heroBanner: {
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
@@ -332,6 +423,7 @@ const styles = StyleSheet.create({
   heroBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 6,
     marginBottom: 8,
   },
@@ -339,17 +431,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#DBEAFE',
     borderWidth: 1,
-    borderColor: '#FCD34D',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    borderColor: '#93C5FD',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
   },
   eyebrowText: {
     fontSize: 9,
     fontWeight: '900',
-    color: '#92400E',
+    color: '#1A73E8',
+    letterSpacing: 0.5,
   },
   verifiedPill: {
     flexDirection: 'row',
@@ -358,9 +451,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#DCFCE7',
     borderWidth: 1,
     borderColor: '#BBF7D0',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 20,
   },
   verifiedText: {
     fontSize: 9,
@@ -374,9 +467,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
     borderWidth: 1,
     borderColor: '#FCD34D',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 20,
   },
   pendingText: {
     fontSize: 9,
@@ -384,19 +477,20 @@ const styles = StyleSheet.create({
     color: '#92400E',
   },
   heroEmployerName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     color: '#0F172A',
+    marginTop: 2,
   },
   societyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     marginTop: 2,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   societyText: {
-    fontSize: 11.5,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#334155',
   },
@@ -404,13 +498,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
     backgroundColor: '#1A73E8',
-    paddingVertical: 10,
-    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    shadowColor: '#1A73E8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
   postJobBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '900',
     color: '#FFFFFF',
   },
@@ -418,113 +518,350 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 14,
-    padding: 10,
-    marginTop: 10,
-  },
-  trustWidgetHeader: {
+    borderRadius: 18,
+    padding: 12,
+    marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'space-between',
+  },
+  trustWidgetLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  trustIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   trustWidgetTitle: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+  },
+  trustWidgetSubGreen: {
     fontSize: 9.5,
+    fontWeight: '800',
+    color: '#15803D',
+    marginTop: 1,
+  },
+  trustWidgetRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  trustRightText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+
+  // 2. Profile Completeness Widget
+  completenessCard: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 22,
+    padding: 14,
+    marginBottom: 14,
+  },
+  completenessHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 10,
+  },
+  completenessLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  completenessIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: '#1A73E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completenessTitle: {
+    fontSize: 12.5,
     fontWeight: '900',
     color: '#0F172A',
   },
-  trustWidgetSub: {
+  completenessSub: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
+  },
+  completeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#1A73E8',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  completeBtnText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  progressBarTrack: {
+    height: 6,
+    backgroundColor: '#DBEAFE',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#1A73E8',
+    borderRadius: 10,
   },
 
-  // 2. Executive Stats 2x2 Grid
+  // 3. Executive Stats 2x2 Grid
   statsGrid2x2: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
     marginBottom: 14,
   },
-  statCard2x2: {
-    width: '48%',
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-  },
   statCard: {
-    flex: 1,
+    width: '48%',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 10,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    padding: 14,
+  },
+  statHeaderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   statLabel: {
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: '900',
-    color: '#475569',
-    textAlign: 'center',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
   },
   statVal: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '900',
-    marginVertical: 2,
+    color: '#0F172A',
+    marginVertical: 3,
   },
-  statSub: {
-    fontSize: 9,
+  statSubGreen: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  statSubGray: {
+    fontSize: 10,
     fontWeight: '700',
     color: '#64748B',
   },
 
-  // 3. Hire Fast Card
-  hireFastCard: {
-    backgroundColor: '#1A73E8',
-    borderRadius: 18,
-    padding: 12,
+  // 4. Society Helpers Hero Card (Top to Bottom Stack)
+  societyHeroCard: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 24,
+    padding: 16,
     marginBottom: 14,
+    gap: 12,
   },
-  hireFastLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  hireFastIconBox: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 8,
-    borderRadius: 10,
-  },
-  hireFastTextCol: { flex: 1 },
-  hireFastTitle: { fontSize: 13, fontWeight: '900', color: '#FFFFFF' },
-  hireFastSub: { fontSize: 10.5, color: '#E8F0FE', marginTop: 1 },
-
-  // 4. Candidates Section
-  sectionHeaderRow: {
+  societyHeroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingHorizontal: 2,
+    gap: 8,
   },
-  sectionHeaderTitle: {
+  societyTitleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  societyHeroIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  societyHeroTitle: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  verifiedCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  verifiedCountText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#15803D',
+  },
+  societyHeroSub: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#475569',
+    lineHeight: 17,
+  },
+  browseSocietyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1A73E8',
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    shadowColor: '#1A73E8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  browseSocietyBtnText: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+
+  // 5. Brand Trust Footer
+  brandFooter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#CBD5E1',
+    marginTop: 8,
+    gap: 2,
+    opacity: 0.8,
+  },
+  brandFooterLabel: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#94A3B8',
+    letterSpacing: 1.5,
+  },
+  brandFooterText: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 1,
+  },
+
+  // 5 & 6 Section Cards
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 14,
+  },
+  sectionCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 12,
+    marginBottom: 12,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitle: {
     fontSize: 11.5,
     fontWeight: '900',
     color: '#0F172A',
     letterSpacing: 0.5,
   },
-  viewAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
   viewAllText: {
     fontSize: 11,
+    fontWeight: '900',
+    color: '#1A73E8',
+  },
+  emptyCardBox: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#64748B',
+    marginBottom: 10,
+  },
+  postFirstJobBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#1A73E8',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+  },
+  postFirstJobBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  jobItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  jobItemTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  jobItemSub: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  applicantBadgePill: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  applicantBadgeText: {
+    fontSize: 10,
     fontWeight: '900',
     color: '#1A73E8',
   },
@@ -556,27 +893,27 @@ const styles = StyleSheet.create({
   },
 
   candidateCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 12,
+    borderRadius: 18,
+    padding: 12,
+    marginBottom: 10,
   },
   candHeaderRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#1A73E8',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '900',
     color: '#FFFFFF',
   },
@@ -588,7 +925,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   candName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
     color: '#0F172A',
   },
@@ -607,36 +944,36 @@ const styles = StyleSheet.create({
     color: '#15803D',
   },
   candRoleSub: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '600',
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
   },
   candSocietyText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#334155',
-    marginTop: 4,
+    marginTop: 3,
   },
   salaryPill: {
     backgroundColor: '#F0FDF4',
     borderWidth: 1,
     borderColor: '#BBF7D0',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 2,
     borderRadius: 8,
     alignSelf: 'flex-start',
-    marginTop: 6,
+    marginTop: 5,
   },
   salaryText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '900',
     color: '#15803D',
   },
   divider: {
     height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 10,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 8,
   },
   bookInterviewBtn: {
     flexDirection: 'row',
@@ -644,28 +981,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: '#1A73E8',
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: 12,
   },
   bookInterviewBtnText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '900',
     color: '#FFFFFF',
-  },
-
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  emptyTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#64748B',
-    marginTop: 8,
   },
 
   modalOverlay: {

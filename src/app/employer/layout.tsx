@@ -197,18 +197,14 @@ export default function EmployerDashboardLayout({ children }: { children: React.
         const { data: byEmpId, error: empIdErr } = await supabase
           .from('jobs')
           .select('*')
-          .eq('employer_id', activeUserId)
+          .or(`employer_id.eq.${activeUserId},created_by.eq.${activeUserId},user_id.eq.${activeUserId}`)
           .order('created_at', { ascending: false });
 
         if (!empIdErr && byEmpId) {
           dbJobsData = byEmpId;
         }
       } else {
-        const { data: dbJobs } = await supabase
-          .from('jobs')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (dbJobs) dbJobsData = dbJobs;
+        dbJobsData = [];
       }
 
       if (dbJobsData && dbJobsData.length > 0) {
@@ -626,7 +622,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
                 </div>
               </div>
               <Link
-                href="/employer/profile"
+                href="/employer/account"
                 className="py-1.5 px-3 bg-white text-amber-900 hover:bg-amber-50 rounded-xl text-[11px] font-black shrink-0 shadow-sm transition-all"
               >
                 Update Profile →

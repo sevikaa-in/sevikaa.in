@@ -1,67 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert 
+  StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal 
 } from 'react-native';
 import { 
   Sparkles, MapPin, Briefcase, Calendar, ShieldCheck, 
-  Bell, ArrowRight, Building2, ChevronRight, Clock, CheckCircle2, User, Star, Check, BellRing
+  Bell, ArrowRight, Building2, ChevronRight, Clock, CheckCircle2, User, Star, Check, BellRing, IndianRupee, Lock, X
 } from 'lucide-react-native';
 import { getApiUrl } from '../../config/api';
 import { supabase } from '../../lib/supabase';
 import { JobCard } from '../../components/JobCard';
 import { useMobileLanguage } from '../../context/LanguageContext';
+import { useUserProfile } from '../../context/UserProfileContext';
 
 export const WorkerHomeScreen: React.FC<{ 
   user?: any;
-  onNavigateToJobs?: () => void 
-}> = ({ user, onNavigateToJobs }) => {
+  onNavigateToJobs?: () => void;
+  onSelectJobDetail?: (job: any) => void;
+}> = ({ user, onNavigateToJobs, onSelectJobDetail }) => {
   const { t } = useMobileLanguage();
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]);
   const [appliedJobIds, setAppliedJobIds] = useState<string[]>([]);
-  const [pushEnabled, setPushEnabled] = useState(true);
-  
-  // Real Worker Profile State
-  const [workerName, setWorkerName] = useState('testing');
-  const [workerSociety, setWorkerSociety] = useState('Prestige Shantiniketan, Whitefield');
-  const [isWorkerVerified, setIsWorkerVerified] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<any | null>(null);
+  const { user: ctxUser, profile, workerProfile, isVerified: isWorkerVerified, workerSkills, primarySociety } = useUserProfile();
+  const activeUser = ctxUser || user;
+  const workerName = workerProfile?.full_name || profile?.full_name || activeUser?.full_name || activeUser?.phone || 'Domestic Worker';
+  const workerSociety = primarySociety || 'Residential Society';
+
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => {
+      setToastMsg(null);
+    }, 3500);
+  };
 
   useEffect(() => {
-    fetchWorkerProfile();
     fetchJobs();
-  }, [user]);
-
-  const fetchWorkerProfile = async () => {
-    try {
-      if (user?.full_name) setWorkerName(user.full_name);
-      if (user?.society) setWorkerSociety(user.society);
-
-      if (user?.id || user?.phone) {
-        let query = supabase.from('profiles').select('*, worker_profiles(*)');
-        if (user.id) {
-          query = query.eq('id', user.id);
-        } else if (user.phone) {
-          query = query.eq('phone', user.phone);
-        }
-        const { data: prof } = await query.maybeSingle();
-
-        if (prof) {
-          const resolvedName = prof.worker_profiles?.full_name || prof.full_name || user?.full_name || user?.phone || 'testing';
-          setWorkerName(resolvedName);
-          if (prof.worker_profiles) {
-            const wp = Array.isArray(prof.worker_profiles) ? prof.worker_profiles[0] : prof.worker_profiles;
-            if (wp && (wp.preferred_society_name || wp.society)) {
-              setWorkerSociety(wp.preferred_society_name || wp.society);
-            }
-          }
-          const isVerified = prof.status === 'approved' || prof.status === 'live';
-          setIsWorkerVerified(isVerified);
-        }
-      }
-    } catch (e) {
-      console.warn("Worker home profile fetch notice:", e);
-    }
-  };
+  }, [activeUser]);
 
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'cook' | 'maid' | 'nanny'>('all');
 
@@ -76,10 +53,10 @@ export const WorkerHomeScreen: React.FC<{
         .limit(20);
 
       if (dbJobs && dbJobs.length > 0) {
-        fetched = dbJobs;
+        fetched = dbJobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
       }
     } catch (err) {
-      console.warn("Supabase jobs fetch notice:", err);
+      console.warn('Supabase jobs fetch notice:', err);
     }
 
     if (fetched.length === 0) {
@@ -88,85 +65,82 @@ export const WorkerHomeScreen: React.FC<{
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {
-            fetched = data.jobs;
+            fetched = data.jobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
           }
         }
       } catch (e) {}
-    }
-
-    if (fetched.length === 0) {
-      fetched = [
-        {
-          id: 'job-001',
-          title: 'Full Day Housekeeping & Deep Cleaning',
-          category: 'maid',
-          employer_name: 'sharama house',
-          society_name: 'Adarsh Palm Retreat, Bellandur',
-          salary_offered: 15000,
-          shift_hours: 'Full Day (8:00 AM – 4:00 PM)',
-          status: 'active',
-          description: 'Daily dusting, mopping, utensil washing, and laundry for a 3BHK flat.'
-        },
-        {
-          id: 'job-002',
-          title: 'North Indian Family Cook & Kitchen Prep',
-          category: 'cook',
-          employer_name: 'Verma Household',
-          society_name: 'DLF Westend Heights, Akshayanagar',
-          salary_offered: 16000,
-          shift_hours: 'Morning & Evening (7:00 AM - 1:00 PM)',
-          status: 'active',
-          description: 'Experienced cook needed for 4 family members. Healthy veg thali & breakfasts.'
-        },
-        {
-          id: 'job-003',
-          title: 'Full Time Childcare & Infant Nanny',
-          category: 'nanny',
-          employer_name: 'Mehta Family',
-          society_name: 'Prestige Song of the South, Begur',
-          salary_offered: 18000,
-          shift_hours: 'Full Day (9:00 AM - 6:00 PM)',
-          status: 'active',
-          description: 'Responsible nanny for 2-year old toddler. Feeding, play supervision & hygiene.'
-        }
-      ];
     }
 
     setJobs(fetched);
     setLoading(false);
   };
 
-  // Dynamic filtering according to category
+  // Filter by worker skills first, then category pill
   const filteredJobs = jobs.filter(j => {
-    if (selectedCategory === 'cook') {
-      const c = (j.category || j.title || '').toLowerCase();
-      return c.includes('cook') || c.includes('chef') || c.includes('kitchen');
+    const title = (j.title || '').toLowerCase();
+    const cat = (j.category || '').toLowerCase();
+    const desc = (j.description || '').toLowerCase();
+
+    // If we have real skills, match against them (unless category pill overrides)
+    if (selectedCategory === 'all' && workerSkills.length > 0) {
+      return workerSkills.some(skill => {
+        const s = skill.toLowerCase();
+        if (s.includes('cook') && (title.includes('cook') || cat.includes('cook') || desc.includes('cook'))) return true;
+        if ((s.includes('maid') || s.includes('housekeep') || s.includes('clean')) &&
+          (title.includes('maid') || title.includes('clean') || cat.includes('maid') || desc.includes('clean'))) return true;
+        if ((s.includes('nanny') || s.includes('child') || s.includes('baby')) &&
+          (title.includes('nanny') || title.includes('child') || cat.includes('nanny') || desc.includes('child'))) return true;
+        return title.includes(s) || cat.includes(s);
+      });
     }
-    if (selectedCategory === 'maid') {
-      const c = (j.category || j.title || '').toLowerCase();
-      return c.includes('maid') || c.includes('clean') || c.includes('housekeep');
-    }
-    if (selectedCategory === 'nanny') {
-      const c = (j.category || j.title || '').toLowerCase();
-      return c.includes('nanny') || c.includes('child') || c.includes('baby');
-    }
+
+    if (selectedCategory === 'cook') return title.includes('cook') || cat.includes('cook') || desc.includes('cook');
+    if (selectedCategory === 'maid') return title.includes('maid') || title.includes('clean') || cat.includes('maid') || desc.includes('clean');
+    if (selectedCategory === 'nanny') return title.includes('nanny') || title.includes('child') || cat.includes('nanny') || desc.includes('child');
     return true;
   });
 
-  const handleApplyJob = (job: any) => {
-    if (appliedJobIds.includes(job.id)) return;
+  const handleApplyJob = async (job: any) => {
+    if (appliedJobIds.includes(job.id)) {
+      showToast(`Already applied for "${job.title}"! 🟢`);
+      return;
+    }
+
     setAppliedJobIds(prev => [...prev, job.id]);
-    Alert.alert(
-      "Application Sent! 🟢",
-      `Your application for "${job.title}" has been transmitted to the employer via DLT SMS.`,
-      [{ text: "OK" }]
-    );
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const activeUserId = session?.user?.id || user?.id;
+
+      if (activeUserId) {
+        await supabase
+          .from('job_applications')
+          .insert([{
+            job_id: job.id,
+            worker_id: activeUserId,
+            status: 'applied',
+            created_at: new Date().toISOString()
+          }]);
+      }
+    } catch (e) {
+      console.warn("Job application DB save notice:", e);
+    }
+
+    showToast(`Application Sent! 🟢 Employer notified for "${job.title}".`);
   };
 
-  const candidateInitial = (workerName || 'T')[0].toUpperCase();
+  const candidateInitial = (workerName || 'W')[0].toUpperCase();
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      
+      {/* FLOATING TOAST NOTIFICATION */}
+      {toastMsg && (
+        <View style={styles.floatingToast}>
+          <CheckCircle2 size={16} color="#34D399" />
+          <Text style={styles.floatingToastText}>{toastMsg}</Text>
+        </View>
+      )}
       
       {/* 🚀 1. HIGH-CONTRAST PENDING AUDIT NOTICE BANNER (100% WEB MATCH) */}
       {!isWorkerVerified && (
@@ -332,6 +306,10 @@ export const WorkerHomeScreen: React.FC<{
             hasApplied={appliedJobIds.includes(job.id)}
             isWorkerVerified={isWorkerVerified}
             onApply={handleApplyJob}
+            onViewDetails={(j) => {
+              if (onSelectJobDetail) onSelectJobDetail(j);
+              else setSelectedJob(j);
+            }}
           />
         ))
       )}
@@ -376,6 +354,106 @@ export const WorkerHomeScreen: React.FC<{
         </View>
       </View>
 
+      {/* RICH JOB DETAIL MODAL */}
+      {selectedJob && (
+        <Modal visible transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalTitle}>{selectedJob.title}</Text>
+                  <Text style={styles.modalEmployer}>{t('postedBy', 'Posted by')} {selectedJob.employer_name || t('verifiedHousehold', 'Verified Household')}</Text>
+                </View>
+                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setSelectedJob(null)}>
+                  <X size={18} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+                <View style={styles.modalDetailStatsRow}>
+                  <View style={styles.modalStatBox}>
+                    <IndianRupee size={14} color="#15803D" />
+                    <Text style={styles.modalStatVal}>₹{Number(selectedJob.salary_offered || selectedJob.salary || 15000).toLocaleString('en-IN')}</Text>
+                    <Text style={styles.modalStatSub}>{t('perMonth', 'Monthly')}</Text>
+                  </View>
+
+                  <View style={styles.modalStatBox}>
+                    <Clock size={14} color="#1A73E8" />
+                    <Text style={styles.modalStatVal} numberOfLines={1}>{selectedJob.shift_hours || 'Full Day'}</Text>
+                    <Text style={styles.modalStatSub}>{t('shiftHoursLabel', 'Shift Hours')}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalLocationRow}>
+                  <MapPin size={14} color="#1A73E8" />
+                  <Text style={styles.modalLocationText}>{selectedJob.society_name || t('residentialSociety', 'Gated Residential Society')}</Text>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <Text style={styles.modalDescLabel}>{t('jobDescriptionLabel', 'Job Description & Requirements:')}</Text>
+                <Text style={styles.modalDesc}>{selectedJob.description || 'Household work required.'}</Text>
+
+                {Array.isArray(selectedJob.responsibilities) && selectedJob.responsibilities.length > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={styles.modalDescLabel}>{t('keyResponsibilities', 'Key Responsibilities:')}</Text>
+                    {selectedJob.responsibilities.map((resp: string, idx: number) => (
+                      <View key={idx} style={styles.bulletRow}>
+                        <CheckCircle2 size={12} color="#16A34A" />
+                        <Text style={styles.bulletText}>{resp}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {Array.isArray(selectedJob.perks) && selectedJob.perks.length > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={styles.modalDescLabel}>{t('perksAndBenefits', 'Perks & Benefits:')}</Text>
+                    <View style={styles.perksWrap}>
+                      {selectedJob.perks.map((perk: string, idx: number) => (
+                        <View key={idx} style={styles.perkChip}>
+                          <Text style={styles.perkChipText}>✨ {perk}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+
+              <TouchableOpacity 
+                style={[
+                  styles.modalApplyBtn, 
+                  appliedJobIds.includes(selectedJob.id) && styles.modalApplyBtnApplied,
+                  !isWorkerVerified && styles.modalApplyBtnLocked
+                ]}
+                disabled={appliedJobIds.includes(selectedJob.id) || !isWorkerVerified}
+                onPress={() => {
+                  handleApplyJob(selectedJob);
+                  setSelectedJob(null);
+                }}
+              >
+                {appliedJobIds.includes(selectedJob.id) ? (
+                  <>
+                    <CheckCircle2 size={16} color="#FFFFFF" />
+                    <Text style={styles.modalApplyBtnText}>{t('appliedBadge', 'Application Transmitted ✓')}</Text>
+                  </>
+                ) : !isWorkerVerified ? (
+                  <>
+                    <Lock size={16} color="#78350F" />
+                    <Text style={styles.modalApplyBtnTextLocked}>{t('pendingAuditBadge', 'Pending Audit (Locked until Verified)')}</Text>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} color="#FFFFFF" />
+                    <Text style={styles.modalApplyBtnText}>{t('oneClickApplyBtn', 'Confirm 1-Click Apply')}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
     </ScrollView>
   );
 };
@@ -383,6 +461,29 @@ export const WorkerHomeScreen: React.FC<{
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { padding: 16, paddingBottom: 40 },
+
+  floatingToast: {
+    position: 'absolute',
+    top: 10,
+    left: 20,
+    right: 20,
+    zIndex: 9999,
+    backgroundColor: '#0F172A',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  floatingToastText: { fontSize: 12, fontWeight: '900', color: '#FFFFFF', flex: 1 },
   
   // 1. Audit Notice Card
   auditNoticeCard: {
@@ -770,5 +871,152 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: '#64748B',
     marginTop: 2,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.6)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  modalEmployer: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modalDetailStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginVertical: 10,
+  },
+  modalStatBox: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 10,
+    alignItems: 'center',
+  },
+  modalStatVal: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  modalStatSub: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modalLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  modalLocationText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 12,
+  },
+  modalDescLabel: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  modalDesc: {
+    fontSize: 11.5,
+    color: '#475569',
+    lineHeight: 18,
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  bulletText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  perksWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  perkChip: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  perkChipText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  modalApplyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#1A73E8',
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 14,
+  },
+  modalApplyBtnApplied: {
+    backgroundColor: '#16A34A',
+  },
+  modalApplyBtnLocked: {
+    backgroundColor: '#FCD34D',
+    borderWidth: 1,
+    borderColor: '#FBBF24',
+  },
+  modalApplyBtnText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  modalApplyBtnTextLocked: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#78350F',
   },
 });
