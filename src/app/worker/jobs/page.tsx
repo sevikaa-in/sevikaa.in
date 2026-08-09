@@ -30,6 +30,8 @@ export default function WorkerJobsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [appliedJobIds, setAppliedJobIds] = useState<string[]>([]);
   const [isApplying, setIsApplying] = useState(false);
+  const [selectedJobModal, setSelectedJobModal] = useState<any>(null);
+
   // Body scroll lock when detail modal is active
   useEffect(() => {
     if (selectedJobModal) {
