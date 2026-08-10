@@ -7,25 +7,40 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholde
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization') || '';
-    const token = authHeader.replace('Bearer ', '').trim();
+    const authHeader = request.headers.get('authorization');
+    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
-    let userId: string | null = null;
-    if (token && token.length > 20) {
-      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${token}` } }
-      });
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) {
-        userId = user.id;
+    if (!token) {
+      const sbCookie = Array.from(request.cookies.getAll()).find(c =>
+        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+      );
+      if (sbCookie?.value) {
+        try {
+          const parsed = JSON.parse(sbCookie.value);
+          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+        } catch {
+          token = sbCookie.value;
+        }
       }
     }
 
-    const { searchParams } = new URL(request.url);
-    const reqUserId = searchParams.get('userId') || userId;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to view invoices.' }, { status: 401 });
+    }
 
-    let sql = `
-      SELECT 
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
+
+    // Invoice owner is always derived from the verified token — no ?userId= override
+    const employerId = user.id;
+
+    const result = await queryDb(
+      `SELECT 
         id, 
         order_id, 
         user_id, 
@@ -37,18 +52,11 @@ export async function GET(request: NextRequest) {
         payment_method, 
         status, 
         created_at 
-      FROM public.transactions
-    `;
-
-    const params: any[] = [];
-    if (reqUserId) {
-      params.push(reqUserId);
-      sql += ` WHERE user_id::text = $${params.length}`;
-    }
-
-    sql += ` ORDER BY created_at DESC LIMIT 50`;
-
-    const result = await queryDb(sql, params).catch(() => ({ rows: [] }));
+       FROM public.transactions
+       WHERE user_id::text = $1
+       ORDER BY created_at DESC LIMIT 50`,
+      [employerId]
+    ).catch(() => ({ rows: [] }));
 
     return NextResponse.json({
       success: true,

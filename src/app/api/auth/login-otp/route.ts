@@ -3,14 +3,25 @@ import { queryDb } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 import { sendEmail as dispatchEmail, sendSMS } from '@/lib/notifications';
 import { getMagicLinkOrLoginOtpEmailHtml } from '@/lib/emailTemplates';
+import crypto from 'crypto';
 
-// In-memory OTP storage
-const otpStore = new Map<string, { otp: string; expiresAt: number }>();
+// Allowed roles that can self-select during OTP registration
+const SELF_SELECTABLE_ROLES = new Set(['worker', 'employer']);
+
+function hashOtp(otp: string): string {
+  return crypto.createHash('sha256').update(otp).digest('hex');
+}
+
+// In-memory fallback (serverless cold-start bridge only)
+const otpStore = new Map<string, { otpHash: string; expiresAt: number }>();
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, phone, email, otp, role } = body;
+    const { action, phone, email, otp, role: rawRole } = body;
+
+    // Role guard: prevent admin/super-admin self-selection through OTP
+    const role = SELF_SELECTABLE_ROLES.has(rawRole) ? rawRole : 'worker';
 
     // -------------------------------------------------------------------------
     // ACTION: SEND OTP
@@ -49,33 +60,52 @@ export async function POST(req: NextRequest) {
         console.warn("Pre-OTP user check notice:", checkErr);
       }
 
-      // Generate real 6-digit random OTP code
-      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate cryptographically secure 6-digit OTP
+      const generatedOtp = crypto.randomInt(100000, 1000000).toString();
+      const otpHash = hashOtp(generatedOtp);
 
-      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
+      const expiresAtMs = Date.now() + 10 * 60 * 1000; // 10 minutes
       const targetKey = cleanPhone ? `phone:${cleanPhone}` : `email:${(email || '').toLowerCase().trim()}`;
 
-      // Persist OTP in memory & DB for serverless resilience
-      otpStore.set(targetKey, { otp: generatedOtp, expiresAt });
-
+      // Persist hashed OTP in DB — table created via migration 20260810000002
       try {
-        await queryDb(
-          `CREATE TABLE IF NOT EXISTS public.otp_verifications (
-             target_key VARCHAR(150) PRIMARY KEY,
-             otp VARCHAR(10) NOT NULL,
-             expires_at BIGINT NOT NULL,
-             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-           )`
+        // Check send rate limit: max 3 sends per hour per target
+        const rateRes = await queryDb(
+          `SELECT send_count, last_sent_at FROM public.otp_verifications WHERE target_key = $1`,
+          [targetKey]
         );
+        const existing = rateRes?.rows?.[0];
+        if (existing) {
+          const lastSentAt = existing.last_sent_at ? new Date(existing.last_sent_at).getTime() : 0;
+          const withinHour = Date.now() - lastSentAt < 60 * 60 * 1000;
+          if (withinHour && (existing.send_count || 0) >= 3) {
+            return NextResponse.json({ error: 'Too many OTP requests. Please wait before requesting another code.' }, { status: 429 });
+          }
+        }
+
         await queryDb(
-          `INSERT INTO public.otp_verifications (target_key, otp, expires_at)
-           VALUES ($1, $2, $3)
+          `INSERT INTO public.otp_verifications (target_key, otp_hash, expires_at, attempt_count, send_count, last_sent_at)
+           VALUES ($1, $2, $3, 0, 1, NOW())
            ON CONFLICT (target_key) DO UPDATE
-           SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at`,
-          [targetKey, generatedOtp, expiresAt]
+           SET otp_hash = EXCLUDED.otp_hash,
+               expires_at = EXCLUDED.expires_at,
+               attempt_count = 0,
+               consumed_at = NULL,
+               send_count = CASE
+                 WHEN EXTRACT(EPOCH FROM (NOW() - public.otp_verifications.last_sent_at)) > 3600
+                 THEN 1
+                 ELSE public.otp_verifications.send_count + 1
+               END,
+               last_sent_at = NOW()`,
+          [targetKey, otpHash, expiresAtMs]
         );
+
+        // Keep in-memory store as cold-start fallback
+        otpStore.set(targetKey, { otpHash, expiresAt: expiresAtMs });
       } catch (dbSaveErr) {
         console.warn("DB OTP save notice:", dbSaveErr);
+        // Keep in-memory fallback active even if DB fails
+        otpStore.set(targetKey, { otpHash, expiresAt: expiresAtMs });
       }
 
       if (cleanPhone) {
@@ -122,43 +152,75 @@ export async function POST(req: NextRequest) {
       const cleanPhone = (phone || '').replace(/\D/g, '').slice(-10);
       const targetKey = cleanPhone ? `phone:${cleanPhone}` : `email:${(email || '').toLowerCase().trim()}`;
       
-      let storedData = otpStore.get(targetKey);
+      // Primary lookup: PostgreSQL (authoritative, serverless-safe)
+      let storedOtpHash: string | null = null;
+      let storedExpiresAt: number = 0;
 
-      // Fallback: Fetch from PostgreSQL database if serverless lambda restarted
-      if (!storedData) {
-        try {
-          const dbRes = await queryDb(
-            `SELECT otp, expires_at FROM public.otp_verifications WHERE target_key = $1`,
-            [targetKey]
-          );
-          if (dbRes && dbRes.rows.length > 0) {
-            storedData = {
-              otp: dbRes.rows[0].otp,
-              expiresAt: Number(dbRes.rows[0].expires_at)
-            };
+      try {
+        const dbRes = await queryDb(
+          `SELECT otp_hash, expires_at, attempt_count, consumed_at
+           FROM public.otp_verifications WHERE target_key = $1`,
+          [targetKey]
+        );
+        if ((dbRes?.rows?.length ?? 0) > 0) {
+          const row = dbRes!.rows[0];
+
+          // Reject already-consumed OTPs
+          if (row.consumed_at) {
+            return NextResponse.json({ error: 'This OTP has already been used. Please request a new code.' }, { status: 400 });
           }
-        } catch (dbFetchErr) {
-          console.warn("DB OTP lookup notice:", dbFetchErr);
+
+          // Reject after 5 failed attempts
+          if ((row.attempt_count || 0) >= 5) {
+            return NextResponse.json({ error: 'Too many failed attempts. Please request a new OTP code.' }, { status: 429 });
+          }
+
+          storedOtpHash = row.otp_hash;
+          storedExpiresAt = Number(row.expires_at);
+        }
+      } catch (dbFetchErr) {
+        console.warn("DB OTP lookup notice:", dbFetchErr);
+      }
+
+      // Fallback: in-memory store (cold-start bridge)
+      if (!storedOtpHash) {
+        const memEntry = otpStore.get(targetKey);
+        if (memEntry) {
+          storedOtpHash = memEntry.otpHash;
+          storedExpiresAt = memEntry.expiresAt;
         }
       }
 
-      if (!storedData) {
+      if (!storedOtpHash) {
         return NextResponse.json({ error: 'No active OTP request found. Please request a new code.' }, { status: 400 });
       }
 
-      if (Date.now() > storedData.expiresAt) {
+      if (Date.now() > storedExpiresAt) {
         otpStore.delete(targetKey);
         try { await queryDb(`DELETE FROM public.otp_verifications WHERE target_key = $1`, [targetKey]); } catch (e) {}
         return NextResponse.json({ error: 'OTP code has expired. Please request a new code.' }, { status: 400 });
       }
 
-      if ((otp || '').trim() !== storedData.otp.trim()) {
+      const submittedHash = hashOtp((otp || '').trim());
+      if (submittedHash !== storedOtpHash) {
+        // Increment attempt count
+        try {
+          await queryDb(
+            `UPDATE public.otp_verifications SET attempt_count = attempt_count + 1 WHERE target_key = $1`,
+            [targetKey]
+          );
+        } catch (e) {}
         return NextResponse.json({ error: 'Incorrect verification code. Please check and try again.' }, { status: 400 });
       }
 
-      // OTP Verified successfully! Clear store entries
+      // OTP verified — mark consumed (single-use) and clear in-memory entry
       otpStore.delete(targetKey);
-      try { await queryDb(`DELETE FROM public.otp_verifications WHERE target_key = $1`, [targetKey]); } catch (e) {}
+      try {
+        await queryDb(
+          `UPDATE public.otp_verifications SET consumed_at = NOW() WHERE target_key = $1`,
+          [targetKey]
+        );
+      } catch (e) {}
 
       // Fetch or Create user profile in Supabase
       let userObj: { id: string; phone?: string; email?: string; role?: string; full_name?: string; society?: string } | null = null;
@@ -251,7 +313,7 @@ export async function POST(req: NextRequest) {
               user_metadata: { role: userRole }
             });
             if (createdAuthUser?.user?.id) {
-              newUserId = createdAuthUser.user.id;
+              newUserId = createdAuthUser.user.id as `${string}-${string}-${string}-${string}-${string}`;
             } else if (authCreateErr) {
               // createUser failed — likely phone/email already exists in auth.users
               // Find the existing auth user to get their real UUID
@@ -263,7 +325,7 @@ export async function POST(req: NextRequest) {
                   (email && u.email?.toLowerCase().trim() === email.toLowerCase().trim())
                 );
                 if (existingAuthUser?.id) {
-                  newUserId = existingAuthUser.id;
+                  newUserId = existingAuthUser.id as `${string}-${string}-${string}-${string}-${string}`;
                   isExistingUser = true;
                 }
               } catch (listErr) {

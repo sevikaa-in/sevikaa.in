@@ -81,12 +81,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'type parameter is required' }, { status: 400 });
     }
 
-    // 2. Authorize Notification Trigger Target & Type
+    // 2. Authorize Notification Trigger
     const isAdmin = requesterRole === 'admin' || requesterRole === 'super-admin';
     const isSendingToSelf = user.id === userId;
 
-    if (!isAdmin && !isSendingToSelf && type !== 'interview_scheduled' && type !== 'applicant_received') {
-      return NextResponse.json({ error: 'Forbidden', message: 'Unauthorized notification trigger request.' }, { status: 403 });
+    // Non-admin callers may only trigger notifications to themselves.
+    // Admins may trigger to any user.
+    // The previous broad exemption for interview_scheduled/applicant_received was removed
+    // to prevent unauthorized notification spam to arbitrary users.
+    if (!isAdmin && !isSendingToSelf) {
+      return NextResponse.json({ error: 'Forbidden', message: 'You may only trigger notifications for your own account.' }, { status: 403 });
     }
 
 

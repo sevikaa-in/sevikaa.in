@@ -4,10 +4,15 @@ import { POST as uploadAsset } from '../src/app/api/admin/worker/upload-asset/ro
 import { GET as getSuperAdmins, POST as postSuperAdmins } from '../src/app/api/super-admin/admins/route';
 import { POST as signUpload } from '../src/app/api/upload/sign/route';
 import { GET as signCloudinary } from '../src/app/api/upload/cloudinary/sign/route';
+import { POST as uploadCloudinary } from '../src/app/api/upload/cloudinary/route';
 import { POST as triggerNotification } from '../src/app/api/notifications/trigger/route';
+import { GET as getNotificationLogs } from '../src/app/api/notifications/logs/route';
+import { POST as sendEmail } from '../src/app/api/notifications/send-email/route';
 import { POST as razorpayWebhook } from '../src/app/api/webhooks/razorpay/route';
 import { GET as getMatch } from '../src/app/api/match/route';
 import { GET as getSocietiesWorkers } from '../src/app/api/societies/workers/route';
+import { GET as getEmployerJobs } from '../src/app/api/employer/jobs/route';
+import { GET as getWorkerJobs } from '../src/app/api/worker/jobs/route';
 import { GET as getHealth } from '../src/app/api/health/route';
 import { GET as getInternalHealth } from '../src/app/api/internal/health/route';
 
@@ -124,6 +129,50 @@ async function runSecurityTests() {
     const internalBody = await internalRes.json();
 
     return res.status === 200 && body.status === 'ok' && !!internalBody.checks;
+  });
+
+  // Test 11: Cloudinary Direct Upload -> Blocks unauthenticated
+  await assertTest('Direct Cloudinary Upload (/api/upload/cloudinary) blocks unauthenticated POST with 401', async () => {
+    const formData = new FormData();
+    formData.append('assetType', 'aadhaar_front_url');
+    const req = new NextRequest('http://localhost:3000/api/upload/cloudinary', {
+      method: 'POST',
+      body: formData,
+    });
+    const res = await uploadCloudinary(req);
+    return res.status === 401;
+  });
+
+  // Test 12: Notification Logs -> Blocks unauthenticated
+  await assertTest('Notification Logs (/api/notifications/logs) blocks unauthenticated GET with 401', async () => {
+    const req = new NextRequest('http://localhost:3000/api/notifications/logs');
+    const res = await getNotificationLogs(req);
+    return res.status === 401;
+  });
+
+  // Test 13: Send Email -> Blocks unauthenticated
+  await assertTest('Send Email (/api/notifications/send-email) blocks unauthenticated POST with 401', async () => {
+    const req = new NextRequest('http://localhost:3000/api/notifications/send-email', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'job-posted', toEmail: 'hacker@evil.com', data: {} }),
+      headers: { 'content-type': 'application/json' }
+    });
+    const res = await sendEmail(req);
+    return res.status === 401;
+  });
+
+  // Test 14: Employer Jobs -> Blocks unauthenticated (no ?userId= bypass)
+  await assertTest('Employer Jobs (/api/employer/jobs) blocks unauthenticated GET with 401', async () => {
+    const req = new NextRequest('http://localhost:3000/api/employer/jobs?userId=arbitrary-user-id');
+    const res = await getEmployerJobs(req);
+    return res.status === 401;
+  });
+
+  // Test 15: Worker Jobs -> Blocks unauthenticated
+  await assertTest('Worker Jobs (/api/worker/jobs) blocks unauthenticated GET with 401', async () => {
+    const req = new NextRequest('http://localhost:3000/api/worker/jobs');
+    const res = await getWorkerJobs(req);
+    return res.status === 401;
   });
 
   console.log('\n====================================================');

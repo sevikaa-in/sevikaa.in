@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { queryDb } from '@/lib/db';
 import crypto from 'crypto';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
-// In-memory short-lived session token store (5 minute TTL)
-const tokenStore = new Map<string, { userId: string; role: string; planId: string; expiresAt: number }>();
+function hashToken(raw: string): string {
+  return crypto.createHash('sha256').update(raw).digest('hex');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +17,7 @@ export async function POST(req: NextRequest) {
     let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
     if (!token) {
-      const sbCookie = Array.from(req.cookies.getAll()).find(c => 
+      const sbCookie = Array.from(req.cookies.getAll()).find(c =>
         c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
       );
       if (sbCookie?.value) {
@@ -45,20 +47,26 @@ export async function POST(req: NextRequest) {
     const { planId = 'pro_pass_1499' } = body;
     const userId = user.id; // IDOR fix: derive strictly from authenticated user
 
-    // Generate secure 32-byte hex token
-    const sessionToken = `tk_${crypto.randomBytes(16).toString('hex')}`;
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes TTL
+    // Generate secure 32-byte hex token — store only the SHA-256 hash in DB
+    const rawToken = `tk_${crypto.randomBytes(16).toString('hex')}`;
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes TTL
 
-    tokenStore.set(sessionToken, { userId, role: 'employer', planId, expiresAt });
+    // Persist to PostgreSQL — table created via migration 20260810000002
+    await queryDb(
+      `INSERT INTO public.checkout_sessions (token_hash, user_id, plan_id, expires_at)
+       VALUES ($1, $2, $3, $4)`,
+      [tokenHash, userId, planId, expiresAt]
+    );
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sevikaa.in';
-    const checkoutUrl = `${appUrl}/employer/checkout?token=${sessionToken}`;
+    const checkoutUrl = `${appUrl}/employer/checkout?token=${rawToken}`;
 
     return NextResponse.json({
       success: true,
-      token: sessionToken,
+      token: rawToken,
       checkoutUrl,
-      expiresAt: new Date(expiresAt).toISOString()
+      expiresAt
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -68,21 +76,49 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const token = searchParams.get('token');
+    const rawToken = searchParams.get('token');
 
-    if (!token || !tokenStore.has(token)) {
+    if (!rawToken) {
+      return NextResponse.json({ success: false, error: 'Missing checkout token' }, { status: 400 });
+    }
+
+    const tokenHash = hashToken(rawToken);
+
+    // Lookup by hash — table created via migration 20260810000002
+    const result = await queryDb(
+      `SELECT user_id, plan_id, expires_at, consumed_at
+       FROM public.checkout_sessions
+       WHERE token_hash = $1`,
+      [tokenHash]
+    );
+
+    const session = result?.rows?.[0];
+    if (!session) {
       return NextResponse.json({ success: false, error: 'Invalid or expired checkout token' }, { status: 400 });
     }
 
-    const session = tokenStore.get(token)!;
-    if (Date.now() > session.expiresAt) {
-      tokenStore.delete(token);
+    if (session.consumed_at) {
+      return NextResponse.json({ success: false, error: 'Checkout token has already been used' }, { status: 400 });
+    }
+
+    if (new Date(session.expires_at).getTime() < Date.now()) {
       return NextResponse.json({ success: false, error: 'Checkout token has expired' }, { status: 400 });
     }
 
+    // Mark token as consumed (single-use)
+    await queryDb(
+      `UPDATE public.checkout_sessions SET consumed_at = NOW() WHERE token_hash = $1`,
+      [tokenHash]
+    );
+
     return NextResponse.json({
       success: true,
-      session
+      session: {
+        userId: session.user_id,
+        role: 'employer',
+        planId: session.plan_id,
+        expiresAt: session.expires_at,
+      }
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
