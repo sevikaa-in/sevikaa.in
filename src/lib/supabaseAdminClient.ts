@@ -5,15 +5,14 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 const isServiceKeyValid = serviceKey && !serviceKey.includes('placeholder') && serviceKey.length > 50;
 
-if (!isServiceKeyValid && typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
-  throw new Error('[supabaseAdmin] SUPABASE_SERVICE_ROLE_KEY is required for privileged server operations.');
+if (!isServiceKeyValid && typeof process !== 'undefined') {
+  console.warn('[supabaseAdmin] SUPABASE_SERVICE_ROLE_KEY is missing or invalid. Privileged admin queries will fail closed at runtime.');
 }
 
-// Fail-closed: Never fall back to anonKey for administrative operations.
-// Use placeholder key during build/test if missing to prevent build crashes.
-const apiKey = isServiceKeyValid ? serviceKey : (process.env.NODE_ENV === 'test' ? 'placeholder-service-key-test' : serviceKey);
+// Fail-closed: Use serviceKey if valid, otherwise an explicit dummy key so module evaluation during 'next build' succeeds.
+const apiKey = isServiceKeyValid ? serviceKey : 'invalid-service-key-missing';
 
-export const supabaseAdmin = createClient(supabaseUrl, apiKey || 'invalid-service-key-missing', {
+export const supabaseAdmin = createClient(supabaseUrl, apiKey, {
   auth: {
     persistSession: false,
     autoRefreshToken: false
