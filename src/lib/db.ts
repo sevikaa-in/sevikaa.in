@@ -2,11 +2,13 @@ import { Pool } from 'pg';
 
 const connectionString = process.env.DATABASE_URL || '';
 
+// Serverless-optimized connection pool configuration.
+// 'max: 5' prevents pooler connection exhaustion when Vercel scales lambda instances.
 export const dbPool = new Pool({
   connectionString,
   ssl: { rejectUnauthorized: false },
-  max: 15,
-  idleTimeoutMillis: 15000,
+  max: parseInt(process.env.PG_POOL_MAX || '5', 10),
+  idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 5000,
   keepAlive: true
 });
