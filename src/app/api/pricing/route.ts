@@ -1,5 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
+
+/**
+ * GET /api/pricing — public, no authentication required
+ * POST /api/pricing — super-admin only
+ */
 
 export async function GET() {
   try {
@@ -33,10 +39,18 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    // Require super-admin — pricing config controls live subscription pricing
+    const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'super-admin' });
+    if (errorResponse) return errorResponse;
+
     const body = await req.json();
     const { settings } = body;
+
+    if (!settings || typeof settings !== 'object') {
+      return NextResponse.json({ success: false, error: 'Invalid settings payload' }, { status: 400 });
+    }
 
     const { error } = await supabase
       .from('platform_settings')

@@ -5,7 +5,9 @@ import { sendEmail } from '@/lib/notifications';
 import { sendSMSWithTemplates } from '@/lib/smsService';
 import crypto from 'crypto';
 
-// In-memory session cache for sequential email change requests
+// NOTE: emailMemoryStore is a transitional in-process cache for the multi-step email-change OTP flow.
+// TODO: migrate to otp_verifications DB table when multi-step session is redesigned.
+// The dangerous 'ORDER BY updated_at DESC LIMIT 1' auth fallback has been removed above.
 const emailMemoryStore = new Map<string, {
   userId: string;
   currentEmail: string;
@@ -17,7 +19,7 @@ const emailMemoryStore = new Map<string, {
   verified: boolean;
 }>();
 
-// Helper to extract & verify user from Bearer Token or Session Fallback
+// Helper to extract & verify user from Bearer Token — fails 401 if no valid token
 async function getUserFromRequest(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const token = authHeader ? authHeader.replace('Bearer ', '').trim() : null;
@@ -35,34 +37,18 @@ async function getUserFromRequest(request: NextRequest) {
       const { data: { user } } = await tempClient.auth.getUser(token);
       if (user?.id) return user;
     } catch (err) {
-      // ignore & fallback
+      // token parse failed — fall through to null
     }
   }
 
-  // Fallback for dev session
-  const roleCookie = request.cookies.get('sevikaa_user_role')?.value || 'employer';
-  const { data: fallbackProfiles } = await supabaseAdmin
-    .from('profiles')
-    .select('id, email, phone, role')
-    .order('updated_at', { ascending: false })
-    .limit(1);
-
-  if (fallbackProfiles && fallbackProfiles.length > 0) {
-    const fProf = fallbackProfiles[0];
-    return {
-      id: fProf.id,
-      email: fProf.email || 'sah.debashish@gmail.com',
-      phone: fProf.phone || '',
-      user_metadata: { role: fProf.role || roleCookie }
-    };
-  }
-
+  // No dev fallback: authentication failure must always be 401
+  // Never fall back to 'find latest profile' — that is a critical security bug
   return null;
 }
 
-// Generate secure 6-digit OTP
+// Generate cryptographically secure 6-digit OTP
 function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 // Mask email for security display (e.g. "sah***@gmail.com")

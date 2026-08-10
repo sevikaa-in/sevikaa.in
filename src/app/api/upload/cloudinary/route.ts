@@ -17,39 +17,24 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholde
  *  - Aadhaar documents → type: 'authenticated'  (PRIVATE — government ID, signed URLs only)
  */
 
-const getFolderForAsset = (assetType: string, role?: string | null): string => {
-  const isEmployer = role === 'employer' || assetType.startsWith('employer_') || assetType === 'residency_proof_url';
+/**
+ * Normalized storage structure: sevikaa/{role}/{userId}/{asset_category}/
+ * This makes ownership structural — path owner == userId.
+ * Role is always derived from the DB, never the client.
+ */
+const getFolderForAsset = (assetType: string, userId: string, effectiveRole: string): string => {
+  const isEmployer = effectiveRole === 'employer';
+  const base = isEmployer ? `sevikaa/employers/${userId}` : `sevikaa/workers/${userId}`;
 
-  if (isEmployer) {
-    switch (assetType) {
-      case 'profile_picture_url':
-      case 'avatar_url':
-        return 'sevikaa/employers/selfies';
-      case 'aadhaar_front_url':
-        return 'sevikaa/employers/aadhaar-front';
-      case 'aadhaar_back_url':
-        return 'sevikaa/employers/aadhaar-back';
-      case 'residency_proof_url':
-        return 'sevikaa/employers/residency-proofs';
-      default:
-        return 'sevikaa/employers/verification-docs';
-    }
-  } else {
-    switch (assetType) {
-      case 'video_url':
-        return 'sevikaa/workers/intro-videos';
-      case 'profile_picture_url':
-      case 'avatar_url':
-        return 'sevikaa/workers/selfies';
-      case 'aadhaar_front_url':
-        return 'sevikaa/workers/aadhaar-front';
-      case 'aadhaar_back_url':
-        return 'sevikaa/workers/aadhaar-back';
-      case 'police_verification_url':
-        return 'sevikaa/workers/police-verification';
-      default:
-        return 'sevikaa/workers/verification-docs';
-    }
+  switch (assetType) {
+    case 'video_url':             return `${base}/video`;
+    case 'profile_picture_url':
+    case 'avatar_url':            return `${base}/selfie`;
+    case 'aadhaar_front_url':     return `${base}/aadhaar/front`;
+    case 'aadhaar_back_url':      return `${base}/aadhaar/back`;
+    case 'residency_proof_url':   return `${base}/residency`;
+    case 'police_verification_url': return `${base}/police`;
+    default:                      return `${base}/docs`;
   }
 };
 
@@ -163,7 +148,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden', message: 'You can only upload documents for your own account.' }, { status: 403 });
     }
 
-    const folder = getFolderForAsset(assetType, role);
+    // P0 #11: Derive effectiveRole from DB — never trust the client-supplied 'role' param
+    let effectiveRole = callerProfile?.role || 'worker';
+    if (isAdmin && requestedUserId && requestedUserId !== user.id) {
+      // Admin uploading for another user — look up that user's role from DB
+      const { data: targetProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', targetUserId)
+        .maybeSingle();
+      effectiveRole = targetProfile?.role || 'worker';
+    }
+    // Only allow worker/employer roles for folder routing — admins get worker namespace
+    if (!['worker', 'employer'].includes(effectiveRole)) effectiveRole = 'worker';
+
+    // P0 #12: Normalized folder: sevikaa/{role}/{userId}/{asset_category}/
+    const folder = getFolderForAsset(assetType, targetUserId, effectiveRole);
     const resourceType = RESOURCE_TYPE_MAP[assetType] || 'image';
 
     // 4. Validate MIME type (client-declared)
@@ -193,7 +193,8 @@ export async function POST(req: NextRequest) {
     }
 
     const isPrivate = PRIVATE_ASSETS.has(assetType);
-    const fileName = `${targetUserId}_${assetType}_${Date.now()}`;
+    // public_id uses assetType only — userId is already encoded in the folder path
+    const fileName = `${assetType}_${Date.now()}`;
 
     const uploadResult = await new Promise<any>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(

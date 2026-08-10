@@ -4,7 +4,9 @@ import { queryDb } from '@/lib/db';
 import { sendSMSWithTemplates } from '@/lib/smsService';
 import crypto from 'crypto';
 
-// Simple in-memory fallback cache if database table doesn't exist yet
+// NOTE: memoryStore is a transitional in-process cache for the multi-step mobile-change OTP flow.
+// TODO: migrate to otp_verifications DB table when multi-step session is redesigned.
+// The dangerous fallback in getUserFromRequest (ORDER BY created_at) has been removed above.
 const memoryStore = new Map<string, {
   userId: string;
   oldPhone: string;
@@ -15,7 +17,7 @@ const memoryStore = new Map<string, {
   verified: boolean;
 }>();
 
-// Helper to extract & verify user from Bearer Token
+// Helper to extract & verify user from Bearer Token — fails 401 if no valid token
 async function getUserFromRequest(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const token = authHeader ? authHeader.replace('Bearer ', '').trim() : null;
@@ -33,35 +35,17 @@ async function getUserFromRequest(request: NextRequest) {
       const { data: { user }, error } = await tempClient.auth.getUser(token);
       if (user?.id) return user;
     } catch (err) {
-      // ignore & fallback
+      // token parse failed — fall through to null
     }
   }
 
-  // Fallback for local dev / demo session
-  const roleCookie = request.cookies.get('sevikaa_user_role')?.value || 'employer';
-  try {
-    const dbRes = await queryDb(
-      `SELECT id, email, phone, role FROM public.profiles ORDER BY created_at DESC LIMIT 1`
-    );
-    if (dbRes && dbRes.rows.length > 0) {
-      const fProf = dbRes.rows[0];
-      return {
-        id: fProf.id,
-        email: fProf.email || 'sah.debashish@gmail.com',
-        phone: fProf.phone || '',
-        user_metadata: { role: fProf.role || roleCookie }
-      };
-    }
-  } catch (err) {
-    console.warn("getUserFromRequest DB fallback notice:", err);
-  }
-
+  // No dev fallback: authentication failure is always 401
   return null;
 }
 
-// Generate secure 6-digit OTP
+// Generate cryptographically secure 6-digit OTP
 function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 // Mask phone number for security display (e.g. "+91 ******3456")

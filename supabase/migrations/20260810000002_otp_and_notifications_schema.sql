@@ -131,8 +131,9 @@ BEGIN
     WHERE (p_category IS NULL OR LOWER(p_category) = ANY(SELECT LOWER(s) FROM unnest(wp.skills) s))
       AND (p_max_salary IS NULL OR wp.expected_salary <= p_max_salary)
       AND (p_society_id IS NULL OR wp.preferred_society_id = p_society_id)
-      AND p.status IN ('approved', 'live', 'active')         -- Only surfaced approved workers
-      AND COALESCE(wp.status, 'pending') IN ('approved', 'live', 'active', 'pending_review')
+      -- P0 #14: Strict visibility — only live/approved workers surface to employer search
+      AND wp.status IN ('live', 'approved')
+      AND p.status IN ('approved', 'live', 'active')
     ORDER BY wp.created_at DESC
     LIMIT p_limit;
 END;
@@ -203,3 +204,38 @@ CREATE TABLE IF NOT EXISTS public.lead_locks (
 
 CREATE INDEX IF NOT EXISTS idx_lead_locks_expires ON public.lead_locks(expires_at);
 
+-- 11. Payment Events Table (P0 #15: event-level idempotency for Razorpay webhooks)
+-- Prevents duplicate processing when the same event (e.g. payment.captured) is delivered twice
+-- Also correctly tracks multiple state transitions for the same payment_id (failed -> captured)
+CREATE TABLE IF NOT EXISTS public.payment_events (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    provider TEXT NOT NULL DEFAULT 'razorpay',
+    event_id TEXT NOT NULL UNIQUE,   -- '{event_type}:{payment_id}' e.g. 'payment.captured:pay_abc123'
+    payment_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    payload_hash TEXT,               -- SHA-256 of raw payload for tamper detection
+    received_at TIMESTAMPTZ DEFAULT NOW(),
+    processed_at TIMESTAMPTZ         -- Set when subscription/transaction fully processed
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_events_payment_id ON public.payment_events(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_events_received_at ON public.payment_events(received_at DESC);
+
+-- 12. Reviews table: update schema to match hardened submit route
+-- Add missing columns that the new auth-enforced route expects
+ALTER TABLE IF EXISTS public.reviews
+  ADD COLUMN IF NOT EXISTS author_id text,
+  ADD COLUMN IF NOT EXISTS author_name text,
+  ADD COLUMN IF NOT EXISTS reviewer_id text,
+  ADD COLUMN IF NOT EXISTS reviewer_name text,
+  ADD COLUMN IF NOT EXISTS reviewer_role text,
+  ADD COLUMN IF NOT EXISTS reviewee_id text,
+  ADD COLUMN IF NOT EXISTS reviewee_name text,
+  ADD COLUMN IF NOT EXISTS reviewee_role text,
+  ADD COLUMN IF NOT EXISTS interaction_type text DEFAULT 'interview_impression',
+  ADD COLUMN IF NOT EXISTS categories jsonb DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS interview_id text,
+  ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending';
+
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewer_id ON public.reviews(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewee_id ON public.reviews(reviewee_id);

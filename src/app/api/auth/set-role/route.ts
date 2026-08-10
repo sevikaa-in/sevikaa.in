@@ -1,17 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+
+const ALLOWED_ROLES = new Set(['worker', 'employer']);
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { userId, role, onboarding_mode, preferred_language, language } = body;
+    // 1. Authenticate — identity derived from verified token, never from body
+    const authHeader = req.headers.get('authorization');
+    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
-    if (!userId || !role) {
-      return NextResponse.json({ error: 'userId and role are required' }, { status: 400 });
+    if (!token) {
+      const sbCookie = Array.from(req.cookies.getAll()).find(c =>
+        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+      );
+      if (sbCookie?.value) {
+        try {
+          const parsed = JSON.parse(sbCookie.value);
+          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+        } catch { token = sbCookie.value; }
+      }
     }
 
-    if (role !== 'worker' && role !== 'employer') {
-      return NextResponse.json({ error: 'Invalid role specified' }, { status: 400 });
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to set role.' }, { status: 401 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
+
+    // 2. Parse body — userId from body is ignored; always use auth.uid()
+    const body = await req.json();
+    const { role, onboarding_mode, preferred_language, language } = body;
+
+    // userId is now always the authenticated user
+    const userId = user.id;
+
+    if (!role) {
+      return NextResponse.json({ error: 'role is required' }, { status: 400 });
+    }
+
+    if (!ALLOWED_ROLES.has(role)) {
+      return NextResponse.json({ error: 'Invalid role. Must be worker or employer.' }, { status: 400 });
     }
 
     const langCode = preferred_language || language || 'hi';
@@ -22,7 +61,7 @@ export async function POST(req: NextRequest) {
     };
     const resolvedLangName = langNameMap[langCode] || 'Hindi';
 
-    // 1. Fetch dynamic helpline phone
+    // 3. Fetch dynamic helpline phone
     let helplinePhone = process.env.NEXT_PUBLIC_ADMIN_HELPLINE_PHONE || '+91 7096093039';
     try {
       const settingRes = await queryDb(`SELECT value FROM public.admin_settings WHERE key = 'helpline_phone' LIMIT 1`);
@@ -33,22 +72,22 @@ export async function POST(req: NextRequest) {
       console.warn("Notice: admin_settings query skipped:", sErr);
     }
 
-    // 2. Update public.profiles role & initial status
+    // 4. Update public.profiles role & initial status for the authenticated user
     try {
       await queryDb(
         `UPDATE public.profiles 
          SET role = $1, 
              status = COALESCE(status, 'pending_review') 
-         WHERE id = $2`, 
+         WHERE id = $2`,
         [role, userId]
       );
     } catch (pErr) {
       console.warn("Profiles update notice:", pErr);
     }
 
-    let scheduledSlotStr = '';
+    const scheduledSlotStr = '';
 
-    // 3. Initialize sub-profile stub if not exists
+    // 5. Initialize sub-profile stub if not exists
     if (role === 'employer') {
       const epCheck = await queryDb(`SELECT id FROM public.employer_profiles WHERE user_id = $1 OR id = $1 LIMIT 1`, [userId]);
       const initialStatus = onboarding_mode === 'assisted' ? 'pending_review' : 'active';
@@ -63,14 +102,9 @@ export async function POST(req: NextRequest) {
         }
       }
     } else {
-      let workerName = 'Worker Candidate';
-      let workerPhone = '';
-
       try {
         const pRes = await queryDb(`SELECT phone FROM public.profiles WHERE id = $1 LIMIT 1`, [userId]);
-        if (pRes && pRes.rows.length > 0 && pRes.rows[0].phone) {
-          workerPhone = pRes.rows[0].phone;
-        }
+        const _workerPhone = pRes?.rows?.[0]?.phone || '';
       } catch (pErr) {
         console.warn("Profiles phone fetch notice:", pErr);
       }
@@ -87,8 +121,6 @@ export async function POST(req: NextRequest) {
           console.warn("Worker profile stub insert notice:", wpErr);
         }
       } else {
-        workerName = wpCheck.rows[0].full_name || 'Worker Candidate';
-        workerPhone = wpCheck.rows[0].phone || '';
         try {
           await queryDb(
             `UPDATE public.worker_profiles SET languages_spoken = COALESCE(languages_spoken, $1) WHERE user_id = $2 OR id = $2`,
@@ -98,8 +130,6 @@ export async function POST(req: NextRequest) {
           console.warn("Worker profile languages update notice:", wpUpErr);
         }
       }
-
-
     }
 
     const res = NextResponse.json({

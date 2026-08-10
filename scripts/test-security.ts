@@ -13,8 +13,13 @@ import { GET as getMatch } from '../src/app/api/match/route';
 import { GET as getSocietiesWorkers } from '../src/app/api/societies/workers/route';
 import { GET as getEmployerJobs } from '../src/app/api/employer/jobs/route';
 import { GET as getWorkerJobs } from '../src/app/api/worker/jobs/route';
+import { POST as setRole } from '../src/app/api/auth/set-role/route';
+import { POST as pricingPost } from '../src/app/api/pricing/route';
+import { POST as reviewsSubmit } from '../src/app/api/reviews/submit/route';
+import { GET as reviewsHistory } from '../src/app/api/reviews/history/route';
 import { GET as getHealth } from '../src/app/api/health/route';
 import { GET as getInternalHealth } from '../src/app/api/internal/health/route';
+import { PaymentService } from '../src/services/paymentService';
 
 // Set default test environment variables for local security assertion runner
 process.env.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'rzp_live_test_secret_key_99999';
@@ -173,6 +178,60 @@ async function runSecurityTests() {
     const req = new NextRequest('http://localhost:3000/api/worker/jobs');
     const res = await getWorkerJobs(req);
     return res.status === 401;
+  });
+
+  // Test 16: Set Role -> Blocks unauthenticated POST (IDOR fix)
+  await assertTest('Set Role (/api/auth/set-role) blocks unauthenticated POST with 401', async () => {
+    const req = new NextRequest('http://localhost:3000/api/auth/set-role', {
+      method: 'POST',
+      body: JSON.stringify({ userId: 'victim-uuid', role: 'employer' }),
+      headers: { 'content-type': 'application/json' }
+    });
+    const res = await setRole(req);
+    return res.status === 401;
+  });
+
+  // Test 17: Pricing POST -> Blocks unauthenticated
+  await assertTest('Pricing POST (/api/pricing) blocks unauthenticated caller with 401', async () => {
+    const req = new NextRequest('http://localhost:3000/api/pricing', {
+      method: 'POST',
+      body: JSON.stringify({ settings: { proPlan: { price: '1' } } }),
+      headers: { 'content-type': 'application/json' }
+    });
+    const res = await pricingPost(req);
+    return res.status === 401;
+  });
+
+  // Test 18: Reviews Submit -> Blocks unauthenticated
+  await assertTest('Reviews Submit (/api/reviews/submit) blocks unauthenticated POST with 401', async () => {
+    const req = new NextRequest('http://localhost:3000/api/reviews/submit', {
+      method: 'POST',
+      body: JSON.stringify({ reviewer_id: 'hacker', reviewee_id: 'victim', rating: 5 }),
+      headers: { 'content-type': 'application/json' }
+    });
+    const res = await reviewsSubmit(req);
+    return res.status === 401;
+  });
+
+  // Test 19: Reviews History -> Blocks unauthenticated IDOR
+  await assertTest('Reviews History (/api/reviews/history) blocks unauthenticated GET with 401', async () => {
+    const req = new NextRequest('http://localhost:3000/api/reviews/history?userId=any-victim-uuid');
+    const res = await reviewsHistory(req);
+    return res.status === 401;
+  });
+
+  // Test 20: Match RPC fail-safe -> Returns empty results, not SELECT *
+  await assertTest('/api/match returns empty results (not SELECT * fallback) when societyId missing', async () => {
+    const req = new NextRequest('http://localhost:3000/api/match');
+    const res = await getMatch(req);
+    // Should return 400 (missing societyId) not expose all workers
+    return res.status === 400;
+  });
+
+  // Test 21: Razorpay missing secret -> Fails closed (not bypass)
+  await assertTest('Razorpay signature verification fails closed when secret is empty string', async () => {
+    const isValid = PaymentService.verifyRazorpaySignature('payload', 'sig', '');
+    return isValid === false; // Must fail closed, not bypass
   });
 
   console.log('\n====================================================');

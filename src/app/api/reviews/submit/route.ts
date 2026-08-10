@@ -1,98 +1,134 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
 import { logAuditAction } from '@/lib/auditLogger';
+import crypto from 'crypto';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+
+async function getAuthenticatedUser(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  let token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+  if (!token) {
+    const sbCookie = Array.from(request.cookies.getAll()).find(c =>
+      c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+    );
+    if (sbCookie?.value) {
+      try {
+        const parsed = JSON.parse(sbCookie.value);
+        token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+      } catch { token = sbCookie.value; }
+    }
+  }
+
+  if (!token) return null;
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } }
+  });
+  const { data: { user } } = await supabase.auth.getUser(token);
+  return user || null;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { 
-      reviewer_id, 
-      reviewer_name, 
-      reviewer_role, 
-      reviewee_id, 
-      reviewee_name, 
-      reviewee_role, 
-      interaction_type, // 'interview_impression' | 'worked_together'
-      rating, 
-      comment, 
-      categories,
-      interview_id
-    } = body;
-
-    if (!reviewer_id || !reviewee_id || !rating) {
-      return NextResponse.json({ error: 'Missing required review fields' }, { status: 400 });
+    // 1. Authenticate — reviewer identity comes from verified token only
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to submit reviews.' }, { status: 401 });
     }
 
+    const reviewerId = user.id;
+
+    // 2. Derive reviewer role from DB — never trust the client
+    const profileRes = await queryDb(
+      `SELECT role, full_name FROM public.profiles WHERE id = $1 LIMIT 1`,
+      [reviewerId]
+    );
+    const reviewerProfile = profileRes?.rows?.[0];
+    const reviewerRole = reviewerProfile?.role || 'worker';
+    const reviewerName = reviewerProfile?.full_name || 'Anonymous User';
+
+    // 3. Parse client body — only accept non-identity fields from client
+    const body = await request.json();
+    const { revieweeId, rating, comment, interviewId, interaction_type } = body;
+
+    if (!revieweeId || !rating) {
+      return NextResponse.json({ error: 'revieweeId and rating are required' }, { status: 400 });
+    }
+
+    const parsedRating = Math.min(5, Math.max(1, parseInt(rating, 10) || 5));
     const stageType = interaction_type || 'interview_impression';
 
-    // Ensure public.reviews table exists with interaction_type column
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.reviews (
-        id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-        author_id text,
-        author_name text,
-        worker_id text,
-        employer_id text,
-        interview_id text,
-        reviewer_id text,
-        reviewer_name text,
-        reviewer_role text,
-        reviewee_id text,
-        reviewee_name text,
-        reviewee_role text,
-        interaction_type text DEFAULT 'interview_impression',
-        rating integer DEFAULT 5,
-        categories jsonb DEFAULT '{}'::jsonb,
-        comment text,
-        status text DEFAULT 'pending',
-        created_at timestamptz DEFAULT NOW()
-      );
-    `).catch(() => {});
+    // 4. Fetch reviewee name from DB — never trust the client
+    const revieweeRes = await queryDb(
+      `SELECT id, role, full_name FROM public.profiles WHERE id = $1 LIMIT 1`,
+      [revieweeId]
+    );
+    const revieweeProfile = revieweeRes?.rows?.[0];
+    if (!revieweeProfile) {
+      return NextResponse.json({ error: 'Reviewee not found.' }, { status: 404 });
+    }
+    const revieweeName = revieweeProfile.full_name || 'Unknown User';
+    const revieweeRole = revieweeProfile.role || 'worker';
 
-    await queryDb(`ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS interaction_type text DEFAULT 'interview_impression';`).catch(() => {});
-    await queryDb(`ALTER TABLE public.reviews ALTER COLUMN author_id DROP NOT NULL;`).catch(() => {});
-    await queryDb(`ALTER TABLE public.reviews ALTER COLUMN worker_id DROP NOT NULL;`).catch(() => {});
-    await queryDb(`ALTER TABLE public.reviews ALTER COLUMN employer_id DROP NOT NULL;`).catch(() => {});
+    // 5. For interview-linked reviews: verify the authenticated user is a participant in that interview
+    if (interviewId) {
+      const interviewRes = await queryDb(
+        `SELECT id FROM public.interviews 
+         WHERE id::text = $1 AND (employer_id::text = $2 OR worker_id::text = $2)
+         LIMIT 1`,
+        [interviewId, reviewerId]
+      ).catch(() => null);
 
+      if (!interviewRes?.rows?.length) {
+        return NextResponse.json({
+          error: 'Forbidden',
+          message: 'You are not a participant in this interview.'
+        }, { status: 403 });
+      }
+    }
+
+    // 6. Table is created via migration 20260810000002 — no runtime DDL
     const res = await queryDb(`
       INSERT INTO public.reviews (
         author_id, author_name, worker_id, employer_id,
         interview_id, reviewer_id, reviewer_name, reviewer_role, 
-        reviewee_id, reviewee_name, reviewee_role, interaction_type, rating, categories, comment, status, created_at
+        reviewee_id, reviewee_name, reviewee_role, interaction_type, rating, comment, status, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'pending', NOW())
-      RETURNING *;
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'pending', NOW())
+      RETURNING id;
     `, [
-      String(reviewer_id),
-      String(reviewer_name || 'Anonymous User'),
-      String(reviewer_role === 'worker' ? reviewer_id : reviewee_id),
-      String(reviewer_role === 'employer' ? reviewer_id : reviewee_id),
-      interview_id ? String(interview_id) : null,
-      String(reviewer_id),
-      String(reviewer_name || 'Anonymous User'),
-      String(reviewer_role || 'employer'),
-      String(reviewee_id),
-      String(reviewee_name || 'Target User'),
-      String(reviewee_role || 'worker'),
+      reviewerId,
+      reviewerName,
+      reviewerRole === 'worker' ? reviewerId : revieweeId,
+      reviewerRole === 'employer' ? reviewerId : revieweeId,
+      interviewId ? String(interviewId) : null,
+      reviewerId,
+      reviewerName,
+      reviewerRole,
+      revieweeId,
+      revieweeName,
+      revieweeRole,
       stageType,
-      parseInt(rating, 10) || 5,
-      JSON.stringify(categories || {}),
+      parsedRating,
       String(comment || ''),
     ]);
 
     const review = res?.rows?.[0];
 
-    // Audit log entry
     logAuditAction({
-      action: `Review Submitted (${stageType === 'worked_together' ? 'Worked Together' : 'Interview Call'})`,
+      action: `Review Submitted (${stageType})`,
       category: 'user_activity',
       severity: 'info',
-      actor: reviewer_name,
-      actorRole: reviewer_role === 'employer' ? 'Employer' : 'Worker',
-      target_name: reviewee_name,
-      target_id: String(reviewee_id),
-      changes_summary: `${reviewer_name} (${reviewer_role}) submitted a ${rating}-star ${stageType === 'worked_together' ? 'Workplace' : 'Call Impression'} review for ${reviewee_name}. Pending Super Admin moderation.`,
-      raw_payload: body
+      actor: reviewerName,
+      actorRole: reviewerRole === 'employer' ? 'Employer' : 'Worker',
+      target_name: revieweeName,
+      target_id: String(revieweeId),
+      changes_summary: `${reviewerName} (${reviewerRole}) submitted a ${parsedRating}-star review for ${revieweeName}. Pending moderation.`,
+      raw_payload: { revieweeId, rating: parsedRating, interviewId, stageType }
     }).catch(() => {});
 
     return NextResponse.json({

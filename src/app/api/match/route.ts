@@ -24,32 +24,14 @@ export async function GET(request: NextRequest) {
       p_limit: 20
     });
 
+    // P0 #13 fix: If RPC fails, return empty results — NEVER fall back to SELECT *
     if (queryErr || !rpcWorkers) {
-      // Fallback query if RPC call unavailable
-      let fallbackQuery = supabaseClient.from('worker_profiles').select('*');
-      if (maxSalary) fallbackQuery = fallbackQuery.lte('expected_salary', maxSalary);
-      const { data: fallbackData } = await fallbackQuery;
-
-      const results = (fallbackData || [])
-        .filter((w: any) => Array.isArray(w.skills) && w.skills.some((s: string) => s.toLowerCase() === category.toLowerCase()))
-        .map((w: any) => ({
-          user_id: w.user_id || w.id,
-          full_name: w.full_name || 'Domestic Helper',
-          gender: w.gender || 'female',
-          age: w.age || 28,
-          skills: w.skills || [category],
-          languages_spoken: w.languages_spoken || ['Hindi'],
-          expected_salary: w.expected_salary || 12000,
-          preferred_society_id: w.preferred_society_id || societyId,
-          preferred_society_name: w.preferred_society_name || 'Gated Society',
-          approximate_distance: w.preferred_society_id === societyId ? 0.0 : 1.5,
-          is_aadhaar_verified: Boolean(w.is_aadhaar_verified),
-          is_police_verified: Boolean(w.is_police_verified),
-          is_interview_verified: Boolean(w.is_interview_verified),
-          average_rating: w.rating || 4.8
-        }));
-
-      return NextResponse.json({ results });
+      console.error('[match] search_workers RPC failed:', queryErr?.message || 'null result');
+      return NextResponse.json({
+        results: [],
+        error: 'Worker search temporarily unavailable. Please try again.',
+        rpc_error: queryErr?.message,
+      }, { status: 200 });
     }
 
     const results = rpcWorkers.map((w: any) => ({
@@ -65,12 +47,15 @@ export async function GET(request: NextRequest) {
       approximate_distance: w.preferred_society_id === societyId ? 0.0 : 1.5,
       is_aadhaar_verified: Boolean(w.is_aadhaar_verified),
       is_police_verified: Boolean(w.is_police_verified),
-      is_interview_verified: Boolean(w.is_tele_onboarded),
-      average_rating: w.rating || 4.8
+      is_interview_verified: Boolean(w.is_interview_verified),
+      average_rating: w.rating || 4.8,
+      profile_picture_url: w.profile_picture_url,
+      experience_years: w.experience_years,
     }));
 
     return NextResponse.json({ results });
   } catch (err: any) {
-    return NextResponse.json({ results: [] });
+    console.error('[match] Unexpected error:', err);
+    return NextResponse.json({ results: [], error: 'Service temporarily unavailable.' }, { status: 200 });
   }
 }
