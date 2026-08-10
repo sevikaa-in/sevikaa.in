@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
     const totalPages = Math.ceil(total / limit) || 1;
 
     const res = await queryDb(
-      `SELECT * FROM public.notification_logs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      `SELECT id, channel, provider, recipient, template_id, message_id, status, description, created_at
+       FROM public.notification_logs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 

@@ -51,7 +51,8 @@ export async function GET(request: NextRequest) {
     }
 
     const res = await queryDb(
-      `SELECT * FROM public.transactions ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      `SELECT id, order_id, user_id, employer_name, employer_email, employer_phone, plan_name, amount, payment_method, status, invoice_number, created_at 
+       FROM public.transactions ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
+import { getCached, setCached, invalidateCache } from '@/lib/ttlCache';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+
+const TEMPLATES_CACHE_KEY = 'platform:sms_templates';
 
 async function requireAdmin(request: NextRequest): Promise<{ userId: string } | NextResponse> {
   const authHeader = request.headers.get('authorization');
@@ -42,13 +45,16 @@ export async function GET(request: NextRequest) {
     const authResult = await requireAdmin(request);
     if (authResult instanceof NextResponse) return authResult;
 
-    // Table is created via migration — no runtime DDL
-    // Remove obsolete legacy providers
-    await queryDb(`DELETE FROM public.sms_templates WHERE LOWER(provider) IN ('twilio', 'aws', 'fast2sms') OR provider IS NULL;`).catch(() => {});
+    // Check TTL cache (10 min TTL for SMS template definitions)
+    const cachedTemplates = getCached<any[]>(TEMPLATES_CACHE_KEY);
+    if (cachedTemplates) {
+      return NextResponse.json({ success: true, templates: cachedTemplates, cached: true });
+    }
 
-    // Fetch ONLY MSG91 (SMS) and AWS SES (Email) templates
+    // Fetch ONLY MSG91 (SMS) and AWS SES (Email) templates with explicit column list
     const res = await queryDb(`
-      SELECT DISTINCT ON (template_key, provider) *
+      SELECT DISTINCT ON (template_key, provider) 
+             id, template_key, category, provider, sender_id, dlt_template_id, language, title, message, is_active, version, created_at
       FROM public.sms_templates 
       WHERE LOWER(provider) IN ('msg91', 'aws_ses') 
       ORDER BY template_key ASC, provider ASC, created_at DESC;
@@ -68,6 +74,8 @@ export async function GET(request: NextRequest) {
       version: t.version || 1
     }));
 
+    setCached(TEMPLATES_CACHE_KEY, templates, 600); // 10 min TTL
+
     return NextResponse.json({ success: true, templates });
   } catch (err: any) {
     console.error("GET /api/notifications/sms/templates error:", err);
@@ -86,7 +94,7 @@ export async function POST(request: NextRequest) {
     const res = await queryDb(`
       INSERT INTO public.sms_templates (template_key, category, provider, sender_id, dlt_template_id, language, title, message, is_active, version)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, 1)
-      RETURNING *;
+      RETURNING id, template_key, category, provider, sender_id, dlt_template_id, language, title, message, is_active, version, created_at;
     `, [
       template_key || 'CUSTOM_TEMPLATE',
       category || 'general',
@@ -97,6 +105,9 @@ export async function POST(request: NextRequest) {
       title || 'Custom DLT Template',
       message || ''
     ]);
+
+    // Invalidate template cache on update
+    invalidateCache(TEMPLATES_CACHE_KEY);
 
     return NextResponse.json({ success: true, template: res?.rows?.[0] });
   } catch (err: any) {

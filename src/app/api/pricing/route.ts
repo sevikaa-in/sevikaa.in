@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
+import { getCached, setCached, invalidateCache } from '@/lib/ttlCache';
 
 /**
- * GET /api/pricing — public, no authentication required
- * POST /api/pricing — super-admin only
+ * GET /api/pricing — public, no authentication required (5-min TTL cached)
+ * POST /api/pricing — super-admin only (invalidates cache on update)
  */
+
+const PRICING_CACHE_KEY = 'platform:pricing_config';
 
 export async function GET() {
   try {
+    // 1. Check TTL cache to save database query egress
+    const cachedPricing = getCached(PRICING_CACHE_KEY);
+    if (cachedPricing) {
+      return NextResponse.json({ success: true, pricing: cachedPricing, cached: true });
+    }
+
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') ||
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -20,6 +29,7 @@ export async function GET() {
         .single();
 
       if (!error && data?.settings) {
+        setCached(PRICING_CACHE_KEY, data.settings, 300); // 5 min TTL
         return NextResponse.json({ success: true, pricing: data.settings });
       }
     }
@@ -33,6 +43,7 @@ export async function GET() {
       proPlan: { price: '1499', validityDays: '90 Days', jobPostsLimit: 'Unlimited', contactUnlocksLimit: 'Unlimited', name: 'Pro Unlimited Household Pass' }
     };
 
+    setCached(PRICING_CACHE_KEY, defaultPricing, 300);
     return NextResponse.json({ success: true, pricing: defaultPricing });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -59,6 +70,9 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
+
+    // Invalidate TTL cache on update
+    invalidateCache(PRICING_CACHE_KEY);
 
     return NextResponse.json({ success: true, message: 'Platform pricing updated live!' });
   } catch (err: any) {
