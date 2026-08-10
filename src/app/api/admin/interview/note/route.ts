@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const { id, note, status } = await req.json();
     if (!id) return NextResponse.json({ error: 'Missing target ID' }, { status: 400 });

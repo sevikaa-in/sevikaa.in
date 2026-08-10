@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { formatIstTimestamp, logAuditAction } from '@/lib/auditLogger';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function GET(request: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(request, { requiredRole: 'super-admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get('status') || 'all';
@@ -66,6 +70,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(request, { requiredRole: 'super-admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const body = await request.json();
     const { reviewId, status, adminEmail } = body;

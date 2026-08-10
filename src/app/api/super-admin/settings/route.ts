@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 async function ensureAdminSettingsTable() {
   try {
@@ -16,7 +17,10 @@ async function ensureAdminSettingsTable() {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'super-admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     await ensureAdminSettingsTable();
     const res = await queryDb(`SELECT key, value FROM public.admin_settings`);
@@ -41,6 +45,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'super-admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     await ensureAdminSettingsTable();
     const body = await req.json();

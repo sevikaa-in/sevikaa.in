@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { sendSMS } from '@/lib/notifications';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
+import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const body = await req.json();
     const { userId, phone } = body;
@@ -29,12 +34,13 @@ export async function POST(req: NextRequest) {
       } catch (dbErr) {}
     }
 
-    if (!targetPhone) {
-      return NextResponse.json({ error: 'Valid candidate mobile number not found' }, { status: 400 });
+    if (!targetPhone || !targetUserId) {
+      return NextResponse.json({ error: 'Valid candidate mobile number or ID not found' }, { status: 400 });
     }
 
+    const secureToken = crypto.randomBytes(32).toString('hex');
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sevikaa.in';
-    const uploadUrl = `${appUrl}/verify-upload?t=${targetUserId}`;
+    const uploadUrl = `${appUrl}/verify-upload?t=${secureToken}`;
 
     // Send SMS using DLT Template SEVKAA_DOCUMENT_UPLOAD_LINK
     try {

@@ -170,3 +170,18 @@ export function formatIstTimestamp(dateInput?: string | Date | null): string {
 }
 
 export const logSecurityAudit = logAuditAction;
+
+export async function logDocumentAccess(actorId: string, actorEmail: string, role: string, documentRef: string, req?: any) {
+  return logAuditAction({
+    action: 'Document Signed Access',
+    category: 'document_access',
+    severity: 'info',
+    actor: actorEmail || actorId,
+    actorRole: role,
+    target_name: documentRef,
+    target_id: actorId,
+    changes_summary: `Signed access URL issued to ${role} (${actorEmail || actorId}) for asset reference '${documentRef}'`,
+    req
+  });
+}
+

@@ -38,6 +38,8 @@ export function checkRateLimit(ip: string, maxRequests = 60, windowMs = 60000): 
   return true;
 }
 
+import { checkAdminRateLimit, extractClientIp } from '@/lib/rateLimiter';
+
 /**
  * Server-Side Zero-Trust Security Verification Guard for Admin & Super Admin APIs
  */
@@ -46,11 +48,11 @@ export async function verifyAdminSecurityContext(
   options: VerificationOptions = { requiredRole: 'admin', allowSuperAdminFallback: true }
 ): Promise<{ context?: AdminSecurityContext; errorResponse?: NextResponse }> {
   // 1. Rate Limiting Check
-  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-                   request.headers.get('x-real-ip') || '127.0.0.1';
+  const clientIp = extractClientIp(request);
   const userAgent = request.headers.get('user-agent') || 'Unknown User-Agent';
 
-  if (!checkRateLimit(clientIp, 100, 60000)) {
+  const isRateAllowed = await checkAdminRateLimit(request);
+  if (!isRateAllowed) {
     return {
       errorResponse: NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded. Please try again later.' },

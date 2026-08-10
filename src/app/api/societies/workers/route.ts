@@ -15,17 +15,27 @@ export async function GET(req: NextRequest) {
       { status: 429 }
     );
   }
-  // Method 1: Centralized Database Pool query (bypasses RLS completely)
+  // Method 1: Centralized Database Pool query (Sanitized Public DTO)
   try {
     const res = await queryDb(`
       SELECT 
-        wp.*, 
-        p.phone, 
-        p.email, 
-        p.status as profile_status,
-        p.role
+        wp.id,
+        wp.user_id,
+        wp.full_name,
+        wp.skills,
+        wp.languages,
+        wp.experience_years,
+        wp.preferred_society,
+        wp.preferred_location,
+        wp.expected_salary,
+        wp.verification_status,
+        wp.rating,
+        wp.profile_picture_url,
+        wp.video_url,
+        wp.created_at
       FROM worker_profiles wp
       LEFT JOIN profiles p ON p.id = wp.user_id OR p.id = wp.id
+      WHERE p.status = 'live' OR wp.verification_status = 'approved'
       ORDER BY wp.created_at DESC
     `);
     
@@ -41,7 +51,8 @@ export async function GET(req: NextRequest) {
     const supabase = createClient(supabaseUrl, apiKey);
     const { data: workers } = await supabase
       .from('worker_profiles')
-      .select('*, profiles(*)');
+      .select('id, user_id, full_name, skills, languages, experience_years, preferred_society, preferred_location, expected_salary, verification_status, rating, profile_picture_url, video_url, created_at')
+      .eq('verification_status', 'approved');
 
     return NextResponse.json({ workers: workers || [] });
   } catch (err) {

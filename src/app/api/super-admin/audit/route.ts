@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { logAuditAction, formatIstTimestamp } from '@/lib/auditLogger';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function GET(request: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(request, { requiredRole: 'super-admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '200', 10), 500);
@@ -115,6 +119,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(request, { requiredRole: 'super-admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const body = await request.json();
     await logAuditAction(body);

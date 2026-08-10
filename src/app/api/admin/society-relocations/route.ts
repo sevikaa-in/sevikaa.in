@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function GET(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     // 1. Ensure table exists
     await queryDb(`
@@ -73,6 +77,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const body = await req.json();
     const { requestId, employerId, targetSociety, action, adminNote } = body;

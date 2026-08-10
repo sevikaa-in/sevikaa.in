@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 // Bucket config (confirmed via Supabase dashboard):
 // worker-videos  → PUBLIC,  allows video/mp4, video/webm, video/quicktime, 50MB limit
@@ -15,6 +16,9 @@ const BUCKET_MAP: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
@@ -40,21 +44,21 @@ export async function POST(req: NextRequest) {
 
     let publicUrl = '';
 
-    const { data, error } = await supabaseAdmin.storage
+    const { error } = await supabaseAdmin.storage
       .from(targetBucket)
       .upload(filePath, buffer, { contentType: mimeType, upsert: true });
 
     if (error) {
-      // Fallback to worker-documents (private, but stores the data)
+      // Fallback to worker-documents (private storage bucket)
       console.warn(`[upload-asset] Primary bucket "${targetBucket}" failed: ${error.message} — trying worker-documents`);
-      const { data: bData, error: bError } = await supabaseAdmin.storage
+      const { error: bError } = await supabaseAdmin.storage
         .from('worker-documents')
         .upload(filePath, buffer, { contentType: mimeType, upsert: true });
 
       if (bError) {
-        // Last resort: persist as base64 data URL in the DB column
-        console.warn(`[upload-asset] All buckets failed: ${bError.message} — saving as data URL`);
-        publicUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+        // Fail closed — do NOT store base64 images in database
+        console.error(`[upload-asset] Storage upload failed: ${bError.message}`);
+        return NextResponse.json({ error: 'Document upload failed. Storage bucket unreachable.' }, { status: 500 });
       } else {
         const { data: pUrl } = supabaseAdmin.storage.from('worker-documents').getPublicUrl(filePath);
         publicUrl = pUrl.publicUrl;
@@ -93,3 +97,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }
+

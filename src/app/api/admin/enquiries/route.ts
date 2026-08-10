@@ -1,7 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const { data, error } = await supabaseAdmin
       .from('contact_enquiries')
@@ -21,7 +25,10 @@ export async function GET() {
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const { id, status, admin_notes } = await req.json();
 
@@ -49,3 +56,4 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });
   }
 }
+

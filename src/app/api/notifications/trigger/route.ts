@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { sendSMS, sendEmail } from '../../../../lib/notifications';
 import { supabaseAdmin } from '../../../../lib/supabaseAdminClient';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
 const TRANSLATIONS: Record<string, Record<string, string>> = {
   en: {
@@ -29,6 +33,45 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Authenticate Session
+    const authHeader = request.headers.get('authorization');
+    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      const sbCookie = Array.from(request.cookies.getAll()).find(c => 
+        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+      );
+      if (sbCookie?.value) {
+        try {
+          const parsed = JSON.parse(sbCookie.value);
+          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+        } catch {
+          token = sbCookie.value;
+        }
+      }
+    }
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required.' }, { status: 401 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const requesterRole = profile?.role || 'worker';
+
     const { 
       type, userId, role = 'worker', name = 'User', email, phone, 
       title, message, pushToken, actionUrl, actionLabel, note, userLanguage = 'en' 
@@ -37,6 +80,15 @@ export async function POST(request: NextRequest) {
     if (!type) {
       return NextResponse.json({ error: 'type parameter is required' }, { status: 400 });
     }
+
+    // 2. Authorize Notification Trigger Target & Type
+    const isAdmin = requesterRole === 'admin' || requesterRole === 'super-admin';
+    const isSendingToSelf = user.id === userId;
+
+    if (!isAdmin && !isSendingToSelf && type !== 'interview_scheduled' && type !== 'applicant_received') {
+      return NextResponse.json({ error: 'Forbidden', message: 'Unauthorized notification trigger request.' }, { status: 403 });
+    }
+
 
     const lang = TRANSLATIONS[userLanguage] ? userLanguage : 'en';
     const templates = TRANSLATIONS[lang];

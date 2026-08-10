@@ -1,27 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
 import crypto from 'crypto';
 
-// In-memory token store for 8-character short token mapping
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+
+// In-memory token store for high-entropy upload tokens mapping
 const tokenStore = new Map<string, { userId: string; expiry: number }>();
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Authenticate Session
+    const authHeader = req.headers.get('authorization');
+    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      const sbCookie = Array.from(req.cookies.getAll()).find(c => 
+        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+      );
+      if (sbCookie?.value) {
+        try {
+          const parsed = JSON.parse(sbCookie.value);
+          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+        } catch {
+          token = sbCookie.value;
+        }
+      }
+    }
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to generate upload tokens.' }, { status: 401 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
+
     const { userId } = await req.json();
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    // Generate ultra-compact 8-character token (e.g. "a8f2k9x1")
-    const shortToken = crypto.randomBytes(4).toString('hex');
+    // Generate high-entropy 64-character hex string (32 bytes = 256 bits entropy)
+    const secureToken = crypto.randomBytes(32).toString('hex');
     const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days TTL
 
-    tokenStore.set(shortToken, { userId, expiry });
+    tokenStore.set(secureToken, { userId, expiry });
 
-    // Fallback URL format (compact): https://www.sevikaa.in/verify-upload?t=a8f2k9x1
-    const uploadUrl = `https://www.sevikaa.in/verify-upload?t=${shortToken}`;
+    const uploadUrl = `https://www.sevikaa.in/verify-upload?t=${secureToken}`;
 
-    return NextResponse.json({ success: true, token: shortToken, uploadUrl });
+    return NextResponse.json({ success: true, token: secureToken, uploadUrl });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -31,41 +65,34 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     let token = searchParams.get('token') || searchParams.get('t');
-    let userIdParam = searchParams.get('userId');
     
-    if (!token && !userIdParam) {
-      return NextResponse.json({ error: 'Token or userId is required' }, { status: 400 });
+    if (!token) {
+      return NextResponse.json({ error: 'Valid upload token is required' }, { status: 400 });
     }
 
-    let targetUserId = userIdParam || '';
+    let targetUserId = '';
 
-    if (!targetUserId && token) {
-      // 1. Check if token is a direct UUID (36 chars with hyphens e.g. 48cfb80b-f874-4a0c-ae4b-e1ae06caa237)
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token);
-      if (isUuid) {
-        targetUserId = token;
+    // Check in-memory secure token store
+    if (tokenStore.has(token)) {
+      const entry = tokenStore.get(token)!;
+      if (Date.now() > entry.expiry) {
+        tokenStore.delete(token);
+        return NextResponse.json({ error: 'Upload link expired' }, { status: 410 });
       }
-      // 2. Check in-memory short token store
-      else if (tokenStore.has(token)) {
-        const entry = tokenStore.get(token)!;
-        if (Date.now() > entry.expiry) {
-          tokenStore.delete(token);
+      targetUserId = entry.userId;
+    } else {
+      // Check legacy base64url encoded token format
+      try {
+        const decoded = JSON.parse(Buffer.from(token, 'base64url').toString('utf-8'));
+        if (Date.now() > decoded.expiry) {
           return NextResponse.json({ error: 'Upload link expired' }, { status: 410 });
         }
-        targetUserId = entry.userId;
-      } else {
-        // 3. Fallback to base64url decoding if long legacy token is passed
-        try {
-          const decoded = JSON.parse(Buffer.from(token, 'base64url').toString('utf-8'));
-          if (Date.now() > decoded.expiry) {
-            return NextResponse.json({ error: 'Upload link expired' }, { status: 410 });
-          }
-          targetUserId = decoded.userId;
-        } catch (e) {
-          return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 });
-        }
+        targetUserId = decoded.userId;
+      } catch (e) {
+        return NextResponse.json({ error: 'Invalid or expired upload token' }, { status: 400 });
       }
     }
+
 
     // Fetch candidate worker or employer details and existing media assets
     let worker: any = null;

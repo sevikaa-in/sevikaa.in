@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 async function ensureTable() {
   try {
@@ -21,7 +22,10 @@ async function ensureTable() {
 }
 
 // GET: Return all active lead locks (where expires_at > NOW())
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   await ensureTable();
   try {
     const res = await queryDb(
@@ -39,7 +43,9 @@ export async function GET() {
 }
 
 // POST: Acquire or heartbeat renew a lead lock (expires in 2 minutes)
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
   await ensureTable();
   try {
     const body = await req.json();
@@ -94,7 +100,10 @@ export async function POST(req: Request) {
 }
 
 // DELETE: Release lead lock
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   await ensureTable();
   try {
     const { searchParams } = new URL(req.url);

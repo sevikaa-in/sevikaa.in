@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { logAuditAction } from '@/lib/auditLogger';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const body = await req.json();
     const { id, status, admin_note, admin_name, admin_email } = body;

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { logAuditAction } from '@/lib/auditLogger';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'super-admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const res = await queryDb(
       `SELECT id, email, COALESCE(full_name, '') AS full_name, role, status, COALESCE(created_at, NOW()) AS created_at 
@@ -29,6 +33,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'super-admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const { email, full_name, role = 'admin' } = await req.json();
 

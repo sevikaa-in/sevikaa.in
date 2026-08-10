@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import cloudinary from '@/lib/cloudinaryClient';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     let migratedCount = 0;
     const errors: string[] = [];

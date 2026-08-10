@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { memoryCache } from '@/lib/memoryCache';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function GET(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const { searchParams } = new URL(req.url);
     const tab = searchParams.get('tab') || 'overview';

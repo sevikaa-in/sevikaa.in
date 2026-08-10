@@ -3,8 +3,12 @@ import { queryDb } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 import { memoryCache } from '@/lib/memoryCache';
 import { logAuditAction } from '@/lib/auditLogger';
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function POST(req: NextRequest) {
+  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  if (errorResponse) return errorResponse;
+
   try {
     const body = await req.json();
     const { 

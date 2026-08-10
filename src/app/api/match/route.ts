@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
 export async function GET(request: NextRequest) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+
   const { searchParams } = new URL(request.url);
   const societyId = searchParams.get('societyId');
   const category = searchParams.get('category') || 'maid';
@@ -44,9 +44,9 @@ export async function GET(request: NextRequest) {
         preferred_society_id: w.preferred_society_id || societyId,
         preferred_society_name: w.preferred_society_name || 'Akshayanagar Society',
         approximate_distance: w.preferred_society_id === societyId ? 0.0 : 1.5,
-        is_aadhaar_verified: w.is_aadhaar_verified || true,
-        is_police_verified: w.is_police_verified || false,
-        is_interview_verified: w.is_interview_verified || false,
+        is_aadhaar_verified: Boolean(w.is_aadhaar_verified),
+        is_police_verified: Boolean(w.is_police_verified),
+        is_interview_verified: Boolean(w.is_interview_verified),
         average_rating: w.rating || 4.8
       }));
 

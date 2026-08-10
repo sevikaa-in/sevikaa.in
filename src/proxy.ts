@@ -55,7 +55,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Role cookie set by authentic portal layout on login
+  // Role cookie set by authentic portal layout on login - only used for unprivileged UI hints, NEVER for security authorization
   const roleCookie = request.cookies.get('sevikaa_user_role')?.value;
 
   // 3. Perform Cryptographic Supabase Auth JWT Token & Database Role Verification
@@ -84,7 +84,8 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const effectiveRole = verifiedRole || roleCookie;
+  // Security boundary: Authorization decisions MUST rely strictly on cryptographically verified database roles, never client-set cookies
+  const effectiveRole = verifiedRole;
 
   // 4. Strict Unauthenticated & Account Status Guard for Protected Routes
   const isProtectedRoute = pathname.startsWith('/worker') || 
