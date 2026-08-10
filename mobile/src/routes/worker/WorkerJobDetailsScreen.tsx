@@ -99,7 +99,7 @@ export const WorkerJobDetailsScreen: React.FC<{
       if (dbJob) {
         setJob(dbJob);
       } else {
-        const res = await fetch(getApiUrl(`api/admin/data?tab=jobs&limit=50`));
+        const res = await fetch(getApiUrl(`api/worker/jobs?limit=50`));
         if (res.ok) {
           const apiData = await res.json();
           const found = apiData.jobs?.find((j: any) => j.id === targetId);

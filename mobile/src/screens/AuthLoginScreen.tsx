@@ -137,8 +137,7 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
       onLoginSuccess(identifier, authMode, data.user, data.isExistingUser);
     } catch (e: any) {
       setLoading(false);
-      const identifier = authMode === 'phone' ? phone : email;
-      onLoginSuccess(identifier, authMode, null, false);
+      setErrorMsg(e?.message || 'Authentication verification failed. Please check your connection and try again.');
     }
   };
 

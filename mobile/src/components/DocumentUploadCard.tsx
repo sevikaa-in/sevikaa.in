@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { getApiUrl } from '../config/api';
 
 interface DocumentUploadCardProps {
   title: string;
@@ -20,12 +21,13 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert("Permission Required", "Camera roll permissions are required to upload verification documents.");
+        Alert.alert('Permission Denied', 'Camera roll permissions are required to upload documents.');
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
         quality: 0.8,
         base64: true,
       });
@@ -35,7 +37,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
         setUploading(true);
 
         // Upload to Sevikaa Cloudinary Upload Endpoint
-        const uploadRes = await fetch('http://localhost:3000/api/upload', {
+        const uploadRes = await fetch(getApiUrl('api/upload'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

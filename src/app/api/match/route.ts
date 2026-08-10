@@ -17,38 +17,57 @@ export async function GET(request: NextRequest) {
   const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
   try {
-    let query = supabaseClient
-      .from('worker_profiles')
-      .select('*, profiles(*)');
+    const { data: rpcWorkers, error: queryErr } = await supabaseClient.rpc('search_workers', {
+      p_society_id: societyId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? societyId : null,
+      p_category: category,
+      p_max_salary: maxSalary,
+      p_limit: 20
+    });
 
-    if (maxSalary) {
-      query = query.lte('expected_salary', maxSalary);
+    if (queryErr || !rpcWorkers) {
+      // Fallback query if RPC call unavailable
+      let fallbackQuery = supabaseClient.from('worker_profiles').select('*');
+      if (maxSalary) fallbackQuery = fallbackQuery.lte('expected_salary', maxSalary);
+      const { data: fallbackData } = await fallbackQuery;
+
+      const results = (fallbackData || [])
+        .filter((w: any) => Array.isArray(w.skills) && w.skills.some((s: string) => s.toLowerCase() === category.toLowerCase()))
+        .map((w: any) => ({
+          user_id: w.user_id || w.id,
+          full_name: w.full_name || 'Domestic Helper',
+          gender: w.gender || 'female',
+          age: w.age || 28,
+          skills: w.skills || [category],
+          languages_spoken: w.languages_spoken || ['Hindi'],
+          expected_salary: w.expected_salary || 12000,
+          preferred_society_id: w.preferred_society_id || societyId,
+          preferred_society_name: w.preferred_society_name || 'Gated Society',
+          approximate_distance: w.preferred_society_id === societyId ? 0.0 : 1.5,
+          is_aadhaar_verified: Boolean(w.is_aadhaar_verified),
+          is_police_verified: Boolean(w.is_police_verified),
+          is_interview_verified: Boolean(w.is_interview_verified),
+          average_rating: w.rating || 4.8
+        }));
+
+      return NextResponse.json({ results });
     }
 
-    const { data: dbWorkers, error: queryErr } = await query;
-
-    if (queryErr) {
-      return NextResponse.json({ results: [] });
-    }
-
-    const results = (dbWorkers || [])
-      .filter((w: any) => Array.isArray(w.skills) && w.skills.includes(category))
-      .map((w: any) => ({
-        user_id: w.user_id || w.id,
-        full_name: w.full_name || 'Domestic Helper',
-        gender: w.gender || 'female',
-        age: w.age || 28,
-        skills: w.skills || [category],
-        languages_spoken: w.languages_spoken || ['Hindi'],
-        expected_salary: w.expected_salary || 12000,
-        preferred_society_id: w.preferred_society_id || societyId,
-        preferred_society_name: w.preferred_society_name || 'Akshayanagar Society',
-        approximate_distance: w.preferred_society_id === societyId ? 0.0 : 1.5,
-        is_aadhaar_verified: Boolean(w.is_aadhaar_verified),
-        is_police_verified: Boolean(w.is_police_verified),
-        is_interview_verified: Boolean(w.is_interview_verified),
-        average_rating: w.rating || 4.8
-      }));
+    const results = rpcWorkers.map((w: any) => ({
+      user_id: w.user_id || w.id,
+      full_name: w.full_name || 'Domestic Helper',
+      gender: w.gender || 'female',
+      age: w.age || 28,
+      skills: w.skills || [category],
+      languages_spoken: w.languages_spoken || ['Hindi'],
+      expected_salary: w.expected_salary || 12000,
+      preferred_society_id: w.preferred_society_id || societyId,
+      preferred_society_name: w.preferred_society_name || 'Gated Society',
+      approximate_distance: w.preferred_society_id === societyId ? 0.0 : 1.5,
+      is_aadhaar_verified: Boolean(w.is_aadhaar_verified),
+      is_police_verified: Boolean(w.is_police_verified),
+      is_interview_verified: Boolean(w.is_tele_onboarded),
+      average_rating: w.rating || 4.8
+    }));
 
     return NextResponse.json({ results });
   } catch (err: any) {

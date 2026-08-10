@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
-import crypto from 'crypto';
+import { TokenManager } from '@/lib/tokenManager';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-
-// In-memory token store for high-entropy upload tokens mapping
-const tokenStore = new Map<string, { userId: string; expiry: number }>();
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,20 +39,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
     }
 
-    const { userId } = await req.json();
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
+    const { userId: bodyUserId } = await req.json().catch(() => ({ userId: null }));
+    const targetUserId = bodyUserId || user.id;
 
-    // Generate high-entropy 64-character hex string (32 bytes = 256 bits entropy)
-    const secureToken = crypto.randomBytes(32).toString('hex');
-    const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days TTL
+    // Generate and store persistent upload token using TokenManager
+    const result = await TokenManager.createUploadToken(targetUserId, user.id);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sevikaa.in';
+    const uploadUrl = `${appUrl}/verify-upload?t=${result.rawToken}`;
 
-    tokenStore.set(secureToken, { userId, expiry });
-
-    const uploadUrl = `https://www.sevikaa.in/verify-upload?t=${secureToken}`;
-
-    return NextResponse.json({ success: true, token: secureToken, uploadUrl });
+    return NextResponse.json({ success: true, token: result.rawToken, uploadUrl });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -64,34 +56,19 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    let token = searchParams.get('token') || searchParams.get('t');
+    const token = searchParams.get('token') || searchParams.get('t');
     
     if (!token) {
       return NextResponse.json({ error: 'Valid upload token is required' }, { status: 400 });
     }
 
-    let targetUserId = '';
-
-    // Check in-memory secure token store
-    if (tokenStore.has(token)) {
-      const entry = tokenStore.get(token)!;
-      if (Date.now() > entry.expiry) {
-        tokenStore.delete(token);
-        return NextResponse.json({ error: 'Upload link expired' }, { status: 410 });
-      }
-      targetUserId = entry.userId;
-    } else {
-      // Check legacy base64url encoded token format
-      try {
-        const decoded = JSON.parse(Buffer.from(token, 'base64url').toString('utf-8'));
-        if (Date.now() > decoded.expiry) {
-          return NextResponse.json({ error: 'Upload link expired' }, { status: 410 });
-        }
-        targetUserId = decoded.userId;
-      } catch (e) {
-        return NextResponse.json({ error: 'Invalid or expired upload token' }, { status: 400 });
-      }
+    // Verify token using persistent TokenManager
+    const verification = await TokenManager.verifyAndConsumeToken(token);
+    if (!verification.valid || !verification.userId) {
+      return NextResponse.json({ error: verification.error || 'Invalid or expired upload token' }, { status: 400 });
     }
+
+    const targetUserId = verification.userId;
 
 
     // Fetch candidate worker or employer details and existing media assets

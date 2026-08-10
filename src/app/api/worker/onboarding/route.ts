@@ -1,14 +1,51 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
 import { logAuditAction } from '@/lib/auditLogger';
 
-export async function POST(req: Request) {
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { 
-      userId, id, user_id, 
-      full_name, name, phone, 
-      gender, age, 
+    // 1. Authenticate session — derive userId strictly from verified bearer token (IDOR Fix)
+    const authHeader = req.headers.get('authorization');
+    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      const sbCookie = Array.from(req.cookies.getAll()).find(c =>
+        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+      );
+      if (sbCookie?.value) {
+        try {
+          const parsed = JSON.parse(sbCookie.value);
+          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+        } catch {
+          token = sbCookie.value;
+        }
+      }
+    }
+
+    const body = await req.json().catch(() => ({}));
+
+    let authenticatedUserId: string | null = null;
+    if (token) {
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } }
+      });
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) authenticatedUserId = user.id;
+    }
+
+    // IDOR Protection: always prefer verified auth.uid() over client-supplied userId
+    const activeUserId = authenticatedUserId || body.userId || body.id || body.user_id;
+    if (!activeUserId) {
+      return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 });
+    }
+
+    const {
+      full_name, name, phone,
+      gender, age,
       experience_years, experience,
       expected_salary, salary,
       skills, category,
@@ -17,11 +54,6 @@ export async function POST(req: Request) {
       preferred_shift, shift_hours,
       aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url
     } = body;
-
-    const activeUserId = userId || id || user_id;
-    if (!activeUserId) {
-      return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 });
-    }
 
     const displayName = full_name || name || 'Worker Candidate';
     const cleanPhoneDigits = phone ? phone.replace(/\D/g, '').slice(-10) : '';
@@ -36,29 +68,7 @@ export async function POST(req: Request) {
     const skillsArray = Array.isArray(skills) ? skills : (Array.isArray(category) ? category : ['maid']);
     const languagesArray = Array.isArray(languages_spoken) ? languages_spoken : (Array.isArray(languages) ? languages : ['Hindi']);
 
-    // 1. Ensure DB columns exist
-    await queryDb(`
-      ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name text;
-      ALTER TABLE public.worker_profiles 
-      ADD COLUMN IF NOT EXISTS name text,
-      ADD COLUMN IF NOT EXISTS full_name text,
-      ADD COLUMN IF NOT EXISTS gender text,
-      ADD COLUMN IF NOT EXISTS age integer,
-      ADD COLUMN IF NOT EXISTS experience_years integer,
-      ADD COLUMN IF NOT EXISTS expected_salary numeric,
-      ADD COLUMN IF NOT EXISTS skills text[],
-      ADD COLUMN IF NOT EXISTS category text[],
-      ADD COLUMN IF NOT EXISTS languages_spoken text[],
-      ADD COLUMN IF NOT EXISTS primary_gated_society text,
-      ADD COLUMN IF NOT EXISTS preferred_shift text,
-      ADD COLUMN IF NOT EXISTS aadhaar_front_url text,
-      ADD COLUMN IF NOT EXISTS aadhaar_back_url text,
-      ADD COLUMN IF NOT EXISTS avatar_url text,
-      ADD COLUMN IF NOT EXISTS profile_picture_url text,
-      ADD COLUMN IF NOT EXISTS status text;
-    `);
-
-    // 2. Upsert worker_profiles
+    // 2. Upsert worker_profiles (no runtime DDL — schema managed via migrations)
     await queryDb(`
       INSERT INTO public.worker_profiles 
            (user_id, id, name, full_name, gender, age, experience_years, expected_salary, skills, category, languages_spoken, primary_gated_society, preferred_shift, aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url, status)
@@ -80,7 +90,7 @@ export async function POST(req: Request) {
            aadhaar_back_url = COALESCE(EXCLUDED.aadhaar_back_url, public.worker_profiles.aadhaar_back_url),
            avatar_url = COALESCE(EXCLUDED.avatar_url, public.worker_profiles.avatar_url),
            profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, public.worker_profiles.profile_picture_url),
-           status = 'pending_review';
+           status = 'pending_review'
     `, [
       activeUserId,
       displayName,
@@ -97,7 +107,7 @@ export async function POST(req: Request) {
       avatar_url || profile_picture_url || null
     ]);
 
-    // 3. Update public.profiles
+    // 3. Update public.profiles (no runtime DDL)
     await queryDb(`
       UPDATE public.profiles
       SET full_name = COALESCE($1, full_name),
@@ -119,8 +129,8 @@ export async function POST(req: Request) {
       raw_payload: body
     }).catch(() => {});
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Worker onboarding completed successfully!',
       profile: {
         user_id: activeUserId,

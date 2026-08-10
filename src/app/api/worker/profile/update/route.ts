@@ -1,17 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    // 1. Authenticate Session
+    const authHeader = req.headers.get('authorization');
+    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      const sbCookie = Array.from(req.cookies.getAll()).find(c => 
+        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+      );
+      if (sbCookie?.value) {
+        try {
+          const parsed = JSON.parse(sbCookie.value);
+          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+        } catch {
+          token = sbCookie.value;
+        }
+      }
+    }
+
+    const body = await req.json().catch(() => ({}));
     const { 
-      userId, name, full_name, phone, email, gender, age, 
+      userId: bodyUserId, name, full_name, phone, email, gender, age, 
       expectedSalary, experience, skills, languages, languages_spoken, bio, 
       emergencyContact, preferredShift, profile_picture_url, onboarding_step, status,
       aadhaar_front_url, aadhaar_back_url, video_url, police_verification_url
     } = body;
 
+    let authenticatedUserId: string | null = null;
+    if (token) {
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } }
+      });
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        authenticatedUserId = user.id;
+      }
+    }
+
+    // IDOR Protection: Always prefer verified bearer user.id over body.userId
+    const userId = authenticatedUserId || bodyUserId;
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
@@ -30,7 +65,7 @@ export async function POST(req: NextRequest) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let resolvedUserId = userId;
 
-    // 1. Ensure public.profiles entry exists to satisfy foreign key constraint
+    // 2. Ensure public.profiles entry exists to satisfy foreign key constraint
     try {
       const existingP = await queryDb(
         `SELECT id FROM public.profiles WHERE id::text = $1 OR phone = $1 OR email = $1 LIMIT 1`,
@@ -76,21 +111,8 @@ export async function POST(req: NextRequest) {
       ? body.preferred_areas 
       : [primarySoc, secondarySoc].filter(Boolean);
 
-    // 2. Direct PostgreSQL update with queryDb (only existing columns)
+    // 3. Direct PostgreSQL update with queryDb (NO runtime DDL)
     try {
-      await queryDb(`
-        ALTER TABLE public.worker_profiles 
-        ADD COLUMN IF NOT EXISTS bio text,
-        ADD COLUMN IF NOT EXISTS preferred_shift text,
-        ADD COLUMN IF NOT EXISTS emergency_contact text,
-        ADD COLUMN IF NOT EXISTS alternate_phone text,
-        ADD COLUMN IF NOT EXISTS alt_phone text,
-        ADD COLUMN IF NOT EXISTS aadhaar_front_url text,
-        ADD COLUMN IF NOT EXISTS aadhaar_back_url text,
-        ADD COLUMN IF NOT EXISTS police_verification_url text,
-        ADD COLUMN IF NOT EXISTS preferred_society_name text,
-        ADD COLUMN IF NOT EXISTS secondary_society_name text;
-      `).catch(() => {});
 
       const checkRes = await queryDb(
         `SELECT id FROM public.worker_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`, 

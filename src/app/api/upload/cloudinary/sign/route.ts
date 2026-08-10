@@ -73,7 +73,12 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
-    const isOwner = publicId.includes(user.id);
+
+    // Structured path owner extraction (e.g., sevikaa/workers/<UUID>/...)
+    const pathSegments = publicId.split('/');
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const extractedOwnerId = pathSegments.find(segment => uuidRegex.test(segment));
+    const isOwner = extractedOwnerId ? extractedOwnerId.toLowerCase() === user.id.toLowerCase() : publicId.includes(user.id);
 
     if (!isAdmin && !isOwner) {
       return NextResponse.json({ error: 'Forbidden', message: 'Access denied to document resource.' }, { status: 403 });

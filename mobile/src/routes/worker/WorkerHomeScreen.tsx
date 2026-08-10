@@ -61,7 +61,7 @@ export const WorkerHomeScreen: React.FC<{
 
     if (fetched.length === 0) {
       try {
-        const res = await fetch(getApiUrl('api/admin/data?tab=jobs&limit=20'));
+        const res = await fetch(getApiUrl('api/worker/jobs?limit=20'));
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {

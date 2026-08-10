@@ -16,8 +16,9 @@ export const EmployerAccountScreen: React.FC<{
   user?: any;
   onLogout?: () => void;
   onNavigateToRelocate?: () => void;
+  onNavigateToInvoices?: () => void;
   onOpenIntroWalkthrough?: () => void;
-}> = ({ user, onLogout, onNavigateToRelocate, onOpenIntroWalkthrough }) => {
+}> = ({ user, onLogout, onNavigateToRelocate, onNavigateToInvoices, onOpenIntroWalkthrough }) => {
   const { t } = useMobileLanguage();
   const { user: ctxUser, profile, employerProfile, refreshProfile } = useUserProfile();
   const activeUser = ctxUser || user;
@@ -338,10 +339,14 @@ export const EmployerAccountScreen: React.FC<{
           <TouchableOpacity 
             style={styles.viewInvoicesBtn}
             onPress={() => {
-              Alert.alert(
-                "Tax Invoice Downloaded 📥",
-                "Official GST Tax Invoice receipt (SV/26-27/0001) for ₹699.00 has been downloaded to your device as PDF."
-              );
+              if (onNavigateToInvoices) {
+                onNavigateToInvoices();
+              } else {
+                Alert.alert(
+                  "Tax Invoice Downloaded 📥",
+                  "Official GST Tax Invoice receipt (SV/26-27/0001) for ₹699.00 has been downloaded to your device as PDF."
+                );
+              }
             }}
           >
             <FileSpreadsheet size={14} color="#FFFFFF" />

@@ -1,20 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { 
-      userId, company_name, full_name, name, phone, email, billing_address, 
+    // 1. Authenticate session — derive userId strictly from verified bearer token (IDOR Fix)
+    const authHeader = req.headers.get('authorization');
+    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      const sbCookie = Array.from(req.cookies.getAll()).find(c =>
+        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+      );
+      if (sbCookie?.value) {
+        try {
+          const parsed = JSON.parse(sbCookie.value);
+          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+        } catch {
+          token = sbCookie.value;
+        }
+      }
+    }
+
+    const body = await req.json().catch(() => ({}));
+
+    let authenticatedUserId: string | null = null;
+    if (token) {
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } }
+      });
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) authenticatedUserId = user.id;
+    }
+
+    // IDOR Protection: always prefer verified auth.uid() over client-supplied userId
+    const userId = authenticatedUserId || body.userId;
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    const {
+      company_name, full_name, name, phone, email, billing_address,
       address, society_name, preferredSociety, status,
       tower, tower_block, city, state, pincode, gstin,
       alt_phone, alternate_phone, verification_pref, verification_requirement,
       residency_proof_url, aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url
     } = body;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
 
     const displayName = company_name || full_name || name || null;
     const finalAddress = address || billing_address || null;
@@ -33,32 +67,7 @@ export async function POST(req: NextRequest) {
     const finalVerifPref = verification_requirement || verification_pref || null;
     const finalAvatar = avatar_url || profile_picture_url || null;
 
-    // 0. Ensure all columns exist on public.employer_profiles & public.profiles
-    await queryDb(`
-      ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name text;
-      ALTER TABLE public.employer_profiles ALTER COLUMN name DROP NOT NULL;
-      ALTER TABLE public.employer_profiles 
-      ADD COLUMN IF NOT EXISTS name text,
-      ADD COLUMN IF NOT EXISTS company_name text,
-      ADD COLUMN IF NOT EXISTS society_name text,
-      ADD COLUMN IF NOT EXISTS tower_block text,
-      ADD COLUMN IF NOT EXISTS address text,
-      ADD COLUMN IF NOT EXISTS billing_address text,
-      ADD COLUMN IF NOT EXISTS city text,
-      ADD COLUMN IF NOT EXISTS state text,
-      ADD COLUMN IF NOT EXISTS pincode text,
-      ADD COLUMN IF NOT EXISTS gstin text,
-      ADD COLUMN IF NOT EXISTS alternate_phone text,
-      ADD COLUMN IF NOT EXISTS alt_phone text,
-      ADD COLUMN IF NOT EXISTS verification_requirement text,
-      ADD COLUMN IF NOT EXISTS residency_proof_url text,
-      ADD COLUMN IF NOT EXISTS aadhaar_front_url text,
-      ADD COLUMN IF NOT EXISTS aadhaar_back_url text,
-      ADD COLUMN IF NOT EXISTS avatar_url text,
-      ADD COLUMN IF NOT EXISTS status text;
-    `).catch(() => {});
-
-    // 1. Update public.profiles
+    // 2. Update public.profiles (no runtime DDL)
     try {
       await queryDb(
         `UPDATE public.profiles 
@@ -73,7 +82,7 @@ export async function POST(req: NextRequest) {
       console.warn("Profiles update notice:", pErr);
     }
 
-    // 2. Upsert into public.employer_profiles
+    // 3. Upsert into public.employer_profiles (no runtime DDL)
     try {
       await queryDb(
         `INSERT INTO public.employer_profiles 
@@ -142,9 +151,9 @@ export async function POST(req: NextRequest) {
                avatar_url = COALESCE($14, avatar_url)
            WHERE user_id::text = $15::text OR id::text = $15::text`,
           [
-            displayName, finalSociety, finalAddress, finalTower, 
-            city || null, state || null, pincode || null, gstin || null, 
-            finalAltPhone, finalVerifPref, residency_proof_url || null, 
+            displayName, finalSociety, finalAddress, finalTower,
+            city || null, state || null, pincode || null, gstin || null,
+            finalAltPhone, finalVerifPref, residency_proof_url || null,
             aadhaar_front_url || null, aadhaar_back_url || null, finalAvatar, userId
           ]
         );

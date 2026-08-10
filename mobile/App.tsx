@@ -29,6 +29,7 @@ import { EmployerCheckoutScreen } from './src/routes/employer/EmployerCheckoutSc
 import { EmployerPricingScreen } from './src/routes/employer/EmployerPricingScreen';
 import { EmployerNotificationsScreen } from './src/routes/employer/EmployerNotificationsScreen';
 import { EmployerOnboardingScreen } from './src/routes/employer/EmployerOnboardingScreen';
+import { InvoicesScreen } from './src/screens/InvoicesScreen';
 
 import { WorkerHomeScreen } from './src/routes/worker/WorkerHomeScreen';
 import { WorkerJobsScreen } from './src/routes/worker/WorkerJobsScreen';
@@ -172,9 +173,12 @@ function AppMainContent() {
               user={currentUser}
               onLogout={handleLogout}
               onNavigateToRelocate={() => setActiveTab('relocate')}
+              onNavigateToInvoices={() => setActiveTab('invoices')}
               onOpenIntroWalkthrough={() => setOnboardingStep('intro')}
             />
           );
+        case 'invoices':
+          return <InvoicesScreen onBack={() => setActiveTab('account')} />;
         case 'relocate':
           return (
             <EmployerRelocateScreen 

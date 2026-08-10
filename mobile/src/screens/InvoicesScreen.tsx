@@ -4,7 +4,11 @@ import {
 } from 'react-native';
 import { getApiUrl } from '../config/api';
 
-export const InvoicesScreen: React.FC = () => {
+interface InvoicesScreenProps {
+  onBack?: () => void;
+}
+
+export const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState<any[]>([]);
 

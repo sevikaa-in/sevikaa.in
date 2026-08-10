@@ -1,21 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../../lib/supabaseAdminClient';
-import { checkRateLimit, sanitizePayload } from '../../../../lib/adminSecurityGuard';
-import { logSecurityAudit } from '../../../../lib/auditLogger';
+import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabaseAdminClient';
+import { checkRateLimit, extractClientIp } from '@/lib/rateLimiter';
+import { sanitizePayload } from '@/lib/adminSecurityGuard';
+import { logSecurityAudit } from '@/lib/auditLogger';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
 export async function POST(request: NextRequest) {
-  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+  const clientIp = extractClientIp(request);
 
-  if (!checkRateLimit(clientIp, 30, 60000)) {
+  if (!checkRateLimit(request, 30, 60000).success) {
     return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 });
   }
 
   try {
-    const rawBody = await request.json();
-    const { workerId, employerUserId } = sanitizePayload(rawBody);
+    // Authenticate session via bearer token/cookie
+    const authHeader = request.headers.get('authorization');
+    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
-    if (!workerId || !employerUserId) {
-      return NextResponse.json({ error: 'Parameters workerId and employerUserId are required' }, { status: 400 });
+    if (!token) {
+      const sbCookie = Array.from(request.cookies.getAll()).find(c => 
+        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+      );
+      if (sbCookie?.value) {
+        try {
+          const parsed = JSON.parse(sbCookie.value);
+          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+        } catch {
+          token = sbCookie.value;
+        }
+      }
+    }
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to unlock candidate contact details.' }, { status: 401 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
+
+    const employerUserId = user.id; // Derive strictly from verified token (IDOR Fix)
+    const rawBody = await request.json();
+    const { workerId } = sanitizePayload(rawBody);
+
+    if (!workerId) {
+      return NextResponse.json({ error: 'Parameter workerId is required' }, { status: 400 });
     }
 
     // 1. Verify employer is premium

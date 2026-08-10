@@ -52,7 +52,7 @@ export const EmployerJobsScreen: React.FC<{
           .or(`employer_id.eq.${activeUserId},created_by.eq.${activeUserId},user_id.eq.${activeUserId}`)
           .order('created_at', { ascending: false });
 
-        if (!fetchErr && dbJobs) {
+        if (!fetchErr && dbJobs && dbJobs.length > 0) {
           setJobs(dbJobs);
 
           // Count inbound applications for these jobs
@@ -71,31 +71,17 @@ export const EmployerJobsScreen: React.FC<{
           return;
         }
       }
-    } catch (err) {
-      console.warn("Supabase employer jobs fetch notice:", err);
-    }
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id || user?.id;
-
-      const res = await fetch(getApiUrl('api/admin/data?tab=jobs&limit=50'));
+      const res = await fetch(getApiUrl(`api/employer/jobs?limit=50${activeUserId ? `&userId=${activeUserId}` : ''}`));
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.jobs)) {
-          if (activeUserId) {
-            const employerOnlyJobs = data.jobs.filter((j: any) => 
-              j.employer_id === activeUserId || 
-              j.user_id === activeUserId || 
-              j.created_by === activeUserId
-            );
-            setJobs(employerOnlyJobs);
-          } else {
-            setJobs([]);
-          }
+          setJobs(data.jobs);
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Employer jobs fetch notice:", e);
+    }
 
     setLoading(false);
   };

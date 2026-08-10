@@ -9,6 +9,7 @@ import { POST as razorpayWebhook } from '../src/app/api/webhooks/razorpay/route'
 import { GET as getMatch } from '../src/app/api/match/route';
 import { GET as getSocietiesWorkers } from '../src/app/api/societies/workers/route';
 import { GET as getHealth } from '../src/app/api/health/route';
+import { GET as getInternalHealth } from '../src/app/api/internal/health/route';
 
 // Set default test environment variables for local security assertion runner
 process.env.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'rzp_live_test_secret_key_99999';
@@ -114,10 +115,15 @@ async function runSecurityTests() {
   });
 
   // Test 10: Health Endpoint -> Returns 200/503 status
-  await assertTest('Health Monitoring Endpoint (/api/health) returns structured health response', async () => {
+  await assertTest('Health Monitoring Endpoint (/api/health) returns structured health status', async () => {
     const res = await getHealth();
     const body = await res.json();
-    return (res.status === 200 || res.status === 503) && !!body.status && !!body.checks;
+
+    const dummyReq = new NextRequest('http://localhost:3000/api/internal/health');
+    const internalRes = await getInternalHealth(dummyReq);
+    const internalBody = await internalRes.json();
+
+    return res.status === 200 && body.status === 'ok' && !!internalBody.checks;
   });
 
   console.log('\n====================================================');
