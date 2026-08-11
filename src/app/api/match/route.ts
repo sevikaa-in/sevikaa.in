@@ -63,11 +63,10 @@ export async function GET(request: NextRequest) {
     // P0: RPC failure returns empty results — never SELECT *
     if (queryErr || !rpcWorkers) {
       console.error('[match] search_workers RPC failed:', queryErr?.message || 'null result');
-      // Item 26: Never expose internal RPC error detail to clients
       return NextResponse.json({
         results: [],
-        error: 'Worker search temporarily unavailable. Please try again.',
-      }, { status: 200 });
+        error: 'Worker search service temporarily unavailable. Please try again later.',
+      }, { status: 503 });
     }
 
     const results = rpcWorkers.map((w: any) => ({

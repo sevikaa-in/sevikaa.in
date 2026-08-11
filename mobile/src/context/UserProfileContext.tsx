@@ -123,15 +123,16 @@ export const UserProfileProvider: React.FC<{
     }
 
     try {
-      const queryParams = new URLSearchParams();
-      if (activeUserId) queryParams.append('userId', activeUserId);
-      if (activePhone) queryParams.append('phone', activePhone);
-      if (activeEmail) queryParams.append('email', activeEmail);
+      const token = await AsyncStorage.getItem('sevikaa_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
-      const res = await fetch(getApiUrl(`api/auth/me?${queryParams.toString()}`));
+      const res = await fetch(getApiUrl('api/auth/me'), { headers });
       if (res.ok) {
         const data = await res.json();
-        const prof = data.profile || null;
+        const prof = data.profile || data.user || null;
         const wp = data.workerProfile || null;
         const ep = data.employerProfile || null;
 

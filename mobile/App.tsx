@@ -279,12 +279,15 @@ function AppMainContent() {
   if (onboardingStep === 'login') {
     return (
       <AuthLoginScreen 
-        onLoginSuccess={async (identifier, authType, userObj, isExistingUser) => {
+        onLoginSuccess={async (identifier, authType, userObj, isExistingUser, accessToken) => {
           if (userObj) {
             setCurrentUser(userObj);
             setUser(userObj);
             try {
               await AsyncStorage.setItem('sevikaa_user_session', JSON.stringify(userObj));
+              if (accessToken) {
+                await AsyncStorage.setItem('sevikaa_token', accessToken);
+              }
             } catch (e) {}
           }
           if (isExistingUser && userObj?.role) {

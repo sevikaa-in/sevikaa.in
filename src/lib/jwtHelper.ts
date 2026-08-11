@@ -5,9 +5,9 @@ import crypto from 'crypto';
  * Accepted natively by Supabase JS Client (auth.getUser & auth.setSession) and PostgreSQL RLS (auth.uid()).
  */
 export function signSupabaseJwt(userId: string, email?: string, phone?: string, userRole = 'worker'): string {
-  const secret = process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const secret = process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || (process.env.NODE_ENV === 'test' ? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY : undefined);
   if (!secret) {
-    throw new Error('CRITICAL: SUPABASE_JWT_SECRET or SUPABASE_SERVICE_ROLE_KEY is not configured for JWT signing.');
+    throw new Error('CRITICAL: SUPABASE_JWT_SECRET is not configured for JWT signing.');
   }
 
   const header = { alg: 'HS256', typ: 'JWT' };
@@ -16,7 +16,7 @@ export function signSupabaseJwt(userId: string, email?: string, phone?: string, 
     iss: 'supabase',
     sub: userId,
     aud: 'authenticated',
-    exp: now + (30 * 24 * 60 * 60), // 30 days session expiry
+    exp: now + 3600, // 1 hour session access token expiry (Audit 10 P0 #4)
     iat: now,
     role: 'authenticated',
     email: email || `${userId}@sevikaa.in`,

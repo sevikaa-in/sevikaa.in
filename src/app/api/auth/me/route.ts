@@ -52,27 +52,32 @@ export async function GET(req: NextRequest) {
     let employerProfile = null;
 
     const wpRes = await queryDb(
-      `SELECT * FROM public.worker_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`,
+      `SELECT id, user_id, full_name, name, gender, age, experience_years, expected_salary, skills, languages_spoken, primary_gated_society, preferred_society_name, preferred_shift, avatar_url, profile_picture_url, is_aadhaar_verified, is_tele_onboarded, status
+       FROM public.worker_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`,
       [userId]
     ).catch(() => null);
     if (wpRes?.rows?.[0]) workerProfile = wpRes.rows[0];
 
     const epRes = await queryDb(
-      `SELECT * FROM public.employer_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`,
+      `SELECT id, user_id, name, company_name, society_name, tower_block, address, city, state, avatar_url, subscription_status, status
+       FROM public.employer_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`,
       [userId]
     ).catch(() => null);
     if (epRes?.rows?.[0]) employerProfile = epRes.rows[0];
 
+    const userPayload = profile ? {
+      id: profile.id,
+      phone: profile.phone,
+      email: profile.email,
+      role: profile.role,
+      full_name: profile.full_name,
+      status: profile.status,
+    } : null;
+
     return NextResponse.json({
       success: true,
-      user: profile ? {
-        id: profile.id,
-        phone: profile.phone,
-        email: profile.email,
-        role: profile.role,
-        full_name: profile.full_name,
-        status: profile.status,
-      } : null,
+      user: userPayload,
+      profile: userPayload,
       workerProfile: workerProfile ? {
         id: workerProfile.id,
         user_id: workerProfile.user_id,
