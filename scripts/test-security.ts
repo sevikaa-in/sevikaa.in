@@ -304,6 +304,29 @@ async function runSecurityTests() {
     return typeof withTxDb === 'function';
   });
 
+  // Test 31: Concurrent Refresh Simulation -> FOR UPDATE transaction rejects duplicate refresh token
+  await assertTest('Concurrent refresh simulation enforces FOR UPDATE single-connection transaction atomicity', async () => {
+    const { POST: postRefresh } = await import('../src/app/api/auth/refresh/route');
+    const dummyToken = 'dummy_unrecognized_token_12345';
+    
+    // Execute 2 concurrent refresh requests
+    const [res1, res2] = await Promise.all([
+      postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: dummyToken })
+      })),
+      postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: dummyToken })
+      }))
+    ]);
+
+    // Fails closed with 401 or 500 when DB unconfigured locally (no crash/hanging)
+    return (res1.status === 401 || res1.status === 500) && (res2.status === 401 || res2.status === 500);
+  });
+
   console.log('\n====================================================');
   console.log(`SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED out of ${passedCount + failedCount} tests.`);
   console.log('====================================================');

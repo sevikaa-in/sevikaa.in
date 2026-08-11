@@ -6,7 +6,7 @@ import crypto from 'crypto';
  * Strictly requires SUPABASE_JWT_SECRET.
  */
 export function signSupabaseJwt(userId: string, email?: string, phone?: string, userRole = 'worker'): string {
-  const secret = process.env.SUPABASE_JWT_SECRET || (process.env.NODE_ENV === 'test' ? (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) : undefined);
+  const secret = process.env.SUPABASE_JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_jwt_secret_must_be_configured_32_bytes' : undefined);
   if (!secret) {
     throw new Error('CRITICAL: SUPABASE_JWT_SECRET environment variable is missing.');
   }
