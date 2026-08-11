@@ -22,21 +22,16 @@ export default function EmployerOverviewPage() {
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
-        const { count } = await supabase
-          .from('employer_worker_directory')
-          .select('*', { count: 'exact', head: true });
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('sevikaa_token') || '') : '';
+        const res = await fetch('/api/employer/workers', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        const data = await res.json();
+        const dbWorkers = data?.workers || [];
 
-        if (count !== null) {
-          setTotalWorkersCount(count);
-        }
-
-        const { data: dbWorkers } = await supabase
-          .from('employer_worker_directory')
-          .select('id, full_name, gender, age, experience_years, expected_salary, skills, languages_spoken, primary_gated_society, preferred_shift, bio, video_url, profile_picture_url, avatar_url, status, rating, total_reviews, is_aadhaar_verified, is_police_verified, is_interview_verified, created_at')
-          .limit(3);
-
-        if (dbWorkers && dbWorkers.length > 0) {
-          setNearbyWorkers(dbWorkers.map((w: any) => ({
+        if (dbWorkers.length > 0) {
+          setTotalWorkersCount(dbWorkers.length);
+          setNearbyWorkers(dbWorkers.slice(0, 3).map((w: any) => ({
             id: w.id,
             name: w.full_name || w.profiles?.full_name || 'Domestic Helper',
             category: Array.isArray(w.skills) && w.skills[0] ? w.skills[0] : 'Cook / Maid',

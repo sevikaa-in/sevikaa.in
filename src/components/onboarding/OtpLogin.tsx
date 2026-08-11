@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 interface OtpLoginProps {
   onBack: () => void;
-  onSuccess: (sessionData: { user: { id: string; phone?: string; email?: string }; role?: string; isExistingUser?: boolean }) => void;
+  onSuccess: (sessionData: { user: { id: string; phone?: string; email?: string }; role?: string; isExistingUser?: boolean; accessToken?: string }) => void;
   role?: 'worker' | 'employer' | null;
 }
 
@@ -122,10 +122,16 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
       }
 
       setLoading(false);
+      const token = data.access_token || data.token || data.session?.access_token || '';
+      if (typeof window !== 'undefined' && token) {
+        localStorage.setItem('sevikaa_token', token);
+      }
+
       onSuccess({
         user: data.user,
         role: data.user.role || role || undefined,
-        isExistingUser: data.isExistingUser
+        isExistingUser: data.isExistingUser,
+        accessToken: token
       });
     } catch (err: any) {
       setLoading(false);

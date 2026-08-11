@@ -303,15 +303,25 @@ export default function Home() {
     window.history.pushState({}, '', '/');
   };
 
-  const handleLoginSuccess = async (sessionData: { user: { id: string; email?: string; phone?: string; role?: string }; role?: string; isExistingUser?: boolean; hasCompletedProfile?: boolean }) => {
+  const handleLoginSuccess = async (sessionData: { user: { id: string; email?: string; phone?: string; role?: string }; role?: string; isExistingUser?: boolean; hasCompletedProfile?: boolean; accessToken?: string }) => {
     const sessionUser = sessionData.user;
     const userRole = sessionUser.role || sessionData.role;
+    const token = sessionData.accessToken || '';
     setUser(sessionUser);
     setLoading(true);
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('sevikaa_user', JSON.stringify(sessionUser));
       localStorage.setItem('sevikaa_user_id', sessionUser.id);
+      if (token) {
+        localStorage.setItem('sevikaa_token', token);
+        localStorage.setItem('sevikaa_user_session', JSON.stringify({ access_token: token, user: sessionUser }));
+        try {
+          await supabase.auth.setSession({ access_token: token, refresh_token: '' });
+        } catch (sErr) {
+          console.warn("setSession notice:", sErr);
+        }
+      }
     }
 
     try {

@@ -14,9 +14,6 @@ function hashOtp(otp: string): string {
   return crypto.createHash('sha256').update(otp).digest('hex');
 }
 
-// In-memory fallback (serverless cold-start bridge only)
-const otpStore = new Map<string, { otpHash: string; expiresAt: number }>();
-
 export async function POST(req: NextRequest) {
   // Item 20: IP rate limiting — max 20 OTP actions per minute per IP
   const rl = checkRateLimit(req, 20, 60000);
@@ -108,12 +105,9 @@ export async function POST(req: NextRequest) {
           [targetKey, otpHash, expiresAtMs]
         );
 
-        // Keep in-memory store as cold-start fallback
-        otpStore.set(targetKey, { otpHash, expiresAt: expiresAtMs });
       } catch (dbSaveErr) {
-        console.warn("DB OTP save notice:", dbSaveErr);
-        // Keep in-memory fallback active even if DB fails
-        otpStore.set(targetKey, { otpHash, expiresAt: expiresAtMs });
+        console.error("DB OTP save error:", dbSaveErr);
+        return NextResponse.json({ error: 'Failed to send OTP code. Please try again.' }, { status: 500 });
       }
 
       if (cleanPhone) {
@@ -155,76 +149,35 @@ export async function POST(req: NextRequest) {
     if (action === 'verify') {
       const cleanPhone = (phone || '').replace(/\D/g, '').slice(-10);
       const targetKey = cleanPhone ? `phone:${cleanPhone}` : `email:${(email || '').toLowerCase().trim()}`;
-      
-      // Primary lookup: PostgreSQL (authoritative, serverless-safe)
-      let storedOtpHash: string | null = null;
-      let storedExpiresAt: number = 0;
-
-      try {
-        const dbRes = await queryDb(
-          `SELECT otp_hash, expires_at, attempt_count, consumed_at
-           FROM public.otp_verifications WHERE target_key = $1`,
-          [targetKey]
-        );
-        if ((dbRes?.rows?.length ?? 0) > 0) {
-          const row = dbRes!.rows[0];
-
-          // Reject already-consumed OTPs
-          if (row.consumed_at) {
-            return NextResponse.json({ error: 'This OTP has already been used. Please request a new code.' }, { status: 400 });
-          }
-
-          // Reject after 5 failed attempts
-          if ((row.attempt_count || 0) >= 5) {
-            return NextResponse.json({ error: 'Too many failed attempts. Please request a new OTP code.' }, { status: 429 });
-          }
-
-          storedOtpHash = row.otp_hash;
-          storedExpiresAt = Number(row.expires_at);
-        }
-      } catch (dbFetchErr) {
-        console.warn("DB OTP lookup notice:", dbFetchErr);
-      }
-
-      // Fallback: in-memory store (cold-start bridge)
-      if (!storedOtpHash) {
-        const memEntry = otpStore.get(targetKey);
-        if (memEntry) {
-          storedOtpHash = memEntry.otpHash;
-          storedExpiresAt = memEntry.expiresAt;
-        }
-      }
-
-      if (!storedOtpHash) {
-        return NextResponse.json({ error: 'No active OTP request found. Please request a new code.' }, { status: 400 });
-      }
-
-      if (Date.now() > storedExpiresAt) {
-        otpStore.delete(targetKey);
-        try { await queryDb(`DELETE FROM public.otp_verifications WHERE target_key = $1`, [targetKey]); } catch (e) {}
-        return NextResponse.json({ error: 'OTP code has expired. Please request a new code.' }, { status: 400 });
-      }
-
       const submittedHash = hashOtp((otp || '').trim());
-      if (submittedHash !== storedOtpHash) {
-        // Increment attempt count
-        try {
-          await queryDb(
-            `UPDATE public.otp_verifications SET attempt_count = attempt_count + 1 WHERE target_key = $1`,
-            [targetKey]
-          );
-        } catch (e) {}
-        return NextResponse.json({ error: 'Incorrect verification code. Please check and try again.' }, { status: 400 });
-      }
 
-      // OTP verified — mark consumed (single-use) and clear in-memory entry
-      otpStore.delete(targetKey);
+      // P0 #5: Single-Query Atomic UPDATE check-and-consume (Race-Condition & Replay Proof)
       try {
-        await queryDb(
-          `UPDATE public.otp_verifications SET consumed_at = NOW() WHERE target_key = $1`,
-          [targetKey]
+        const consumeRes = await queryDb(
+          `UPDATE public.otp_verifications
+           SET consumed_at = NOW()
+           WHERE target_key = $1
+             AND otp_hash = $2
+             AND consumed_at IS NULL
+             AND expires_at > NOW()
+             AND (attempt_count IS NULL OR attempt_count < 5)
+           RETURNING target_key`,
+          [targetKey, submittedHash]
         );
-      } catch (e) {}
+
+        if (!consumeRes?.rows?.length) {
+          // Increment attempt_count on failed code entry
+          await queryDb(
+            `UPDATE public.otp_verifications SET attempt_count = COALESCE(attempt_count, 0) + 1 WHERE target_key = $1 AND consumed_at IS NULL`,
+            [targetKey]
+          ).catch(() => {});
+
+          return NextResponse.json({ error: 'Incorrect or expired verification code. Please check and try again.' }, { status: 400 });
+        }
+      } catch (dbErr: any) {
+        console.error('[login-otp] DB OTP verification error:', dbErr?.message);
+        return NextResponse.json({ error: 'Authentication service error. Please request a new code.' }, { status: 500 });
+      }
 
       // Fetch or Create user profile in Supabase
       let userObj: { id: string; phone?: string; email?: string; role?: string; full_name?: string; society?: string } | null = null;

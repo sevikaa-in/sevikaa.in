@@ -87,11 +87,13 @@ export default function EmployerWorkersPage() {
           });
           setCandidatesList(mapped);
         } else {
-          // Query employer-safe worker directory (excludes Aadhaar front/back & police URLs)
-          const { data: dbWorkers } = await supabase
-            .from('employer_worker_directory')
-            .select('id, user_id, full_name, gender, age, experience_years, expected_salary, skills, languages_spoken, primary_gated_society, preferred_shift, bio, video_url, profile_picture_url, avatar_url, status, rating, total_reviews, is_aadhaar_verified, is_police_verified, is_interview_verified, created_at')
-            .or('status.eq.live,status.eq.approved');
+          // Query authenticated employer candidate directory API (/api/employer/workers)
+          const token = typeof window !== 'undefined' ? (localStorage.getItem('sevikaa_token') || '') : '';
+          const res = await fetch('/api/employer/workers', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          const apiData = await res.json();
+          const dbWorkers = apiData?.workers || [];
 
           if (dbWorkers && dbWorkers.length > 0) {
             const mappedWorkers: Candidate[] = dbWorkers.map((w: any) => ({

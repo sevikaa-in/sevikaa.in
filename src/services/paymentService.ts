@@ -160,6 +160,12 @@ export class PaymentService {
           `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
           [eventId]
         ).catch(() => {});
+      } else {
+        // Mark failed payment event as processed to prevent infinite webhook retries
+        await queryDb(
+          `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
+          [eventId]
+        ).catch(() => {});
       }
 
       logAuditAction({
