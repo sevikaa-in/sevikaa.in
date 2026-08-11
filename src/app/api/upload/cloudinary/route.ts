@@ -163,6 +163,20 @@ export async function POST(req: NextRequest) {
     if (!['worker', 'employer'].includes(effectiveRole)) effectiveRole = 'worker';
 
     // P0 #12: Normalized folder: sevikaa/{role}/{userId}/{asset_category}/
+    // P0 #7: Validate assetType against strict allowlist before any SQL construction
+    const ALLOWED_ASSET_TYPES = new Set([
+      'video_url',
+      'profile_picture_url',
+      'avatar_url',
+      'aadhaar_front_url',
+      'aadhaar_back_url',
+      'residency_proof_url',
+      'police_verification_url',
+    ]);
+    if (!ALLOWED_ASSET_TYPES.has(assetType)) {
+      return NextResponse.json({ error: `Invalid asset type: "${assetType}". Must be one of: ${[...ALLOWED_ASSET_TYPES].join(', ')}` }, { status: 400 });
+    }
+
     const folder = getFolderForAsset(assetType, targetUserId, effectiveRole);
     const resourceType = RESOURCE_TYPE_MAP[assetType] || 'image';
 
@@ -223,30 +237,54 @@ export async function POST(req: NextRequest) {
 
     const storedValue = uploadResult.secure_url;
 
-    // 7. Persist URL/reference to the DB
-    const isEmployerRole = role === 'employer' || assetType === 'residency_proof_url';
+    // 7. Persist URL to DB using a STATIC column map — prevents SQL injection (P0 #7 fix)
+    // P0 #8: use server-derived effectiveRole, never client-supplied `role` param
+    const EMPLOYER_COLUMN_MAP: Record<string, string | null> = {
+      profile_picture_url: null,       // handled specially below (both columns)
+      avatar_url: null,
+      aadhaar_front_url: 'aadhaar_front_url',
+      aadhaar_back_url: 'aadhaar_back_url',
+      residency_proof_url: 'residency_proof_url',
+    };
+    const WORKER_COLUMN_MAP: Record<string, string | null> = {
+      video_url: 'video_url',
+      profile_picture_url: null,       // handled specially below
+      avatar_url: null,
+      aadhaar_front_url: 'aadhaar_front_url',
+      aadhaar_back_url: 'aadhaar_back_url',
+      police_verification_url: 'police_verification_url',
+    };
+
+    const isEmployerRole = effectiveRole === 'employer'; // server-derived effectiveRole only
     if (isEmployerRole) {
       if (assetType === 'profile_picture_url' || assetType === 'avatar_url') {
         await queryDb(
           `UPDATE public.employer_profiles SET avatar_url = $1, profile_picture_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
           [storedValue, targetUserId]
-        );
+        ).catch(() => {});
       } else {
-        await queryDb(
-          `UPDATE public.employer_profiles SET ${assetType} = $1 WHERE user_id::text = $2 OR id::text = $2`,
-          [storedValue, targetUserId]
-        );
+        const col = EMPLOYER_COLUMN_MAP[assetType];
+        if (col) {
+          await queryDb(
+            `UPDATE public.employer_profiles SET ${col} = $1 WHERE user_id::text = $2 OR id::text = $2`,
+            [storedValue, targetUserId]
+          ).catch(() => {});
+        }
       }
     } else {
-      await queryDb(
-        `UPDATE public.worker_profiles SET ${assetType} = $1 WHERE user_id::text = $2 OR id::text = $2`,
-        [storedValue, targetUserId]
-      );
       if (assetType === 'profile_picture_url' || assetType === 'avatar_url') {
         await queryDb(
-          `UPDATE public.employer_profiles SET avatar_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
+          `UPDATE public.worker_profiles SET profile_picture_url = $1, avatar_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
           [storedValue, targetUserId]
         ).catch(() => {});
+      } else {
+        const col = WORKER_COLUMN_MAP[assetType];
+        if (col) {
+          await queryDb(
+            `UPDATE public.worker_profiles SET ${col} = $1 WHERE user_id::text = $2 OR id::text = $2`,
+            [storedValue, targetUserId]
+          ).catch(() => {});
+        }
       }
     }
 

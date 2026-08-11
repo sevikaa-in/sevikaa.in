@@ -39,8 +39,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
     }
 
-    const { userId: bodyUserId } = await req.json().catch(() => ({ userId: null }));
-    const targetUserId = bodyUserId || user.id;
+    const body = await req.json().catch(() => ({ userId: null }));
+    const { userId: bodyUserId } = body;
+
+    // P0 #6 IDOR Fix: only admin/super-admin callers may target other user IDs
+    // All other authenticated callers can only create tokens for themselves
+    let targetUserId = user.id;
+    if (bodyUserId && bodyUserId !== user.id) {
+      // Verify caller has admin role before allowing cross-user token creation
+      const { data: callerProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      const isAdmin = callerProfile?.role === 'admin' || callerProfile?.role === 'super-admin';
+      if (!isAdmin) {
+        return NextResponse.json({ error: 'Forbidden', message: 'You can only create upload tokens for your own account.' }, { status: 403 });
+      }
+      targetUserId = bodyUserId;
+    }
 
     // Generate and store persistent upload token using TokenManager
     const result = await TokenManager.createUploadToken(targetUserId, user.id);

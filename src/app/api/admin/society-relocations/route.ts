@@ -7,22 +7,7 @@ export async function GET(req: NextRequest) {
   if (errorResponse) return errorResponse;
 
   try {
-    // 1. Ensure table exists
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.society_relocation_requests (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        employer_id TEXT NOT NULL,
-        employer_name TEXT,
-        employer_phone TEXT,
-        current_society TEXT,
-        target_society TEXT NOT NULL,
-        reason TEXT,
-        residency_proof_url TEXT,
-        status TEXT DEFAULT 'pending',
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `).catch(() => {});
+    // Item 30: society_relocation_requests table created in migration 20260810000004 — no runtime DDL
 
     // 2. Fetch requests from society_relocation_requests
     const relRes = await queryDb(

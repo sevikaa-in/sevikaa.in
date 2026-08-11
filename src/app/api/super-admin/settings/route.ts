@@ -2,27 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
-async function ensureAdminSettingsTable() {
-  try {
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.admin_settings (
-        key VARCHAR(255) PRIMARY KEY,
-        value TEXT NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `);
-  } catch (err) {
-    console.warn("Notice ensuring admin_settings table:", err);
-  }
-}
+// Item 30: admin_settings table created in migration 20260810000004 — no runtime DDL
 
 export async function GET(req: NextRequest) {
   const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'super-admin' });
   if (errorResponse) return errorResponse;
 
   try {
-    await ensureAdminSettingsTable();
     const res = await queryDb(`SELECT key, value FROM public.admin_settings`);
     const settings: Record<string, string> = {
       helpline_phone: process.env.NEXT_PUBLIC_ADMIN_HELPLINE_PHONE || '+91 7096093039',
@@ -49,7 +35,6 @@ export async function POST(req: NextRequest) {
   if (errorResponse) return errorResponse;
 
   try {
-    await ensureAdminSettingsTable();
     const body = await req.json();
     const { helpline_phone, whatsapp_number, support_email } = body;
 

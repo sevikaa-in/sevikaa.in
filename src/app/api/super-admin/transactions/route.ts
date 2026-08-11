@@ -13,26 +13,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10), 1), 100);
     const offset = (page - 1) * limit;
 
-    // Ensure public.transactions table exists with invoice_number column
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.transactions (
-        id text PRIMARY KEY,
-        order_id text,
-        user_id text,
-        employer_name text,
-        employer_email text,
-        employer_phone text,
-        plan_name text NOT NULL DEFAULT 'Premium Subscription Pass',
-        amount numeric NOT NULL DEFAULT 0,
-        payment_method text DEFAULT 'UPI / Razorpay',
-        status text NOT NULL DEFAULT 'captured',
-        invoice_number text,
-        raw_payload text,
-        created_at timestamptz DEFAULT NOW()
-      );
-    `).catch(() => {});
-
-    await queryDb(`ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS invoice_number text;`).catch(() => {});
+    // Item 30: transactions table created in migration 20260810000004 — no runtime DDL
 
     // Get Total Count
     const countRes = await queryDb(`SELECT COUNT(*) FROM public.transactions;`).catch(() => null);

@@ -7,7 +7,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholde
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authenticate session — derive userId strictly from verified bearer token (IDOR Fix)
+    // 1. Authenticate session — strictly require verified bearer token (IDOR Fix - P0 #2)
     const authHeader = req.headers.get('authorization');
     let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
@@ -25,146 +25,105 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to update profile.' }, { status: 401 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
+
+    // Authenticated user ID is canonical — never trust body.userId
+    const userId = user.id;
+
     const body = await req.json().catch(() => ({}));
 
-    let authenticatedUserId: string | null = null;
-    if (token) {
-      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${token}` } }
-      });
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) authenticatedUserId = user.id;
-    }
-
-    // IDOR Protection: always prefer verified auth.uid() over client-supplied userId
-    const userId = authenticatedUserId || body.userId;
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
-
     const {
-      company_name, full_name, name, phone, email, billing_address,
-      address, society_name, preferredSociety, status,
-      tower, tower_block, city, state, pincode, gstin,
-      alt_phone, alternate_phone, verification_pref, verification_requirement,
-      residency_proof_url, aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url
+      companyName, company_name,
+      societyName, society_name,
+      towerBlock, tower_block,
+      address, city, state, pincode,
+      familyMembers, family_members,
+      houseSize, house_size,
+      avatar_url, profile_picture_url
     } = body;
 
-    const displayName = company_name || full_name || name || null;
-    const finalAddress = address || billing_address || null;
-    const finalSociety = society_name || preferredSociety || null;
-    const finalTower = tower_block || tower || null;
+    const resolvedCompany = companyName || company_name || 'Employer Household';
+    const resolvedSociety = societyName || society_name || '';
+    const resolvedTower = towerBlock || tower_block || '';
+    const resolvedAvatar = avatar_url || profile_picture_url || null;
 
-    if (email && email.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email.trim())) {
-        return NextResponse.json({ success: false, error: 'Please enter a valid email address.' }, { status: 400 });
-      }
-    }
-    const rawAlt = alternate_phone || alt_phone || body.altPhone || body.alternatePhone || '';
-    const cleanAltDigits = rawAlt.replace(/\D/g, '').slice(-10);
-    const finalAltPhone = cleanAltDigits.length === 10 ? `+91 ${cleanAltDigits}` : (rawAlt.trim() ? rawAlt.trim() : null);
-    const finalVerifPref = verification_requirement || verification_pref || null;
-    const finalAvatar = avatar_url || profile_picture_url || null;
-
-    // 2. Update public.profiles (no runtime DDL)
+    // 2. Update public.profiles (base details)
     try {
       await queryDb(
         `UPDATE public.profiles 
-         SET phone = COALESCE($1, phone),
-             email = COALESCE($2, email),
-             full_name = COALESCE($3, full_name),
-             role = 'employer'
-         WHERE id::text = $4::text`,
-        [phone || null, email || null, displayName, userId]
+         SET full_name = CASE WHEN $1::text IS NOT NULL AND $1::text != '' THEN $1::text ELSE full_name END,
+             society_name = CASE WHEN $2::text IS NOT NULL AND $2::text != '' THEN $2::text ELSE society_name END,
+             updated_at = NOW()
+         WHERE id = $3`,
+        [resolvedCompany, resolvedSociety, userId]
       );
     } catch (pErr) {
-      console.warn("Profiles update notice:", pErr);
+      console.warn("Employer base profile update warning:", pErr);
     }
 
-    // 3. Upsert into public.employer_profiles (no runtime DDL)
+    // 3. Upsert public.employer_profiles (DO NOT allow changing subscription_status or status)
     try {
-      await queryDb(
-        `INSERT INTO public.employer_profiles 
-           (user_id, id, name, company_name, society_name, billing_address, address, tower_block, city, state, pincode, gstin, alternate_phone, alt_phone, verification_requirement, residency_proof_url, aadhaar_front_url, aadhaar_back_url, avatar_url, status)
-         VALUES 
-           ($1, $1, $2, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $10, $11, $12, $13, $14, $15, $16)
-         ON CONFLICT (user_id) DO UPDATE SET
-           name = COALESCE(EXCLUDED.name, public.employer_profiles.name),
-           company_name = COALESCE(EXCLUDED.company_name, public.employer_profiles.company_name),
-           society_name = COALESCE(EXCLUDED.society_name, public.employer_profiles.society_name),
-           billing_address = COALESCE(EXCLUDED.billing_address, public.employer_profiles.billing_address),
-           address = COALESCE(EXCLUDED.address, public.employer_profiles.address),
-           tower_block = COALESCE(EXCLUDED.tower_block, public.employer_profiles.tower_block),
-           city = COALESCE(EXCLUDED.city, public.employer_profiles.city),
-           state = COALESCE(EXCLUDED.state, public.employer_profiles.state),
-           pincode = COALESCE(EXCLUDED.pincode, public.employer_profiles.pincode),
-           gstin = COALESCE(EXCLUDED.gstin, public.employer_profiles.gstin),
-           alternate_phone = CASE WHEN EXCLUDED.alternate_phone IS NOT NULL AND EXCLUDED.alternate_phone != '' THEN EXCLUDED.alternate_phone ELSE public.employer_profiles.alternate_phone END,
-           alt_phone = CASE WHEN EXCLUDED.alternate_phone IS NOT NULL AND EXCLUDED.alternate_phone != '' THEN EXCLUDED.alternate_phone ELSE public.employer_profiles.alt_phone END,
-           verification_requirement = COALESCE(EXCLUDED.verification_requirement, public.employer_profiles.verification_requirement),
-           residency_proof_url = COALESCE(EXCLUDED.residency_proof_url, public.employer_profiles.residency_proof_url),
-           aadhaar_front_url = COALESCE(EXCLUDED.aadhaar_front_url, public.employer_profiles.aadhaar_front_url),
-           aadhaar_back_url = COALESCE(EXCLUDED.aadhaar_back_url, public.employer_profiles.aadhaar_back_url),
-           avatar_url = COALESCE(EXCLUDED.avatar_url, public.employer_profiles.avatar_url),
-           status = COALESCE(EXCLUDED.status, public.employer_profiles.status)`,
-        [
-          userId,
-          displayName,
-          finalSociety,
-          finalAddress,
-          finalTower,
-          city || null,
-          state || null,
-          pincode || null,
-          gstin || null,
-          finalAltPhone,
-          finalVerifPref,
-          residency_proof_url || null,
-          aadhaar_front_url || null,
-          aadhaar_back_url || null,
-          finalAvatar,
-          status || null
-        ]
+      const epCheck = await queryDb(
+        `SELECT id FROM public.employer_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`,
+        [userId]
       );
-    } catch (epErr) {
-      console.warn("Direct DB employer_profiles insert notice:", epErr);
-      try {
+
+      if (epCheck?.rows?.length) {
         await queryDb(
-          `UPDATE public.employer_profiles 
-           SET name = COALESCE($1, name),
-               company_name = COALESCE($1, company_name), 
-               society_name = COALESCE($2, society_name), 
-               billing_address = COALESCE($3, billing_address),
-               address = COALESCE($3, address),
-               tower_block = COALESCE($4, tower_block),
-               city = COALESCE($5, city),
-               state = COALESCE($6, state),
-               pincode = COALESCE($7, pincode),
-               gstin = COALESCE($8, gstin),
-               alternate_phone = CASE WHEN $9::text IS NOT NULL AND $9::text != '' THEN $9::text ELSE alternate_phone END,
-               alt_phone = CASE WHEN $9::text IS NOT NULL AND $9::text != '' THEN $9::text ELSE alt_phone END,
-               verification_requirement = COALESCE($10, verification_requirement),
-               residency_proof_url = COALESCE($11, residency_proof_url),
-               aadhaar_front_url = COALESCE($12, aadhaar_front_url),
-               aadhaar_back_url = COALESCE($13, aadhaar_back_url),
-               avatar_url = COALESCE($14, avatar_url)
-           WHERE user_id::text = $15::text OR id::text = $15::text`,
+          `UPDATE public.employer_profiles
+           SET company_name = CASE WHEN $1::text IS NOT NULL AND $1::text != '' THEN $1::text ELSE company_name END,
+               society_name = CASE WHEN $2::text IS NOT NULL AND $2::text != '' THEN $2::text ELSE society_name END,
+               tower_block = CASE WHEN $3::text IS NOT NULL AND $3::text != '' THEN $3::text ELSE tower_block END,
+               address = CASE WHEN $4::text IS NOT NULL AND $4::text != '' THEN $4::text ELSE address END,
+               city = CASE WHEN $5::text IS NOT NULL AND $5::text != '' THEN $5::text ELSE city END,
+               state = CASE WHEN $6::text IS NOT NULL AND $6::text != '' THEN $6::text ELSE state END,
+               pincode = CASE WHEN $7::text IS NOT NULL AND $7::text != '' THEN $7::text ELSE pincode END,
+               family_members = CASE WHEN $8::text IS NOT NULL AND $8::text != '' THEN $8::text ELSE family_members END,
+               house_size = CASE WHEN $9::text IS NOT NULL AND $9::text != '' THEN $9::text ELSE house_size END,
+               avatar_url = CASE WHEN $10::text IS NOT NULL AND $10::text != '' THEN $10::text ELSE avatar_url END,
+               profile_picture_url = CASE WHEN $10::text IS NOT NULL AND $10::text != '' THEN $10::text ELSE profile_picture_url END,
+               updated_at = NOW()
+           WHERE user_id::text = $11 OR id::text = $11`,
           [
-            displayName, finalSociety, finalAddress, finalTower,
-            city || null, state || null, pincode || null, gstin || null,
-            finalAltPhone, finalVerifPref, residency_proof_url || null,
-            aadhaar_front_url || null, aadhaar_back_url || null, finalAvatar, userId
+            resolvedCompany, resolvedSociety, resolvedTower, address || null,
+            city || null, state || null, pincode || null, familyMembers || family_members || null,
+            houseSize || house_size || null, resolvedAvatar, userId
           ]
         );
-      } catch (epUpErr) {
-        console.warn("Direct DB employer_profiles update notice:", epUpErr);
+      } else {
+        await queryDb(
+          `INSERT INTO public.employer_profiles
+             (id, user_id, company_name, society_name, tower_block, address, city, state, pincode, family_members, house_size, avatar_url, profile_picture_url, status, subscription_status, created_at)
+           VALUES
+             (gen_random_uuid(), CASE WHEN $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $1::uuid ELSE gen_random_uuid() END, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, 'active', 'free', NOW())`,
+          [
+            userId, resolvedCompany, resolvedSociety, resolvedTower, address || null,
+            city || null, state || null, pincode || null, familyMembers || family_members || null,
+            houseSize || house_size || null, resolvedAvatar
+          ]
+        );
       }
+    } catch (epErr) {
+      console.warn("Employer profile update warning:", epErr);
     }
 
-    return NextResponse.json({ success: true, message: 'Employer profile updated successfully' });
+    return NextResponse.json({
+      success: true,
+      message: 'Employer profile updated successfully.',
+      userId
+    });
   } catch (err: any) {
-    console.error("Employer profile update error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("POST /api/employer/profile/update error:", err);
+    return NextResponse.json({ error: err.message || 'Failed to update profile' }, { status: 500 });
   }
 }

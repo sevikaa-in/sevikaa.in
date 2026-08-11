@@ -2,31 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
-async function ensureTable() {
-  try {
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.lead_locks (
-        lead_id text PRIMARY KEY,
-        admin_id text NOT NULL,
-        admin_name text NOT NULL,
-        locked_at timestamptz DEFAULT NOW(),
-        expires_at timestamptz DEFAULT (NOW() + INTERVAL '2 minutes')
-      );
-    `);
-    await queryDb(`
-      CREATE INDEX IF NOT EXISTS idx_lead_locks_expires ON public.lead_locks(expires_at);
-    `);
-  } catch (err) {
-    console.warn("lead_locks table check warning:", err);
-  }
-}
+// Item 30: lead_locks table created in migration 20260810000004 — no runtime DDL
 
 // GET: Return all active lead locks (where expires_at > NOW())
 export async function GET(req: NextRequest) {
   const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
   if (errorResponse) return errorResponse;
 
-  await ensureTable();
   try {
     const res = await queryDb(
       `SELECT lead_id, admin_id, admin_name, locked_at, expires_at 
@@ -46,7 +28,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
   if (errorResponse) return errorResponse;
-  await ensureTable();
+  // Item 30: lead_locks table managed by migration — no runtime DDL
   try {
     const body = await req.json();
     const { lead_id, admin_id, admin_name } = body;
@@ -104,7 +86,7 @@ export async function DELETE(req: NextRequest) {
   const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
   if (errorResponse) return errorResponse;
 
-  await ensureTable();
+  // Item 30: lead_locks table managed by migration — no runtime DDL
   try {
     const { searchParams } = new URL(req.url);
     const lead_id = searchParams.get('lead_id');

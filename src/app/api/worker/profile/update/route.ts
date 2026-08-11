@@ -8,7 +8,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholde
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authenticate Session
+    // 1. Authenticate Session — strictly require verified Bearer token (IDOR Fix - P0 #1)
     const authHeader = req.headers.get('authorization');
     let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
@@ -26,30 +26,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication token required.' }, { status: 401 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
+
+    // Authenticated user ID is canonical — never trust body.userId
+    const userId = user.id;
+
     const body = await req.json().catch(() => ({}));
     const { 
-      userId: bodyUserId, name, full_name, phone, email, gender, age, 
+      name, full_name, phone, email, gender, age, 
       expectedSalary, experience, skills, languages, languages_spoken, bio, 
       emergencyContact, preferredShift, profile_picture_url, onboarding_step, status,
       aadhaar_front_url, aadhaar_back_url, video_url, police_verification_url
     } = body;
-
-    let authenticatedUserId: string | null = null;
-    if (token) {
-      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${token}` } }
-      });
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) {
-        authenticatedUserId = user.id;
-      }
-    }
-
-    // IDOR Protection: Always prefer verified bearer user.id over body.userId
-    const userId = authenticatedUserId || bodyUserId;
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
 
     const displayName = full_name || name || 'Worker';
     const expYears = Math.max(0, parseInt(experience) || 0);
@@ -60,43 +58,20 @@ export async function POST(req: NextRequest) {
     if (!['male', 'female', 'other'].includes(cleanGender)) {
       cleanGender = 'female';
     }
-    const currentStep = parseInt(onboarding_step) || 1;
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    let resolvedUserId = userId;
-
-    // 2. Ensure public.profiles entry exists to satisfy foreign key constraint
+    // 2. Update public.profiles (only permitted fields)
     try {
-      const existingP = await queryDb(
-        `SELECT id FROM public.profiles WHERE id::text = $1 OR phone = $1 OR email = $1 LIMIT 1`,
-        [userId]
+      await queryDb(
+        `UPDATE public.profiles 
+         SET full_name = CASE WHEN $1::text IS NOT NULL AND $1::text != '' THEN $1::text ELSE full_name END,
+             phone = CASE WHEN $2::text IS NOT NULL AND $2::text != '' THEN $2::text ELSE phone END,
+             email = CASE WHEN $3::text IS NOT NULL AND $3::text != '' THEN $3::text ELSE email END,
+             updated_at = NOW()
+         WHERE id = $4`,
+        [displayName, phone || null, email || null, userId]
       );
-
-      if (existingP?.rows?.[0]?.id) {
-        resolvedUserId = existingP.rows[0].id;
-        await queryDb(
-          `UPDATE public.profiles 
-           SET phone = COALESCE($1, phone),
-               email = COALESCE($2, email),
-               status = COALESCE($3, status)
-           WHERE id::text = $4`,
-          [phone || null, email || null, status || null, resolvedUserId]
-        );
-      } else {
-        if (!uuidRegex.test(resolvedUserId)) {
-          resolvedUserId = crypto.randomUUID();
-        }
-        await queryDb(
-          `INSERT INTO public.profiles (id, phone, email, role, status, created_at)
-           VALUES ($1::uuid, $2, $3, 'worker', COALESCE($4, 'live'), NOW())
-           ON CONFLICT (id) DO UPDATE SET 
-             phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
-             email = COALESCE(EXCLUDED.email, public.profiles.email)`,
-          [resolvedUserId, phone || null, email || null, status || null]
-        );
-      }
     } catch (pErr) {
-      console.warn("Profiles sync notice:", pErr);
+      console.warn("Worker profiles base table update warning:", pErr);
     }
 
     const skillsArr = Array.isArray(skills) ? skills : (skills ? [skills] : []);
@@ -111,12 +86,11 @@ export async function POST(req: NextRequest) {
       ? body.preferred_areas 
       : [primarySoc, secondarySoc].filter(Boolean);
 
-    // 3. Direct PostgreSQL update with queryDb (NO runtime DDL)
+    // 3. Direct PostgreSQL update with queryDb
     try {
-
       const checkRes = await queryDb(
         `SELECT id FROM public.worker_profiles WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`, 
-        [resolvedUserId]
+        [userId]
       );
 
       const workerBio = body.bio || null;
@@ -153,6 +127,8 @@ export async function POST(req: NextRequest) {
       }
 
       if (checkRes && checkRes.rows.length > 0) {
+        // Document submission does NOT auto-verify Aadhaar (Item 13 Fix)
+        // Aadhaar verification flag is updated strictly by admin audit
         await queryDb(
           `UPDATE public.worker_profiles 
            SET full_name = CASE WHEN $1::text IS NOT NULL AND $1::text != '' AND $1::text != 'Worker' THEN $1::text ELSE full_name END, 
@@ -175,16 +151,12 @@ export async function POST(req: NextRequest) {
                alt_phone = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE alt_phone END,
                preferred_society_name = CASE WHEN $17::text IS NOT NULL AND $17::text != '' THEN $17::text ELSE preferred_society_name END,
                secondary_society_name = CASE WHEN $18::text IS NOT NULL AND $18::text != '' THEN $18::text ELSE secondary_society_name END,
-               preferred_society_id = CASE WHEN $19::text IS NOT NULL AND $19::text != '' AND $19::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $19::uuid ELSE preferred_society_id END,
-               is_aadhaar_verified = CASE 
-                 WHEN ($9::text IS NOT NULL AND $9::text != '') OR ($10::text IS NOT NULL AND $10::text != '') THEN true 
-                 ELSE is_aadhaar_verified 
-               END
+               preferred_society_id = CASE WHEN $19::text IS NOT NULL AND $19::text != '' AND $19::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $19::uuid ELSE preferred_society_id END
            WHERE user_id::text = $13 OR id::text = $13`,
           [displayName, cleanGender, numAge, salary, expYears, 
            skillsArr.length ? skillsArr : null, langsArr.length ? langsArr : null, 
            profile_picture_url || null, aadhaar_front_url || null, aadhaar_back_url || null,
-           video_url || null, prefAreas, resolvedUserId, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId,
+           video_url || null, prefAreas, userId, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId,
            police_verification_url || null]
         );
       } else {
@@ -193,7 +165,7 @@ export async function POST(req: NextRequest) {
              (id, user_id, full_name, gender, age, expected_salary, experience_years, skills, languages_spoken, profile_picture_url, aadhaar_front_url, aadhaar_back_url, video_url, police_verification_url, preferred_areas, bio, preferred_shift, emergency_contact, alternate_phone, alt_phone, preferred_society_name, secondary_society_name, preferred_society_id, created_at)
            VALUES 
              (gen_random_uuid(), CASE WHEN $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $1::uuid ELSE gen_random_uuid() END, $2::text, $3::text, $4::integer, $5::integer, $6::integer, $7::text[], $8::text[], $9::text, $10::text, $11::text, $12::text, $20::text, $13::text[], $14::text, $15::text, $16::text, $16::text, $16::text, $17::text, $18::text, CASE WHEN $19::text IS NOT NULL AND $19::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $19::uuid ELSE NULL END, NOW())`,
-          [resolvedUserId, displayName, cleanGender, numAge, salary, expYears, skillsArr, langsArr, 
+          [userId, displayName, cleanGender, numAge, salary, expYears, skillsArr, langsArr, 
            profile_picture_url || null, aadhaar_front_url || null, aadhaar_back_url || null,
            video_url || null, prefAreas, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId,
            police_verification_url || null]
@@ -203,64 +175,13 @@ export async function POST(req: NextRequest) {
       console.warn("Direct DB worker_profiles update warning:", dbErr);
     }
 
-    // 3. Supabase Admin Client sync
-    if (supabaseAdmin) {
-      try {
-        const skillsArr = Array.isArray(skills) ? skills : (skills ? [skills] : []);
-
-        const payload: any = {
-          user_id: userId,
-          full_name: displayName,
-          phone: phone || undefined,
-          email: email || undefined,
-          gender: gender || 'female',
-          age: numAge,
-          expected_salary: salary,
-          experience_years: expYears,
-          skills: skillsArr,
-          languages_spoken: langsArr,
-          bio: bio || undefined,
-          emergency_contact: emergencyContact || undefined,
-          preferred_shift: preferredShift || undefined,
-        };
-
-        if (profile_picture_url) payload.profile_picture_url = profile_picture_url;
-        if (aadhaar_front_url) payload.aadhaar_front_url = aadhaar_front_url;
-        if (aadhaar_back_url) payload.aadhaar_back_url = aadhaar_back_url;
-        if (video_url) payload.video_url = video_url;
-        if (police_verification_url) payload.police_verification_url = police_verification_url;
-        if (status) payload.status = status;
-        if (currentStep) payload.onboarding_step = currentStep;
-
-        const { data: existingWp } = await supabaseAdmin
-          .from('worker_profiles')
-          .select('id')
-          .or(`user_id.eq.${userId},id.eq.${userId}`)
-          .maybeSingle();
-
-        if (existingWp) {
-          await supabaseAdmin
-            .from('worker_profiles')
-            .update(payload)
-            .eq('id', existingWp.id);
-        } else {
-          await supabaseAdmin
-            .from('worker_profiles')
-            .insert([{ ...payload, id: userId }]);
-        }
-      } catch (adminErr) {
-        console.warn("Supabase admin worker update warning:", adminErr);
-      }
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      name: displayName, 
-      onboarding_step: currentStep, 
-      completed_steps: Math.min(currentStep, 5) 
+    return NextResponse.json({
+      success: true,
+      message: 'Worker profile updated successfully.',
+      userId
     });
   } catch (err: any) {
-    console.error("Worker profile update error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("POST /api/worker/profile/update error:", err);
+    return NextResponse.json({ error: err.message || 'Failed to update profile' }, { status: 500 });
   }
 }

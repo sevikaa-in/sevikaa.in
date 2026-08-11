@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 import { sendEmail as dispatchEmail, sendSMS } from '@/lib/notifications';
 import { getMagicLinkOrLoginOtpEmailHtml } from '@/lib/emailTemplates';
 import crypto from 'crypto';
+import { checkRateLimit } from '@/lib/rateLimiter';
 
 // Allowed roles that can self-select during OTP registration
 const SELF_SELECTABLE_ROLES = new Set(['worker', 'employer']);
@@ -16,6 +17,12 @@ function hashOtp(otp: string): string {
 const otpStore = new Map<string, { otpHash: string; expiresAt: number }>();
 
 export async function POST(req: NextRequest) {
+  // Item 20: IP rate limiting — max 20 OTP actions per minute per IP
+  const rl = checkRateLimit(req, 20, 60000);
+  if (!rl.success) {
+    return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
+  }
+
   try {
     const body = await req.json();
     const { action, phone, email, otp, role: rawRole } = body;
@@ -115,12 +122,10 @@ export async function POST(req: NextRequest) {
           console.warn("SMS send notice:", smsErr);
         }
 
+        // Item 21: Uniform response — never leak isExistingUser/existingRole (account enumeration)
         return NextResponse.json({
           success: true,
           method: 'sms',
-          isExistingUser,
-          existingRole,
-          hasCompletedProfile,
           message: `OTP sent via SMS to +91 ******${cleanPhone.slice(-4)}`
         });
       }
@@ -132,13 +137,11 @@ export async function POST(req: NextRequest) {
           getMagicLinkOrLoginOtpEmailHtml(generatedOtp, false)
         );
 
+        // Item 21: Uniform response — never leak isExistingUser/existingRole (account enumeration)
         return NextResponse.json({
           success: true,
           method: 'email',
-          isExistingUser,
-          existingRole,
-          hasCompletedProfile,
-          message: `OTP sent to ${email}`
+          message: `OTP sent to ${email.replace(/(.)(.*)(@)/, (_: string, a: string, b: string, c: string) => a + '*'.repeat(b.length) + c)}`
         });
       }
 

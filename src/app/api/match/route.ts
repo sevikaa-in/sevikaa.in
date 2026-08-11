@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit } from '@/lib/rateLimiter';
 
 export async function GET(request: NextRequest) {
+  // Item 27: Rate limit match endpoint (primary egress generator)
+  const rateLimit = checkRateLimit(request, 30, 60000); // 30 req/min per IP
+  if (!rateLimit.success) {
+    return NextResponse.json({ error: 'Too many requests. Please wait before searching again.' }, { status: 429 });
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
@@ -24,13 +31,13 @@ export async function GET(request: NextRequest) {
       p_limit: 20
     });
 
-    // P0 #13 fix: If RPC fails, return empty results — NEVER fall back to SELECT *
+    // P0: RPC failure returns empty results — never SELECT *
     if (queryErr || !rpcWorkers) {
       console.error('[match] search_workers RPC failed:', queryErr?.message || 'null result');
+      // Item 26: Never expose internal RPC error detail to clients
       return NextResponse.json({
         results: [],
         error: 'Worker search temporarily unavailable. Please try again.',
-        rpc_error: queryErr?.message,
       }, { status: 200 });
     }
 

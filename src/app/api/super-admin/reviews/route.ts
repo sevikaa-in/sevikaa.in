@@ -11,27 +11,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get('status') || 'all';
 
-    // Ensure public.reviews table and all columns exist
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.reviews (
-        id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-        interview_id text,
-        reviewer_id text,
-        reviewer_name text,
-        reviewer_role text,
-        reviewee_id text,
-        reviewee_name text,
-        reviewee_role text,
-        interaction_type text DEFAULT 'interview_impression',
-        rating integer DEFAULT 5,
-        categories jsonb DEFAULT '{}'::jsonb,
-        comment text,
-        status text DEFAULT 'pending',
-        created_at timestamptz DEFAULT NOW()
-      );
-    `).catch(() => {});
-
-    await queryDb(`ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS interaction_type text DEFAULT 'interview_impression';`).catch(() => {});
+    // Item 30: reviews table created in migration 20260810000004 — no runtime DDL
 
     let queryStr = `SELECT * FROM public.reviews`;
     const params: any[] = [];

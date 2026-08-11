@@ -25,22 +25,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const body = await req.json().catch(() => ({}));
-
-    let authenticatedUserId: string | null = null;
-    if (token) {
-      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${token}` } }
-      });
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) authenticatedUserId = user.id;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required for relocation request.' }, { status: 401 });
     }
 
-    // IDOR Protection: always prefer verified auth.uid() over client-supplied userId/employerId
-    const activeUserId = authenticatedUserId || body.userId || body.employerId;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
 
-    if (!activeUserId || !body.targetSociety) {
-      return NextResponse.json({ error: 'Authentication and targetSociety are required' }, { status: 400 });
+    // Authenticated user ID is canonical — never trust body.userId / body.employerId
+    const activeUserId = user.id;
+
+    const body = await req.json().catch(() => ({}));
+
+    if (!body.targetSociety) {
+      return NextResponse.json({ error: 'targetSociety is required' }, { status: 400 });
     }
 
     const { targetSociety, targetSocietyId, reason, residencyProofUrl, employerName, employerPhone, currentSociety } = body;

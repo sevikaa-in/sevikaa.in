@@ -6,8 +6,13 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
   const secretHeader = request.headers.get('x-monitoring-secret') || '';
 
-  if (monitoringSecret && secretHeader !== monitoringSecret && !authHeader.includes(monitoringSecret)) {
-    return NextResponse.json({ error: 'Unauthorized', message: 'Monitoring secret required for detailed system metrics.' }, { status: 401 });
+  // Item 29: Fail closed — if MONITORING_SECRET is not configured, deny all access
+  if (!monitoringSecret) {
+    return NextResponse.json({ error: 'Service Unavailable', message: 'Internal health monitoring is not configured.' }, { status: 503 });
+  }
+
+  if (secretHeader !== monitoringSecret && !authHeader.includes(monitoringSecret)) {
+    return NextResponse.json({ error: 'Unauthorized', message: 'Valid monitoring secret required.' }, { status: 401 });
   }
 
   const startTime = Date.now();

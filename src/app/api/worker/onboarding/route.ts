@@ -26,23 +26,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Unauthorized', message: 'Authentication required for onboarding.' }, { status: 401 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
+
+    // Authenticated user ID is canonical — never trust body.userId / body.id
+    const activeUserId = user.id;
+
     const body = await req.json().catch(() => ({}));
-
-    let authenticatedUserId: string | null = null;
-    if (token) {
-      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${token}` } }
-      });
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) authenticatedUserId = user.id;
-    }
-
-    // IDOR Protection: always prefer verified auth.uid() over client-supplied userId
-    const activeUserId = authenticatedUserId || body.userId || body.id || body.user_id;
-    if (!activeUserId) {
-      return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 });
-    }
-
     const {
       full_name, name, phone,
       gender, age,

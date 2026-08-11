@@ -80,56 +80,44 @@ export class PaymentService {
       const amount = (paymentEntity.amount || 0) / 100;
       const method = (paymentEntity.method || 'upi').toUpperCase();
 
-      // P0 #16: Cross-reference checkout_sessions for authoritative user identity
-      // Don't blindly trust paymentEntity.notes.userId
       let userId = 'anonymous';
       let planName = 'Premium Subscription Pass';
 
-      if (orderId && !orderId.startsWith('order_')) {
-        try {
-          const sessionRes = await queryDb(
-            `SELECT user_id, plan_id FROM public.checkout_sessions
-             WHERE consumed_at IS NOT NULL
-             AND created_at > NOW() - INTERVAL '24 hours'
-             AND token_hash IN (
-               SELECT token_hash FROM public.checkout_sessions
-               WHERE user_id IS NOT NULL
-               LIMIT 100
-             )
-             LIMIT 1`,
-            []
-          ).catch(() => null);
+      // P0 #10: Authoritative lookup — cross-reference Razorpay order_id in checkout_sessions
+      // This is the correct mapping: orderId → user_id, plan_id, expected_amount
+      if (orderId && orderId.startsWith('order_')) {
+        const sessionRes = await queryDb(
+          `SELECT user_id, plan_id, expected_amount
+           FROM public.checkout_sessions
+           WHERE razorpay_order_id = $1
+           LIMIT 1`,
+          [orderId]
+        ).catch(() => null);
 
-          // Primary lookup: match order via razorpay notes order_id cross-reference
-          // Fallback: use notes.userId with audit warning
-          const notesUserId = paymentEntity.notes?.userId || paymentEntity.notes?.user_id;
-          const notesPlanName = paymentEntity.notes?.planName;
-
-          if (notesUserId && notesUserId !== 'anonymous') {
-            // Verify the user actually exists in our DB before trusting
-            const userCheck = await queryDb(
-              `SELECT id FROM public.profiles WHERE id::text = $1 LIMIT 1`,
-              [notesUserId]
-            ).catch(() => null);
-
-            if (userCheck?.rows?.length) {
-              userId = notesUserId;
-              planName = notesPlanName || planName;
-            } else {
-              console.warn(`[PaymentService] notes.userId ${notesUserId} not found in profiles. Setting anonymous.`);
-            }
+        if (sessionRes?.rows?.length) {
+          const session = sessionRes.rows[0];
+          userId = session.user_id || 'anonymous';
+          planName = session.plan_id ? `${session.plan_id} plan` : planName;
+          // Verify paid amount matches expected amount
+          const expectedAmountPaise = (session.expected_amount || 0) * 100;
+          const paidAmountPaise = paymentEntity.amount || 0;
+          if (expectedAmountPaise > 0 && paidAmountPaise !== expectedAmountPaise) {
+            console.error(`[PaymentService] AMOUNT MISMATCH: expected ${expectedAmountPaise} paise, got ${paidAmountPaise} paise for order ${orderId}`);
+            await queryDb(
+              `UPDATE public.payment_events SET processed_at = NULL WHERE event_id = $1`,
+              [eventId]
+            ).catch(() => {});
+            return { success: false, error: 'Payment amount mismatch', statusCode: 400 };
           }
-        } catch (lookupErr) {
-          console.warn('[PaymentService] userId lookup error:', lookupErr);
+        } else {
+          // Order not found in checkout_sessions — reject with warning
+          console.warn(`[PaymentService] No checkout_session found for Razorpay order_id: ${orderId}. Cannot verify user identity.`);
+          userId = 'anonymous';
         }
       } else {
-        // Fallback with audit warning
-        const notesUserId = paymentEntity.notes?.userId || paymentEntity.notes?.user_id;
-        if (notesUserId) {
-          userId = notesUserId;
-          console.warn(`[PaymentService] WARNING: using notes.userId without checkout_sessions verification for order ${orderId}`);
-        }
-        planName = paymentEntity.notes?.planName || planName;
+        // No valid Razorpay order_id — cannot verify payment identity
+        console.warn(`[PaymentService] Missing valid order_id for payment ${paymentId}. Setting anonymous.`);
+        userId = 'anonymous';
       }
 
       // Record transaction

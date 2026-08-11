@@ -2,33 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
-async function ensureTable() {
-  try {
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.tele_call_notes (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        lead_id text NOT NULL,
-        admin_name text NOT NULL,
-        note_text text NOT NULL,
-        call_outcome text DEFAULT 'connected',
-        callback_at timestamptz,
-        created_at timestamptz DEFAULT NOW()
-      );
-    `);
-    await queryDb(`
-      CREATE INDEX IF NOT EXISTS idx_tele_call_notes_lead ON public.tele_call_notes(lead_id);
-    `);
-  } catch (err) {
-    console.warn("tele_call_notes table check warning:", err);
-  }
-}
+// Item 30: tele_call_notes table created in migration 20260810000004 — no runtime DDL
 
 // GET: Fetch notes for a lead
 export async function GET(req: NextRequest) {
   const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
   if (errorResponse) return errorResponse;
 
-  await ensureTable();
   try {
     const { searchParams } = new URL(req.url);
     const lead_id = searchParams.get('lead_id');
@@ -55,7 +35,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
   if (errorResponse) return errorResponse;
-  await ensureTable();
+  // Item 30: tele_call_notes managed by migration — no runtime DDL
   try {
     const body = await req.json();
     const { lead_id, admin_name, note_text, call_outcome, callback_at } = body;
@@ -74,13 +54,8 @@ export async function POST(req: NextRequest) {
       [lead_id, nameToUse, note_text.trim(), outcomeToUse, callback_at || null]
     );
 
-    // Also update last_called_by & last_called_at on profiles / worker_profiles if applicable
+    // last_called_by/last_called_at columns added in migration — no runtime DDL
     try {
-      await queryDb(`
-        ALTER TABLE public.profiles 
-        ADD COLUMN IF NOT EXISTS last_called_by text,
-        ADD COLUMN IF NOT EXISTS last_called_at timestamptz
-      `);
       await queryDb(
         `UPDATE public.profiles SET last_called_by = $1, last_called_at = NOW() WHERE id::text = $2 OR phone = $2`,
         [nameToUse, lead_id]
