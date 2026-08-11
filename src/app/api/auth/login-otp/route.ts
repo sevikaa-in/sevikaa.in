@@ -414,11 +414,16 @@ export async function POST(req: NextRequest) {
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
       if (userObj?.id) {
-        await queryDb(
-          `INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at)
-           VALUES ($1, $2, $3)`,
-          [userObj.id, tokenHash, expiresAt]
-        ).catch(err => console.error("Refresh token DB insert notice:", err?.message));
+        try {
+          await queryDb(
+            `INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at)
+             VALUES ($1, $2, $3)`,
+            [userObj.id, tokenHash, expiresAt]
+          );
+        } catch (dbInsertErr: any) {
+          console.error('[login-otp] CRITICAL: Refresh token DB persistence failed:', dbInsertErr?.message);
+          return NextResponse.json({ error: 'Authentication Failed', message: 'Failed to establish persistent user session.' }, { status: 500 });
+        }
       }
 
       // Prepare response with access_token & refresh_token

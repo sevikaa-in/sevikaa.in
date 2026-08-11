@@ -110,6 +110,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results });
   } catch (err: any) {
     console.error('[match] Unexpected error:', err);
-    return NextResponse.json({ results: [], error: 'Service temporarily unavailable.' }, { status: 200 });
+    return NextResponse.json({ results: [], error: 'Candidate matching service temporarily unavailable.' }, { status: 503 });
   }
 }

@@ -92,11 +92,11 @@ export async function checkRateLimitAsync(
 }
 
 export function checkRateLimit(
-  req: NextRequest, 
+  reqOrIp: NextRequest | string, 
   maxRequests = 60, 
   windowMs = 60000
 ): { success: boolean; limit: number; remaining: number; resetTime: number } {
-  const ip = extractClientIp(req);
+  const ip = typeof reqOrIp === 'string' ? reqOrIp : extractClientIp(reqOrIp);
   const now = Date.now();
 
   if (!rateLimitStore[ip] || now > rateLimitStore[ip].resetTime) {

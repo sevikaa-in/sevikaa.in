@@ -72,12 +72,10 @@ export const EmployerJobsScreen: React.FC<{
         }
       }
 
-      const res = await fetch(getApiUrl(`api/employer/jobs?limit=50${activeUserId ? `&userId=${activeUserId}` : ''}`));
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.jobs)) {
-          setJobs(data.jobs);
-        }
+      const { apiClient } = await import('../../services/apiClient');
+      const data = await apiClient.get('api/employer/jobs?limit=50');
+      if (data && Array.isArray(data.jobs)) {
+        setJobs(data.jobs);
       }
     } catch (e) {
       console.warn("Employer jobs fetch notice:", e);
@@ -119,15 +117,22 @@ export const EmployerJobsScreen: React.FC<{
     if (!editingJob || !editTitle.trim()) return;
     setIsSaving(true);
     try {
-      await supabase.from('jobs').update({
-        title: editTitle,
-        salary_offered: Number(editSalary) || 15000,
-        society_name: editSociety,
-        shift_hours: editShift,
-        description: editDesc,
-        status: 'pending', // Re-trigger admin audit
-        updated_at: new Date().toISOString()
-      }).eq('id', editingJob.id);
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/admin/job/update', {
+        jobId: editingJob.id,
+        status: 'pending',
+        notes: `Updated: ${editTitle}`
+      }).catch(async () => {
+        await supabase.from('jobs').update({
+          title: editTitle,
+          salary_offered: Number(editSalary) || 15000,
+          society_name: editSociety,
+          shift_hours: editShift,
+          description: editDesc,
+          status: 'pending',
+          updated_at: new Date().toISOString()
+        }).eq('id', editingJob.id);
+      });
     } catch (e) {}
 
     setJobs(prev => prev.map(j => j.id === editingJob.id ? { ...j, title: editTitle, salary_offered: editSalary, society_name: editSociety, shift_hours: editShift, description: editDesc, status: 'pending' } : j));

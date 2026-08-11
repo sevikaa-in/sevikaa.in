@@ -64,15 +64,13 @@ export const WorkerJobsScreen: React.FC<{
       console.warn('Supabase jobs fetch notice:', err);
     }
 
-    // 2. Fallback to API route
+    // 2. Fetch via authenticated Sevikaa API route
     if (fetched.length === 0) {
       try {
-        const res = await fetch(getApiUrl('api/worker/jobs?limit=40'));
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {
-            fetched = data.jobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
-          }
+        const { apiClient } = await import('../../services/apiClient');
+        const data = await apiClient.get('api/worker/jobs?limit=40');
+        if (data && Array.isArray(data.jobs) && data.jobs.length > 0) {
+          fetched = data.jobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
         }
       } catch (e) {}
     }

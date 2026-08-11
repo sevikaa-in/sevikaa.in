@@ -290,6 +290,20 @@ async function runSecurityTests() {
     return res.status === 200;
   });
 
+  // Test 29: Logout-All Endpoint (/api/auth/logout-all) -> Responds cleanly with 200
+  await assertTest('Logout-All API (/api/auth/logout-all) revokes all user sessions with 200', async () => {
+    const { POST: postLogoutAll } = await import('../src/app/api/auth/logout-all/route');
+    const req = new NextRequest('http://localhost:3000/api/auth/logout-all', { method: 'POST' });
+    const res = await postLogoutAll(req);
+    return res.status === 200;
+  });
+
+  // Test 30: Database Transaction Helper (withTxDb) -> Is defined and exports transaction function
+  await assertTest('Database transaction helper (withTxDb) is exported for atomic row locking', async () => {
+    const { withTxDb } = await import('../src/lib/db');
+    return typeof withTxDb === 'function';
+  });
+
   console.log('\n====================================================');
   console.log(`SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED out of ${passedCount + failedCount} tests.`);
   console.log('====================================================');

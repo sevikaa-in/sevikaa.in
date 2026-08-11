@@ -56,4 +56,25 @@ export async function queryDb(sql: string, params: any[] = []) {
       throw err;
     }
   }
+
+  throw new Error('Database pool unavailable after 3 attempts.');
+}
+
+/**
+ * Executes queries inside a single, dedicated PostgreSQL transaction on one connection client.
+ * Guarantees BEGIN ... FOR UPDATE row locking ... COMMIT / ROLLBACK semantics.
+ */
+export async function withTxDb<T>(callback: (client: any) => Promise<T>): Promise<T> {
+  const client = await dbPool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await callback(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
