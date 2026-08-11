@@ -50,6 +50,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden', message: 'Candidate search is restricted to employers and administrators.' }, { status: 403 });
   }
 
+  // Employer Subscription Entitlement Check: Unsubscribed employers receive 403 Forbidden
+  if (callerRole === 'employer') {
+    const { data: empProf } = await supabaseClient
+      .from('employer_profiles')
+      .select('subscription_status')
+      .or(`user_id.eq.${user.id},id.eq.${user.id}`)
+      .maybeSingle();
+
+    const subStatus = (empProf?.subscription_status || 'none').toLowerCase();
+    const ALLOWED_STATUSES = new Set(['premium', 'pro', 'standard', 'free_trial', 'active']);
+    if (!ALLOWED_STATUSES.has(subStatus)) {
+      return NextResponse.json({
+        error: 'Forbidden',
+        message: 'Candidate search requires an active employer subscription plan. Please upgrade to unlock candidate profiles.',
+        requires_upgrade: true
+      }, { status: 403 });
+    }
+  }
+
   const { supabaseAdmin } = await import('@/lib/supabaseAdminClient');
 
   try {

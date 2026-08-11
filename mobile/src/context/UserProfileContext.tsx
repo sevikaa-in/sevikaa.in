@@ -123,15 +123,9 @@ export const UserProfileProvider: React.FC<{
     }
 
     try {
-      const token = await AsyncStorage.getItem('sevikaa_token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const res = await fetch(getApiUrl('api/auth/me'), { headers });
-      if (res.ok) {
-        const data = await res.json();
+      const { apiClient } = await import('../services/apiClient');
+      const data = await apiClient.get('api/auth/me');
+      if (data) {
         const prof = data.profile || data.user || null;
         const wp = data.workerProfile || null;
         const ep = data.employerProfile || null;

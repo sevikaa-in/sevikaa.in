@@ -279,14 +279,15 @@ function AppMainContent() {
   if (onboardingStep === 'login') {
     return (
       <AuthLoginScreen 
-        onLoginSuccess={async (identifier, authType, userObj, isExistingUser, accessToken) => {
+        onLoginSuccess={async (identifier, authType, userObj, isExistingUser, accessToken, refreshToken) => {
           if (userObj) {
             setCurrentUser(userObj);
             setUser(userObj);
             try {
               await AsyncStorage.setItem('sevikaa_user_session', JSON.stringify(userObj));
               if (accessToken) {
-                await AsyncStorage.setItem('sevikaa_token', accessToken);
+                const { secureTokenStorage } = await import('./src/services/secureTokenStorage');
+                await secureTokenStorage.saveTokens(accessToken, refreshToken);
               }
             } catch (e) {}
           }

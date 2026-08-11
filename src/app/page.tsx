@@ -313,15 +313,7 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('sevikaa_user', JSON.stringify(sessionUser));
       localStorage.setItem('sevikaa_user_id', sessionUser.id);
-      if (token) {
-        localStorage.setItem('sevikaa_token', token);
-        localStorage.setItem('sevikaa_user_session', JSON.stringify({ access_token: token, user: sessionUser }));
-        try {
-          await supabase.auth.setSession({ access_token: token, refresh_token: '' });
-        } catch (sErr) {
-          console.warn("setSession notice:", sErr);
-        }
-      }
+      // Correction #1: Access token is kept in JS memory / state — NO localStorage storage
     }
 
     try {

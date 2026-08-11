@@ -67,12 +67,12 @@ export async function GET(request: NextRequest) {
 
     if (dbErr) {
       console.error('[employer/workers] Database query error:', dbErr.message);
-      return NextResponse.json({ workers: [] }, { status: 200 });
+      return NextResponse.json({ error: 'Database Error', message: 'Worker directory service temporarily unavailable. Please try again later.' }, { status: 503 });
     }
 
     return NextResponse.json({ workers: workers || [] }, { status: 200 });
   } catch (err: any) {
     console.error('[employer/workers] Unexpected error:', err?.message);
-    return NextResponse.json({ workers: [] }, { status: 200 });
+    return NextResponse.json({ error: 'Service Error', message: 'Worker directory temporarily unavailable.' }, { status: 503 });
   }
 }

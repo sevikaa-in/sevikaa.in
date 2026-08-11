@@ -266,6 +266,30 @@ async function runSecurityTests() {
     return res.status === 503;
   });
 
+  // Test 26: Employer Workers API (/api/employer/workers) -> Blocks unauthenticated with 401
+  await assertTest('Employer Workers API (/api/employer/workers) blocks unauthenticated GET with 401', async () => {
+    const { GET: getEmployerWorkers } = await import('../src/app/api/employer/workers/route');
+    const req = new NextRequest('http://localhost:3000/api/employer/workers');
+    const res = await getEmployerWorkers(req);
+    return res.status === 401;
+  });
+
+  // Test 27: Refresh Token Endpoint (/api/auth/refresh) -> Blocks missing token with 401
+  await assertTest('Refresh Token API (/api/auth/refresh) blocks missing token with 401', async () => {
+    const { POST: postRefresh } = await import('../src/app/api/auth/refresh/route');
+    const req = new NextRequest('http://localhost:3000/api/auth/refresh', { method: 'POST' });
+    const res = await postRefresh(req);
+    return res.status === 401;
+  });
+
+  // Test 28: Logout Endpoint (/api/auth/logout) -> Responds cleanly with 200
+  await assertTest('Logout API (/api/auth/logout) clears session cleanly with 200', async () => {
+    const { POST: postLogout } = await import('../src/app/api/auth/logout/route');
+    const req = new NextRequest('http://localhost:3000/api/auth/logout', { method: 'POST' });
+    const res = await postLogout(req);
+    return res.status === 200;
+  });
+
   console.log('\n====================================================');
   console.log(`SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED out of ${passedCount + failedCount} tests.`);
   console.log('====================================================');

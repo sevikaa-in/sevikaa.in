@@ -13,7 +13,8 @@ interface AuthLoginProps {
     authType: 'phone' | 'email',
     userObj?: { id?: string; role?: string; phone?: string; email?: string } | null,
     isExistingUser?: boolean,
-    accessToken?: string
+    accessToken?: string,
+    refreshToken?: string
   ) => void;
   onBack?: () => void;
 }
@@ -136,7 +137,8 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
       setLoading(false);
       const identifier = authMode === 'phone' ? phone : email;
       const token = data.access_token || data.token || data.session?.access_token || '';
-      onLoginSuccess(identifier, authMode, data.user, data.isExistingUser, token);
+      const refToken = data.refresh_token || data.session?.refresh_token || '';
+      onLoginSuccess(identifier, authMode, data.user, data.isExistingUser, token, refToken);
     } catch (e: any) {
       setLoading(false);
       setErrorMsg(e?.message || 'Authentication verification failed. Please check your connection and try again.');

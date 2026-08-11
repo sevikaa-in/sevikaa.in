@@ -406,23 +406,48 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Generate cryptographically signed Supabase JWT access_token for Web & Mobile session authentication (Fix P0 #1)
+      // Generate cryptographically signed HS256 JWT access_token and rotatable refresh_token
       const accessToken = userObj?.id ? signSupabaseJwt(userObj.id, userObj.email, userObj.phone, userObj.role || 'worker') : '';
+      const { generateRefreshToken, hashRefreshToken } = await import('@/lib/jwtHelper');
+      const refreshToken = generateRefreshToken();
+      const tokenHash = hashRefreshToken(refreshToken);
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      // Prepare response with access_token and set HTTP-only role cookies for proxy security
+      if (userObj?.id) {
+        await queryDb(
+          `INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at)
+           VALUES ($1, $2, $3)`,
+          [userObj.id, tokenHash, expiresAt]
+        ).catch(err => console.error("Refresh token DB insert notice:", err?.message));
+      }
+
+      // Prepare response with access_token & refresh_token
       const res = NextResponse.json({
         success: true,
         user: userObj,
         session: {
           access_token: accessToken,
+          refresh_token: refreshToken,
           token_type: 'bearer',
           user: userObj,
         },
         token: accessToken,
         access_token: accessToken,
+        refresh_token: refreshToken,
         isExistingUser,
         hasCompletedProfile
       });
+
+      // Set Web HttpOnly refresh token cookie
+      if (refreshToken) {
+        res.cookies.set('sevikaa_refresh_token', refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60,
+          path: '/'
+        });
+      }
 
       if (userObj?.role) {
         res.cookies.set('sevikaa_user_role', userObj.role, {
