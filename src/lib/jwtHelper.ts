@@ -5,7 +5,10 @@ import crypto from 'crypto';
  * Accepted natively by Supabase JS Client (auth.getUser & auth.setSession) and PostgreSQL RLS (auth.uid()).
  */
 export function signSupabaseJwt(userId: string, email?: string, phone?: string, userRole = 'worker'): string {
-  const secret = process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sevikaa-jwt-secret';
+  const secret = process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!secret) {
+    throw new Error('CRITICAL: SUPABASE_JWT_SECRET or SUPABASE_SERVICE_ROLE_KEY is not configured for JWT signing.');
+  }
 
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);

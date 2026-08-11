@@ -83,6 +83,17 @@ export async function POST(req: NextRequest) {
 
     // Free plan — no Razorpay order needed
     if (planPrice === 0) {
+      // Server-side authoritative free plan activation
+      try {
+        const { supabaseAdmin } = await import('@/lib/supabaseAdminClient');
+        await supabaseAdmin
+          .from('employer_profiles')
+          .update({ subscription_status: 'free' })
+          .eq('user_id', userId);
+      } catch (freeErr) {
+        console.warn('[create-order] Free plan activation warning:', freeErr);
+      }
+
       return NextResponse.json({
         success: true,
         orderId: null,

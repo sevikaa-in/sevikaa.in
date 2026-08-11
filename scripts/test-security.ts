@@ -103,15 +103,11 @@ async function runSecurityTests() {
     return res.status === 401;
   });
 
-  // Test 8: Candidate Match Boolean Aadhaar Verification -> Boolean check
-  await assertTest('Candidate Match API (/api/match) correctly returns Boolean is_aadhaar_verified', async () => {
+  // Test 8: Candidate Match API -> Blocks unauthenticated GET with 401
+  await assertTest('Candidate Match API (/api/match) blocks unauthenticated access with 401', async () => {
     const req = new NextRequest('http://localhost:3000/api/match?societyId=soc_test');
     const res = await getMatch(req);
-    if (res.status !== 200) return false;
-    const body = await res.json();
-    if (!Array.isArray(body.results)) return false;
-    // Ensure all items return boolean is_aadhaar_verified
-    return body.results.every((item: any) => typeof item.is_aadhaar_verified === 'boolean');
+    return res.status === 401;
   });
 
   // Test 9: Public Societies Worker Listing -> Mask PII (phone/email absent)

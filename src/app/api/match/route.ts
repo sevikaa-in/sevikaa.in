@@ -21,6 +21,35 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'societyId query parameter is required' }, { status: 400 });
   }
 
+  // P0 #1: Authenticate caller and verify employer or admin authorization
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+  if (!token) {
+    return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to search candidate directory.' }, { status: 401 });
+  }
+
+  const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } }
+  });
+
+  const { data: { user }, error: authErr } = await supabaseClient.auth.getUser(token);
+  if (authErr || !user) {
+    return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+  }
+
+  // Verify user role in database (Must be employer, admin, or super-admin)
+  const { data: profile } = await supabaseClient
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const callerRole = profile?.role || 'worker';
+  if (!['employer', 'admin', 'super-admin'].includes(callerRole)) {
+    return NextResponse.json({ error: 'Forbidden', message: 'Candidate search is restricted to employers and administrators.' }, { status: 403 });
+  }
+
   const { supabaseAdmin } = await import('@/lib/supabaseAdminClient');
 
   try {

@@ -145,12 +145,17 @@ export class PaymentService {
       });
 
       if (status === 'captured' && userId !== 'anonymous') {
-        await supabaseAdmin
+        const { error: subErr } = await supabaseAdmin
           .from('employer_profiles')
           .update({ subscription_status: 'premium' })
           .eq('user_id', userId);
 
-        // Mark event as fully processed
+        if (subErr) {
+          console.error('[PaymentService] CRITICAL: Subscription activation update failed for user:', userId, subErr);
+          throw new Error(`Failed to activate subscription for user ${userId}: ${subErr.message}`);
+        }
+
+        // Mark event as fully processed ONLY after subscription update succeeds
         await queryDb(
           `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
           [eventId]
