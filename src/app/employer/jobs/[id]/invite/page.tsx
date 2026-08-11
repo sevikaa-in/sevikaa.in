@@ -49,10 +49,10 @@ export default function EmployerJobInvitePage() {
 
         setJob(targetJob || null);
 
-        // 2. Fetch Strictly Live & Approved Verified Workers from Supabase DB
+        // 2. Fetch employer-safe worker directory (excludes Aadhaar front/back & police URLs)
         const { data: dbWorkers, error: wErr } = await supabase
-          .from('worker_profiles')
-          .select('*, profiles(*)')
+          .from('employer_worker_directory')
+          .select('id, user_id, full_name, gender, age, experience_years, expected_salary, skills, languages_spoken, primary_gated_society, preferred_shift, bio, video_url, profile_picture_url, avatar_url, status, rating, total_reviews, is_aadhaar_verified, is_police_verified, is_interview_verified, created_at')
           .or('status.eq.live,status.eq.approved')
           .order('created_at', { ascending: false });
 

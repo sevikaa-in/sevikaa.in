@@ -256,36 +256,41 @@ export async function POST(req: NextRequest) {
     };
 
     const isEmployerRole = effectiveRole === 'employer'; // server-derived effectiveRole only
-    if (isEmployerRole) {
-      if (assetType === 'profile_picture_url' || assetType === 'avatar_url') {
-        await queryDb(
-          `UPDATE public.employer_profiles SET avatar_url = $1, profile_picture_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
-          [storedValue, targetUserId]
-        ).catch(() => {});
-      } else {
-        const col = EMPLOYER_COLUMN_MAP[assetType];
-        if (col) {
+    try {
+      if (isEmployerRole) {
+        if (assetType === 'profile_picture_url' || assetType === 'avatar_url') {
           await queryDb(
-            `UPDATE public.employer_profiles SET ${col} = $1 WHERE user_id::text = $2 OR id::text = $2`,
+            `UPDATE public.employer_profiles SET avatar_url = $1, profile_picture_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
             [storedValue, targetUserId]
-          ).catch(() => {});
+          );
+        } else {
+          const col = EMPLOYER_COLUMN_MAP[assetType];
+          if (col) {
+            await queryDb(
+              `UPDATE public.employer_profiles SET ${col} = $1 WHERE user_id::text = $2 OR id::text = $2`,
+              [storedValue, targetUserId]
+            );
+          }
+        }
+      } else {
+        if (assetType === 'profile_picture_url' || assetType === 'avatar_url') {
+          await queryDb(
+            `UPDATE public.worker_profiles SET profile_picture_url = $1, avatar_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
+            [storedValue, targetUserId]
+          );
+        } else {
+          const col = WORKER_COLUMN_MAP[assetType];
+          if (col) {
+            await queryDb(
+              `UPDATE public.worker_profiles SET ${col} = $1 WHERE user_id::text = $2 OR id::text = $2`,
+              [storedValue, targetUserId]
+            );
+          }
         }
       }
-    } else {
-      if (assetType === 'profile_picture_url' || assetType === 'avatar_url') {
-        await queryDb(
-          `UPDATE public.worker_profiles SET profile_picture_url = $1, avatar_url = $1 WHERE user_id::text = $2 OR id::text = $2`,
-          [storedValue, targetUserId]
-        ).catch(() => {});
-      } else {
-        const col = WORKER_COLUMN_MAP[assetType];
-        if (col) {
-          await queryDb(
-            `UPDATE public.worker_profiles SET ${col} = $1 WHERE user_id::text = $2 OR id::text = $2`,
-            [storedValue, targetUserId]
-          ).catch(() => {});
-        }
-      }
+    } catch (dbErr: any) {
+      console.error('[cloudinary] DB update error after upload:', dbErr);
+      return NextResponse.json({ error: 'Asset uploaded to cloud storage, but database profile update failed.' }, { status: 500 });
     }
 
     return NextResponse.json({

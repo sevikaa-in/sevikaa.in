@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'societyId query parameter is required' }, { status: 400 });
   }
 
-  const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+  const { supabaseAdmin } = await import('@/lib/supabaseAdminClient');
 
   try {
-    const { data: rpcWorkers, error: queryErr } = await supabaseClient.rpc('search_workers', {
+    const { data: rpcWorkers, error: queryErr } = await supabaseAdmin.rpc('search_workers', {
       p_society_id: societyId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? societyId : null,
       p_category: category,
       p_max_salary: maxSalary,

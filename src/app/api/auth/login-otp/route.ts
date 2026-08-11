@@ -5,6 +5,7 @@ import { sendEmail as dispatchEmail, sendSMS } from '@/lib/notifications';
 import { getMagicLinkOrLoginOtpEmailHtml } from '@/lib/emailTemplates';
 import crypto from 'crypto';
 import { checkRateLimit } from '@/lib/rateLimiter';
+import { signSupabaseJwt } from '@/lib/jwtHelper';
 
 // Allowed roles that can self-select during OTP registration
 const SELF_SELECTABLE_ROLES = new Set(['worker', 'employer']);
@@ -452,32 +453,20 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Generate or retrieve session access_token for Mobile & Web client authentication
-      let accessToken: string | null = null;
-      if (supabaseAdmin && userObj?.id) {
-        try {
-          const userEmailForToken = userObj.email || `${userObj.id}@sevikaa.in`;
-          const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'magiclink',
-            email: userEmailForToken,
-          });
-          if (linkData?.properties?.hashed_token) {
-            accessToken = linkData.properties.hashed_token;
-          }
-        } catch (tokenErr) {
-          console.warn("Session token generation notice:", tokenErr);
-        }
-      }
+      // Generate cryptographically signed Supabase JWT access_token for Web & Mobile session authentication (Fix P0 #1)
+      const accessToken = userObj?.id ? signSupabaseJwt(userObj.id, userObj.email, userObj.phone, userObj.role || 'worker') : '';
 
       // Prepare response with access_token and set HTTP-only role cookies for proxy security
       const res = NextResponse.json({
         success: true,
         user: userObj,
         session: {
-          access_token: accessToken || `token_${userObj?.id}_${Date.now()}`,
+          access_token: accessToken,
+          token_type: 'bearer',
           user: userObj,
         },
-        token: accessToken || `token_${userObj?.id}_${Date.now()}`,
+        token: accessToken,
+        access_token: accessToken,
         isExistingUser,
         hasCompletedProfile
       });

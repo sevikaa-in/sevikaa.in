@@ -141,7 +141,7 @@ function CheckoutFormContent() {
       // Browser DOES NOT update subscription directly — webhook is canonical authority (P0 Fix)
       executeRazorpayCheckout({
         orderId: orderData.orderId,
-        amount: plan.price,
+        amount: orderData.amount ? (orderData.amount / 100) : plan.price,
         planName: orderData.planName || plan.name,
         userName: displayCompanyName,
         userEmail: displayEmail,

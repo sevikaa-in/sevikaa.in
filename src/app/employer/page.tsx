@@ -23,7 +23,7 @@ export default function EmployerOverviewPage() {
     const fetchWorkers = async () => {
       try {
         const { count } = await supabase
-          .from('worker_profiles')
+          .from('employer_worker_directory')
           .select('*', { count: 'exact', head: true });
 
         if (count !== null) {
@@ -31,8 +31,8 @@ export default function EmployerOverviewPage() {
         }
 
         const { data: dbWorkers } = await supabase
-          .from('worker_profiles')
-          .select('*, profiles(*)')
+          .from('employer_worker_directory')
+          .select('id, full_name, gender, age, experience_years, expected_salary, skills, languages_spoken, primary_gated_society, preferred_shift, bio, video_url, profile_picture_url, avatar_url, status, rating, total_reviews, is_aadhaar_verified, is_police_verified, is_interview_verified, created_at')
           .limit(3);
 
         if (dbWorkers && dbWorkers.length > 0) {

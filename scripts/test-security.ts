@@ -73,11 +73,10 @@ async function runSecurityTests() {
     return res.status === 401;
   });
 
-  // Test 4: Unauthenticated POST /api/upload/sign -> 401
-  await assertTest('Upload URL Signer (/api/upload/sign) blocks unauthenticated POST with 401', async () => {
-    const req = new NextRequest('http://localhost:3000/api/upload/sign', { method: 'POST' });
-    const res = await signUpload(req);
-    return res.status === 401;
+  // Test 4: Deprecated POST /api/upload/sign -> 410
+  await assertTest('Upload URL Signer (/api/upload/sign) is deprecated with 410 Gone', async () => {
+    const res = await signUpload();
+    return res.status === 410;
   });
 
   // Test 5: Unauthenticated GET /api/upload/cloudinary/sign -> 401
@@ -249,32 +248,16 @@ async function runSecurityTests() {
     return res.status === 401;
   });
 
-  // Test 23: Upload Sign -> Rejects disallowed assetType with 400
-  await assertTest('Upload Signer (/api/upload/sign) rejects disallowed assetType with 400', async () => {
-    const req = new NextRequest('http://localhost:3000/api/upload/sign', {
-      method: 'POST',
-      body: JSON.stringify({ userId: 'user-1', assetType: 'malware_exe', fileName: 'test.exe' }),
-      headers: {
-        'content-type': 'application/json',
-        'authorization': 'Bearer mock-jwt-token'
-      }
-    });
-    const res = await signUpload(req);
-    return res.status === 400 || res.status === 401;
+  // Test 23: Upload Sign -> Deprecated (returns 410 Gone)
+  await assertTest('Upload Signer (/api/upload/sign) is deprecated with 410 Gone', async () => {
+    const res = await signUpload();
+    return res.status === 410;
   });
 
-  // Test 24: Upload Sign -> Rejects disallowed file extension with 400
-  await assertTest('Upload Signer (/api/upload/sign) rejects disallowed file extension with 400', async () => {
-    const req = new NextRequest('http://localhost:3000/api/upload/sign', {
-      method: 'POST',
-      body: JSON.stringify({ userId: 'user-1', assetType: 'profile_picture_url', fileName: 'hacked.exe' }),
-      headers: {
-        'content-type': 'application/json',
-        'authorization': 'Bearer mock-jwt-token'
-      }
-    });
-    const res = await signUpload(req);
-    return res.status === 400 || res.status === 401;
+  // Test 24: Upload Sign -> Deprecated (returns 410 Gone)
+  await assertTest('Upload Signer (/api/upload/sign) returns 410 Gone', async () => {
+    const res = await signUpload();
+    return res.status === 410;
   });
 
   // Test 25: Internal Health -> Fails closed with 503 when MONITORING_SECRET missing

@@ -36,34 +36,21 @@ export class TokenManager {
 
     const tokenHash = hashToken(rawToken);
 
+    // Atomic SQL UPDATE check-and-consume (Fix P1 #2)
     const res = await queryDb(
-      `SELECT id, user_id, expires_at, used_at, use_count, max_uses 
-       FROM public.verification_upload_tokens 
-       WHERE token_hash = $1 LIMIT 1`,
+      `UPDATE public.verification_upload_tokens
+       SET use_count = use_count + 1, used_at = NOW()
+       WHERE token_hash = $1
+         AND expires_at > NOW()
+         AND use_count < max_uses
+       RETURNING user_id`,
       [tokenHash]
     );
 
     const row = res?.rows?.[0];
-    if (!row) {
-      return { valid: false, error: 'Upload token not found or invalid' };
+    if (!row || !row.user_id) {
+      return { valid: false, error: 'Upload token is invalid, expired, or already used' };
     }
-
-    const now = new Date();
-    if (new Date(row.expires_at) < now) {
-      return { valid: false, error: 'Upload token has expired' };
-    }
-
-    if (row.use_count >= row.max_uses) {
-      return { valid: false, error: 'Upload token has already been used' };
-    }
-
-    // Increment use_count and set used_at timestamp
-    await queryDb(
-      `UPDATE public.verification_upload_tokens 
-       SET use_count = use_count + 1, used_at = NOW() 
-       WHERE id = $1`,
-      [row.id]
-    );
 
     return { valid: true, userId: row.user_id };
   }

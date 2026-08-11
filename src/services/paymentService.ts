@@ -52,27 +52,34 @@ export class PaymentService {
       const orderId = paymentEntity.order_id || `order_${Date.now()}`;
       const status = event === 'payment.failed' ? 'failed' : (paymentEntity.status || 'captured');
 
-      // P0: Event-level idempotency — unique per (event_type, payment_id)
+      // P0 #5: Idempotency state machine check
       const eventId = `${event}:${paymentId}`;
       const payloadHash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 
       try {
-        const idempotentInsert = await queryDb(
-          `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, received_at)
-           VALUES ('razorpay', $1, $2, $3, $4, NOW())
-           ON CONFLICT (event_id) DO NOTHING
-           RETURNING id`,
-          [eventId, paymentId, event, payloadHash]
+        const existingEvent = await queryDb(
+          `SELECT processed_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
+          [eventId]
         );
-        // If no row returned — this exact event was already processed
-        if (!idempotentInsert?.rows?.length) {
-          console.log(`[PaymentService] Idempotent skip: event ${eventId} already processed.`);
-          return { success: true, message: 'Already processed' };
+
+        if (existingEvent?.rows?.length) {
+          const row = existingEvent.rows[0];
+          if (row.processed_at) {
+            console.log(`[PaymentService] Idempotent skip: event ${eventId} already completed at ${row.processed_at}.`);
+            return { success: true, message: 'Already processed' };
+          }
+          console.log(`[PaymentService] Retrying incomplete event ${eventId}...`);
+        } else {
+          await queryDb(
+            `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, received_at)
+             VALUES ('razorpay', $1, $2, $3, $4, NOW())
+             ON CONFLICT (event_id) DO NOTHING`,
+            [eventId, paymentId, event, payloadHash]
+          );
         }
       } catch (idempotentErr: any) {
-        // Fix #14: Fail closed if idempotency infrastructure fails
         console.error('[PaymentService] CRITICAL: payment_events idempotency check failed:', idempotentErr?.message);
-        return { success: false, error: 'Idempotency verification failed. Payment deferred for retry.', statusCode: 500 };
+        return { success: false, error: 'Idempotency verification failed. Deferred for retry.', statusCode: 500 };
       }
 
       const billingEmail = paymentEntity.email || 'employer@sevikaa.in';
