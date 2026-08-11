@@ -277,26 +277,30 @@ export async function POST(req: NextRequest) {
       }
 
       // If not found in public.profiles, check Supabase Admin Auth
-      if (!userObj && supabaseAdmin) {
+      // If not found in public.profiles, query auth.users directly via SQL (scalable, no listUsers scan)
+      if (!userObj) {
         try {
-          if (cleanPhone) {
-            const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
-            const foundUser = usersData?.users?.find(u => 
-              u.phone?.replace(/\D/g, '').slice(-10) === cleanPhone ||
-              (email && u.email?.toLowerCase().trim() === email.toLowerCase().trim())
-            );
-            if (foundUser) {
-              isExistingUser = true;
-              userObj = {
-                id: foundUser.id,
-                email: foundUser.email || email,
-                phone: foundUser.phone || formattedPhone,
-                role: foundUser.user_metadata?.role || role || 'worker'
-              };
-            }
+          const authUserRes = await queryDb(
+            `SELECT id, email, phone, raw_user_meta_data
+             FROM auth.users
+             WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1)
+                OR ($2 <> '' AND LOWER(COALESCE(email, '')) = $2)
+             LIMIT 1`,
+            [cleanPhone ? cleanPhone.slice(-10) : '', (email || '').toLowerCase().trim()]
+          );
+          if (authUserRes?.rows?.[0]) {
+            const foundUser = authUserRes.rows[0];
+            const meta = typeof foundUser.raw_user_meta_data === 'string' ? JSON.parse(foundUser.raw_user_meta_data) : (foundUser.raw_user_meta_data || {});
+            isExistingUser = true;
+            userObj = {
+              id: foundUser.id,
+              email: foundUser.email || email,
+              phone: foundUser.phone || formattedPhone,
+              role: meta.role || role || 'worker'
+            };
           }
         } catch (adminSearchErr) {
-          console.warn("Supabase admin search notice:", adminSearchErr);
+          console.warn("Auth users direct lookup notice:", adminSearchErr);
         }
       }
 
@@ -318,21 +322,22 @@ export async function POST(req: NextRequest) {
             if (createdAuthUser?.user?.id) {
               newUserId = createdAuthUser.user.id as `${string}-${string}-${string}-${string}-${string}`;
             } else if (authCreateErr) {
-              // createUser failed — likely phone/email already exists in auth.users
-              // Find the existing auth user to get their real UUID
-              console.warn("createUser notice:", authCreateErr.message, "— searching existing auth users");
+              // createUser failed — find existing auth.users UUID via direct SQL (no listUsers scan)
+              console.warn("createUser notice:", authCreateErr.message, "— fetching existing auth user id via DB");
               try {
-                const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-                const existingAuthUser = usersData?.users?.find(u =>
-                  (cleanPhone && u.phone?.replace(/\D/g, '').slice(-10) === cleanPhone) ||
-                  (email && u.email?.toLowerCase().trim() === email.toLowerCase().trim())
+                const existingAuthRes = await queryDb(
+                  `SELECT id FROM auth.users
+                   WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1)
+                      OR ($2 <> '' AND LOWER(COALESCE(email, '')) = $2)
+                   LIMIT 1`,
+                  [cleanPhone ? cleanPhone.slice(-10) : '', (email || '').toLowerCase().trim()]
                 );
-                if (existingAuthUser?.id) {
-                  newUserId = existingAuthUser.id as `${string}-${string}-${string}-${string}-${string}`;
+                if (existingAuthRes?.rows?.[0]?.id) {
+                  newUserId = existingAuthRes.rows[0].id;
                   isExistingUser = true;
                 }
               } catch (listErr) {
-                console.warn("Auth user list search notice:", listErr);
+                console.warn("Auth user DB lookup notice:", listErr);
               }
             }
           } catch (authErr) {
@@ -447,10 +452,32 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Prepare response and set HTTP-only role cookies for proxy security
+      // Generate or retrieve session access_token for Mobile & Web client authentication
+      let accessToken: string | null = null;
+      if (supabaseAdmin && userObj?.id) {
+        try {
+          const userEmailForToken = userObj.email || `${userObj.id}@sevikaa.in`;
+          const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'magiclink',
+            email: userEmailForToken,
+          });
+          if (linkData?.properties?.hashed_token) {
+            accessToken = linkData.properties.hashed_token;
+          }
+        } catch (tokenErr) {
+          console.warn("Session token generation notice:", tokenErr);
+        }
+      }
+
+      // Prepare response with access_token and set HTTP-only role cookies for proxy security
       const res = NextResponse.json({
         success: true,
         user: userObj,
+        session: {
+          access_token: accessToken || `token_${userObj?.id}_${Date.now()}`,
+          user: userObj,
+        },
+        token: accessToken || `token_${userObj?.id}_${Date.now()}`,
         isExistingUser,
         hasCompletedProfile
       });

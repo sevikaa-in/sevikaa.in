@@ -61,34 +61,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 1. Ensure columns exist on public.employer_profiles
+    // employer_profiles columns managed via migrations — no runtime DDL
     try {
-      await queryDb(`
-        ALTER TABLE public.employer_profiles 
-        ADD COLUMN IF NOT EXISTS company_name text,
-        ADD COLUMN IF NOT EXISTS society_name text,
-        ADD COLUMN IF NOT EXISTS tower_block text,
-        ADD COLUMN IF NOT EXISTS address text,
-        ADD COLUMN IF NOT EXISTS city text,
-        ADD COLUMN IF NOT EXISTS state text,
-        ADD COLUMN IF NOT EXISTS pincode text,
-        ADD COLUMN IF NOT EXISTS gstin text,
-        ADD COLUMN IF NOT EXISTS alternate_phone text,
-        ADD COLUMN IF NOT EXISTS alt_phone text,
-        ADD COLUMN IF NOT EXISTS verification_requirement text,
-        ADD COLUMN IF NOT EXISTS status text,
-        ADD COLUMN IF NOT EXISTS is_approved boolean,
-        ADD COLUMN IF NOT EXISTS is_tele_onboarded boolean DEFAULT false,
-        ADD COLUMN IF NOT EXISTS is_residency_verified boolean DEFAULT false,
-        ADD COLUMN IF NOT EXISTS is_aadhaar_front_verified boolean DEFAULT false,
-        ADD COLUMN IF NOT EXISTS is_aadhaar_back_verified boolean DEFAULT false,
-        ADD COLUMN IF NOT EXISTS is_aadhaar_verified boolean DEFAULT false,
-        ADD COLUMN IF NOT EXISTS avatar_url text,
-        ADD COLUMN IF NOT EXISTS aadhaar_front_url text,
-        ADD COLUMN IF NOT EXISTS aadhaar_back_url text,
-        ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-      `).catch(() => {});
-
       const rawAlt = body.alternate_phone || body.alt_phone || body.altPhone || body.alternatePhone || '';
       const cleanAltDigits = rawAlt.replace(/\D/g, '').slice(-10);
       const finalAltPhone = cleanAltDigits.length === 10 ? `+91 ${cleanAltDigits}` : (rawAlt.trim() ? rawAlt.trim() : null);
@@ -164,12 +138,8 @@ export async function POST(req: NextRequest) {
       console.warn("Notice updating employer_profiles:", eErr);
     }
 
-    // 2. Update status + is_approved in public.profiles
+    // 2. Update status + is_approved in public.profiles (schema managed via migrations — no runtime DDL)
     try {
-      await queryDb(`
-        ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-        ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_approved boolean;
-      `).catch(() => {});
       await queryDb(
         `UPDATE public.profiles 
          SET status = COALESCE($1, status),

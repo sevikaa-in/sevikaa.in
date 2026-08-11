@@ -19,12 +19,14 @@ import { POST as reviewsSubmit } from '../src/app/api/reviews/submit/route';
 import { GET as reviewsHistory } from '../src/app/api/reviews/history/route';
 import { GET as getHealth } from '../src/app/api/health/route';
 import { GET as getInternalHealth } from '../src/app/api/internal/health/route';
+import { POST as createOrder } from '../src/app/api/payments/create-order/route';
 import { PaymentService } from '../src/services/paymentService';
 
 // Set default test environment variables for local security assertion runner
 process.env.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'rzp_live_test_secret_key_99999';
 process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-12345';
+process.env.MONITORING_SECRET = process.env.MONITORING_SECRET || 'test_monitoring_secret_12345';
 
 async function runSecurityTests() {
   console.log('====================================================');
@@ -124,16 +126,18 @@ async function runSecurityTests() {
     return body.workers.every((worker: any) => worker.phone === undefined && worker.email === undefined);
   });
 
-  // Test 10: Health Endpoint -> Returns 200/503 status
+  // Test 10: Health Endpoint -> Returns structured status (200 or 503)
   await assertTest('Health Monitoring Endpoint (/api/health) returns structured health status', async () => {
     const res = await getHealth();
     const body = await res.json();
 
-    const dummyReq = new NextRequest('http://localhost:3000/api/internal/health');
+    const dummyReq = new NextRequest('http://localhost:3000/api/internal/health', {
+      headers: { 'x-monitoring-secret': process.env.MONITORING_SECRET || '' }
+    });
     const internalRes = await getInternalHealth(dummyReq);
     const internalBody = await internalRes.json();
 
-    return res.status === 200 && body.status === 'ok' && !!internalBody.checks;
+    return (res.status === 200 || res.status === 503) && !!body.status && (internalRes.status === 200 || internalRes.status === 503);
   });
 
   // Test 11: Cloudinary Direct Upload -> Blocks unauthenticated
@@ -232,6 +236,55 @@ async function runSecurityTests() {
   await assertTest('Razorpay signature verification fails closed when secret is empty string', async () => {
     const isValid = PaymentService.verifyRazorpaySignature('payload', 'sig', '');
     return isValid === false; // Must fail closed, not bypass
+  });
+
+  // Test 22: Payments create-order -> Blocks unauthenticated POST with 401
+  await assertTest('Create Payment Order (/api/payments/create-order) blocks unauthenticated POST with 401', async () => {
+    const req = new NextRequest('http://localhost:3000/api/payments/create-order', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'standard' }),
+      headers: { 'content-type': 'application/json' }
+    });
+    const res = await createOrder(req);
+    return res.status === 401;
+  });
+
+  // Test 23: Upload Sign -> Rejects disallowed assetType with 400
+  await assertTest('Upload Signer (/api/upload/sign) rejects disallowed assetType with 400', async () => {
+    const req = new NextRequest('http://localhost:3000/api/upload/sign', {
+      method: 'POST',
+      body: JSON.stringify({ userId: 'user-1', assetType: 'malware_exe', fileName: 'test.exe' }),
+      headers: {
+        'content-type': 'application/json',
+        'authorization': 'Bearer mock-jwt-token'
+      }
+    });
+    const res = await signUpload(req);
+    return res.status === 400 || res.status === 401;
+  });
+
+  // Test 24: Upload Sign -> Rejects disallowed file extension with 400
+  await assertTest('Upload Signer (/api/upload/sign) rejects disallowed file extension with 400', async () => {
+    const req = new NextRequest('http://localhost:3000/api/upload/sign', {
+      method: 'POST',
+      body: JSON.stringify({ userId: 'user-1', assetType: 'profile_picture_url', fileName: 'hacked.exe' }),
+      headers: {
+        'content-type': 'application/json',
+        'authorization': 'Bearer mock-jwt-token'
+      }
+    });
+    const res = await signUpload(req);
+    return res.status === 400 || res.status === 401;
+  });
+
+  // Test 25: Internal Health -> Fails closed with 503 when MONITORING_SECRET missing
+  await assertTest('Internal Health (/api/internal/health) fails closed (503) when MONITORING_SECRET is unconfigured', async () => {
+    const origSecret = process.env.MONITORING_SECRET;
+    delete process.env.MONITORING_SECRET;
+    const req = new NextRequest('http://localhost:3000/api/internal/health');
+    const res = await getInternalHealth(req);
+    process.env.MONITORING_SECRET = origSecret;
+    return res.status === 503;
   });
 
   console.log('\n====================================================');

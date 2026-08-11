@@ -149,27 +149,16 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         }
       }
 
-      // Fetch live jobs from Supabase or direct PostgreSQL API
+      // Fetch live jobs with explicit columns & limit 50 (Fix Audit 6 Items 18 & 19)
       let rawLiveJobs: any[] = [];
       const { data: liveJobs } = await supabase
         .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('id, title, category, salary, shift_hours, society_name, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (liveJobs && liveJobs.length > 0) {
         rawLiveJobs = liveJobs;
-      } else {
-        try {
-          const res = await fetch('/api/admin/data?tab=jobs&limit=50');
-          if (res.ok) {
-            const apiData = await res.json();
-            if (apiData.success && Array.isArray(apiData.jobs)) {
-              rawLiveJobs = apiData.jobs;
-            }
-          }
-        } catch (apiErr) {
-          console.warn("Jobs API fetch notice:", apiErr);
-        }
       }
 
       if (rawLiveJobs && rawLiveJobs.length > 0) {

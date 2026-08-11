@@ -7,22 +7,23 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
 /**
- * Server-side Razorpay order creation (P0 #9)
+ * Server-side Razorpay order creation
  * Replaces client-controlled amount/plan selection.
  * Architecture:
  *   Employer → POST /api/payments/create-order { planId }
- *           → Server validates planId against DB pricing
+ *           → Server validates planId & price from DB
  *           → Server calls Razorpay Orders API
+ *           → Stores checkout_sessions mapping with expires_at (NOW() + 30 min)
  *           → Returns { orderId, amount, currency, keyId }
- *           → Employer opens Razorpay checkout with server-issued orderId
- *           → Payment captured via webhook (only webhook activates subscription)
+ *           → Webhook activates subscription exclusively
  */
 
 const PLAN_PRICES: Record<string, { price: number; name: string; validity: string }> = {
-  free:    { price: 0,    name: 'Free Trial Pass',           validity: '7 Days' },
-  basic:   { price: 299,  name: 'Basic Household Pass',      validity: '30 Days' },
-  premium: { price: 699,  name: 'Standard Family Plan',      validity: '60 Days' },
-  pro:     { price: 1499, name: 'Pro Unlimited Household Pass', validity: '90 Days' },
+  free:     { price: 0,    name: 'Free Trial Pass',              validity: '7 Days' },
+  basic:    { price: 299,  name: 'Basic Household Pass',         validity: '30 Days' },
+  standard: { price: 699,  name: 'Standard Family Plan',         validity: '60 Days' },
+  premium:  { price: 699,  name: 'Standard Family Plan',         validity: '60 Days' },
+  pro:      { price: 1499, name: 'Pro Unlimited Household Pass', validity: '90 Days' },
 };
 
 export async function POST(req: NextRequest) {
@@ -53,30 +54,32 @@ export async function POST(req: NextRequest) {
     }
     const userId = user.id;
 
-    // 2. Validate planId from DB pricing (server controls the price)
+    // 2. Validate planId from DB pricing (server controls price)
     const body = await req.json().catch(() => ({}));
-    const { planId } = body;
+    const rawPlanId = (body.planId || body.plan_id || 'standard').toString().toLowerCase();
 
-    if (!planId || !PLAN_PRICES[planId]) {
-      return NextResponse.json({ error: 'Invalid plan. Valid plans: free, basic, premium, pro' }, { status: 400 });
+    if (!PLAN_PRICES[rawPlanId]) {
+      return NextResponse.json({ error: 'Invalid plan. Valid plans: free, basic, standard, premium, pro' }, { status: 400 });
     }
 
+    const canonicalPlanId = rawPlanId === 'premium' ? 'standard' : rawPlanId;
+    let planPrice = PLAN_PRICES[rawPlanId].price;
+    let planName = PLAN_PRICES[rawPlanId].name;
+
     // Fetch live pricing from DB (overrides hardcoded if exists)
-    let planPrice = PLAN_PRICES[planId].price;
-    let planName = PLAN_PRICES[planId].name;
     try {
       const pricingRes = await queryDb(
         `SELECT settings FROM public.platform_settings WHERE id = 'pricing_config' LIMIT 1`
       );
       if (pricingRes?.rows?.[0]?.settings) {
         const settings = pricingRes.rows[0].settings;
-        const planKey = `${planId}Plan`;
-        if (settings[planKey]?.price) {
-          planPrice = parseInt(settings[planKey].price, 10) || planPrice;
+        const planKey = `${canonicalPlanId}Plan`;
+        if (settings[planKey]?.price !== undefined) {
+          planPrice = parseInt(settings[planKey].price, 10);
           planName = settings[planKey].name || planName;
         }
       }
-    } catch { /* use default prices */ }
+    } catch { /* use default fallback prices */ }
 
     // Free plan — no Razorpay order needed
     if (planPrice === 0) {
@@ -85,24 +88,24 @@ export async function POST(req: NextRequest) {
         orderId: null,
         amount: 0,
         currency: 'INR',
-        planId,
+        planId: canonicalPlanId,
         planName,
         keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '',
         isFree: true,
       });
     }
 
-    // 3. Verify Razorpay credentials configured
+    // 3. Verify Razorpay credentials
     const razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!razorpayKeyId || !razorpaySecret) {
-      console.error('[create-order] Razorpay credentials not configured');
-      return NextResponse.json({ error: 'Payment service unavailable' }, { status: 503 });
+      console.error('[create-order] Razorpay credentials missing');
+      return NextResponse.json({ error: 'Payment service configuration error.' }, { status: 503 });
     }
 
     // 4. Create Razorpay order server-side
     const razorpayAuth = Buffer.from(`${razorpayKeyId}:${razorpaySecret}`).toString('base64');
-    const internalOrderRef = `sev_${userId.slice(0, 8)}_${planId}_${Date.now()}`;
+    const internalOrderRef = `sev_${userId.slice(0, 8)}_${canonicalPlanId}_${Date.now()}`;
 
     const rzpResponse = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
@@ -115,9 +118,9 @@ export async function POST(req: NextRequest) {
         currency: 'INR',
         receipt: internalOrderRef,
         notes: {
-          // Notes are metadata only — payment is verified via webhook
           internal_ref: internalOrderRef,
-          plan_id: planId,
+          plan_id: canonicalPlanId,
+          user_id: userId,
         },
       }),
     });
@@ -125,41 +128,45 @@ export async function POST(req: NextRequest) {
     if (!rzpResponse.ok) {
       const errBody = await rzpResponse.text();
       console.error('[create-order] Razorpay API error:', errBody);
-      return NextResponse.json({ error: 'Failed to create payment order. Please try again.' }, { status: 502 });
+      return NextResponse.json({ error: 'Failed to create payment order with gateway. Please try again.' }, { status: 502 });
     }
 
     const rzpOrder = await rzpResponse.json();
     const razorpayOrderId = rzpOrder.id;
 
-    // 5. Store checkout session — authoritative mapping of order → user → plan → amount
+    // 5. Store checkout session — MUST include expires_at and FAIL on DB error (Audit 6 Fix #3)
     const sessionTokenRaw = crypto.randomBytes(32).toString('hex');
     const sessionTokenHash = crypto.createHash('sha256').update(sessionTokenRaw).digest('hex');
 
-    await queryDb(
-      `INSERT INTO public.checkout_sessions
-         (token_hash, user_id, plan_id, expected_amount, razorpay_order_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       ON CONFLICT (razorpay_order_id) DO UPDATE
-         SET user_id = EXCLUDED.user_id,
-             plan_id = EXCLUDED.plan_id,
-             expected_amount = EXCLUDED.expected_amount,
-             created_at = NOW()`,
-      [sessionTokenHash, userId, planId, planPrice, razorpayOrderId]
-    ).catch((err) => {
-      console.warn('[create-order] checkout_sessions insert warning:', err?.message);
-    });
+    try {
+      await queryDb(
+        `INSERT INTO public.checkout_sessions
+           (token_hash, user_id, plan_id, expected_amount, razorpay_order_id, expires_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '30 minutes', NOW())
+         ON CONFLICT (razorpay_order_id) DO UPDATE
+           SET user_id = EXCLUDED.user_id,
+               plan_id = EXCLUDED.plan_id,
+               expected_amount = EXCLUDED.expected_amount,
+               expires_at = NOW() + INTERVAL '30 minutes',
+               created_at = NOW()`,
+        [sessionTokenHash, userId, canonicalPlanId, planPrice, razorpayOrderId]
+      );
+    } catch (dbErr: any) {
+      console.error('[create-order] CRITICAL: checkout_sessions insertion failed:', dbErr);
+      return NextResponse.json({ error: 'Failed to record checkout session. Payment initialized safely.' }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
       orderId: razorpayOrderId,
       amount: planPrice * 100, // paise for Razorpay SDK
       currency: 'INR',
-      planId,
+      planId: canonicalPlanId,
       planName,
       keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || razorpayKeyId,
     });
   } catch (err: any) {
-    console.error('[create-order] Error:', err);
+    console.error('[create-order] Internal error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

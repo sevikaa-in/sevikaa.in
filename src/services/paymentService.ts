@@ -52,8 +52,7 @@ export class PaymentService {
       const orderId = paymentEntity.order_id || `order_${Date.now()}`;
       const status = event === 'payment.failed' ? 'failed' : (paymentEntity.status || 'captured');
 
-      // P0 #15: Event-level idempotency — unique per (event_type, payment_id)
-      // Prevents duplicate processing when payment.failed then payment.captured for same payment
+      // P0: Event-level idempotency — unique per (event_type, payment_id)
       const eventId = `${event}:${paymentId}`;
       const payloadHash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 
@@ -71,8 +70,9 @@ export class PaymentService {
           return { success: true, message: 'Already processed' };
         }
       } catch (idempotentErr: any) {
-        // If table doesn't exist yet (before migration runs), fall through
-        console.warn('[PaymentService] payment_events idempotency check skipped:', idempotentErr?.message);
+        // Fix #14: Fail closed if idempotency infrastructure fails
+        console.error('[PaymentService] CRITICAL: payment_events idempotency check failed:', idempotentErr?.message);
+        return { success: false, error: 'Idempotency verification failed. Payment deferred for retry.', statusCode: 500 };
       }
 
       const billingEmail = paymentEntity.email || 'employer@sevikaa.in';
@@ -80,11 +80,10 @@ export class PaymentService {
       const amount = (paymentEntity.amount || 0) / 100;
       const method = (paymentEntity.method || 'upi').toUpperCase();
 
-      let userId = 'anonymous';
+      let userId: string;
       let planName = 'Premium Subscription Pass';
 
-      // P0 #10: Authoritative lookup — cross-reference Razorpay order_id in checkout_sessions
-      // This is the correct mapping: orderId → user_id, plan_id, expected_amount
+      // Fix #15: Authoritative lookup — cross-reference Razorpay order_id in checkout_sessions
       if (orderId && orderId.startsWith('order_')) {
         const sessionRes = await queryDb(
           `SELECT user_id, plan_id, expected_amount
@@ -96,28 +95,31 @@ export class PaymentService {
 
         if (sessionRes?.rows?.length) {
           const session = sessionRes.rows[0];
-          userId = session.user_id || 'anonymous';
+          userId = session.user_id;
           planName = session.plan_id ? `${session.plan_id} plan` : planName;
+
           // Verify paid amount matches expected amount
           const expectedAmountPaise = (session.expected_amount || 0) * 100;
           const paidAmountPaise = paymentEntity.amount || 0;
           if (expectedAmountPaise > 0 && paidAmountPaise !== expectedAmountPaise) {
             console.error(`[PaymentService] AMOUNT MISMATCH: expected ${expectedAmountPaise} paise, got ${paidAmountPaise} paise for order ${orderId}`);
             await queryDb(
-              `UPDATE public.payment_events SET processed_at = NULL WHERE event_id = $1`,
+              `DELETE FROM public.payment_events WHERE event_id = $1`,
               [eventId]
             ).catch(() => {});
             return { success: false, error: 'Payment amount mismatch', statusCode: 400 };
           }
         } else {
-          // Order not found in checkout_sessions — reject with warning
-          console.warn(`[PaymentService] No checkout_session found for Razorpay order_id: ${orderId}. Cannot verify user identity.`);
-          userId = 'anonymous';
+          // Fix #15: Order not found in checkout_sessions — REJECT unmapped payments
+          console.error(`[PaymentService] UNMAPPED PAYMENT REJECTED: No checkout_session found for order_id ${orderId}.`);
+          await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch(() => {});
+          return { success: false, error: 'Unmapped payment order. Sent to manual reconciliation queue.', statusCode: 400 };
         }
       } else {
-        // No valid Razorpay order_id — cannot verify payment identity
-        console.warn(`[PaymentService] Missing valid order_id for payment ${paymentId}. Setting anonymous.`);
-        userId = 'anonymous';
+        // Fix #15: Missing valid order_id — REJECT payment
+        console.error(`[PaymentService] UNMAPPED PAYMENT REJECTED: Missing valid order_id for payment ${paymentId}.`);
+        await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch(() => {});
+        return { success: false, error: 'Payment order ID required.', statusCode: 400 };
       }
 
       // Record transaction

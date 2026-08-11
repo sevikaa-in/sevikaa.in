@@ -41,7 +41,11 @@ export async function GET(req: NextRequest) {
     // Identity is derived exclusively from auth.uid() — never from query params
     const userId = user.id;
 
-    const r = await queryDb(`SELECT * FROM public.profiles WHERE id = $1 LIMIT 1`, [userId]);
+    const r = await queryDb(
+      `SELECT id, phone, email, role, status, full_name, created_at 
+       FROM public.profiles WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
     const profile = r?.rows[0] || null;
 
     let workerProfile = null;

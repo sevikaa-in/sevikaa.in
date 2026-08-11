@@ -8,9 +8,10 @@
 -- 1. public.transactions (used by super-admin/transactions)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.transactions (
-    id TEXT PRIMARY KEY,
-    order_id TEXT,
-    user_id TEXT,
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    razorpay_payment_id TEXT UNIQUE,
+    razorpay_order_id TEXT,
+    user_id TEXT NOT NULL,
     employer_name TEXT,
     employer_email TEXT,
     employer_phone TEXT,

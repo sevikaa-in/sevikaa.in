@@ -21,23 +21,7 @@ export class TransactionRepository {
   }
 
   static async recordTransaction(data: TransactionRecord): Promise<boolean> {
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.transactions (
-        id text PRIMARY KEY,
-        order_id text,
-        user_id text,
-        employer_name text,
-        employer_email text,
-        employer_phone text,
-        plan_name text NOT NULL DEFAULT 'Premium Subscription Pass',
-        amount numeric NOT NULL DEFAULT 0,
-        payment_method text DEFAULT 'UPI / Razorpay',
-        status text NOT NULL DEFAULT 'captured',
-        invoice_number text,
-        raw_payload text,
-        created_at timestamptz DEFAULT NOW()
-      );
-    `).catch(() => {});
+    // transactions table managed via migrations — no runtime DDL
 
     await queryDb(
       `INSERT INTO public.transactions (id, order_id, user_id, employer_name, employer_email, employer_phone, plan_name, amount, payment_method, status, raw_payload, created_at)

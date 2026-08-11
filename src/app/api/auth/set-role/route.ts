@@ -61,6 +61,25 @@ export async function POST(req: NextRequest) {
     };
     const resolvedLangName = langNameMap[langCode] || 'Hindi';
 
+    // Role Immutability Guard (Fix Audit 6 Items 5 & 11)
+    // Verify if profile already has a role assigned. Roles cannot flip freely once set.
+    const existingProfile = await queryDb(
+      `SELECT role FROM public.profiles WHERE id::text = $1 LIMIT 1`,
+      [userId]
+    ).catch(() => null);
+
+    const currentRole = existingProfile?.rows?.[0]?.role;
+    if (currentRole && currentRole !== role) {
+      // Check caller's profile role from DB for super-admin exemption
+      const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      if (callerProfile?.role !== 'super-admin') {
+        return NextResponse.json({
+          error: 'Forbidden',
+          message: `Account role is locked to "${currentRole}". Role switching is not permitted.`
+        }, { status: 403 });
+      }
+    }
+
     // 3. Fetch dynamic helpline phone
     let helplinePhone = process.env.NEXT_PUBLIC_ADMIN_HELPLINE_PHONE || '+91 7096093039';
     try {

@@ -102,74 +102,68 @@ function CheckoutFormContent() {
   const handleProcessPayment = async () => {
     setIsProcessing(true);
 
-    executeRazorpayCheckout({
-      amount: plan.price,
-      planName: plan.name,
-      userName: displayCompanyName,
-      userEmail: displayEmail,
-      userPhone: displayPhone,
-      paymentMethod,
-      onSuccess: async (paymentId: string) => {
-        try {
-          // 1. Update employer local state
-          setEmployerProfile((prev: any) => ({
-            ...prev,
-            subscription_status: `${plan.name}`
-          }));
+    try {
+      // 1. Get bearer token from active session
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
-          // 2. Update Supabase employer_profiles & transactions log
-          const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                                !process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!token) {
+        showToast("Authentication required to process payment. Please log in.", "error");
+        setIsProcessing(false);
+        return;
+      }
 
-          if (!isPlaceholder) {
-            const { data: { session } } = await supabase.auth.getSession();
-            const activeUserId = session?.user?.id || queryUserId;
+      // 2. Call server-side payment order API to get authoritative Razorpay orderId & price
+      const createOrderRes = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ planId: plan.id })
+      });
 
-            if (activeUserId) {
-              await supabase
-                .from('employer_profiles')
-                .update({
-                  subscription_status: `${plan.name}`,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', activeUserId);
+      const orderData = await createOrderRes.json();
+      if (!createOrderRes.ok || !orderData.success) {
+        showToast(orderData.error || "Failed to initialize payment order with server.", "error");
+        setIsProcessing(false);
+        return;
+      }
 
-              // Log transaction entry
-              try {
-                await supabase
-                  .from('transactions')
-                  .insert([{
-                    user_id: activeUserId,
-                    amount: plan.price,
-                    status: 'captured',
-                    payment_id: paymentId,
-                    plan_name: plan.name,
-                    payment_method: paymentMethod.toUpperCase(),
-                    created_at: new Date().toISOString()
-                  }]);
-              } catch (txErr) {
-                console.error("Transactions log error:", txErr);
-              }
-            }
-          }
+      // If plan price is 0 (Free plan)
+      if (orderData.isFree) {
+        showToast("Free trial pass activated successfully!", "success");
+        router.push('/employer');
+        return;
+      }
 
-          showToast(`Payment successful! ${plan.name} is now active for your household.`, 'success');
-          
+      // 3. Launch Razorpay Checkout using server-generated orderId
+      // Browser DOES NOT update subscription directly — webhook is canonical authority (P0 Fix)
+      executeRazorpayCheckout({
+        orderId: orderData.orderId,
+        amount: plan.price,
+        planName: orderData.planName || plan.name,
+        userName: displayCompanyName,
+        userEmail: displayEmail,
+        userPhone: displayPhone,
+        paymentMethod,
+        onSuccess: async (paymentId: string) => {
+          showToast("Payment captured! Webhook is activating your plan...", "success");
           setTimeout(() => {
             router.push('/employer');
-          }, 1000);
-        } catch (err) {
-          console.error("Payment activation error:", err);
-          showToast("Payment captured, but profile update encountered an issue.", "warning");
-        } finally {
+          }, 1500);
           setIsProcessing(false);
+        },
+        onFailure: (errorMsg: string) => {
+          setIsProcessing(false);
+          showToast(`Payment failed: ${errorMsg}`, 'error');
         }
-      },
-      onFailure: (errorMsg: string) => {
-        setIsProcessing(false);
-        showToast(`Payment failed: ${errorMsg}`, 'error');
-      }
-    });
+      });
+    } catch (err: any) {
+      console.error("Checkout process error:", err);
+      showToast("Payment initialization failed. Please try again.", "error");
+      setIsProcessing(false);
+    }
   };
 
   return (

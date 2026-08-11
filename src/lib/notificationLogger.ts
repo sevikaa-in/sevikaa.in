@@ -24,20 +24,7 @@ export async function logNotificationDispatch(options: NotificationLogOptions) {
       raw_payload
     } = options;
 
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.notification_logs (
-        id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-        channel text NOT NULL DEFAULT 'sms',
-        provider text NOT NULL DEFAULT 'msg91',
-        recipient text NOT NULL,
-        template_id text,
-        message_id text,
-        status text NOT NULL DEFAULT 'delivered',
-        description text,
-        raw_payload text,
-        created_at timestamptz DEFAULT NOW()
-      );
-    `).catch(() => {});
+    // notification_logs table managed via migrations — no runtime DDL
 
     await queryDb(`
       INSERT INTO public.notification_logs (channel, provider, recipient, template_id, message_id, status, description, raw_payload, created_at)

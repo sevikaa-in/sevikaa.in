@@ -73,41 +73,7 @@ export async function logAuditAction(options: AuditLogOptions) {
     const rawPayloadJson = raw_payload ? JSON.stringify(raw_payload) : (typeof details === 'object' ? JSON.stringify(details) : null);
     const finalRole = actorRole || role || 'Moderator';
 
-    // 1. Ensure public.audit_logs table and all columns exist
-    await queryDb(`
-      CREATE TABLE IF NOT EXISTS public.audit_logs (
-        id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-        action text NOT NULL,
-        category text DEFAULT 'admin_action',
-        severity text DEFAULT 'info',
-        actor text DEFAULT 'admin@sevikaa.in',
-        actor_role text DEFAULT 'Moderator',
-        admin_email text DEFAULT 'admin@sevikaa.in',
-        admin_name text DEFAULT 'Admin Moderator',
-        target_name text,
-        target_id text,
-        changes_summary text,
-        raw_payload text,
-        ip_address text DEFAULT '103.142.12.44',
-        details text,
-        created_at timestamptz DEFAULT NOW()
-      );
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS action text;
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS category text DEFAULT 'admin_action';
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS severity text DEFAULT 'info';
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS actor text DEFAULT 'admin@sevikaa.in';
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS actor_role text DEFAULT 'Moderator';
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS admin_email text DEFAULT 'admin@sevikaa.in';
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS admin_name text DEFAULT 'Admin Moderator';
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS target_name text;
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS target_id text;
-      ALTER TABLE public.audit_logs ALTER COLUMN target_id TYPE text USING target_id::text;
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS changes_summary text;
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS raw_payload text;
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS ip_address text DEFAULT '103.142.12.44';
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS details text;
-      ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT NOW();
-    `).catch(() => {});
+    // audit_logs table managed via migrations — no runtime DDL
 
     // Clean up empty/null legacy rows
     await queryDb(`DELETE FROM public.audit_logs WHERE details IS NULL OR details = 'null' OR details = '';`).catch(() => {});

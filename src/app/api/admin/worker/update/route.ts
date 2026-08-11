@@ -86,9 +86,8 @@ export async function POST(req: NextRequest) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let resolvedUserId = userId;
 
-    // 1. Ensure status column exists and profiles entry exists
+    // 1. Ensure profiles entry exists (schema managed via migrations — no runtime DDL)
     try {
-      await queryDb(`ALTER TABLE public.worker_profiles ADD COLUMN IF NOT EXISTS status text;`).catch(() => {});
 
       const existingP = await queryDb(
         `SELECT id FROM public.profiles WHERE id::text = $1 OR phone = $1 OR email = $1 LIMIT 1`,
