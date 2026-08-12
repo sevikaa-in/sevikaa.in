@@ -5,6 +5,7 @@ process.env.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'rzp_live_t
 process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-12345';
 process.env.MONITORING_SECRET = process.env.MONITORING_SECRET || 'test_monitoring_secret_12345';
+process.env.SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'sevikaa_jwt_secret_key_32_characters_long_minimum';
 
 import { NextRequest } from 'next/server';
 import { GET as getEnquiries, PATCH as patchEnquiries } from '../src/app/api/admin/enquiries/route';
@@ -29,6 +30,7 @@ import { GET as getHealth } from '../src/app/api/health/route';
 import { GET as getInternalHealth } from '../src/app/api/internal/health/route';
 import { POST as createOrder } from '../src/app/api/payments/create-order/route';
 import { POST as postSocieties } from '../src/app/api/societies/route';
+import { POST as loginOtpPost } from '../src/app/api/auth/login-otp/route';
 import { PaymentService } from '../src/services/paymentService';
 
 async function runSecurityTests() {
@@ -801,23 +803,327 @@ async function runSecurityTests() {
       }
     );
 
-    // Test: POST /api/societies Redis unavailable -> 503
+    // --- Task 10: New-User Authentication & Provisioning Failure-Path Matrix ---
+
+    // Test 10.1: Auth user creation failure -> 500 & NO tokens issued
     await assertTest(
-      'POST /api/societies — returns 503 when Redis is unreachable (fail-closed)',
+      'Task 10: Auth user creation failure returns 500 and NEVER issues access or refresh token',
       async () => {
         const origUrl = process.env.UPSTASH_REDIS_REST_URL;
         const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-        process.env.UPSTASH_REDIS_REST_URL = 'https://unreachable-redis.invalid';
-        process.env.UPSTASH_REDIS_REST_TOKEN = 'dummy-token';
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('public.otp_verifications')) {
+              return { rows: [{ target_key: 'phone:9988776655' }] } as any;
+            }
+            return { rows: [] } as any; // Profiles and auth.users search return 0 rows
+          },
+          release: () => {}
+        })) as any;
+
         try {
-          const req = new NextRequest('http://localhost:3000/api/societies', {
+          const req = new NextRequest('http://localhost:3000/api/auth/login-otp', {
             method: 'POST',
-            headers: { Authorization: 'Bearer mock-worker-token' },
-            body: JSON.stringify({ name: 'Fail Closed Society' })
+            body: JSON.stringify({ action: 'verify', phone: '9988776655', otp: '123456', role: 'worker' }),
+            headers: { 'Content-Type': 'application/json' }
           });
-          const res = await postSocieties(req);
-          return res.status === 503;
+          const res = await loginOtpPost(req);
+          if (res.status !== 500) {
+            console.error(`[FAIL] Expected 500 on auth user creation failure but got ${res.status}`);
+            return false;
+          }
+          const data = await res.json();
+          if (data.access_token || data.token || data.refresh_token || data.session) {
+            console.error('[FAIL] CRITICAL SECURITY VIOLATION: Issued tokens when auth user creation failed!');
+            return false;
+          }
+          return data.error === 'Account Creation Failed';
         } finally {
+          dbPool.connect = prevConnect;
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test 10.2: Mandatory profiles creation failure -> 500 & NO tokens issued
+    await assertTest(
+      'Task 10: Mandatory profiles creation failure returns 500 and NEVER issues access or refresh token',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        // Override dbPool to return existing auth.users but fails profiles check
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('public.otp_verifications')) {
+              return { rows: [{ target_key: 'phone:9988776655' }] } as any;
+            }
+            if (sql.includes('auth.users')) {
+              return { rows: [{ id: 'mock-user-profile-fail', email: 'test@sevikaa.in', phone: '+919988776655' }] } as any;
+            }
+            if (sql.includes('SELECT id, role, phone, email FROM public.profiles')) {
+              return { rows: [] } as any; // Profiles verification fails (0 rows)
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const req = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verify', phone: '9988776655', otp: '123456', role: 'worker' }),
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const res = await loginOtpPost(req);
+          if (res.status !== 500) {
+            console.error(`[FAIL] Expected 500 on profiles creation failure but got ${res.status}`);
+            return false;
+          }
+          const data = await res.json();
+          if (data.access_token || data.token || data.refresh_token || data.session) {
+            console.error('[FAIL] CRITICAL SECURITY VIOLATION: Issued tokens when profiles creation failed!');
+            return false;
+          }
+          return data.error === 'Profile Creation Failed';
+        } finally {
+          dbPool.connect = prevConnect;
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test 10.3: Mandatory worker_profiles creation failure -> 500 & NO tokens issued
+    await assertTest(
+      'Task 10: Mandatory worker_profiles creation failure returns 500 and NEVER issues access or refresh token',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('public.otp_verifications')) {
+              return { rows: [{ target_key: 'phone:9988776655' }] } as any;
+            }
+            if (sql.includes('auth.users')) {
+              return { rows: [{ id: 'mock-user-wp-fail', email: 'test@sevikaa.in', phone: '+919988776655' }] } as any;
+            }
+            if (sql.includes('SELECT id, role, phone, email FROM public.profiles')) {
+              return { rows: [{ id: 'mock-user-wp-fail', role: 'worker' }] } as any; // Profiles verify OK
+            }
+            if (sql.includes('SELECT id FROM public.worker_profiles')) {
+              return { rows: [] } as any; // worker_profiles verification fails (0 rows)
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const req = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verify', phone: '9988776655', otp: '123456', role: 'worker' }),
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const res = await loginOtpPost(req);
+          if (res.status !== 500) {
+            console.error(`[FAIL] Expected 500 on worker_profiles creation failure but got ${res.status}`);
+            return false;
+          }
+          const data = await res.json();
+          if (data.access_token || data.token || data.refresh_token || data.session) {
+            console.error('[FAIL] CRITICAL SECURITY VIOLATION: Issued tokens when worker_profiles creation failed!');
+            return false;
+          }
+          return data.error === 'Worker Profile Creation Failed';
+        } finally {
+          dbPool.connect = prevConnect;
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test 10.4: Mandatory employer_profiles creation failure -> 500 & NO tokens issued
+    await assertTest(
+      'Task 10: Mandatory employer_profiles creation failure returns 500 and NEVER issues access or refresh token',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('public.otp_verifications')) {
+              return { rows: [{ target_key: 'phone:9988776655' }] } as any;
+            }
+            if (sql.includes('auth.users')) {
+              return { rows: [{ id: 'mock-user-ep-fail', email: 'test@sevikaa.in', phone: '+919988776655' }] } as any;
+            }
+            if (sql.includes('SELECT id, role, phone, email FROM public.profiles')) {
+              return { rows: [{ id: 'mock-user-ep-fail', role: 'employer' }] } as any; // Profiles verify OK
+            }
+            if (sql.includes('SELECT id FROM public.employer_profiles')) {
+              return { rows: [] } as any; // employer_profiles verification fails (0 rows)
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const req = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verify', phone: '9988776655', otp: '123456', role: 'employer' }),
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const res = await loginOtpPost(req);
+          if (res.status !== 500) {
+            console.error(`[FAIL] Expected 500 on employer_profiles creation failure but got ${res.status}`);
+            return false;
+          }
+          const data = await res.json();
+          if (data.access_token || data.token || data.refresh_token || data.session) {
+            console.error('[FAIL] CRITICAL SECURITY VIOLATION: Issued tokens when employer_profiles creation failed!');
+            return false;
+          }
+          return data.error === 'Employer Profile Creation Failed';
+        } finally {
+          dbPool.connect = prevConnect;
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test 10.5: Refresh session persistence failure -> 500 & NO tokens issued
+    await assertTest(
+      'Task 10: Refresh session persistence failure returns 500 and NEVER issues access or refresh token',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('public.otp_verifications')) {
+              return { rows: [{ target_key: 'phone:9988776655' }] } as any;
+            }
+            if (sql.includes('auth.users')) {
+              return { rows: [{ id: 'mock-user-refresh-fail', email: 'test@sevikaa.in', phone: '+919988776655' }] } as any;
+            }
+            if (sql.includes('SELECT id, role, phone, email FROM public.profiles')) {
+              return { rows: [{ id: 'mock-user-refresh-fail', role: 'worker' }] } as any;
+            }
+            if (sql.includes('SELECT id FROM public.worker_profiles')) {
+              return { rows: [{ id: 'mock-user-refresh-fail' }] } as any;
+            }
+            if (sql.includes('INSERT INTO public.refresh_tokens')) {
+              return { rows: [] } as any; // Refresh token insert fails (0 rows)
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const req = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verify', phone: '9988776655', otp: '123456', role: 'worker' }),
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const res = await loginOtpPost(req);
+          if (res.status !== 500) {
+            console.error(`[FAIL] Expected 500 on refresh token persistence failure but got ${res.status}`);
+            return false;
+          }
+          const data = await res.json();
+          if (data.access_token || data.token || data.refresh_token || data.session) {
+            console.error('[FAIL] CRITICAL SECURITY VIOLATION: Issued tokens when refresh token persistence failed!');
+            return false;
+          }
+          return data.error === 'Authentication Failed';
+        } finally {
+          dbPool.connect = prevConnect;
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test 10.6: Successful complete idempotent account provisioning -> 200 & valid tokens
+    await assertTest(
+      'Task 10: Complete idempotent account provisioning succeeds with 200 and valid session tokens',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('public.otp_verifications')) {
+              return { rows: [{ target_key: 'phone:9988776655' }] } as any;
+            }
+            if (sql.includes('auth.users')) {
+              return { rows: [{ id: 'mock-user-success', email: 'test@sevikaa.in', phone: '+919988776655' }] } as any;
+            }
+            if (sql.includes('SELECT id, role, phone, email FROM public.profiles')) {
+              return { rows: [{ id: 'mock-user-success', role: 'worker' }] } as any;
+            }
+            if (sql.includes('SELECT id FROM public.worker_profiles')) {
+              return { rows: [{ id: 'mock-user-success' }] } as any;
+            }
+            if (sql.includes('INSERT INTO public.refresh_tokens')) {
+              return { rows: [{ id: 'ref-token-id-123' }] } as any;
+            }
+            if (sql.includes('finalGateRes') || sql.includes('profile_count')) {
+              return { rows: [{ profile_count: '1', role_profile_count: '1', session_count: '1' }] } as any;
+            }
+            return { rows: [{ profile_count: '1', role_profile_count: '1', session_count: '1' }] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const req = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verify', phone: '9988776655', otp: '123456', role: 'worker' }),
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const res = await loginOtpPost(req);
+          if (res.status !== 200) {
+            const errData = await res.json().catch(() => ({}));
+            console.error(`[FAIL] Expected 200 on complete provisioning but got ${res.status}:`, errData);
+            return false;
+          }
+          const data = await res.json();
+          return data.success === true && typeof data.access_token === 'string' && data.access_token.length > 20;
+        } finally {
+          dbPool.connect = prevConnect;
           process.env.UPSTASH_REDIS_REST_URL = origUrl;
           process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
         }

@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
           console.warn("SMS send notice:", smsErr);
         }
 
-        // Item 21: Uniform response — never leak isExistingUser/existingRole (account enumeration)
+        // Uniform response — never leak isExistingUser/existingRole (account enumeration)
         return NextResponse.json({
           success: true,
           method: 'sms',
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
           getMagicLinkOrLoginOtpEmailHtml(generatedOtp, false)
         );
 
-        // Item 21: Uniform response — never leak isExistingUser/existingRole (account enumeration)
+        // Uniform response — never leak isExistingUser/existingRole (account enumeration)
         return NextResponse.json({
           success: true,
           method: 'email',
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
     }
 
     // -------------------------------------------------------------------------
-    // ACTION: VERIFY OTP
+    // ACTION: VERIFY OTP & PROVISION ACCOUNT (IDEMPOTENT STATE MACHINE)
     // -------------------------------------------------------------------------
     if (action === 'verify') {
       const cleanPhone = (phone || '').replace(/\D/g, '').slice(-10);
@@ -182,18 +182,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Authentication service error. Please request a new code.' }, { status: 500 });
       }
 
-      // Fetch or Create user profile in Supabase
-      let userObj: { id: string; phone?: string; email?: string; role?: string; full_name?: string; society?: string } | null = null;
+      // =========================================================================
+      // STATE MACHINE STEP 1: RESOLVE / CREATE CANONICAL AUTH IDENTITY (auth.users)
+      // =========================================================================
+      let resolvedUserId: string | null = null;
+      let userEmail: string | undefined = email ? (email || '').toLowerCase().trim() : undefined;
+      let userPhone: string | undefined = cleanPhone ? `+91${cleanPhone}` : undefined;
       let isExistingUser = false;
-      let hasCompletedProfile = false;
-      const formattedPhone = cleanPhone ? `+91${cleanPhone}` : undefined;
+      let userRole: string = role || 'worker';
+      let displayFullName: string | null = null;
+      let displaySocietyName: string | null = null;
 
+      const cleanDigits = cleanPhone.slice(-10);
+
+      // Search 1: Search public.profiles
       try {
-        const cleanDigits = cleanPhone.slice(-10);
-        const searchEmail = (email || '').toLowerCase().trim();
-
-        // 1. Query public.profiles and sub-profile existence & resolved role
-        const dbRes = await queryDb(
+        const profRes = await queryDb(
           `SELECT p.id, p.email, p.phone, p.role, p.full_name,
                   COALESCE(wp.full_name, p.full_name) AS worker_name,
                   COALESCE(ep.company_name, p.full_name) AS employer_name,
@@ -210,121 +214,101 @@ export async function POST(req: NextRequest) {
            WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(p.phone, ''), '[^0-9]', '', 'g'), 10) = $1)
               OR ($2 <> '' AND LOWER(COALESCE(p.email, '')) = $2)
            LIMIT 1`,
-          [cleanDigits, searchEmail]
+          [cleanDigits, userEmail || '']
         );
 
-        if (dbRes && dbRes.rows.length > 0) {
-          const prof = dbRes.rows[0];
+        if (profRes?.rows?.length) {
+          const row = profRes.rows[0];
+          resolvedUserId = row.id;
           isExistingUser = true;
-          hasCompletedProfile = !!prof.has_sub_profile;
-          const resolvedName = prof.resolved_role === 'employer' 
-            ? (prof.employer_name || prof.full_name || 'Employer Household') 
-            : (prof.worker_name || prof.full_name || 'Verified Helper');
-          userObj = {
-            id: prof.id,
-            email: prof.email || email,
-            phone: prof.phone || formattedPhone,
-            role: prof.resolved_role || prof.role || 'worker',
-            full_name: resolvedName,
-            society: prof.society_name || ''
-          };
+          userRole = row.resolved_role || row.role || userRole;
+          userEmail = row.email || userEmail;
+          userPhone = row.phone || userPhone;
+          displayFullName = row.resolved_role === 'employer'
+            ? (row.employer_name || row.full_name || 'Employer Household')
+            : (row.worker_name || row.full_name || 'Verified Helper');
+          displaySocietyName = row.society_name || null;
         }
       } catch (err) {
-        console.warn("DB user lookup notice:", err);
+        console.warn("[login-otp] Profiles lookup notice:", err);
       }
 
-      // If not found in public.profiles, check Supabase Admin Auth
-      // If not found in public.profiles, query auth.users directly via SQL (scalable, no listUsers scan)
-      if (!userObj) {
+      // Search 2: If not in profiles, search auth.users directly
+      if (!resolvedUserId) {
         try {
-          const authUserRes = await queryDb(
+          const authRes = await queryDb(
             `SELECT id, email, phone, raw_user_meta_data
              FROM auth.users
              WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1)
                 OR ($2 <> '' AND LOWER(COALESCE(email, '')) = $2)
              LIMIT 1`,
-            [cleanPhone ? cleanPhone.slice(-10) : '', (email || '').toLowerCase().trim()]
+            [cleanDigits, userEmail || '']
           );
-          if (authUserRes?.rows?.[0]) {
-            const foundUser = authUserRes.rows[0];
-            const meta = typeof foundUser.raw_user_meta_data === 'string' ? JSON.parse(foundUser.raw_user_meta_data) : (foundUser.raw_user_meta_data || {});
+          if (authRes?.rows?.length) {
+            const row = authRes.rows[0];
+            resolvedUserId = row.id;
             isExistingUser = true;
-            userObj = {
-              id: foundUser.id,
-              email: foundUser.email || email,
-              phone: foundUser.phone || formattedPhone,
-              role: meta.role || role || 'worker'
-            };
+            userEmail = row.email || userEmail;
+            userPhone = row.phone || userPhone;
+            const meta = typeof row.raw_user_meta_data === 'string' ? JSON.parse(row.raw_user_meta_data) : (row.raw_user_meta_data || {});
+            if (meta.role && SELF_SELECTABLE_ROLES.has(meta.role)) {
+              userRole = meta.role;
+            }
           }
-        } catch (adminSearchErr) {
-          console.warn("Auth users direct lookup notice:", adminSearchErr);
+        } catch (err) {
+          console.warn("[login-otp] auth.users direct lookup notice:", err);
         }
       }
 
-      // 2. Create new user if still not found
-      if (!userObj) {
-        const userRole = role || 'worker';
-        let createdUserId: string | null = null;
-
-        // Create official auth.users record via Supabase Admin Client to satisfy profiles_id_fkey constraint
+      // Search 3: Create new identity in auth.users if still not found
+      if (!resolvedUserId) {
         if (supabaseAdmin) {
           try {
             const { data: createdAuthUser, error: authCreateErr } = await supabaseAdmin.auth.admin.createUser({
-              phone: formattedPhone || undefined,
-              email: email || undefined,
+              phone: userPhone,
+              email: userEmail,
               email_confirm: true,
               phone_confirm: true,
               user_metadata: { role: userRole }
             });
             if (createdAuthUser?.user?.id) {
-              createdUserId = createdAuthUser.user.id;
+              resolvedUserId = createdAuthUser.user.id;
             } else if (authCreateErr) {
-              console.warn("createUser notice:", authCreateErr.message, "— fetching existing auth user id via DB");
+              console.warn("[login-otp] createUser warning:", authCreateErr.message, "— attempting DB lookup");
               try {
                 const existingAuthRes = await queryDb(
                   `SELECT id FROM auth.users
                    WHERE ($1 <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1)
                       OR ($2 <> '' AND LOWER(COALESCE(email, '')) = $2)
                    LIMIT 1`,
-                  [cleanPhone ? cleanPhone.slice(-10) : '', (email || '').toLowerCase().trim()]
+                  [cleanDigits, userEmail || '']
                 );
                 if (existingAuthRes?.rows?.[0]?.id) {
-                  createdUserId = existingAuthRes.rows[0].id;
+                  resolvedUserId = existingAuthRes.rows[0].id;
                   isExistingUser = true;
                 }
-              } catch (listErr) {
-                console.warn("Auth user DB lookup notice:", listErr);
+              } catch (retryErr) {
+                console.warn("[login-otp] auth.users lookup retry error:", retryErr);
               }
             }
           } catch (authErr) {
-            console.warn("Supabase auth user create notice:", authErr);
+            console.warn("[login-otp] Supabase auth.createUser exception:", authErr);
           }
         }
-
-        // Fail closed if new user creation failed and no canonical auth.users ID was resolved
-        if (!createdUserId) {
-          console.error('[login-otp] CRITICAL: Auth user creation failed and no canonical identity found.');
-          return NextResponse.json({ error: 'Account Creation Failed', message: 'Could not establish canonical user identity.' }, { status: 500 });
-        }
-
-        userObj = {
-          id: createdUserId,
-          phone: formattedPhone,
-          email: email || undefined,
-          role: userRole
-        };
       }
 
-      // -----------------------------------------------------------------------
-      // MANDATORY PROFILE & ROLE SUB-PROFILE ESTABLISHMENT (FAIL CLOSED)
-      // -----------------------------------------------------------------------
-      const resolvedId = userObj.id;
-      const userRole = userObj.role || role || 'worker';
-      const displayPhone = formattedPhone || userObj.phone || null;
-      const displayEmail = email || userObj.email || null;
+      // FAIL CLOSED CASE 5: Auth user creation failure — never issue token or create fake ID
+      if (!resolvedUserId) {
+        console.error('[login-otp] CRITICAL: Canonical identity creation failed.');
+        return NextResponse.json(
+          { error: 'Account Creation Failed', message: 'Could not establish canonical user identity.' },
+          { status: 500 }
+        );
+      }
 
-      // 1. Establish public.profiles row
-      let profInserted = false;
+      // =========================================================================
+      // STATE MACHINE STEP 2: PROVISION / REPAIR public.profiles (IDEMPOTENT)
+      // =========================================================================
       try {
         await queryDb(
           `INSERT INTO public.profiles (id, phone, email, role, status, created_at)
@@ -333,107 +317,231 @@ export async function POST(req: NextRequest) {
              SET phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
                  email = COALESCE(EXCLUDED.email, public.profiles.email),
                  role = COALESCE(public.profiles.role, EXCLUDED.role)`,
-          [resolvedId, displayPhone, displayEmail, userRole]
+          [resolvedUserId, userPhone || null, userEmail || null, userRole]
         );
-        profInserted = true;
-      } catch (profUpsertErr: any) {
-        console.error('[login-otp] Profile upsert error:', profUpsertErr?.message);
+      } catch (profErr: any) {
+        console.error('[login-otp] Profiles upsert error:', profErr?.message);
         if (supabaseAdmin) {
           try {
-            const { error: sbProfErr } = await supabaseAdmin.from('profiles').upsert({
-              id: resolvedId,
-              phone: displayPhone,
-              email: displayEmail,
+            await supabaseAdmin.from('profiles').upsert({
+              id: resolvedUserId,
+              phone: userPhone || null,
+              email: userEmail || null,
               role: userRole
             });
-            if (!sbProfErr) profInserted = true;
-          } catch (sbErr) {
-            console.error('[login-otp] Supabase profiles fallback error:', sbErr);
+          } catch (sbProfErr) {
+            console.error('[login-otp] Supabase profiles fallback error:', sbProfErr);
           }
         }
       }
 
-      if (!profInserted && !isExistingUser) {
-        console.error('[login-otp] CRITICAL: Mandatory profile creation failed for new user.');
-        return NextResponse.json({ error: 'Profile Creation Failed', message: 'Failed to establish mandatory user profile record.' }, { status: 500 });
+      // VERIFY public.profiles ROW (FAIL CLOSED CASE 6)
+      let verifiedProfile: { id: string; role: string; phone?: string; email?: string } | null = null;
+      try {
+        const checkProf = await queryDb(
+          `SELECT id, role, phone, email FROM public.profiles WHERE id = $1 LIMIT 1`,
+          [resolvedUserId]
+        );
+        if (checkProf?.rows?.[0]) {
+          verifiedProfile = checkProf.rows[0];
+        }
+      } catch (checkErr) {
+        console.error('[login-otp] Profile verification query failed:', checkErr);
       }
 
-      // 2. Establish mandatory worker_profiles or employer_profiles sub-profile
-      let subProfileEstablished = false;
-      if (userRole === 'worker') {
+      if (!verifiedProfile) {
+        console.error('[login-otp] CRITICAL: Mandatory profiles record missing after provisioning.');
+        return NextResponse.json(
+          { error: 'Profile Creation Failed', message: 'Failed to establish mandatory user profile record.' },
+          { status: 500 }
+        );
+      }
+
+      const effectiveRole = verifiedProfile.role || userRole;
+
+      // =========================================================================
+      // STATE MACHINE STEP 3: PROVISION / REPAIR ROLE SUB-PROFILE (IDEMPOTENT)
+      // =========================================================================
+      if (effectiveRole === 'worker') {
         try {
           await queryDb(
             `INSERT INTO public.worker_profiles (id, user_id, full_name, created_at)
              VALUES ($1, $1, $2, NOW())
-             ON CONFLICT (id) DO NOTHING`,
-            [resolvedId, 'Worker Candidate']
+             ON CONFLICT (id) DO UPDATE
+             SET user_id = EXCLUDED.user_id,
+                 full_name = COALESCE(public.worker_profiles.full_name, EXCLUDED.full_name)`,
+            [resolvedUserId, displayFullName || 'Worker Candidate']
           );
-          subProfileEstablished = true;
-        } catch (wpStubErr: any) {
-          console.error('[login-otp] Worker sub-profile creation error:', wpStubErr?.message);
+        } catch (wpErr: any) {
+          console.error('[login-otp] worker_profiles upsert error:', wpErr?.message);
           if (supabaseAdmin) {
             try {
-              const { error: sbWpErr } = await supabaseAdmin.from('worker_profiles').upsert({
-                id: resolvedId,
-                user_id: resolvedId,
-                full_name: 'Worker Candidate'
+              await supabaseAdmin.from('worker_profiles').upsert({
+                id: resolvedUserId,
+                user_id: resolvedUserId,
+                full_name: displayFullName || 'Worker Candidate'
               });
-              if (!sbWpErr) subProfileEstablished = true;
-            } catch (sbWpExc) {}
+            } catch (sbWpErr) {}
           }
         }
-      } else if (userRole === 'employer') {
+
+        // VERIFY worker_profiles ROW (FAIL CLOSED CASE 7)
+        let verifiedWp = false;
+        try {
+          const checkWp = await queryDb(
+            `SELECT id FROM public.worker_profiles WHERE user_id = $1 OR id = $1 LIMIT 1`,
+            [resolvedUserId]
+          );
+          if (checkWp?.rows?.[0]) {
+            verifiedWp = true;
+          }
+        } catch (checkWpErr) {
+          console.error('[login-otp] Worker profile verification query failed:', checkWpErr);
+        }
+
+        if (!verifiedWp) {
+          console.error('[login-otp] CRITICAL: Mandatory worker_profiles record missing after provisioning.');
+          return NextResponse.json(
+            { error: 'Worker Profile Creation Failed', message: 'Failed to establish mandatory worker profile record.' },
+            { status: 500 }
+          );
+        }
+
+      } else if (effectiveRole === 'employer') {
         try {
           await queryDb(
             `INSERT INTO public.employer_profiles (id, user_id, company_name, created_at)
              VALUES ($1, $1, $2, NOW())
-             ON CONFLICT (id) DO NOTHING`,
-            [resolvedId, 'Employer Candidate']
+             ON CONFLICT (id) DO UPDATE
+             SET user_id = EXCLUDED.user_id,
+                 company_name = COALESCE(public.employer_profiles.company_name, EXCLUDED.company_name)`,
+            [resolvedUserId, displayFullName || 'Employer Candidate']
           );
-          subProfileEstablished = true;
-        } catch (epStubErr: any) {
-          console.error('[login-otp] Employer sub-profile creation error:', epStubErr?.message);
+        } catch (epErr: any) {
+          console.error('[login-otp] employer_profiles upsert error:', epErr?.message);
           if (supabaseAdmin) {
             try {
-              const { error: sbEpErr } = await supabaseAdmin.from('employer_profiles').upsert({
-                id: resolvedId,
-                user_id: resolvedId,
-                company_name: 'Employer Candidate'
+              await supabaseAdmin.from('employer_profiles').upsert({
+                id: resolvedUserId,
+                user_id: resolvedUserId,
+                company_name: displayFullName || 'Employer Candidate'
               });
-              if (!sbEpErr) subProfileEstablished = true;
-            } catch (sbEpExc) {}
+            } catch (sbEpErr) {}
           }
         }
-      } else {
-        subProfileEstablished = true;
+
+        // VERIFY employer_profiles ROW (FAIL CLOSED CASE 8)
+        let verifiedEp = false;
+        try {
+          const checkEp = await queryDb(
+            `SELECT id FROM public.employer_profiles WHERE user_id = $1 OR id = $1 LIMIT 1`,
+            [resolvedUserId]
+          );
+          if (checkEp?.rows?.[0]) {
+            verifiedEp = true;
+          }
+        } catch (checkEpErr) {
+          console.error('[login-otp] Employer profile verification query failed:', checkEpErr);
+        }
+
+        if (!verifiedEp) {
+          console.error('[login-otp] CRITICAL: Mandatory employer_profiles record missing after provisioning.');
+          return NextResponse.json(
+            { error: 'Employer Profile Creation Failed', message: 'Failed to establish mandatory employer profile record.' },
+            { status: 500 }
+          );
+        }
       }
 
-      if (!subProfileEstablished && !isExistingUser) {
-        console.error('[login-otp] CRITICAL: Mandatory role profile creation failed for new user.');
-        return NextResponse.json({ error: 'Role Profile Creation Failed', message: 'Failed to establish mandatory candidate/employer profile record.' }, { status: 500 });
-      }
-
-      // Generate cryptographically signed HS256 JWT access_token and rotatable refresh_token
-      const accessToken = signSupabaseJwt(resolvedId, userObj.email, userObj.phone, userRole);
+      // =========================================================================
+      // STATE MACHINE STEP 4: PERSIST REFRESH SESSION
+      // =========================================================================
       const { generateRefreshToken, hashRefreshToken } = await import('@/lib/jwtHelper');
       const refreshToken = generateRefreshToken();
       const tokenHash = hashRefreshToken(refreshToken);
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+      let refreshPersisted = false;
       try {
-        await queryDb(
+        const refreshInsertRes = await queryDb(
           `INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at)
-           VALUES ($1, $2, $3)`,
-          [resolvedId, tokenHash, expiresAt]
+           VALUES ($1, $2, $3)
+           RETURNING id`,
+          [resolvedUserId, tokenHash, expiresAt]
         );
+        if (refreshInsertRes?.rows?.[0]?.id) {
+          refreshPersisted = true;
+        }
       } catch (dbInsertErr: any) {
         console.error('[login-otp] CRITICAL: Refresh token DB persistence failed:', dbInsertErr?.message);
-        return NextResponse.json({ error: 'Authentication Failed', message: 'Failed to establish persistent user session.' }, { status: 500 });
       }
+
+      // FAIL CLOSED CASE 9: Refresh token persistence failure — never issue tokens
+      if (!refreshPersisted) {
+        console.error('[login-otp] CRITICAL: Persistent refresh session creation failed.');
+        return NextResponse.json(
+          { error: 'Authentication Failed', message: 'Failed to establish persistent user session.' },
+          { status: 500 }
+        );
+      }
+
+      // =========================================================================
+      // STATE MACHINE STEP 5: FINAL PRE-TOKEN VERIFICATION GATEKEEPER
+      // =========================================================================
+      // Double check that profiles, role profile, and refresh session row ALL exist in DB
+      let finalVerificationPassed = false;
+      try {
+        const finalGateRes = await queryDb(
+          `SELECT 
+             (SELECT COUNT(*) FROM public.profiles WHERE id = $1) AS profile_count,
+             (CASE 
+                WHEN $2 = 'worker' THEN (SELECT COUNT(*) FROM public.worker_profiles WHERE user_id = $1 OR id = $1)
+                WHEN $2 = 'employer' THEN (SELECT COUNT(*) FROM public.employer_profiles WHERE user_id = $1 OR id = $1)
+                ELSE 1
+              END) AS role_profile_count,
+             (SELECT COUNT(*) FROM public.refresh_tokens WHERE user_id = $1 AND token_hash = $3 AND revoked_at IS NULL AND expires_at > NOW()) AS session_count`,
+          [resolvedUserId, effectiveRole, tokenHash]
+        );
+
+        const counts = finalGateRes?.rows?.[0];
+        if (
+          counts &&
+          parseInt(counts.profile_count, 10) > 0 &&
+          parseInt(counts.role_profile_count, 10) > 0 &&
+          parseInt(counts.session_count, 10) > 0
+        ) {
+          finalVerificationPassed = true;
+        }
+      } catch (gateErr) {
+        console.error('[login-otp] Final gatekeeper query error:', gateErr);
+      }
+
+      if (!finalVerificationPassed) {
+        console.error('[login-otp] CRITICAL: Final pre-token verification gatekeeper failed.');
+        // Revoke the unverified refresh token entry if created
+        await queryDb(`DELETE FROM public.refresh_tokens WHERE token_hash = $1`, [tokenHash]).catch(() => {});
+        return NextResponse.json(
+          { error: 'Account Verification Failed', message: 'Incomplete account provisioning detected.' },
+          { status: 500 }
+        );
+      }
+
+      // =========================================================================
+      // STATE MACHINE STEP 6: ISSUE ACCESS TOKEN & LOGIN RESPONSE (ONLY ON PASS)
+      // =========================================================================
+      const accessToken = signSupabaseJwt(resolvedUserId, userEmail, userPhone, effectiveRole);
+
+      const userObj = {
+        id: resolvedUserId,
+        email: userEmail,
+        phone: userPhone,
+        role: effectiveRole,
+        full_name: displayFullName || (effectiveRole === 'employer' ? 'Employer Household' : 'Verified Helper'),
+        society: displaySocietyName || ''
+      };
 
       const isWebClient = req.headers.get('x-client-platform') === 'web' || Boolean(req.headers.get('origin')) || Boolean(req.headers.get('referer'));
 
-      // Prepare response payload: Web receives HttpOnly cookie exclusively, Mobile gets refresh_token in JSON
       const res = NextResponse.json({
         success: true,
         user: userObj,
@@ -447,10 +555,9 @@ export async function POST(req: NextRequest) {
         access_token: accessToken,
         ...(isWebClient ? {} : { refresh_token: refreshToken }),
         isExistingUser,
-        hasCompletedProfile
+        hasCompletedProfile: true
       });
 
-      // Set Web HttpOnly refresh token cookie
       if (refreshToken) {
         res.cookies.set('sevikaa_refresh_token', refreshToken, {
           httpOnly: true,
@@ -461,16 +568,16 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      if (userObj?.role) {
-        res.cookies.set('sevikaa_user_role', userObj.role, {
+      if (effectiveRole) {
+        res.cookies.set('sevikaa_user_role', effectiveRole, {
           path: '/',
           maxAge: 2592000,
           sameSite: 'lax'
         });
       }
 
-      if (userObj?.id) {
-        res.cookies.set('sevikaa_user_id', userObj.id, {
+      if (resolvedUserId) {
+        res.cookies.set('sevikaa_user_id', resolvedUserId, {
           path: '/',
           maxAge: 2592000,
           sameSite: 'lax'
