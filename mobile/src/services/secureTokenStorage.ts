@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-let SecureStore: typeof import('expo-secure-store') | null = null;
+let SecureStore: any = null;
 try {
   SecureStore = require('expo-secure-store');
 } catch (e) {
@@ -71,16 +71,16 @@ export const secureTokenStorage = {
       return;
     }
 
+    // Native iOS/Android: ONLY SecureStore allowed. NEVER fallback to AsyncStorage for onboarding token on native.
     if (!SecureStore) {
-      await AsyncStorage.setItem(ONBOARDING_TOKEN_KEY, token);
-      return;
+      throw new Error('CRITICAL: expo-secure-store is not available on native platform for onboarding token.');
     }
 
     try {
       await SecureStore.setItemAsync(ONBOARDING_TOKEN_KEY, token);
     } catch (err: any) {
-      console.error('[secureTokenStorage] Onboarding token write error:', err?.message);
-      await AsyncStorage.setItem(ONBOARDING_TOKEN_KEY, token);
+      console.error('[secureTokenStorage] Onboarding token native SecureStore write error:', err?.message);
+      throw new Error('Onboarding token secure storage failed on native device. Access denied.');
     }
   },
 
@@ -89,14 +89,13 @@ export const secureTokenStorage = {
       return await AsyncStorage.getItem(ONBOARDING_TOKEN_KEY);
     }
 
-    if (!SecureStore) {
-      return await AsyncStorage.getItem(ONBOARDING_TOKEN_KEY);
-    }
+    if (!SecureStore) return null;
 
     try {
-      return (await SecureStore.getItemAsync(ONBOARDING_TOKEN_KEY)) || (await AsyncStorage.getItem(ONBOARDING_TOKEN_KEY));
+      return await SecureStore.getItemAsync(ONBOARDING_TOKEN_KEY);
     } catch (e) {
-      return await AsyncStorage.getItem(ONBOARDING_TOKEN_KEY);
+      console.error('[secureTokenStorage] Onboarding token native SecureStore read error:', e);
+      return null;
     }
   },
 
@@ -111,7 +110,6 @@ export const secureTokenStorage = {
         await SecureStore.deleteItemAsync(ONBOARDING_TOKEN_KEY);
       } catch (e) {}
     }
-    await AsyncStorage.removeItem(ONBOARDING_TOKEN_KEY).catch(() => {});
   },
 
   async clearTokens(): Promise<void> {
@@ -130,7 +128,6 @@ export const secureTokenStorage = {
         await SecureStore.deleteItemAsync(ONBOARDING_TOKEN_KEY);
       } catch (e) {}
     }
-    await AsyncStorage.removeItem(ONBOARDING_TOKEN_KEY).catch(() => {});
     await AsyncStorage.removeItem(USER_SESSION_KEY).catch(() => {});
   }
 };

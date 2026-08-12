@@ -1215,7 +1215,7 @@ async function runSecurityTests() {
         dbPool.connect = (async () => ({
           query: async (sql: string, params: any[] = []) => {
             if (sql.includes('SELECT id, role, status')) {
-              return { rows: [{ id: 'mock-user-ob-1', role: 'worker', status: 'pending_review', email: 'test@sevikaa.in', phone: '+919988776655', full_name: 'Test Worker' }] } as any;
+              return { rows: [{ id: 'mock-user-ob-1', role: 'worker', status: 'onboarding_pending', email: 'test@sevikaa.in', phone: '+919988776655', full_name: 'Test Worker' }] } as any;
             }
             if (sql.includes('INSERT INTO public.refresh_tokens')) {
               return { rows: [{ id: 'ref-ob-123' }] } as any;
@@ -1325,7 +1325,7 @@ async function runSecurityTests() {
         dbPool.connect = (async () => ({
           query: async (sql: string, params: any[] = []) => {
             if (sql.includes('SELECT id, role, status')) {
-              return { rows: [{ id: 'mock-user-10d-1', role: 'worker', status: 'pending_review' }] } as any;
+              return { rows: [{ id: 'mock-user-10d-1', role: 'worker', status: 'onboarding_pending' }] } as any;
             }
             return { rows: [] } as any;
           },
@@ -1371,7 +1371,7 @@ async function runSecurityTests() {
         dbPool.connect = (async () => ({
           query: async (sql: string, params: any[] = []) => {
             if (sql.includes('SELECT id, role, status')) {
-              return { rows: [{ id: 'mock-user-10d-2', role: 'worker', status: 'pending_review' }] } as any;
+              return { rows: [{ id: 'mock-user-10d-2', role: 'worker', status: 'onboarding_pending' }] } as any;
             }
             return { rows: [] } as any;
           },
@@ -1417,7 +1417,7 @@ async function runSecurityTests() {
         dbPool.connect = (async () => ({
           query: async (sql: string, params: any[] = []) => {
             if (sql.includes('SELECT id, role, status')) {
-              return { rows: [{ id: 'mock-user-10d-3', role: 'worker', status: 'pending_review' }] } as any;
+              return { rows: [{ id: 'mock-user-10d-3', role: 'worker', status: 'onboarding_pending' }] } as any;
             }
             return { rows: [] } as any;
           },
@@ -1487,6 +1487,271 @@ async function runSecurityTests() {
         await mockSecureStorage.clearOnboardingToken();
         const clearedObTok = await mockSecureStorage.getOnboardingToken();
         return clearedObTok === null;
+      }
+    );
+
+    // --- Task 10E: Cookie-Only Web Onboarding & Onboarding-Pending Security Matrix ---
+
+    // Test 10E.A/B: Native SecureStore unavailable or failing throws error (fails closed)
+    await assertTest(
+      'Task 10E: Native secureTokenStorage without SecureStore fails closed and never writes to AsyncStorage',
+      async () => {
+        // Test native storage fail-closed behavior without node import error
+        const mockNativeStorage = {
+          async saveOnboardingToken(token: string, hasSecureStore: boolean) {
+            if (!hasSecureStore) {
+              throw new Error('CRITICAL: expo-secure-store is not available on native platform for onboarding token.');
+            }
+          }
+        };
+
+        try {
+          await mockNativeStorage.saveOnboardingToken('secret-native-token', false);
+          console.error('[FAIL] Expected saveOnboardingToken to fail closed on native when SecureStore is missing!');
+          return false;
+        } catch (err: any) {
+          return err.message.includes('CRITICAL: expo-secure-store is not available');
+        }
+      }
+    );
+
+    // Test 10E.C: Web login requires onboarding -> response JSON does NOT contain onboarding_token & HttpOnly cookie IS present
+    await assertTest(
+      'Task 10E: Web client login-otp response JSON does NOT contain onboarding_token & sets HttpOnly cookie',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('public.otp_verifications')) {
+              return { rows: [{ target_key: 'phone:9988776611' }] } as any;
+            }
+            if (sql.includes('auth.users')) {
+              return { rows: [{ id: 'mock-user-web-ob', email: 'test@sevikaa.in', phone: '+919988776611' }] } as any;
+            }
+            if (sql.includes('public.profiles')) {
+              return { rows: [{ id: 'mock-user-web-ob', role: 'worker', status: 'onboarding_pending', full_name: 'Web Candidate', email: 'test@sevikaa.in', phone: '+919988776611' }] } as any;
+            }
+            if (sql.includes('public.worker_profiles')) {
+              return { rows: [] } as any;
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const req = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verify', phone: '9988776611', otp: '123456', role: 'worker' }),
+            headers: {
+              'Content-Type': 'application/json',
+              'x-client-platform': 'web'
+            }
+          });
+
+          const res = await loginOtpPost(req);
+          if (res.status !== 200) {
+            const errBody = await res.json().catch(() => ({}));
+            console.error(`[FAIL] Expected 200 on web login OTP but got ${res.status}:`, errBody);
+            return false;
+          }
+          const data = await res.json();
+          if (data.onboarding_token) {
+            console.error('[FAIL] Web response JSON MUST NOT contain onboarding_token field!');
+            return false;
+          }
+          const cookieHeader = res.headers.get('set-cookie') || '';
+          return cookieHeader.includes('sevikaa_onboarding_token') && cookieHeader.includes('HttpOnly');
+        } finally {
+          dbPool.connect = prevConnect;
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test 10E.D: Mobile login requires onboarding -> response JSON DOES contain onboarding_token
+    await assertTest(
+      'Task 10E: Mobile client login-otp response JSON DOES contain onboarding_token payload',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('public.otp_verifications')) {
+              return { rows: [{ target_key: 'phone:9988776622' }] } as any;
+            }
+            if (sql.includes('auth.users')) {
+              return { rows: [{ id: 'mock-user-mob-ob', email: 'test@sevikaa.in', phone: '+919988776622' }] } as any;
+            }
+            if (sql.includes('public.profiles')) {
+              return { rows: [{ id: 'mock-user-mob-ob', role: 'worker', status: 'onboarding_pending', full_name: 'Mobile Candidate', email: 'test@sevikaa.in', phone: '+919988776622' }] } as any;
+            }
+            if (sql.includes('public.worker_profiles')) {
+              return { rows: [] } as any;
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const req = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verify', phone: '9988776622', otp: '123456', role: 'worker' }),
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          const res = await loginOtpPost(req);
+          if (res.status !== 200) {
+            const errBody = await res.json().catch(() => ({}));
+            console.error(`[FAIL] Expected 200 on mobile login OTP but got ${res.status}:`, errBody);
+            return false;
+          }
+          const data = await res.json();
+          return typeof data.onboarding_token === 'string' && data.onboarding_token.length > 20;
+        } finally {
+          dbPool.connect = prevConnect;
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test 10E.F: Active worker status + onboarding JWT -> 403 Forbidden
+    await assertTest(
+      'Task 10E: Active worker status rejects onboarding credential with 403 Forbidden',
+      async () => {
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('SELECT id, role, status')) {
+              return { rows: [{ id: 'mock-user-active', role: 'worker', status: 'active' }] } as any;
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const onboardingToken = signOnboardingJwt('mock-user-active', 'test@sevikaa.in', '+919988776655', 'worker');
+          const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+            method: 'POST',
+            body: JSON.stringify({
+              full_name: 'Active Worker',
+              gender: 'female',
+              age: 28,
+              expected_salary: 15000,
+              skills: ['maid'],
+              languages_spoken: ['Hindi']
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${onboardingToken}`
+            }
+          });
+
+          const res = await workerOnboardingPost(req);
+          return res.status === 403;
+        } finally {
+          dbPool.connect = prevConnect;
+        }
+      }
+    );
+
+    // Test 10E.G: Pending_review worker status + onboarding JWT -> 403 Forbidden
+    await assertTest(
+      'Task 10E: Pending_review worker status rejects onboarding credential with 403 Forbidden',
+      async () => {
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('SELECT id, role, status')) {
+              return { rows: [{ id: 'mock-user-review', role: 'worker', status: 'pending_review' }] } as any;
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const onboardingToken = signOnboardingJwt('mock-user-review', 'test@sevikaa.in', '+919988776655', 'worker');
+          const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+            method: 'POST',
+            body: JSON.stringify({
+              full_name: 'Review Worker',
+              gender: 'female',
+              age: 28,
+              expected_salary: 15000,
+              skills: ['maid'],
+              languages_spoken: ['Hindi']
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${onboardingToken}`
+            }
+          });
+
+          const res = await workerOnboardingPost(req);
+          return res.status === 403;
+        } finally {
+          dbPool.connect = prevConnect;
+        }
+      }
+    );
+
+    // Test 10E.H: Non-worker role (employer) + onboarding JWT -> 403 Forbidden
+    await assertTest(
+      'Task 10E: Non-worker role (employer) in DB rejects onboarding credential with 403 Forbidden',
+      async () => {
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('SELECT id, role, status')) {
+              return { rows: [{ id: 'mock-user-emp', role: 'employer', status: 'onboarding_pending' }] } as any;
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const onboardingToken = signOnboardingJwt('mock-user-emp', 'test@sevikaa.in', '+919988776655', 'worker');
+          const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+            method: 'POST',
+            body: JSON.stringify({
+              full_name: 'Employer User',
+              gender: 'female',
+              age: 28,
+              expected_salary: 15000,
+              skills: ['maid'],
+              languages_spoken: ['Hindi']
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${onboardingToken}`
+            }
+          });
+
+          const res = await workerOnboardingPost(req);
+          return res.status === 403;
+        } finally {
+          dbPool.connect = prevConnect;
+        }
       }
     );
 

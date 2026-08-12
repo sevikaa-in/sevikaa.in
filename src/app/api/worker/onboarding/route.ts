@@ -35,15 +35,23 @@ export async function POST(req: NextRequest) {
     let userEmail = verifiedOb.email;
     let userPhone = verifiedOb.phone;
 
-    // Verify account status from public.profiles
+    // Verify account status from public.profiles: MUST be role 'worker' and status 'onboarding_pending'
     const profRes = await queryDb(`SELECT id, role, status, email, phone, full_name FROM public.profiles WHERE id = $1 LIMIT 1`, [activeUserId]);
     if (!profRes?.rows?.[0]) {
       return NextResponse.json({ success: false, error: 'Unauthorized', message: 'Account profile not found.' }, { status: 401 });
     }
 
     const dbProfile = profRes.rows[0];
-    if (dbProfile.status === 'suspended' || dbProfile.status === 'banned') {
-      return NextResponse.json({ success: false, error: 'Forbidden', message: 'Account is suspended or banned.' }, { status: 403 });
+    if (dbProfile.role !== 'worker') {
+      return NextResponse.json({ success: false, error: 'Forbidden', message: 'Onboarding is permitted only for worker accounts.' }, { status: 403 });
+    }
+
+    if (dbProfile.status !== 'onboarding_pending') {
+      return NextResponse.json({
+        success: false,
+        error: 'Forbidden',
+        message: 'Account is not in onboarding_pending status. Onboarding credentials cannot be reused after completion.'
+      }, { status: 403 });
     }
 
     userEmail = userEmail || dbProfile.email;

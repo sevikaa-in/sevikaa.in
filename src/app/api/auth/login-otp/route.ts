@@ -384,13 +384,12 @@ export async function POST(req: NextRequest) {
           const onboardingToken = signOnboardingJwt(resolvedUserId, userEmail, userPhone, 'worker');
           const isWebClient = req.headers.get('x-client-platform') === 'web' || Boolean(req.headers.get('origin')) || Boolean(req.headers.get('referer'));
 
-          const pendingRes = NextResponse.json({
+          const pendingPayload: any = {
             success: true,
             isExistingUser,
             hasCompletedProfile: false,
             requiresOnboarding: true,
             onboardingUrl: '/worker/onboarding',
-            onboarding_token: onboardingToken,
             user: {
               id: resolvedUserId,
               email: userEmail,
@@ -399,7 +398,15 @@ export async function POST(req: NextRequest) {
               status: 'onboarding_pending'
             },
             message: 'OTP verified. Worker onboarding required before profile activation.'
-          });
+          };
+
+          // Mobile client receives onboarding_token in JSON body to save in SecureStore.
+          // Web client receives onboarding token ONLY via HttpOnly cookie.
+          if (!isWebClient) {
+            pendingPayload.onboarding_token = onboardingToken;
+          }
+
+          const pendingRes = NextResponse.json(pendingPayload);
 
           if (isWebClient) {
             pendingRes.cookies.set('sevikaa_onboarding_token', onboardingToken, {
