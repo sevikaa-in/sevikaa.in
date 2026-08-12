@@ -149,8 +149,7 @@ export async function POST(req: NextRequest) {
 
   const userId = user.id;
 
-  // 3. Verify role — workers and employers may submit society requests; admins may too.
-  //    Anonymous or unknown-role callers are rejected.
+  // 3. Verify role — restricted exclusively to 'worker' role (least privilege)
   let callerRole: string | null = null;
   try {
     const profileRes = await queryDb(
@@ -166,16 +165,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ALLOWED_ROLES = ['worker', 'employer', 'admin', 'super-admin'];
-  if (!callerRole || !ALLOWED_ROLES.includes(callerRole)) {
+  if (callerRole !== 'worker') {
     return NextResponse.json(
-      { error: 'Forbidden', message: 'Your account role is not permitted to submit society requests.' },
+      { error: 'Forbidden', message: 'Only worker accounts are permitted to submit society requests.' },
       { status: 403 }
     );
   }
 
-  // 4. Rate limit — non-critical path; in-memory fallback acceptable
-  const rateLimit = await checkRateLimitAsync(`societies-post:${extractClientIp(req)}`, 5, 60000);
+  // 4. Rate limit — CRITICAL endpoint requirement: fail closed with 503 if Redis is unavailable
+  const rateLimit = await checkRateLimitCritical(`societies-post:${extractClientIp(req)}`, 5, 60000);
   if (rateLimit.unavailable) {
     return NextResponse.json(
       { error: 'Rate limiting service temporarily unavailable.' },

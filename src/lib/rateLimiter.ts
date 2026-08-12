@@ -9,9 +9,6 @@ interface RateLimitStore {
 
 const rateLimitStore: RateLimitStore = {};
 
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-
 export function extractClientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
   if (forwarded) {
@@ -42,6 +39,9 @@ async function tryRedisRateLimit(
   maxRequests: number,
   windowMs: number
 ): Promise<{ ok: true; result: RateLimitResult } | { ok: false }> {
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
   if (!redisUrl || !redisToken || redisUrl.includes('placeholder')) {
     return { ok: false };
   }

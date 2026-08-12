@@ -1,3 +1,11 @@
+// Set default test environment variables BEFORE any module imports so modules initialize cleanly
+process.env.UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL || 'https://mock-redis.invalid';
+process.env.UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || 'mock-token-12345';
+process.env.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'rzp_live_test_secret_key_99999';
+process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-12345';
+process.env.MONITORING_SECRET = process.env.MONITORING_SECRET || 'test_monitoring_secret_12345';
+
 import { NextRequest } from 'next/server';
 import { GET as getEnquiries, PATCH as patchEnquiries } from '../src/app/api/admin/enquiries/route';
 import { POST as uploadAsset } from '../src/app/api/admin/worker/upload-asset/route';
@@ -22,12 +30,6 @@ import { GET as getInternalHealth } from '../src/app/api/internal/health/route';
 import { POST as createOrder } from '../src/app/api/payments/create-order/route';
 import { POST as postSocieties } from '../src/app/api/societies/route';
 import { PaymentService } from '../src/services/paymentService';
-
-// Set default test environment variables for local security assertion runner
-process.env.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'rzp_live_test_secret_key_99999';
-process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-12345';
-process.env.MONITORING_SECRET = process.env.MONITORING_SECRET || 'test_monitoring_secret_12345';
 
 async function runSecurityTests() {
   console.log('====================================================');
@@ -641,17 +643,194 @@ async function runSecurityTests() {
     }
   );
 
+  // --- Task 9C: POST /api/societies Hardening Tests ---
   await assertTest(
-    'POST /api/societies — blocks unauthenticated society creation requests with 401',
+    'POST /api/societies — without auth returns 401',
     async () => {
       const req = new NextRequest('http://localhost:3000/api/societies', {
         method: 'POST',
-        body: JSON.stringify({ name: 'Test Society', area: 'Sarjapur' })
+        body: JSON.stringify({ name: 'Test Society' })
       });
       const res = await postSocieties(req);
       return res.status === 401;
     }
   );
+
+  await assertTest(
+    'POST /api/societies — invalid JWT token returns 401',
+    async () => {
+      const req = new NextRequest('http://localhost:3000/api/societies', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer invalid_token_12345' },
+        body: JSON.stringify({ name: 'Test Society' })
+      });
+      const res = await postSocieties(req);
+      return res.status === 401;
+    }
+  );
+
+  // Setup stubs for mock role & insert tests
+  const dbLib = await import('../src/lib/db');
+  const origQueryDb = dbLib.queryDb;
+  const origFetch = global.fetch;
+
+  try {
+    global.fetch = async (input: any, init?: any) => {
+      const urlStr = typeof input === 'string' ? input : input?.url || '';
+      if (urlStr.includes('/auth/v1/user')) {
+        const headers = init?.headers || {};
+        const authHeader = headers['Authorization'] || headers['authorization'] || '';
+        if (authHeader.includes('mock-worker-token')) {
+          return new Response(JSON.stringify({ id: 'mock-worker-id', email: 'worker@test.com' }), { status: 200 });
+        }
+        if (authHeader.includes('mock-employer-token')) {
+          return new Response(JSON.stringify({ id: 'mock-employer-id', email: 'employer@test.com' }), { status: 200 });
+        }
+        if (authHeader.includes('mock-admin-token')) {
+          return new Response(JSON.stringify({ id: 'mock-admin-id', email: 'admin@test.com' }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ message: 'Invalid token' }), { status: 401 });
+      }
+      if (urlStr.includes('unreachable-redis.invalid')) {
+        throw new Error('connect ECONNREFUSED');
+      }
+      if (urlStr.includes('mock-redis.invalid')) {
+        return new Response(JSON.stringify([{ result: 1 }, { result: 1 }]), { status: 200 });
+      }
+      return origFetch(input, init);
+    };
+
+    const { dbPool } = await import('../src/lib/db');
+    const origDbConnect = dbPool.connect;
+    (dbPool as any)._origConnect = origDbConnect;
+
+    dbPool.connect = (async () => {
+      return {
+        query: async (sql: string, params: any[] = []) => {
+          if (sql.includes('public.profiles')) {
+            const uid = params[0];
+            if (uid === 'mock-worker-id') return { rows: [{ role: 'worker' }] } as any;
+            if (uid === 'mock-employer-id') return { rows: [{ role: 'employer' }] } as any;
+            if (uid === 'mock-admin-id') return { rows: [{ role: 'admin' }] } as any;
+          }
+          if (sql.includes('INSERT INTO public.societies')) {
+            return { rows: [{ id: 'mock-soc-1', name: params[0], status: 'pending_verification' }] } as any;
+          }
+          return { rows: [] } as any;
+        },
+        release: () => {}
+      } as any;
+    }) as any;
+
+    // Test: POST /api/societies as worker -> 201
+    await assertTest(
+      'POST /api/societies — authenticated worker role returns 201 on valid request',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+        try {
+          const req = new NextRequest('http://localhost:3000/api/societies', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer mock-worker-token' },
+            body: JSON.stringify({ name: 'Green Glen Society', area: 'Bellandur' })
+          });
+          const res = await postSocieties(req);
+          if (res.status !== 201) {
+            console.error(`[FAIL] Expected 201 but got ${res.status}`);
+            return false;
+          }
+          const data = await res.json();
+          return data.success === true && data.society?.name === 'Green Glen Society';
+        } finally {
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test: POST /api/societies as employer -> 403
+    await assertTest(
+      'POST /api/societies — employer role is forbidden with 403',
+      async () => {
+        const req = new NextRequest('http://localhost:3000/api/societies', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer mock-employer-token' },
+          body: JSON.stringify({ name: 'Employer Requested Society' })
+        });
+        const res = await postSocieties(req);
+        return res.status === 403;
+      }
+    );
+
+    // Test: POST /api/societies as admin -> 403
+    await assertTest(
+      'POST /api/societies — admin role is forbidden with 403',
+      async () => {
+        const req = new NextRequest('http://localhost:3000/api/societies', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer mock-admin-token' },
+          body: JSON.stringify({ name: 'Admin Requested Society' })
+        });
+        const res = await postSocieties(req);
+        return res.status === 403;
+      }
+    );
+
+    // Test: POST /api/societies invalid input -> 400
+    await assertTest(
+      'POST /api/societies — invalid input (missing name) returns 400',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+        try {
+          const req = new NextRequest('http://localhost:3000/api/societies', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer mock-worker-token' },
+            body: JSON.stringify({ name: '   ' })
+          });
+          const res = await postSocieties(req);
+          return res.status === 400;
+        } finally {
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test: POST /api/societies Redis unavailable -> 503
+    await assertTest(
+      'POST /api/societies — returns 503 when Redis is unreachable (fail-closed)',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://unreachable-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'dummy-token';
+        try {
+          const req = new NextRequest('http://localhost:3000/api/societies', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer mock-worker-token' },
+            body: JSON.stringify({ name: 'Fail Closed Society' })
+          });
+          const res = await postSocieties(req);
+          return res.status === 503;
+        } finally {
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+  } finally {
+    global.fetch = origFetch;
+    const { dbPool } = await import('../src/lib/db');
+    if ((dbPool as any)._origConnect) dbPool.connect = (dbPool as any)._origConnect;
+    const rateLimiter = await import('../src/lib/rateLimiter');
+    if ((rateLimiter as any)._origCritical) rateLimiter.checkRateLimitCritical = (rateLimiter as any)._origCritical;
+  }
 
   console.log('\n====================================================');
   console.log(`SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED out of ${passedCount + failedCount} tests.`);
