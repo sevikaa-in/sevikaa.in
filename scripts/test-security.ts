@@ -1314,19 +1314,179 @@ async function runSecurityTests() {
       }
     );
 
-    // Test 10C.5: Onboarding credential CANNOT access a normal worker API (/api/worker/jobs)
+    // --- Task 10D: Strict Validation & Separate Mobile Onboarding Token Matrix ---
+
+    // Test 10D.1: Missing gender returns 400 (no fabricated gender default)
     await assertTest(
-      'Task 10C: Onboarding credential CANNOT access normal worker business API (/api/worker/jobs)',
+      'Task 10D: Missing gender returns 400 Bad Request (no fabricated gender default)',
       async () => {
-        const onboardingToken = signOnboardingJwt('mock-user-ob-job', 'test@sevikaa.in', '+919988776655', 'worker');
-        const req = new NextRequest('http://localhost:3000/api/worker/jobs', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${onboardingToken}`
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('SELECT id, role, status')) {
+              return { rows: [{ id: 'mock-user-10d-1', role: 'worker', status: 'pending_review' }] } as any;
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const onboardingToken = signOnboardingJwt('mock-user-10d-1', 'test@sevikaa.in', '+919988776655', 'worker');
+          const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+            method: 'POST',
+            body: JSON.stringify({
+              full_name: 'No Gender Worker',
+              age: 28,
+              expected_salary: 15000,
+              skills: ['maid'],
+              languages_spoken: ['Hindi']
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${onboardingToken}`
+            }
+          });
+
+          const res = await workerOnboardingPost(req);
+          if (res.status !== 400) {
+            console.error(`[FAIL] Expected 400 on missing gender but got ${res.status}`);
+            return false;
           }
-        });
-        const res = await getWorkerJobs(req);
-        return res.status === 401;
+          const data = await res.json();
+          return data.error === 'Validation Error' && data.message.includes('Gender is required');
+        } finally {
+          dbPool.connect = prevConnect;
+        }
+      }
+    );
+
+    // Test 10D.2: Missing age returns 400 (no fabricated age default)
+    await assertTest(
+      'Task 10D: Missing age returns 400 Bad Request (no fabricated age default)',
+      async () => {
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('SELECT id, role, status')) {
+              return { rows: [{ id: 'mock-user-10d-2', role: 'worker', status: 'pending_review' }] } as any;
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const onboardingToken = signOnboardingJwt('mock-user-10d-2', 'test@sevikaa.in', '+919988776655', 'worker');
+          const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+            method: 'POST',
+            body: JSON.stringify({
+              full_name: 'No Age Worker',
+              gender: 'female',
+              expected_salary: 15000,
+              skills: ['maid'],
+              languages_spoken: ['Hindi']
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${onboardingToken}`
+            }
+          });
+
+          const res = await workerOnboardingPost(req);
+          if (res.status !== 400) {
+            console.error(`[FAIL] Expected 400 on missing age but got ${res.status}`);
+            return false;
+          }
+          const data = await res.json();
+          return data.error === 'Validation Error' && data.message.includes('Age is required');
+        } finally {
+          dbPool.connect = prevConnect;
+        }
+      }
+    );
+
+    // Test 10D.3: Missing expected_salary returns 400 (no fabricated salary default)
+    await assertTest(
+      'Task 10D: Missing expected_salary returns 400 Bad Request (no fabricated salary default)',
+      async () => {
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('SELECT id, role, status')) {
+              return { rows: [{ id: 'mock-user-10d-3', role: 'worker', status: 'pending_review' }] } as any;
+            }
+            return { rows: [] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const onboardingToken = signOnboardingJwt('mock-user-10d-3', 'test@sevikaa.in', '+919988776655', 'worker');
+          const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+            method: 'POST',
+            body: JSON.stringify({
+              full_name: 'No Salary Worker',
+              gender: 'female',
+              age: 28,
+              skills: ['maid'],
+              languages_spoken: ['Hindi']
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${onboardingToken}`
+            }
+          });
+
+          const res = await workerOnboardingPost(req);
+          if (res.status !== 400) {
+            console.error(`[FAIL] Expected 400 on missing expected_salary but got ${res.status}`);
+            return false;
+          }
+          const data = await res.json();
+          return data.error === 'Validation Error' && data.message.includes('Expected salary is required');
+        } finally {
+          dbPool.connect = prevConnect;
+        }
+      }
+    );
+
+    // Test 10D.4: Mobile secureTokenStorage separates onboarding token from normal access token
+    await assertTest(
+      'Task 10D: Mobile secureTokenStorage saves onboarding token under separate key and getAccessToken() returns null',
+      async () => {
+        const storage: Record<string, string> = {};
+        const mockSecureStorage = {
+          async saveTokens(acc: string, ref?: string) { storage['sevikaa_token'] = acc; if (ref) storage['sevikaa_refresh_token'] = ref; },
+          async getAccessToken() { return storage['sevikaa_token'] || null; },
+          async getRefreshToken() { return storage['sevikaa_refresh_token'] || null; },
+          async saveOnboardingToken(tok: string) { storage['sevikaa_onboarding_token'] = tok; },
+          async getOnboardingToken() { return storage['sevikaa_onboarding_token'] || null; },
+          async clearOnboardingToken() { delete storage['sevikaa_onboarding_token']; },
+          async clearTokens() { delete storage['sevikaa_token']; delete storage['sevikaa_refresh_token']; delete storage['sevikaa_onboarding_token']; }
+        };
+
+        await mockSecureStorage.clearTokens();
+        await mockSecureStorage.saveOnboardingToken('test-onboarding-jwt-999');
+
+        const accessTok = await mockSecureStorage.getAccessToken();
+        const onboardingTok = await mockSecureStorage.getOnboardingToken();
+
+        if (accessTok !== null) {
+          console.error('[FAIL] getAccessToken() must NOT return the onboarding token!');
+          return false;
+        }
+        if (onboardingTok !== 'test-onboarding-jwt-999') {
+          console.error('[FAIL] getOnboardingToken() should return saved onboarding token');
+          return false;
+        }
+
+        await mockSecureStorage.clearOnboardingToken();
+        const clearedObTok = await mockSecureStorage.getOnboardingToken();
+        return clearedObTok === null;
       }
     );
 

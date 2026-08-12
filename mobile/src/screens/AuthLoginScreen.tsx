@@ -142,7 +142,7 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
       if (data.requiresOnboarding || data.onboarding_token) {
         if (data.onboarding_token) {
           const { secureTokenStorage } = await import('../services/secureTokenStorage');
-          await secureTokenStorage.saveTokens(data.onboarding_token);
+          await secureTokenStorage.saveOnboardingToken(data.onboarding_token);
         }
         onLoginSuccess(identifier, authMode, data.user, false, '', '', true, data.onboarding_token);
         return;

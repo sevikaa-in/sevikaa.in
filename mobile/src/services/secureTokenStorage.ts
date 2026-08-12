@@ -10,6 +10,7 @@ try {
 
 const ACCESS_TOKEN_KEY = 'sevikaa_token';
 const REFRESH_TOKEN_KEY = 'sevikaa_refresh_token';
+const ONBOARDING_TOKEN_KEY = 'sevikaa_onboarding_token';
 const USER_SESSION_KEY = 'sevikaa_user_session';
 
 export const secureTokenStorage = {
@@ -64,10 +65,60 @@ export const secureTokenStorage = {
     }
   },
 
+  async saveOnboardingToken(token: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      await AsyncStorage.setItem(ONBOARDING_TOKEN_KEY, token);
+      return;
+    }
+
+    if (!SecureStore) {
+      await AsyncStorage.setItem(ONBOARDING_TOKEN_KEY, token);
+      return;
+    }
+
+    try {
+      await SecureStore.setItemAsync(ONBOARDING_TOKEN_KEY, token);
+    } catch (err: any) {
+      console.error('[secureTokenStorage] Onboarding token write error:', err?.message);
+      await AsyncStorage.setItem(ONBOARDING_TOKEN_KEY, token);
+    }
+  },
+
+  async getOnboardingToken(): Promise<string | null> {
+    if (Platform.OS === 'web') {
+      return await AsyncStorage.getItem(ONBOARDING_TOKEN_KEY);
+    }
+
+    if (!SecureStore) {
+      return await AsyncStorage.getItem(ONBOARDING_TOKEN_KEY);
+    }
+
+    try {
+      return (await SecureStore.getItemAsync(ONBOARDING_TOKEN_KEY)) || (await AsyncStorage.getItem(ONBOARDING_TOKEN_KEY));
+    } catch (e) {
+      return await AsyncStorage.getItem(ONBOARDING_TOKEN_KEY);
+    }
+  },
+
+  async clearOnboardingToken(): Promise<void> {
+    if (Platform.OS === 'web') {
+      await AsyncStorage.removeItem(ONBOARDING_TOKEN_KEY);
+      return;
+    }
+
+    if (SecureStore) {
+      try {
+        await SecureStore.deleteItemAsync(ONBOARDING_TOKEN_KEY);
+      } catch (e) {}
+    }
+    await AsyncStorage.removeItem(ONBOARDING_TOKEN_KEY).catch(() => {});
+  },
+
   async clearTokens(): Promise<void> {
     if (Platform.OS === 'web') {
       await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);
       await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+      await AsyncStorage.removeItem(ONBOARDING_TOKEN_KEY);
       await AsyncStorage.removeItem(USER_SESSION_KEY);
       return;
     }
@@ -76,8 +127,10 @@ export const secureTokenStorage = {
       try {
         await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
         await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+        await SecureStore.deleteItemAsync(ONBOARDING_TOKEN_KEY);
       } catch (e) {}
     }
+    await AsyncStorage.removeItem(ONBOARDING_TOKEN_KEY).catch(() => {});
     await AsyncStorage.removeItem(USER_SESSION_KEY).catch(() => {});
   }
 };

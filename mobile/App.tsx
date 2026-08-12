@@ -279,7 +279,21 @@ function AppMainContent() {
   if (onboardingStep === 'login') {
     return (
       <AuthLoginScreen 
-        onLoginSuccess={async (identifier, authType, userObj, isExistingUser, accessToken, refreshToken) => {
+        onLoginSuccess={async (identifier, authType, userObj, isExistingUser, accessToken, refreshToken, requiresOnboarding, onboardingToken) => {
+          if (requiresOnboarding || onboardingToken) {
+            if (onboardingToken) {
+              const { secureTokenStorage } = await import('./src/services/secureTokenStorage');
+              await secureTokenStorage.saveOnboardingToken(onboardingToken);
+            }
+            if (userObj) {
+              setCurrentUser(userObj);
+              setUser(userObj);
+            }
+            setRole('worker');
+            setOnboardingStep('authenticated');
+            setActiveTab('home');
+            return;
+          }
           if (userObj) {
             setCurrentUser(userObj);
             setUser(userObj);

@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
 import { logAuditAction } from '@/lib/auditLogger';
 import { verifyOnboardingJwt, signSupabaseJwt, generateRefreshToken, hashRefreshToken } from '@/lib/jwtHelper';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authenticate session — check Onboarding Token or normal session token
+    // 1. Authenticate session — ONLY accept valid, short-lived Onboarding Credential
     const authHeader = req.headers.get('authorization');
     let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
@@ -17,18 +13,6 @@ export async function POST(req: NextRequest) {
       const obCookie = req.cookies.get('sevikaa_onboarding_token')?.value;
       if (obCookie) {
         token = obCookie;
-      } else {
-        const sbCookie = Array.from(req.cookies.getAll()).find(c =>
-          c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
-        );
-        if (sbCookie?.value) {
-          try {
-            const parsed = JSON.parse(sbCookie.value);
-            token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
-          } catch {
-            token = sbCookie.value;
-          }
-        }
       }
     }
 
@@ -36,34 +20,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized', message: 'Authentication required for onboarding.' }, { status: 401 });
     }
 
-    let activeUserId: string | null = null;
-    let userEmail: string | undefined = undefined;
-    let userPhone: string | undefined = undefined;
-
-    // First attempt: Verify as Onboarding JWT
+    // PART 2: NO fallback to normal access JWT or supabase.auth.getUser()
+    // Endpoint accepts ONLY a cryptographically verified Onboarding Credential
     const verifiedOb = verifyOnboardingJwt(token);
-    if (verifiedOb) {
-      activeUserId = verifiedOb.userId;
-      userEmail = verifiedOb.email;
-      userPhone = verifiedOb.phone;
-    } else {
-      // Second attempt: Verify as normal Supabase session token
-      if (!supabaseUrl.includes('placeholder')) {
-        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${token}` } }
-        });
-        const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-        if (user?.id) {
-          activeUserId = user.id;
-          userEmail = user.email;
-          userPhone = user.phone;
-        }
-      }
+    if (!verifiedOb) {
+      return NextResponse.json({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Invalid, expired, or wrong-purpose onboarding credential. Normal access tokens are not permitted.'
+      }, { status: 401 });
     }
 
-    if (!activeUserId) {
-      return NextResponse.json({ success: false, error: 'Unauthorized', message: 'Invalid or expired onboarding credential.' }, { status: 401 });
-    }
+    const activeUserId = verifiedOb.userId;
+    let userEmail = verifiedOb.email;
+    let userPhone = verifiedOb.phone;
 
     // Verify account status from public.profiles
     const profRes = await queryDb(`SELECT id, role, status, email, phone, full_name FROM public.profiles WHERE id = $1 LIMIT 1`, [activeUserId]);
@@ -79,6 +49,7 @@ export async function POST(req: NextRequest) {
     userEmail = userEmail || dbProfile.email;
     userPhone = userPhone || dbProfile.phone;
 
+    // PART 3: Parse and strictly validate required worker data (NO fabricated defaults)
     const body = await req.json().catch(() => ({}));
     const {
       full_name, name, phone,
@@ -92,20 +63,49 @@ export async function POST(req: NextRequest) {
       aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url
     } = body;
 
-    const displayName = full_name || name || dbProfile.full_name || 'Worker Candidate';
+    const displayName = (full_name || name || dbProfile.full_name || '').trim();
+    if (!displayName) {
+      return NextResponse.json({ success: false, error: 'Validation Error', message: 'Full name is required.' }, { status: 400 });
+    }
+
+    // Gender validation: must be 'male' | 'female' | 'other'
+    const rawGender = (gender || '').toString().toLowerCase().trim();
+    if (!rawGender || !['male', 'female', 'other'].includes(rawGender)) {
+      return NextResponse.json({ success: false, error: 'Validation Error', message: 'Gender is required and must be male, female, or other.' }, { status: 400 });
+    }
+
+    // Age validation: integer between 18 and 80
+    const parsedAge = parseInt(age, 10);
+    if (isNaN(parsedAge) || parsedAge < 18 || parsedAge > 80) {
+      return NextResponse.json({ success: false, error: 'Validation Error', message: 'Age is required and must be an integer between 18 and 80.' }, { status: 400 });
+    }
+
+    // Expected salary validation: integer > 0
+    const rawSalary = expected_salary !== undefined ? expected_salary : salary;
+    const parsedSalary = parseInt(rawSalary, 10);
+    if (isNaN(parsedSalary) || parsedSalary <= 0) {
+      return NextResponse.json({ success: false, error: 'Validation Error', message: 'Expected salary is required and must be greater than 0.' }, { status: 400 });
+    }
+
+    // Skills validation: non-empty array
+    const rawSkills = Array.isArray(skills) && skills.length > 0 ? skills : (Array.isArray(category) && category.length > 0 ? category : null);
+    if (!rawSkills || rawSkills.length === 0) {
+      return NextResponse.json({ success: false, error: 'Validation Error', message: 'At least one skill is required.' }, { status: 400 });
+    }
+
+    // Languages validation: non-empty array
+    const rawLanguages = Array.isArray(languages_spoken) && languages_spoken.length > 0 ? languages_spoken : (Array.isArray(languages) && languages.length > 0 ? languages : null);
+    if (!rawLanguages || rawLanguages.length === 0) {
+      return NextResponse.json({ success: false, error: 'Validation Error', message: 'At least one spoken language is required.' }, { status: 400 });
+    }
+
+    const parsedExp = parseInt(experience_years || experience, 10) || 0;
     const cleanPhoneDigits = phone ? phone.replace(/\D/g, '').slice(-10) : '';
     const formattedPhone = cleanPhoneDigits ? `+91${cleanPhoneDigits}` : (userPhone || phone);
-    const finalGender = gender || 'female';
-    const finalAge = parseInt(age) || 28;
-    const finalExp = parseInt(experience_years || experience) || 0;
-    const finalSalary = parseInt(expected_salary || salary) || 15000;
     const finalSociety = primary_gated_society || society || null;
-    const finalShift = preferred_shift || shift_hours || 'Full Day (8–12 Hours)';
+    const finalShift = preferred_shift || shift_hours || null;
 
-    const skillsArray = Array.isArray(skills) ? skills : (Array.isArray(category) ? category : ['maid']);
-    const languagesArray = Array.isArray(languages_spoken) ? languages_spoken : (Array.isArray(languages) ? languages : ['Hindi']);
-
-    // 2. Upsert worker_profiles with real collected onboarding input
+    // PART 4: Upsert worker_profiles with real validated onboarding input
     await queryDb(`
       INSERT INTO public.worker_profiles 
            (user_id, id, name, full_name, gender, age, experience_years, expected_salary, skills, category, languages_spoken, primary_gated_society, preferred_shift, aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url, status)
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
            category = EXCLUDED.category,
            languages_spoken = EXCLUDED.languages_spoken,
            primary_gated_society = COALESCE(EXCLUDED.primary_gated_society, public.worker_profiles.primary_gated_society),
-           preferred_shift = EXCLUDED.preferred_shift,
+           preferred_shift = COALESCE(EXCLUDED.preferred_shift, public.worker_profiles.preferred_shift),
            aadhaar_front_url = COALESCE(EXCLUDED.aadhaar_front_url, public.worker_profiles.aadhaar_front_url),
            aadhaar_back_url = COALESCE(EXCLUDED.aadhaar_back_url, public.worker_profiles.aadhaar_back_url),
            avatar_url = COALESCE(EXCLUDED.avatar_url, public.worker_profiles.avatar_url),
@@ -131,12 +131,12 @@ export async function POST(req: NextRequest) {
     `, [
       activeUserId,
       displayName,
-      finalGender,
-      finalAge,
-      finalExp,
-      finalSalary,
-      skillsArray,
-      languagesArray,
+      rawGender,
+      parsedAge,
+      parsedExp,
+      parsedSalary,
+      rawSkills,
+      rawLanguages,
       finalSociety,
       finalShift,
       aadhaar_front_url || null,
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
       avatar_url || profile_picture_url || null
     ]);
 
-    // 3. Update public.profiles status
+    // Update public.profiles status
     await queryDb(`
       UPDATE public.profiles
       SET full_name = COALESCE($1, full_name),
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
       WHERE id = $3 OR id::text = $3::text;
     `, [displayName, formattedPhone, activeUserId]);
 
-    // 4. Create persistent refresh session
+    // Create persistent refresh session
     const refreshToken = generateRefreshToken();
     const tokenHash = hashRefreshToken(refreshToken);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Authentication Failed', message: 'Failed to establish persistent session after onboarding.' }, { status: 500 });
     }
 
-    // 5. Final Verification Gatekeeper Check
+    // Final Verification Gatekeeper Check
     let gatePassed = false;
     try {
       const gateRes = await queryDb(
@@ -205,10 +205,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Onboarding Verification Failed', message: 'Incomplete account provisioning after onboarding.' }, { status: 500 });
     }
 
-    // 6. Issue normal Access JWT Token
+    // Issue normal Access JWT Token
     const accessToken = signSupabaseJwt(activeUserId, userEmail, formattedPhone || userPhone, 'worker');
 
-    // 7. Log User Audit Action
+    // Log User Audit Action
     logAuditAction({
       action: 'Worker Onboarding Completed',
       category: 'worker_activity',
@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
       actorRole: 'Worker',
       target_name: displayName,
       target_id: activeUserId,
-      changes_summary: `Candidate '${displayName}' completed onboarding. Skills: ${skillsArray.join(', ')}. Society: ${finalSociety || 'Unspecified'}.`,
+      changes_summary: `Candidate '${displayName}' completed onboarding. Skills: ${rawSkills.join(', ')}. Society: ${finalSociety || 'Unspecified'}.`,
       raw_payload: body
     }).catch(() => {});
 
@@ -252,12 +252,12 @@ export async function POST(req: NextRequest) {
         full_name: displayName,
         name: displayName,
         phone: formattedPhone,
-        gender: finalGender,
-        age: finalAge,
-        experience_years: finalExp,
-        expected_salary: finalSalary,
-        skills: skillsArray,
-        languages_spoken: languagesArray,
+        gender: rawGender,
+        age: parsedAge,
+        experience_years: parsedExp,
+        expected_salary: parsedSalary,
+        skills: rawSkills,
+        languages_spoken: rawLanguages,
         primary_gated_society: finalSociety,
         preferred_shift: finalShift,
         status: 'pending_review'
