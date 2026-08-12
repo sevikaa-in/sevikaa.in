@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withTxDb, queryDb } from '@/lib/db';
 import { signSupabaseJwt, generateRefreshToken, hashRefreshToken } from '@/lib/jwtHelper';
-import { checkRateLimitAsync, extractClientIp } from '@/lib/rateLimiter';
+import { checkRateLimitCritical, extractClientIp } from '@/lib/rateLimiter';
 
 export async function POST(req: NextRequest) {
-  // Distributed Rate Limit: Max 20 refresh attempts per minute per IP
-  const rateLimit = await checkRateLimitAsync(extractClientIp(req), 20, 60000);
+  // Distributed Rate Limit: Max 20 refresh attempts per minute per IP (CRITICAL: fail-closed)
+  const rateLimit = await checkRateLimitCritical(extractClientIp(req), 20, 60000);
+  if (rateLimit.unavailable) {
+    return NextResponse.json({ error: 'Rate limiting service temporarily unavailable.' }, { status: 503 });
+  }
   if (!rateLimit.success) {
     return NextResponse.json({ error: 'Too many requests. Please wait before retrying.' }, { status: 429 });
   }

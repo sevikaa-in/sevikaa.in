@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
-import { checkRateLimitAsync, extractClientIp } from '@/lib/rateLimiter';
+import { checkRateLimitCritical, extractClientIp } from '@/lib/rateLimiter';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
 export async function GET(request: NextRequest) {
-  // Rate limiting: 60 req/min per IP via distributed Redis sliding window
-  const rateLimit = await checkRateLimitAsync(extractClientIp(request), 60, 60000);
+  // Rate limiting: 60 req/min per IP (CRITICAL: fail-closed, no in-memory fallback)
+  const rateLimit = await checkRateLimitCritical(extractClientIp(request), 60, 60000);
+  if (rateLimit.unavailable) {
+    return NextResponse.json({ error: 'Rate limiting service temporarily unavailable.' }, { status: 503 });
+  }
   if (!rateLimit.success) {
     return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
   }

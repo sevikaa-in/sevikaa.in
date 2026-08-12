@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { checkRateLimitAsync, extractClientIp } from '@/lib/rateLimiter';
+import { checkRateLimitCritical, extractClientIp } from '@/lib/rateLimiter';
 import { queryDb } from '@/lib/db';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export async function GET(req: NextRequest) {
-  const rateLimit = await checkRateLimitAsync(extractClientIp(req), 60, 60000);
+  const rateLimit = await checkRateLimitCritical(extractClientIp(req), 60, 60000);
+  if (rateLimit.unavailable) {
+    return NextResponse.json({ error: 'Rate limiting service temporarily unavailable.' }, { status: 503 });
+  }
   if (!rateLimit.success) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again later.' },

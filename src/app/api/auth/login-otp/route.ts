@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 import { sendEmail as dispatchEmail, sendSMS } from '@/lib/notifications';
 import { getMagicLinkOrLoginOtpEmailHtml } from '@/lib/emailTemplates';
 import crypto from 'crypto';
-import { checkRateLimitAsync, extractClientIp } from '@/lib/rateLimiter';
+import { checkRateLimitCritical, extractClientIp } from '@/lib/rateLimiter';
 import { signSupabaseJwt } from '@/lib/jwtHelper';
 
 // Allowed roles that can self-select during OTP registration
@@ -15,8 +15,11 @@ function hashOtp(otp: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  // IP rate limiting — max 20 OTP actions per minute per IP via Redis / Sliding Window
-  const rl = await checkRateLimitAsync(extractClientIp(req), 20, 60000);
+  // IP rate limiting — max 20 OTP actions per minute per IP (CRITICAL: fail-closed, no in-memory fallback)
+  const rl = await checkRateLimitCritical(extractClientIp(req), 20, 60000);
+  if (rl.unavailable) {
+    return NextResponse.json({ error: 'Rate limiting service temporarily unavailable.' }, { status: 503 });
+  }
   if (!rl.success) {
     return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
   }

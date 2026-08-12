@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
-import { checkRateLimitAsync, extractClientIp } from '@/lib/rateLimiter';
+import { checkRateLimitCritical, extractClientIp } from '@/lib/rateLimiter';
 import { sanitizePayload } from '@/lib/adminSecurityGuard';
 import { logSecurityAudit } from '@/lib/auditLogger';
 
@@ -11,7 +11,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholde
 export async function POST(request: NextRequest) {
   const clientIp = extractClientIp(request);
 
-  const rateLimit = await checkRateLimitAsync(clientIp, 30, 60000);
+  const rateLimit = await checkRateLimitCritical(clientIp, 30, 60000);
+  if (rateLimit.unavailable) {
+    return NextResponse.json({ error: 'Rate limiting service temporarily unavailable.' }, { status: 503 });
+  }
   if (!rateLimit.success) {
     return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 });
   }

@@ -438,6 +438,208 @@ async function runSecurityTests() {
     }
   });
 
+  // ─── Task 8: Distributed Rate-Limit Failure Hardening Tests ─────────────────
+
+  console.log('\n--- Task 8: Rate-Limit Fail-Closed Behavior ---');
+
+  // Test: checkRateLimitCritical returns unavailable=true when Redis is unreachable
+  await assertTest(
+    'checkRateLimitCritical — returns unavailable=true when Redis is unreachable',
+    async () => {
+      const { checkRateLimitCritical } = await import('../src/lib/rateLimiter');
+      // Point at a guaranteed-unreachable Redis URL
+      const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+      process.env.UPSTASH_REDIS_REST_URL = 'https://unreachable-redis.invalid';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'dummy-token';
+      try {
+        const result = await checkRateLimitCritical('test-critical-unavailable', 10, 60000);
+        if (!result.unavailable) {
+          console.error('[FAIL] Expected unavailable=true but got:', result);
+          return false;
+        }
+        if (result.success) {
+          console.error('[FAIL] unavailable result must not have success=true');
+          return false;
+        }
+        return true;
+      } finally {
+        process.env.UPSTASH_REDIS_REST_URL = origUrl;
+        process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+      }
+    }
+  );
+
+  // Test: checkRateLimitAsync falls back to in-memory (does NOT return unavailable=true)
+  await assertTest(
+    'checkRateLimitAsync — falls back to in-memory when Redis is unreachable (non-critical)',
+    async () => {
+      const { checkRateLimitAsync } = await import('../src/lib/rateLimiter');
+      const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+      process.env.UPSTASH_REDIS_REST_URL = 'https://unreachable-redis.invalid';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'dummy-token';
+      try {
+        const result = await checkRateLimitAsync('test-noncritical-fallback', 10, 60000);
+        // Non-critical: should succeed via in-memory fallback, NOT return unavailable
+        if (result.unavailable) {
+          console.error('[FAIL] Non-critical path must not return unavailable=true');
+          return false;
+        }
+        if (!result.success) {
+          console.error('[FAIL] Non-critical in-memory fallback should succeed for first request');
+          return false;
+        }
+        return true;
+      } finally {
+        process.env.UPSTASH_REDIS_REST_URL = origUrl;
+        process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+      }
+    }
+  );
+
+  // Test: checkRateLimitCritical enforces limit correctly when Redis is available
+  await assertTest(
+    'checkRateLimitCritical — enforces rate limit (success=false) when threshold exceeded via Redis',
+    async () => {
+      // Skip if Redis credentials are not configured
+      const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+      if (!redisUrl || !redisToken || redisUrl.includes('placeholder') || redisUrl.includes('unreachable')) {
+        console.log('    [SKIP] Redis credentials not configured — skipping live Redis limit test');
+        return true;
+      }
+      const { checkRateLimitCritical } = await import('../src/lib/rateLimiter');
+      const identifier = `test-critical-limit-${Date.now()}`;
+      const maxRequests = 3;
+      // Exhaust the limit
+      for (let i = 0; i < maxRequests; i++) {
+        const r = await checkRateLimitCritical(identifier, maxRequests, 60000);
+        if (r.unavailable) {
+          console.error('[FAIL] Redis was reachable but returned unavailable');
+          return false;
+        }
+        if (!r.success) {
+          console.error(`[FAIL] Request ${i + 1} should have succeeded (within limit)`);
+          return false;
+        }
+      }
+      // This next request must be rejected
+      const final = await checkRateLimitCritical(identifier, maxRequests, 60000);
+      if (final.unavailable) {
+        console.error('[FAIL] Redis was reachable but returned unavailable on limit-exceeded request');
+        return false;
+      }
+      if (final.success) {
+        console.error('[FAIL] Request beyond limit should have been rejected (success=false)');
+        return false;
+      }
+      return true;
+    }
+  );
+
+  // Test: critical endpoint routes respond 503 when rate-limit service is down
+  await assertTest(
+    'POST /api/auth/login-otp — returns 503 when Redis is unreachable (fail-closed)',
+    async () => {
+      const { POST: loginOtpPost } = await import('../src/app/api/auth/login-otp/route');
+      const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+      process.env.UPSTASH_REDIS_REST_URL = 'https://unreachable-redis.invalid';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'dummy-token';
+      try {
+        const req = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'verify', phone: '9999999999', otp: '000000' }),
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const res = await loginOtpPost(req);
+        if (res.status !== 503) {
+          console.error(`[FAIL] Expected 503 but got ${res.status}`);
+          return false;
+        }
+        const body = await res.json();
+        if (!body?.error?.toLowerCase().includes('unavailable')) {
+          console.error('[FAIL] 503 body must contain an unavailability message');
+          return false;
+        }
+        return true;
+      } finally {
+        process.env.UPSTASH_REDIS_REST_URL = origUrl;
+        process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+      }
+    }
+  );
+
+  await assertTest(
+    'POST /api/auth/refresh — returns 503 when Redis is unreachable (fail-closed)',
+    async () => {
+      const { POST: refreshPost } = await import('../src/app/api/auth/refresh/route');
+      const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+      process.env.UPSTASH_REDIS_REST_URL = 'https://unreachable-redis.invalid';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'dummy-token';
+      try {
+        const req = new NextRequest('http://localhost:3000/api/auth/refresh', { method: 'POST' });
+        const res = await refreshPost(req);
+        if (res.status !== 503) {
+          console.error(`[FAIL] Expected 503 but got ${res.status}`);
+          return false;
+        }
+        return true;
+      } finally {
+        process.env.UPSTASH_REDIS_REST_URL = origUrl;
+        process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+      }
+    }
+  );
+
+  await assertTest(
+    'GET /api/match — returns 503 when Redis is unreachable (fail-closed)',
+    async () => {
+      const { GET: matchGet } = await import('../src/app/api/match/route');
+      const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+      process.env.UPSTASH_REDIS_REST_URL = 'https://unreachable-redis.invalid';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'dummy-token';
+      try {
+        const req = new NextRequest('http://localhost:3000/api/match?societyId=1');
+        const res = await matchGet(req);
+        if (res.status !== 503) {
+          console.error(`[FAIL] Expected 503 but got ${res.status}`);
+          return false;
+        }
+        return true;
+      } finally {
+        process.env.UPSTASH_REDIS_REST_URL = origUrl;
+        process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+      }
+    }
+  );
+
+  await assertTest(
+    'GET /api/societies/workers — returns 503 when Redis is unreachable (fail-closed)',
+    async () => {
+      const { GET: societiesWorkersGet } = await import('../src/app/api/societies/workers/route');
+      const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+      process.env.UPSTASH_REDIS_REST_URL = 'https://unreachable-redis.invalid';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'dummy-token';
+      try {
+        const req = new NextRequest('http://localhost:3000/api/societies/workers');
+        const res = await societiesWorkersGet(req);
+        if (res.status !== 503) {
+          console.error(`[FAIL] Expected 503 but got ${res.status}`);
+          return false;
+        }
+        return true;
+      } finally {
+        process.env.UPSTASH_REDIS_REST_URL = origUrl;
+        process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+      }
+    }
+  );
+
   console.log('\n====================================================');
   console.log(`SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED out of ${passedCount + failedCount} tests.`);
   console.log('====================================================');
