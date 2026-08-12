@@ -1,32 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, SafeAreaView 
+  StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, SafeAreaView, ActivityIndicator 
 } from 'react-native';
+import { getApiUrl } from '../../config/api';
+import { secureTokenStorage } from '../../services/secureTokenStorage';
+import { apiClient } from '../../services/apiClient';
 
 export const WorkerOnboardingScreen: React.FC<{ onComplete?: () => void }> = ({ onComplete }) => {
   const [step, setStep] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [societiesList, setSocietiesList] = useState<any[]>([]);
 
   // Step 1: Selfie & Photo
   const [selfieCaptured, setSelfieCaptured] = useState<boolean>(true);
 
-  // Step 2: Basic Info
-  const [fullName, setFullName] = useState('Sunita Devi');
-  const [phone, setPhone] = useState('9876543210');
-  const [isPhoneVerified, setIsPhoneVerified] = useState(true);
-  const [age, setAge] = useState('32');
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['Hindi', 'English', 'Kannada']);
+  // Step 2: Basic Info (NO hardcoded demo data!)
+  const [fullName, setFullName] = useState('');
+  const [gender, setGender] = useState<'female' | 'male' | 'other' | ''>('');
+  const [age, setAge] = useState('');
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
 
-  // Step 3: Skills (Cook, Maid, Nanny only)
-  const [selectedSkills, setSelectedSkills] = useState<string[]>(['cook', 'maid']);
-  const [experienceYears, setExperienceYears] = useState('5');
+  // Step 3: Helper Skills
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [experienceYears, setExperienceYears] = useState('');
   const [shiftPref, setShiftPref] = useState<'full_day' | 'part_time' | 'live_in'>('full_day');
 
   // Step 4: Salary & Society
-  const [expectedSalary, setExpectedSalary] = useState('15000');
-  const [society, setSociety] = useState('DLF Westend Heights - Akshayanagar');
+  const [expectedSalary, setExpectedSalary] = useState('');
+  const [society, setSociety] = useState('');
 
-  // Step 5: Verification Documents
-  const [aadhaarUploaded, setAadhaarUploaded] = useState(true);
+  useEffect(() => {
+    const fetchSocieties = async () => {
+      try {
+        const data = await apiClient.get('api/societies');
+        if (data && data.societies && Array.isArray(data.societies)) {
+          setSocietiesList(data.societies);
+        }
+      } catch (e) {
+        console.warn('Failed to load societies list:', e);
+      }
+    };
+    fetchSocieties();
+  }, []);
 
   const toggleSkill = (skill: string) => {
     setSelectedSkills(prev => 
@@ -40,14 +55,147 @@ export const WorkerOnboardingScreen: React.FC<{ onComplete?: () => void }> = ({ 
     );
   };
 
+  const validateStep = (): boolean => {
+    if (step === 1) {
+      return true;
+    }
+    if (step === 2) {
+      if (!fullName.trim()) {
+        Alert.alert("Validation Error ⚠️", "Please enter your full name as on official ID.");
+        return false;
+      }
+      if (!gender) {
+        Alert.alert("Validation Error ⚠️", "Please select your gender.");
+        return false;
+      }
+      const parsedAge = parseInt(age, 10);
+      if (isNaN(parsedAge) || parsedAge < 18 || parsedAge > 80) {
+        Alert.alert("Validation Error ⚠️", "Please enter a valid age between 18 and 80.");
+        return false;
+      }
+      if (selectedLanguages.length === 0) {
+        Alert.alert("Validation Error ⚠️", "Please select at least one language you speak.");
+        return false;
+      }
+    }
+    if (step === 3) {
+      if (selectedSkills.length === 0) {
+        Alert.alert("Validation Error ⚠️", "Please select at least one helper skill category.");
+        return false;
+      }
+      const parsedExp = parseInt(experienceYears, 10);
+      if (isNaN(parsedExp) || parsedExp < 0) {
+        Alert.alert("Validation Error ⚠️", "Please enter your experience in years.");
+        return false;
+      }
+    }
+    if (step === 4) {
+      const parsedSalary = parseInt(expectedSalary, 10);
+      if (isNaN(parsedSalary) || parsedSalary <= 0) {
+        Alert.alert("Validation Error ⚠️", "Please specify expected monthly salary (greater than 0).");
+        return false;
+      }
+      if (!society.trim()) {
+        Alert.alert("Validation Error ⚠️", "Please specify your preferred apartment society.");
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleNext = () => {
+    if (!validateStep()) return;
     if (step < 5) {
       setStep(step + 1);
-    } else {
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!validateStep()) return;
+
+    setLoading(true);
+
+    try {
+      // PART 1: Dedicated Mobile Onboarding client method reading onboarding token from SecureStore
+      const onboardingToken = await secureTokenStorage.getOnboardingToken();
+
+      if (!onboardingToken) {
+        setLoading(false);
+        Alert.alert(
+          "Session Expired 🚫",
+          "No onboarding credential found. Please verify your phone number / OTP again to restart onboarding."
+        );
+        return;
+      }
+
+      const SHIFT_LABEL_MAP: Record<string, string> = {
+        full_day: 'Full Day (8–12 Hours)',
+        part_time: 'Part-Time Flexible',
+        live_in: 'Live-In (24x7)'
+      };
+      const formattedShift = SHIFT_LABEL_MAP[shiftPref] || shiftPref;
+
+      const res = await fetch(getApiUrl('api/worker/onboarding'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${onboardingToken}`
+        },
+        body: JSON.stringify({
+          full_name: fullName.trim(),
+          gender,
+          age: parseInt(age, 10),
+          experience_years: parseInt(experienceYears, 10) || 0,
+          expected_salary: parseInt(expectedSalary, 10),
+          skills: selectedSkills,
+          languages_spoken: selectedLanguages,
+          primary_gated_society: society.trim(),
+          preferred_shift: formattedShift
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setLoading(false);
+        if (res.status === 401 || res.status === 403) {
+          await secureTokenStorage.clearOnboardingToken();
+          Alert.alert(
+            "Session Expired 🚫",
+            data.message || "Your onboarding session has expired or is invalid. Please verify OTP again."
+          );
+          return;
+        }
+        Alert.alert(
+          "Validation Error ⚠️",
+          data.message || data.error || "Failed to complete worker onboarding. Please check your entries."
+        );
+        return;
+      }
+
+      // PART 5: Successful Onboarding -> clear onboarding token & save normal session tokens
+      await secureTokenStorage.clearOnboardingToken();
+
+      const accessToken = data.access_token || data.token || data.session?.access_token;
+      const refreshToken = data.refresh_token || data.session?.refresh_token;
+
+      if (accessToken) {
+        await secureTokenStorage.saveTokens(accessToken, refreshToken);
+      }
+
+      setLoading(false);
+
       Alert.alert(
         "Candidate Passport Created! 🟢",
-        "Your Aadhaar verification document & candidate passport have been submitted for admin audit.",
+        "Your onboarding has been completed successfully.",
         [{ text: "OK", onPress: () => { if (onComplete) onComplete(); } }]
+      );
+
+    } catch (e: any) {
+      setLoading(false);
+      Alert.alert(
+        "Network Error ⚠️",
+        e?.message || "Failed to connect to server. Please check your connection and try again."
       );
     }
   };
@@ -90,33 +238,56 @@ export const WorkerOnboardingScreen: React.FC<{ onComplete?: () => void }> = ({ 
 
             <View style={styles.photoPreviewBox}>
               <Text style={styles.photoEmoji}>📷</Text>
-              <Text style={styles.photoStatus}>Selfie Captured &amp; Verified 🟢</Text>
+              <Text style={styles.photoStatus}>Selfie Verified 🟢</Text>
             </View>
-
-            <TouchableOpacity style={styles.reTakeBtn} onPress={() => setSelfieCaptured(true)}>
-              <Text style={styles.reTakeBtnText}>🔄 Retake Photo</Text>
-            </TouchableOpacity>
           </View>
         )}
 
         {/* STEP 2: BASIC DETAILS */}
         {step === 2 && (
           <View style={styles.stepBox}>
-            <Text style={styles.stepTitle}>👤 Step 2: Personal Details &amp; Contact</Text>
+            <Text style={styles.stepTitle}>👤 Step 2: Personal Details</Text>
             
-            <Text style={styles.label}>FULL NAME (AS ON AADHAAR)</Text>
-            <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
+            <Text style={styles.label}>FULL NAME (AS ON OFFICIAL ID)</Text>
+            <TextInput 
+              style={styles.input} 
+              value={fullName} 
+              onChangeText={setFullName}
+              placeholder="Full name as per official ID" 
+              placeholderTextColor="#94A3B8"
+            />
 
-            <Text style={styles.label}>MOBILE PHONE (DLT SMS VERIFIED)</Text>
-            <View style={styles.verifiedInputRow}>
-              <TextInput style={[styles.input, { flex: 1 }]} value={phone} editable={false} />
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedBadgeText}>✓ Verified 🟢</Text>
-              </View>
+            <Text style={styles.label}>GENDER</Text>
+            <View style={styles.chipGrid}>
+              {[
+                { id: 'female', label: 'Female' },
+                { id: 'male', label: 'Male' },
+                { id: 'other', label: 'Other' }
+              ].map(g => {
+                const isSelected = gender === g.id;
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    style={[styles.chip, isSelected && styles.chipActive]}
+                    onPress={() => setGender(g.id as any)}
+                  >
+                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                      {isSelected ? '✓ ' : ''}{g.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <Text style={styles.label}>AGE (YEARS)</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" value={age} onChangeText={setAge} />
+            <TextInput 
+              style={styles.input} 
+              keyboardType="number-pad" 
+              value={age} 
+              onChangeText={setAge}
+              placeholder="Age between 18 and 80" 
+              placeholderTextColor="#94A3B8"
+            />
 
             <Text style={styles.label}>LANGUAGES SPOKEN</Text>
             <View style={styles.chipGrid}>
@@ -138,7 +309,7 @@ export const WorkerOnboardingScreen: React.FC<{ onComplete?: () => void }> = ({ 
           </View>
         )}
 
-        {/* STEP 3: HELPER SKILLS (COOK, MAID, NANNY ONLY) */}
+        {/* STEP 3: HELPER SKILLS */}
         {step === 3 && (
           <View style={styles.stepBox}>
             <Text style={styles.stepTitle}>🧹 Step 3: Household Helper Skills</Text>
@@ -170,7 +341,14 @@ export const WorkerOnboardingScreen: React.FC<{ onComplete?: () => void }> = ({ 
             </View>
 
             <Text style={styles.label}>TOTAL EXPERIENCE (YEARS)</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" value={experienceYears} onChangeText={setExperienceYears} />
+            <TextInput 
+              style={styles.input} 
+              keyboardType="number-pad" 
+              value={experienceYears} 
+              onChangeText={setExperienceYears}
+              placeholder="E.g., 3" 
+              placeholderTextColor="#94A3B8"
+            />
           </View>
         )}
 
@@ -180,28 +358,46 @@ export const WorkerOnboardingScreen: React.FC<{ onComplete?: () => void }> = ({ 
             <Text style={styles.stepTitle}>💰 Step 4: Salary &amp; Preferred Society</Text>
             
             <Text style={styles.label}>EXPECTED MONTHLY SALARY (₹)</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" value={expectedSalary} onChangeText={setExpectedSalary} />
+            <TextInput 
+              style={styles.input} 
+              keyboardType="number-pad" 
+              value={expectedSalary} 
+              onChangeText={setExpectedSalary}
+              placeholder="E.g., 15000" 
+              placeholderTextColor="#94A3B8"
+            />
 
             <Text style={styles.label}>PRIMARY GATED SOCIETY LOCATION</Text>
-            <TextInput style={styles.input} value={society} onChangeText={setSociety} />
+            <TextInput 
+              style={styles.input} 
+              value={society} 
+              onChangeText={setSociety}
+              placeholder="E.g., DLF Westend Heights" 
+              placeholderTextColor="#94A3B8"
+            />
           </View>
         )}
 
-        {/* STEP 5: AADHAAR VERIFICATION */}
+        {/* STEP 5: REVIEW & SUBMIT */}
         {step === 5 && (
           <View style={styles.stepBox}>
-            <Text style={styles.stepTitle}>🛡️ Step 5: Aadhaar Verification Upload</Text>
+            <Text style={styles.stepTitle}>🛡️ Step 5: Review &amp; Submit</Text>
             <Text style={styles.stepDesc}>
-              Upload your 12-digit Aadhaar Card front photo to activate your verified candidate badge.
+              Review your details before completing registration.
             </Text>
 
-            <View style={styles.uploadBox}>
-              <Text style={styles.uploadEmoji}>📄</Text>
-              <Text style={styles.uploadStatus}>Aadhaar Card Front Photo Uploaded 🟢</Text>
+            <View style={styles.reviewBox}>
+              <Text style={styles.reviewRow}>👤 Name: <Text style={styles.reviewVal}>{fullName || '--'}</Text></Text>
+              <Text style={styles.reviewRow}>🚻 Gender / Age: <Text style={styles.reviewVal}>{gender || '--'}, {age || '--'} yrs</Text></Text>
+              <Text style={styles.reviewRow}>🗣️ Languages: <Text style={styles.reviewVal}>{selectedLanguages.join(', ') || 'None'}</Text></Text>
+              <Text style={styles.reviewRow}>🧹 Skills: <Text style={styles.reviewVal}>{selectedSkills.join(', ') || 'None'}</Text></Text>
+              <Text style={styles.reviewRow}>⭐ Experience: <Text style={styles.reviewVal}>{experienceYears || '0'} yrs</Text></Text>
+              <Text style={styles.reviewRow}>💰 Expected Salary: <Text style={styles.reviewVal}>₹{expectedSalary || '0'} / mo</Text></Text>
+              <Text style={styles.reviewRow}>🏢 Primary Society: <Text style={styles.reviewVal}>{society || 'Unspecified'}</Text></Text>
             </View>
 
             <View style={styles.securityBanner}>
-              <Text style={styles.securityText}>🔒 100% Encrypted &amp; Stored securely under IT Act 2000 guidelines.</Text>
+              <Text style={styles.securityText}>🔒 Submitted securely to Sevikaa Onboarding API.</Text>
             </View>
           </View>
         )}
@@ -209,16 +405,32 @@ export const WorkerOnboardingScreen: React.FC<{ onComplete?: () => void }> = ({ 
         {/* FOOTER BUTTONS */}
         <View style={styles.footerRow}>
           {step > 1 && (
-            <TouchableOpacity style={styles.backBtn} onPress={() => setStep(step - 1)}>
+            <TouchableOpacity 
+              style={styles.backBtn} 
+              onPress={() => setStep(step - 1)}
+              disabled={loading}
+            >
               <Text style={styles.backBtnText}>← Back</Text>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-            <Text style={styles.nextBtnText}>
-              {step === 5 ? 'Submit Passport Setup 🚀' : 'Next Step →'}
-            </Text>
-          </TouchableOpacity>
+          {step < 5 ? (
+            <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
+              <Text style={styles.nextBtnText}>Next Step →</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity 
+              style={[styles.nextBtn, loading && { opacity: 0.6 }]} 
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.nextBtnText}>Submit Passport Setup 🚀</Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
       </ScrollView>
@@ -243,13 +455,8 @@ const styles = StyleSheet.create({
   photoPreviewBox: { backgroundColor: '#E8F0FE', borderWidth: 2, borderColor: '#1A73E8', borderStyle: 'dashed', borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 12 },
   photoEmoji: { fontSize: 36, marginBottom: 8 },
   photoStatus: { color: '#1A73E8', fontSize: 13, fontWeight: '900' },
-  reTakeBtn: { backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#CBD5E1', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
-  reTakeBtnText: { color: '#475569', fontSize: 12, fontWeight: '800' },
   label: { fontSize: 10, fontWeight: '900', color: '#64748B', letterSpacing: 0.8, marginTop: 12, marginBottom: 4 },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, fontWeight: '700', color: '#0F172A' },
-  verifiedInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  verifiedBadge: { backgroundColor: '#E6F4EA', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#CEEAD6' },
-  verifiedBadgeText: { color: '#137333', fontSize: 11, fontWeight: '900' },
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   chip: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   chipActive: { backgroundColor: '#E8F0FE', borderColor: '#1A73E8' },
@@ -262,14 +469,14 @@ const styles = StyleSheet.create({
   roleTitle: { fontSize: 14, fontWeight: '900', color: '#0F172A' },
   roleCheck: { fontSize: 11, fontWeight: '900', color: '#1A73E8' },
   roleDesc: { fontSize: 11, color: '#64748B', marginTop: 2 },
-  uploadBox: { backgroundColor: '#E6F4EA', borderWidth: 2, borderColor: '#34A853', borderStyle: 'dashed', borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 12 },
-  uploadEmoji: { fontSize: 32, marginBottom: 6 },
-  uploadStatus: { color: '#137333', fontSize: 13, fontWeight: '900' },
-  securityBanner: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#E2E8F0' },
-  securityText: { fontSize: 11, color: '#64748B', textAlign: 'center' },
+  reviewBox: { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, gap: 8, marginBottom: 12 },
+  reviewRow: { fontSize: 12, fontWeight: '700', color: '#64748B' },
+  reviewVal: { color: '#0F172A', fontWeight: '900' },
+  securityBanner: { backgroundColor: '#E8F0FE', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#D2E3FC' },
+  securityText: { fontSize: 11, color: '#1A73E8', textAlign: 'center', fontWeight: '700' },
   footerRow: { flexDirection: 'row', gap: 10 },
   backBtn: { backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#CBD5E1', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14 },
   backBtnText: { color: '#475569', fontSize: 13, fontWeight: '900' },
-  nextBtn: { flex: 1, backgroundColor: '#1A73E8', paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
+  nextBtn: { flex: 1, backgroundColor: '#1A73E8', paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   nextBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
 });

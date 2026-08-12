@@ -1755,6 +1755,120 @@ async function runSecurityTests() {
       }
     );
 
+    // --- Task 10F: UI Connection to Secure Onboarding API Matrix ---
+
+    // Test 10F.1: Web onboarding request with HttpOnly cookie authenticates /api/worker/onboarding and completes onboarding
+    await assertTest(
+      'Task 10F: Web onboarding with HttpOnly cookie authenticates /api/worker/onboarding & completes onboarding',
+      async () => {
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('SELECT id, role, status')) {
+              return { rows: [{ id: 'mock-user-web-10f', role: 'worker', status: 'onboarding_pending', email: 'test@sevikaa.in', phone: '+919988776655', full_name: 'Web Candidate' }] } as any;
+            }
+            if (sql.includes('INSERT INTO public.refresh_tokens')) {
+              return { rows: [{ id: 'ref-web-10f' }] } as any;
+            }
+            return { rows: [{ profile_count: '1', role_profile_count: '1', session_count: '1' }] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const onboardingToken = signOnboardingJwt('mock-user-web-10f', 'test@sevikaa.in', '+919988776655', 'worker');
+          const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+            method: 'POST',
+            body: JSON.stringify({
+              full_name: 'Web Candidate',
+              gender: 'female',
+              age: 29,
+              expected_salary: 16000,
+              skills: ['cook'],
+              languages_spoken: ['Hindi', 'English']
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Cookie': `sevikaa_onboarding_token=${onboardingToken}`
+            }
+          });
+
+          const res = await workerOnboardingPost(req);
+          if (res.status !== 200) {
+            const errBody = await res.json().catch(() => ({}));
+            console.error(`[FAIL] Expected 200 on web cookie onboarding but got ${res.status}:`, errBody);
+            return false;
+          }
+          const data = await res.json();
+          return data.success === true && data.hasCompletedProfile === true && typeof data.access_token === 'string';
+        } finally {
+          dbPool.connect = prevConnect;
+        }
+      }
+    );
+
+    // Test 10F.2: Mobile onboarding request with Bearer token authenticates and returns normal session
+    await assertTest(
+      'Task 10F: Mobile onboarding with Bearer token authenticates & returns access_token + refresh_token',
+      async () => {
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('SELECT id, role, status')) {
+              return { rows: [{ id: 'mock-user-mob-10f', role: 'worker', status: 'onboarding_pending', email: 'test@sevikaa.in', phone: '+919988776655', full_name: 'Mobile Candidate' }] } as any;
+            }
+            if (sql.includes('INSERT INTO public.refresh_tokens')) {
+              return { rows: [{ id: 'ref-mob-10f' }] } as any;
+            }
+            return { rows: [{ profile_count: '1', role_profile_count: '1', session_count: '1' }] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const onboardingToken = signOnboardingJwt('mock-user-mob-10f', 'test@sevikaa.in', '+919988776655', 'worker');
+          const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+            method: 'POST',
+            body: JSON.stringify({
+              full_name: 'Mobile Candidate',
+              gender: 'female',
+              age: 26,
+              expected_salary: 15000,
+              skills: ['maid'],
+              languages_spoken: ['Hindi']
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${onboardingToken}`
+            }
+          });
+
+          const res = await workerOnboardingPost(req);
+          if (res.status !== 200) return false;
+          const data = await res.json();
+          return data.success === true && typeof data.access_token === 'string' && typeof data.refresh_token === 'string';
+        } finally {
+          dbPool.connect = prevConnect;
+        }
+      }
+    );
+
+    // Test 10F.3: Mobile UI WorkerOnboardingScreen contains NO hardcoded demo data
+    await assertTest(
+      'Task 10F: Mobile WorkerOnboardingScreen.tsx contains NO hardcoded demo data ("Sunita Devi")',
+      async () => {
+        const fs = await import('fs');
+        const content = fs.readFileSync('mobile/src/routes/worker/WorkerOnboardingScreen.tsx', 'utf8');
+        if (content.includes('Sunita Devi') || content.includes("'9876543210'")) {
+          console.error('[FAIL] WorkerOnboardingScreen.tsx still contains hardcoded demo data!');
+          return false;
+        }
+        return true;
+      }
+    );
+
   } finally {
     global.fetch = origFetch;
     const { dbPool } = await import('../src/lib/db');
