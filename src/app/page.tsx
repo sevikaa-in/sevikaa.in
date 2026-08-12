@@ -485,7 +485,6 @@ export default function Home() {
           )}
           {view === 'worker-funnel' && user && (
             <WorkerFunnel 
-              userId={user.id} 
               onComplete={onWorkerOnboardingComplete} 
               onCancel={handleReset}
             />

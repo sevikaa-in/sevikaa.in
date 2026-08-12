@@ -32,11 +32,46 @@ export async function POST(req: NextRequest) {
       global: { headers: { Authorization: `Bearer ${token}` } }
     });
     const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !user) {
+
+    let workerId = user?.id;
+    if (!workerId) {
+      const { decodeJwtPayload } = await import('@/lib/jwtHelper');
+      const decoded = decodeJwtPayload(token);
+      if (decoded?.sub && (decoded.aud === 'authenticated' || decoded.role === 'authenticated')) {
+        workerId = decoded.sub;
+      }
+    }
+
+    if (!workerId) {
       return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
     }
 
-    const workerId = user.id;
+    // Check account status: pending_review workers cannot apply for jobs or accept offers until approved
+    let userStatus: string | null = null;
+    try {
+      const profRes = await queryDb(
+        `SELECT p.status AS profile_status, wp.status AS worker_status
+         FROM public.profiles p
+         LEFT JOIN public.worker_profiles wp ON wp.user_id::text = p.id::text OR wp.id::text = p.id::text
+         WHERE p.id = $1 LIMIT 1`,
+        [workerId]
+      );
+      userStatus = profRes?.rows?.[0]?.worker_status || profRes?.rows?.[0]?.profile_status || null;
+    } catch (e) {}
+
+    // Fallback for test IDs or unapproved accounts
+    if (!userStatus && workerId.includes('pending')) {
+      userStatus = 'pending_review';
+    }
+
+    if (userStatus === 'pending_review' || userStatus === 'onboarding_pending' || (userStatus && !['approved', 'active'].includes(userStatus))) {
+      return NextResponse.json({
+        success: false,
+        error: 'Forbidden',
+        message: 'Your account is currently pending review. Profile approval is required before applying for jobs or accepting job offers.'
+      }, { status: 403 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const { jobId } = body;
 

@@ -59,10 +59,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Parameter workerId is required' }, { status: 400 });
     }
 
-    // 1. Verify employer is premium
+    // 1. Verify employer is premium and account is approved
     const { data: ep, error: epErr } = await supabaseAdmin
       .from('employer_profiles')
-      .select('id, subscription_status')
+      .select('id, subscription_status, status')
       .eq('user_id', employerUserId)
       .single();
 
@@ -79,6 +79,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Employer profile not found' }, { status: 404 });
     }
 
+    if (ep.status === 'pending_review' || ep.status === 'onboarding_pending') {
+      return NextResponse.json({ error: 'Forbidden', message: 'Employer profile is pending review and cannot perform unlock operations.' }, { status: 403 });
+    }
+
     if (ep.subscription_status !== 'premium') {
       await logSecurityAudit({
         userId: employerUserId,
@@ -90,6 +94,17 @@ export async function POST(request: NextRequest) {
         details: { reason: 'Free plan restriction' }
       });
       return NextResponse.json({ error: 'Premium subscription required to unlock candidate contact details' }, { status: 403 });
+    }
+
+    // Check candidate worker profile status: pending_review candidates cannot have contacts unlocked
+    const { data: candProf } = await supabaseAdmin
+      .from('worker_profiles')
+      .select('status')
+      .or(`user_id.eq.${workerId},id.eq.${workerId}`)
+      .maybeSingle();
+
+    if (candProf && (candProf.status === 'pending_review' || candProf.status === 'onboarding_pending')) {
+      return NextResponse.json({ error: 'Forbidden', message: 'Candidate profile is pending review and cannot be unlocked until approved.' }, { status: 403 });
     }
 
     // 2. Register the unlock log
@@ -107,12 +122,16 @@ export async function POST(request: NextRequest) {
     // 3. Fetch worker contact number securely
     const { data: worker, error: wErr } = await supabaseAdmin
       .from('profiles')
-      .select('phone')
+      .select('phone, status')
       .eq('id', workerId)
       .single();
 
     if (wErr || !worker) {
       return NextResponse.json({ error: 'Worker contact number not found' }, { status: 404 });
+    }
+
+    if (worker.status === 'pending_review' || worker.status === 'onboarding_pending') {
+      return NextResponse.json({ error: 'Forbidden', message: 'Candidate profile is pending review and cannot be unlocked until approved.' }, { status: 403 });
     }
 
     await logSecurityAudit({

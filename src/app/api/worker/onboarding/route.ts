@@ -2,9 +2,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { logAuditAction } from '@/lib/auditLogger';
 import { verifyOnboardingJwt, signSupabaseJwt, generateRefreshToken, hashRefreshToken } from '@/lib/jwtHelper';
+import { checkRateLimitCritical, extractClientIp } from '@/lib/rateLimiter';
 
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = extractClientIp(req);
+
+    // Distributed Rate Limit — IP Dimension (5 attempts / 15 min per IP)
+    const rlIp = await checkRateLimitCritical(`worker_onboarding:ip:${clientIp}`, 5, 900000);
+    if (rlIp.unavailable) {
+      return NextResponse.json({
+        success: false,
+        error: 'Service Unavailable',
+        message: 'Rate limiting service temporarily unavailable.'
+      }, { status: 503 });
+    }
+    if (!rlIp.success) {
+      return NextResponse.json({
+        success: false,
+        error: 'Too Many Requests',
+        message: 'Too many onboarding submission attempts. Please wait 15 minutes before trying again.'
+      }, { status: 429 });
+    }
+
     // 1. Authenticate session — ONLY accept valid, short-lived Onboarding Credential
     const authHeader = req.headers.get('authorization');
     let token = authHeader ? authHeader.replace('Bearer ', '') : null;
@@ -34,6 +54,23 @@ export async function POST(req: NextRequest) {
     const activeUserId = verifiedOb.userId;
     let userEmail = verifiedOb.email;
     let userPhone = verifiedOb.phone;
+
+    // Distributed Rate Limit — User Dimension (5 attempts / 15 min per verified user)
+    const rlUser = await checkRateLimitCritical(`worker_onboarding:user:${activeUserId}`, 5, 900000);
+    if (rlUser.unavailable) {
+      return NextResponse.json({
+        success: false,
+        error: 'Service Unavailable',
+        message: 'Rate limiting service temporarily unavailable.'
+      }, { status: 503 });
+    }
+    if (!rlUser.success) {
+      return NextResponse.json({
+        success: false,
+        error: 'Too Many Requests',
+        message: 'Too many onboarding submission attempts. Please wait 15 minutes before trying again.'
+      }, { status: 429 });
+    }
 
     // Verify account status from public.profiles: MUST be role 'worker' and status 'onboarding_pending'
     const profRes = await queryDb(`SELECT id, role, status, email, phone, full_name FROM public.profiles WHERE id = $1 LIMIT 1`, [activeUserId]);
@@ -216,17 +253,19 @@ export async function POST(req: NextRequest) {
     // Issue normal Access JWT Token
     const accessToken = signSupabaseJwt(activeUserId, userEmail, formattedPhone || userPhone, 'worker');
 
-    // Log User Audit Action
+    // Log User Audit Action (SAFE METADATA ONLY — NO PII / RAW BODY)
     logAuditAction({
       action: 'Worker Onboarding Completed',
       category: 'worker_activity',
       severity: 'info',
-      actor: formattedPhone || displayName,
+      actor: activeUserId,
       actorRole: 'Worker',
       target_name: displayName,
       target_id: activeUserId,
-      changes_summary: `Candidate '${displayName}' completed onboarding. Skills: ${rawSkills.join(', ')}. Society: ${finalSociety || 'Unspecified'}.`,
-      raw_payload: body
+      changes_summary: `Candidate completed worker onboarding profile. Submitted fields: full_name, gender, age, experience_years, expected_salary, skills, languages_spoken, primary_gated_society, preferred_shift.`,
+      details: {
+        changed_fields: ['full_name', 'gender', 'age', 'experience_years', 'expected_salary', 'skills', 'languages_spoken', 'primary_gated_society', 'preferred_shift']
+      }
     }).catch(() => {});
 
     const userObj = {

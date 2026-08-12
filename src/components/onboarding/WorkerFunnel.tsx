@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 
 interface WorkerFunnelProps {
-  userId?: string;
   onComplete: () => void;
   onCancel: () => void;
 }
@@ -22,7 +21,7 @@ const SLOTS = [
   { id: 'night', label: 'Night (6 PM - 9 PM)' }
 ];
 
-export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, onCancel }) => {
+export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel }) => {
   const { t, language } = useLanguage();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
