@@ -1130,6 +1130,73 @@ async function runSecurityTests() {
       }
     );
 
+    // Test 10.7: Verify Web vs Mobile token delivery (Web receives HttpOnly cookie; Mobile receives JSON body)
+    await assertTest(
+      'Task 10A: Mobile receives refresh_token in JSON payload while Web receives HttpOnly cookie',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('public.otp_verifications')) return { rows: [{ target_key: 'phone:9988776655' }] } as any;
+            if (sql.includes('auth.users')) return { rows: [{ id: 'mock-user-wm', email: 'test@sevikaa.in', phone: '+919988776655' }] } as any;
+            if (sql.includes('SELECT id, role, phone, email FROM public.profiles')) return { rows: [{ id: 'mock-user-wm', role: 'worker' }] } as any;
+            if (sql.includes('SELECT id FROM public.worker_profiles')) return { rows: [{ id: 'mock-user-wm' }] } as any;
+            if (sql.includes('INSERT INTO public.refresh_tokens')) return { rows: [{ id: 'ref-123' }] } as any;
+            return { rows: [{ profile_count: '1', role_profile_count: '1', session_count: '1' }] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          // 1. Mobile request: x-client-platform = mobile
+          const mobileReq = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verify', phone: '9988776655', otp: '123456', role: 'worker' }),
+            headers: { 'Content-Type': 'application/json', 'x-client-platform': 'mobile' }
+          });
+          const mobileRes = await loginOtpPost(mobileReq);
+          const mobileData = await mobileRes.json();
+
+          if (!mobileData.refresh_token || !mobileData.session?.refresh_token) {
+            console.error('[FAIL] Mobile request should receive refresh_token in JSON payload');
+            return false;
+          }
+
+          // 2. Web request: origin header present
+          const webReq = new NextRequest('http://localhost:3000/api/auth/login-otp', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verify', phone: '9988776655', otp: '123456', role: 'worker' }),
+            headers: { 'Content-Type': 'application/json', 'origin': 'http://localhost:3000' }
+          });
+          const webRes = await loginOtpPost(webReq);
+          const webData = await webRes.json();
+
+          if (webData.refresh_token || webData.session?.refresh_token) {
+            console.error('[FAIL] Web request must NOT return refresh_token in JSON payload');
+            return false;
+          }
+
+          const webCookieHeader = webRes.headers.get('set-cookie') || '';
+          if (!webCookieHeader.includes('sevikaa_refresh_token') || !webCookieHeader.includes('HttpOnly')) {
+            console.error('[FAIL] Web request must set HttpOnly cookie sevikaa_refresh_token');
+            return false;
+          }
+
+          return true;
+        } finally {
+          dbPool.connect = prevConnect;
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
   } finally {
     global.fetch = origFetch;
     const { dbPool } = await import('../src/lib/db');

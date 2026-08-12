@@ -499,7 +499,7 @@ export async function POST(req: NextRequest) {
                 WHEN $2 = 'employer' THEN (SELECT COUNT(*) FROM public.employer_profiles WHERE user_id = $1 OR id = $1)
                 ELSE 1
               END) AS role_profile_count,
-             (SELECT COUNT(*) FROM public.refresh_tokens WHERE user_id = $1 AND token_hash = $3 AND revoked_at IS NULL AND expires_at > NOW()) AS session_count`,
+             (SELECT COUNT(*) FROM public.refresh_tokens WHERE user_id = $1 AND token_hash = $3 AND is_revoked = FALSE AND expires_at > NOW()) AS session_count`,
           [resolvedUserId, effectiveRole, tokenHash]
         );
 
