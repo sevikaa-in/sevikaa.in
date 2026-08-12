@@ -260,8 +260,10 @@ export async function POST(req: NextRequest) {
 
       // 2. Create new user if still not found
       if (!userObj) {
-        let newUserId = crypto.randomUUID();
+        const tempFallbackId = crypto.randomUUID();
+        let newUserId = tempFallbackId;
         const userRole = role || 'worker';
+        let createdUserId: string | null = null;
 
         // Create official auth.users record via Supabase Admin Client to satisfy profiles_id_fkey constraint
         if (supabaseAdmin) {
@@ -274,6 +276,7 @@ export async function POST(req: NextRequest) {
               user_metadata: { role: userRole }
             });
             if (createdAuthUser?.user?.id) {
+              createdUserId = createdAuthUser.user.id;
               newUserId = createdAuthUser.user.id as `${string}-${string}-${string}-${string}-${string}`;
             } else if (authCreateErr) {
               // createUser failed — find existing auth.users UUID via direct SQL (no listUsers scan)
@@ -298,24 +301,10 @@ export async function POST(req: NextRequest) {
             console.warn("Supabase auth user create notice:", authErr);
           }
         }
-
-        // Try to find existing profile by phone in DB as final fallback
-        if (!isExistingUser) {
-          try {
-            const cleanDigits = (formattedPhone || '').replace(/\D/g, '').slice(-10);
-            if (cleanDigits.length === 10) {
-              const existingProf = await queryDb(
-                `SELECT id FROM public.profiles WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g'),10) = $1 LIMIT 1`,
-                [cleanDigits]
-              );
-              if (existingProf?.rows[0]?.id) {
-                newUserId = existingProf.rows[0].id;
-                isExistingUser = true;
-              }
-            }
-          } catch (dbLookupErr) {
-            console.warn("DB phone lookup notice:", dbLookupErr);
-          }
+        // Fail closed if new user creation failed and user does not exist in auth/profiles
+        if (!isExistingUser && !createdUserId && (!newUserId || newUserId === tempFallbackId)) {
+          console.error('[login-otp] CRITICAL: Auth user creation failed and no existing user found.');
+          return NextResponse.json({ error: 'Account Creation Failed', message: 'Could not establish user identity. Please try again.' }, { status: 500 });
         }
 
         userObj = {
@@ -426,19 +415,21 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Prepare response with access_token & refresh_token
+      const isWebClient = req.headers.get('x-client-platform') === 'web' || Boolean(req.headers.get('origin')) || Boolean(req.headers.get('referer'));
+
+      // Prepare response payload: Web receives HttpOnly cookie exclusively, Mobile gets refresh_token in JSON
       const res = NextResponse.json({
         success: true,
         user: userObj,
         session: {
           access_token: accessToken,
-          refresh_token: refreshToken,
+          ...(isWebClient ? {} : { refresh_token: refreshToken }),
           token_type: 'bearer',
           user: userObj,
         },
         token: accessToken,
         access_token: accessToken,
-        refresh_token: refreshToken,
+        ...(isWebClient ? {} : { refresh_token: refreshToken }),
         isExistingUser,
         hasCompletedProfile
       });

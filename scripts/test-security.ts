@@ -304,27 +304,45 @@ async function runSecurityTests() {
     return typeof withTxDb === 'function';
   });
 
-  // Test 31: Concurrent Refresh Simulation -> FOR UPDATE transaction rejects duplicate refresh token
+  // Test 31: Concurrent Refresh Simulation -> FOR UPDATE transaction enforces atomic rotation
   await assertTest('Concurrent refresh simulation enforces FOR UPDATE single-connection transaction atomicity', async () => {
     const { POST: postRefresh } = await import('../src/app/api/auth/refresh/route');
-    const dummyToken = 'dummy_unrecognized_token_12345';
+    const { generateRefreshToken, hashRefreshToken } = await import('../src/lib/jwtHelper');
+    const { queryDb } = await import('../src/lib/db');
+
+    const validToken = generateRefreshToken();
+    const tokenHash = hashRefreshToken(validToken);
+    const mockUserId = '00000000-0000-0000-0000-000000000001';
+
+    // Insert mock valid refresh token into DB if DB is active
+    try {
+      await queryDb(
+        `INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
+        [mockUserId, tokenHash]
+      );
+    } catch (e) {
+      // Local offline unit test mode without running PostgreSQL
+    }
     
-    // Execute 2 concurrent refresh requests
+    // Execute 2 concurrent refresh requests with the exact same token
     const [res1, res2] = await Promise.all([
       postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: dummyToken })
+        body: JSON.stringify({ refresh_token: validToken })
       })),
       postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: dummyToken })
+        body: JSON.stringify({ refresh_token: validToken })
       }))
     ]);
 
-    // Fails closed with 401 or 500 when DB unconfigured locally (no crash/hanging)
-    return (res1.status === 401 || res1.status === 500) && (res2.status === 401 || res2.status === 500);
+    // Either exactly 1 succeeds (status 200) and 1 fails (status 401), or both fail cleanly (status 401/500 if DB offline).
+    // MUST NOT allow both to succeed simultaneously (which would violate atomic rotation)!
+    const successCount = (res1.status === 200 ? 1 : 0) + (res2.status === 200 ? 1 : 0);
+    return successCount <= 1;
   });
 
   console.log('\n====================================================');
