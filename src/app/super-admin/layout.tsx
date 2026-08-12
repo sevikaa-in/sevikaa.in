@@ -216,25 +216,20 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
   const fetchSmsData = async () => {
     setSmsLoading(true);
     try {
-      const [templatesRes, logsRes] = await Promise.all([
-        fetch('/api/notifications/sms/templates').catch(() => null),
-        fetch('/api/notifications/logs?limit=50').catch(() => null)
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const [templatesData, logsData] = await Promise.all([
+        webApiClient.get('/api/notifications/sms/templates').catch(() => ({})),
+        webApiClient.get('/api/notifications/logs?limit=50').catch(() => ({}))
       ]);
 
-      if (templatesRes) {
-        const templatesData = await templatesRes.json().catch(() => ({}));
-        if (templatesData.templates && Array.isArray(templatesData.templates)) {
-          setSmsTemplates(templatesData.templates);
-          if (templatesData.templates.length > 0 && !previewTemplate) {
-            setPreviewTemplate(templatesData.templates[0]);
-          }
+      if (templatesData && templatesData.templates && Array.isArray(templatesData.templates)) {
+        setSmsTemplates(templatesData.templates);
+        if (templatesData.templates.length > 0 && !previewTemplate) {
+          setPreviewTemplate(templatesData.templates[0]);
         }
       }
-      if (logsRes) {
-        const logsData = await logsRes.json().catch(() => ({}));
-        if (logsData.logs && Array.isArray(logsData.logs)) {
-          setSmsLogs(logsData.logs);
-        }
+      if (logsData && logsData.logs && Array.isArray(logsData.logs)) {
+        setSmsLogs(logsData.logs);
       }
     } catch (err) {
       console.error("Error fetching SMS dashboard data:", err);
@@ -252,24 +247,13 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.patch('/api/notifications/sms/templates', { id: templateId, isActive: !currentStatus });
 
-      const response = await fetch('/api/notifications/sms/templates', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ id: templateId, isActive: !currentStatus })
-      });
-
-      if (response.ok) {
+      if (data && !data.error) {
         fetchSmsData();
       } else {
-        const err = await response.json();
-        showToast(`Failed to toggle status: ${err.error}`, 'error');
+        showToast(`Failed to toggle status: ${data?.error || 'Unknown error'}`, 'error');
       }
     } catch (err: any) {
       showToast(`Network error: ${err.message}`, 'error');
@@ -285,25 +269,14 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.patch('/api/notifications/sms/templates', { id: templateId, dltTemplateId: dltId, senderId });
 
-      const response = await fetch('/api/notifications/sms/templates', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ id: templateId, dltTemplateId: dltId, senderId })
-      });
-
-      if (response.ok) {
+      if (data && !data.error) {
         fetchSmsData();
         showToast('DLT details updated successfully!', 'success');
       } else {
-        const err = await response.json();
-        showToast(`Failed: ${err.error}`, 'error');
+        showToast(`Failed: ${data?.error || 'Unknown error'}`, 'error');
       }
     } catch (err: any) {
       showToast(`Network error: ${err.message}`, 'error');
@@ -334,20 +307,10 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/notifications/sms/templates', newTemplate);
 
-      const response = await fetch('/api/notifications/sms/templates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(newTemplate)
-      });
-
-      if (response.ok) {
+      if (data && !data.error) {
         fetchSmsData();
         setShowAddModal(false);
         setNewTemplate({
@@ -361,8 +324,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
           message: ''
         });
       } else {
-        const err = await response.json();
-        showToast(`Failed to add template version: ${err.error}`, 'error');
+        showToast(`Failed to add template version: ${data?.error || 'Unknown error'}`, 'error');
       }
     } catch (err: any) {
       showToast(`Network error: ${err.message}`, 'error');
@@ -379,17 +341,13 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         return;
       }
 
-      const response = await fetch('/api/notifications/sms/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateText: previewTemplate.message,
-          variables: vars
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/notifications/sms/preview', {
+        templateText: previewTemplate.message,
+        variables: vars
       });
 
-      const data = await response.json();
-      if (data.success) {
+      if (data && data.success) {
         setPreviewOutput(data.preview);
         setPreviewValid(data.valid);
         setPreviewMissing(data.missingVariables || []);
@@ -1013,9 +971,9 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
   useEffect(() => {
     const fetchAdminsList = async () => {
       try {
-        const res = await fetch('/api/super-admin/admins');
-        const data = await res.json();
-        if (data.success && Array.isArray(data.admins)) {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/super-admin/admins');
+        if (data && data.success && Array.isArray(data.admins)) {
           setAdmins(data.admins);
         }
       } catch (e) {
@@ -1066,17 +1024,13 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
 
   const handleUpdateWorkerStatus = async (workerId: string, newStatus: string) => {
     try {
-      const res = await fetch('/api/admin/worker/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: workerId,
-          status: newStatus,
-          is_tele_onboarded: true,
-          is_interview_verified: true
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/worker/update', {
+        userId: workerId,
+        status: newStatus,
+        is_tele_onboarded: true,
+        is_interview_verified: true
       });
-      const data = await res.json();
       if (!data.success) {
         throw new Error(data.error || 'Failed to update candidate status');
       }
@@ -1101,26 +1055,19 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     const noteText = adminNote || (isChanges ? 'Admin Audit Feedback: Please clarify duty details and update morning shift start time.' : undefined);
 
     try {
-      // 1. Call Backend API
-      await fetch('/api/admin/job/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: jobId, status: newStatus, admin_note: noteText })
-      });
+      // 1. Call Backend API via webApiClient
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/admin/job/update', { id: jobId, status: newStatus, admin_note: noteText });
 
       // 2. Trigger SMS & Email notification alert to employer if changes requested
       if (isChanges) {
         try {
-          await fetch('/api/notifications/trigger', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'job_changes_requested',
-              name: targetJob?.employer || 'Employer',
-              phone: targetJob?.phone || targetJob?.employer_phone || '+919876543210',
-              email: targetJob?.email || targetJob?.employer_email,
-              note: noteText
-            })
+          await webApiClient.post('/api/notifications/trigger', {
+            type: 'job_changes_requested',
+            name: targetJob?.employer || 'Employer',
+            phone: targetJob?.phone || targetJob?.employer_phone || '+919876543210',
+            email: targetJob?.email || targetJob?.employer_email,
+            note: noteText
           });
         } catch (notifErr) {
           console.error("SMS notification trigger failed:", notifErr);
@@ -1177,17 +1124,13 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     }
 
     try {
-      const res = await fetch('/api/super-admin/admins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: newAdminEmail.trim().toLowerCase(),
-          full_name: newAdminName.trim(),
-          role: 'admin'
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/super-admin/admins', {
+        email: newAdminEmail.trim().toLowerCase(),
+        full_name: newAdminName.trim(),
+        role: 'admin'
       });
-      const data = await res.json();
-      if (data.success && data.admin) {
+      if (data && data.success && data.admin) {
         setAdmins(prev => [data.admin, ...prev.filter(a => a.id !== data.admin.id)]);
         setNewAdminEmail('');
         setNewAdminName('');

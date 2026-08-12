@@ -106,13 +106,11 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
         if (!error && Array.isArray(data)) {
           setJobs(data);
         } else {
-          const res = await fetch('/api/admin/data?tab=jobs');
-          if (res.ok) {
-            const jData = await res.json();
-            if (jData && Array.isArray(jData.jobs)) {
-              const filtered = jData.jobs.filter((j: any) => j.employer_id === empId || j.user_id === empId);
-              setJobs(filtered);
-            }
+          const { webApiClient } = await import('@/lib/webApiClient');
+          const jData = await webApiClient.get('/api/admin/data?tab=jobs');
+          if (jData && Array.isArray(jData.jobs)) {
+            const filtered = jData.jobs.filter((j: any) => j.employer_id === empId || j.user_id === empId);
+            setJobs(filtered);
           }
         }
       } catch (err) {
@@ -629,15 +627,13 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                       if (onUnapproveEmployer) {
                         onUnapproveEmployer(empId);
                       } else {
-                        fetch('/api/admin/employer/update', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
+                        import('@/lib/webApiClient').then(({ webApiClient }) => {
+                          webApiClient.post('/api/admin/employer/update', {
                             id: empId,
                             is_approved: false,
                             status: 'pending_review'
-                          })
-                        }).catch(() => {});
+                          }).catch(() => {});
+                        });
                       }
                       onClose();
                     }}

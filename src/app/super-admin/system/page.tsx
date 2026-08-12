@@ -21,9 +21,9 @@ export default function SystemPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch('/api/super-admin/settings');
-        const data = await res.json();
-        if (data.success && data.settings) {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/super-admin/settings');
+        if (data && data.success && data.settings) {
           if (data.settings.helpline_phone) setHelplinePhone(data.settings.helpline_phone);
           if (data.settings.whatsapp_number) setWhatsappNumber(data.settings.whatsapp_number);
           if (data.settings.support_email) setSupportEmail(data.settings.support_email);
@@ -36,16 +36,12 @@ export default function SystemPage() {
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     try {
-      const res = await fetch('/api/super-admin/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          helpline_phone: helplinePhone,
-          whatsapp_number: whatsappNumber,
-          support_email: supportEmail
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/super-admin/settings', {
+        helpline_phone: helplinePhone,
+        whatsapp_number: whatsappNumber,
+        support_email: supportEmail
       });
-      const data = await res.json();
       if (data.success) {
         showToast("Official Communication & Helpline numbers updated live across India!", "success");
       } else {
@@ -62,7 +58,8 @@ export default function SystemPage() {
     setTesting(true);
     const startTime = Date.now();
     try {
-      await fetch('/api/super-admin/data?limit=1');
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.get('/api/super-admin/data?limit=1');
       const pingMs = Math.max(12, Date.now() - startTime);
       setDbPing(pingMs);
     } catch (e) {}

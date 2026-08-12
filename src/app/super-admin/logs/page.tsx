@@ -27,9 +27,9 @@ export default function LogsPage() {
   const fetchRealLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/super-admin/audit?limit=200');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.logs)) {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.get('/api/super-admin/audit?limit=200');
+      if (data && data.success && Array.isArray(data.logs)) {
         setLogsList(data.logs);
       } else {
         setLogsList([]);

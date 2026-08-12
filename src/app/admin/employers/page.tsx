@@ -27,12 +27,9 @@ export default function EmployersPage() {
     }
 
     try {
-      const res = await fetch('/api/admin/employer/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, is_approved: true, status: 'live' })
-      });
-      if (!res.ok) throw new Error('Server update failed');
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/employer/update', { id, is_approved: true, status: 'live' });
+      if (!data || data.error) throw new Error('Server update failed');
       fetchDashboardData();
     } catch (err: any) {
       setEmployersList(previousState);
@@ -50,12 +47,9 @@ export default function EmployersPage() {
     }
 
     try {
-      const res = await fetch('/api/admin/employer/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, is_approved: false, status: 'rejected' })
-      });
-      if (!res.ok) throw new Error('Server update failed');
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/employer/update', { id, is_approved: false, status: 'rejected' });
+      if (!data || data.error) throw new Error('Server update failed');
       fetchDashboardData();
     } catch (err: any) {
       setEmployersList(previousState);
@@ -73,12 +67,9 @@ export default function EmployersPage() {
     }
 
     try {
-      const res = await fetch('/api/admin/employer/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, is_approved: false, status: 'pending_review' })
-      });
-      if (!res.ok) throw new Error('Server update failed');
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/employer/update', { id, is_approved: false, status: 'pending_review' });
+      if (!data || data.error) throw new Error('Server update failed');
       fetchDashboardData();
     } catch (err: any) {
       setEmployersList(previousState);

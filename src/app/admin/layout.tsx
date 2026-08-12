@@ -652,26 +652,19 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     const noteText = adminNote || (isChanges ? 'Admin Audit Feedback: Please clarify if ironing duties are included and update morning shift start time.' : undefined);
 
     try {
-      // 1. Call Backend API
-      await fetch('/api/admin/job/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: jobId, status: newStatus, admin_note: noteText })
-      });
+      // 1. Call Backend API via webApiClient
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/admin/job/update', { id: jobId, status: newStatus, admin_note: noteText });
 
       // 2. Trigger multi-channel SMS & Email alert to employer if changes requested
       if (isChanges) {
         try {
-          await fetch('/api/notifications/trigger', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'job_changes_requested',
-              name: targetJob?.employer || 'Employer',
-              phone: targetJob?.phone || targetJob?.employer_phone || '+919876543210',
-              email: targetJob?.email || targetJob?.employer_email,
-              note: noteText
-            })
+          await webApiClient.post('/api/notifications/trigger', {
+            type: 'job_changes_requested',
+            name: targetJob?.employer || 'Employer',
+            phone: targetJob?.phone || targetJob?.employer_phone || '+919876543210',
+            email: targetJob?.email || targetJob?.employer_email,
+            note: noteText
           });
         } catch (notifErr) {
           console.error("SMS notification trigger failed:", notifErr);
@@ -743,16 +736,13 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         const targetWorker = workersList.find(w => w.id === id);
         if (targetWorker?.phone) {
           try {
-            await fetch('/api/notifications/trigger', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                type: 'interview_scheduled',
-                userId: id,
-                name: targetWorker.name,
-                phone: targetWorker.phone,
-                note: resultNotes || 'Interview rescheduled by admin'
-              })
+            const { webApiClient } = await import('@/lib/webApiClient');
+            await webApiClient.post('/api/notifications/trigger', {
+              type: 'interview_scheduled',
+              userId: id,
+              name: targetWorker.name,
+              phone: targetWorker.phone,
+              note: resultNotes || 'Interview rescheduled by admin'
             });
           } catch (e) {
             console.warn("Reschedule SMS notification notice:", e);

@@ -122,10 +122,11 @@ export default function AssistedJobMatcherPage() {
   const [showSocietyMenu, setShowSocietyMenu] = useState(false);
 
   useEffect(() => {
-    fetch('/api/societies')
-      .then(r => r.json())
-      .then(d => { if (d.success && Array.isArray(d.societies)) setAllSocieties(d.societies); })
-      .catch(() => {});
+    import('@/lib/webApiClient').then(({ webApiClient }) => {
+      webApiClient.get('/api/societies')
+        .then(d => { if (d && d.success && Array.isArray(d.societies)) setAllSocieties(d.societies); })
+        .catch(() => {});
+    });
   }, []);
 
   // Fetch paginated workers & jobs with instant search query
@@ -135,9 +136,10 @@ export default function AssistedJobMatcherPage() {
       const qParam = query.trim() ? `&q=${encodeURIComponent(query.trim())}` : '';
       // Strictly filter candidate directory to Live & Approved verified candidates only
       const statusParam = 'approved';
+      const { webApiClient } = await import('@/lib/webApiClient');
       const [wRes, jRes] = await Promise.all([
-        fetch(`/api/admin/data?tab=workers&status=${statusParam}&page=${targetPage}&limit=${limit}${qParam}`).then(r => r.json()),
-        fetch('/api/admin/data?tab=jobs&limit=100').then(r => r.json()).catch(() => ({ jobs: [] }))
+        webApiClient.get(`/api/admin/data?tab=workers&status=${statusParam}&page=${targetPage}&limit=${limit}${qParam}`),
+        webApiClient.get('/api/admin/data?tab=jobs&limit=100').catch(() => ({ jobs: [] }))
       ]);
 
       if (wRes?.success && Array.isArray(wRes.workers)) {
@@ -260,21 +262,17 @@ export default function AssistedJobMatcherPage() {
 
     setSubmittingJobId(job.id);
     try {
-      const res = await fetch('/api/admin/worker/submit-application', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workerId: selectedWorker.id,
-          jobId: job.id,
-          employerPhone: job.phone || job.employer_phone,
-          workerName: selectedWorker.full_name || selectedWorker.name || 'Candidate',
-          category: Array.isArray(selectedWorker.skills) ? selectedWorker.skills[0] : 'Domestic Help',
-          expYears: selectedWorker.experience_years || '0',
-          societyName: job.society_name || 'Society'
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/worker/submit-application', {
+        workerId: selectedWorker.id,
+        jobId: job.id,
+        employerPhone: job.phone || job.employer_phone,
+        workerName: selectedWorker.full_name || selectedWorker.name || 'Candidate',
+        category: Array.isArray(selectedWorker.skills) ? selectedWorker.skills[0] : 'Domestic Help',
+        expYears: selectedWorker.experience_years || '0',
+        societyName: job.society_name || 'Society'
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to submit application');
+      if (!data || !data.success) throw new Error(data?.error || 'Failed to submit application');
 
       setAppliedJobIds(prev => Array.from(new Set([...prev, job.id])));
       showToast(data.message || `Targeted application submitted for ${selectedWorker.full_name}! DLT SMS dispatched.`, 'success');

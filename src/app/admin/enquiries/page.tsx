@@ -76,9 +76,9 @@ export default function AdminEnquiriesPage() {
   const fetchEnquiries = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/enquiries');
-      const data = await res.json();
-      if (data.enquiries && data.enquiries.length > 0) {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.get('/api/admin/enquiries');
+      if (data && data.enquiries && data.enquiries.length > 0) {
         setEnquiries(data.enquiries);
       } else {
         setEnquiries(mockEnquiries);
@@ -98,11 +98,8 @@ export default function AdminEnquiriesPage() {
   const handleUpdateStatus = async (id: string, newStatus: Enquiry['status'], notes?: string) => {
     setUpdatingId(id);
     try {
-      await fetch('/api/admin/enquiries', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: newStatus, admin_notes: notes }),
-      });
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.patch('/api/admin/enquiries', { id, status: newStatus, admin_notes: notes });
 
       setEnquiries(prev =>
         prev.map(item =>

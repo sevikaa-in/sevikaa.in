@@ -39,17 +39,13 @@ export default function ReviewsPage() {
   const handleModerateReview = async (reviewId: string, newStatus: 'approved' | 'rejected') => {
     setActionLoading(reviewId);
     try {
-      const res = await fetch('/api/super-admin/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reviewId,
-          status: newStatus,
-          adminEmail: user?.email || 'superadmin@sevikaa.in'
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/super-admin/reviews', {
+        reviewId,
+        status: newStatus,
+        adminEmail: user?.email || 'superadmin@sevikaa.in'
       });
 
-      const data = await res.json();
       if (data.success) {
         showToast(`Review ${newStatus.toUpperCase()} successfully!`, newStatus === 'approved' ? 'success' : 'info');
         fetchReviews();

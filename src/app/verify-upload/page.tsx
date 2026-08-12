@@ -85,11 +85,8 @@ export default function VerifyUploadPage() {
           .upload(fileName, file, { upsert: true });
 
         if (!uploadErr && data) {
-          await fetch('/api/admin/worker/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, profile_picture_url: data.path, status: 'pending_review' })
-          });
+          const { webApiClient } = await import('@/lib/webApiClient');
+          await webApiClient.post('/api/admin/worker/update', { userId, profile_picture_url: data.path, status: 'pending_review' });
           setExistingSelfie(data.path);
         }
       } catch (err) {
@@ -116,11 +113,8 @@ export default function VerifyUploadPage() {
           .upload(fileName, file, { upsert: true });
 
         if (!uploadErr && data) {
-          await fetch('/api/admin/worker/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, aadhaar_front_url: data.path, status: 'pending_review' })
-          });
+          const { webApiClient } = await import('@/lib/webApiClient');
+          await webApiClient.post('/api/admin/worker/update', { userId, aadhaar_front_url: data.path, status: 'pending_review' });
           setExistingAadhaarFront(data.path);
         }
       } catch (err) {
@@ -147,11 +141,8 @@ export default function VerifyUploadPage() {
           .upload(fileName, file, { upsert: true });
 
         if (!uploadErr && data) {
-          await fetch('/api/admin/worker/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, aadhaar_back_url: data.path, status: 'pending_review' })
-          });
+          const { webApiClient } = await import('@/lib/webApiClient');
+          await webApiClient.post('/api/admin/worker/update', { userId, aadhaar_back_url: data.path, status: 'pending_review' });
           setExistingAadhaarBack(data.path);
         }
       } catch (err) {
@@ -362,11 +353,8 @@ export default function VerifyUploadPage() {
                           .upload(fileName, file, { upsert: true });
 
                         if (!uploadErr && data) {
-                          await fetch('/api/admin/worker/update', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId, video_url: data.path, status: 'pending_review' })
-                          });
+                          const { webApiClient } = await import('@/lib/webApiClient');
+                          await webApiClient.post('/api/admin/worker/update', { userId, video_url: data.path, status: 'pending_review' });
                         }
                       } catch (err) {
                         console.error("Video upload error:", err);

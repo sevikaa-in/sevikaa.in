@@ -67,9 +67,9 @@ export default function TeleOnboardingPage() {
   useEffect(() => {
     const pollLocks = async () => {
       try {
-        const res = await fetch('/api/admin/lead-lock');
-        const data = await res.json();
-        if (data.success && Array.isArray(data.locks)) {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/admin/lead-lock');
+        if (data && data.success && Array.isArray(data.locks)) {
           const map: Record<string, any> = {};
           data.locks.forEach((l: any) => { map[l.lead_id] = l; });
           setActiveLocks(map);
@@ -92,11 +92,8 @@ export default function TeleOnboardingPage() {
 
     const acquireLock = async () => {
       try {
-        await fetch('/api/admin/lead-lock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lead_id: selectedLead.id, admin_id: adminId, admin_name: adminName })
-        });
+        const { webApiClient } = await import('@/lib/webApiClient');
+        await webApiClient.post('/api/admin/lead-lock', { lead_id: selectedLead.id, admin_id: adminId, admin_name: adminName });
       } catch (e) {
         console.warn("Acquire lock notice:", e);
       }
@@ -105,9 +102,9 @@ export default function TeleOnboardingPage() {
     const fetchSharedNotes = async () => {
       setLoadingSharedNotes(true);
       try {
-        const res = await fetch(`/api/admin/tele-notes?lead_id=${selectedLead.id}`);
-        const data = await res.json();
-        if (data.success) {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get(`/api/admin/tele-notes?lead_id=${selectedLead.id}`);
+        if (data && data.success) {
           setSharedNotes(data.notes || []);
         }
       } catch (e) {
@@ -124,7 +121,9 @@ export default function TeleOnboardingPage() {
 
     return () => {
       clearInterval(heartbeatTimer);
-      fetch(`/api/admin/lead-lock?lead_id=${selectedLead.id}&admin_id=${adminId}`, { method: 'DELETE' }).catch(() => {});
+      import('@/lib/webApiClient').then(({ webApiClient }) => {
+        webApiClient.delete(`/api/admin/lead-lock?lead_id=${selectedLead.id}&admin_id=${adminId}`).catch(() => {});
+      });
     };
   }, [selectedLead, isSheetOpen]);
 
@@ -132,18 +131,14 @@ export default function TeleOnboardingPage() {
     if (!selectedLead || !newNoteText.trim()) return;
     setAddingNote(true);
     try {
-      const res = await fetch('/api/admin/tele-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lead_id: selectedLead.id,
-          admin_name: getAdminName(),
-          note_text: newNoteText.trim(),
-          call_outcome: newCallOutcome
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/tele-notes', {
+        lead_id: selectedLead.id,
+        admin_name: getAdminName(),
+        note_text: newNoteText.trim(),
+        call_outcome: newCallOutcome
       });
-      const data = await res.json();
-      if (data.success && data.note) {
+      if (data && data.success && data.note) {
         setSharedNotes(prev => [data.note, ...prev]);
         setNewNoteText('');
         showToast("✓ Shared call note logged!", "success");
@@ -254,11 +249,8 @@ export default function TeleOnboardingPage() {
     localStorage.setItem('tele_call_statuses', JSON.stringify(updated));
 
     try {
-      await fetch('/api/admin/interview/note', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: leadId, status, note: callNotes[leadId] || '' })
-      });
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/admin/interview/note', { id: leadId, status, note: callNotes[leadId] || '' });
     } catch (e) {
       console.warn("DB status save notice:", e);
     }
@@ -270,11 +262,8 @@ export default function TeleOnboardingPage() {
     localStorage.setItem('tele_call_notes', JSON.stringify(updated));
 
     try {
-      await fetch('/api/admin/interview/note', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: leadId, note, status: callStatuses[leadId] || '' })
-      });
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/admin/interview/note', { id: leadId, note, status: callStatuses[leadId] || '' });
     } catch (e) {
       console.warn("DB note save notice:", e);
     }
@@ -290,9 +279,9 @@ export default function TeleOnboardingPage() {
     invalidateAdminCache('tele_onboarding');
     const fetchSocietiesList = async () => {
       try {
-        const res = await fetch('/api/societies');
-        const data = await res.json();
-        if (data.success && Array.isArray(data.societies)) {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/societies');
+        if (data && data.success && Array.isArray(data.societies)) {
           setAllSocieties(data.societies);
         }
       } catch (e) {
@@ -455,13 +444,9 @@ export default function TeleOnboardingPage() {
         workerPayload.is_interview_verified = true;
         workerPayload.status = 'approved';
 
-        const res = await fetch('/api/admin/worker/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(workerPayload)
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed to save worker lead');
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.post('/api/admin/worker/update', workerPayload);
+        if (!data || !data.success) throw new Error(data?.error || 'Failed to save worker lead');
         showToast("✓ Worker candidate profile verified & tele-onboarded!", "success");
       } else {
         const cleanAlt = editAlternatePhone ? editAlternatePhone.replace(/\D/g, '') : '';
@@ -470,26 +455,22 @@ export default function TeleOnboardingPage() {
           return;
         }
 
-        const res = await fetch('/api/admin/employer/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: selectedLead.id,
-            company_name: editName,
-            society_name: editSociety,
-            tower_block: editTower,
-            address: editFlat,
-            alternate_phone: cleanAlt ? `+91 ${cleanAlt}` : '',
-            city: editCity,
-            state: editState,
-            pincode: editPincode,
-            gstin: editGstin,
-            verification_requirement: editVerificationReq,
-            status: selectedLead.status || 'pending_review'
-          })
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.post('/api/admin/employer/update', {
+          id: selectedLead.id,
+          company_name: editName,
+          society_name: editSociety,
+          tower_block: editTower,
+          address: editFlat,
+          alternate_phone: cleanAlt ? `+91 ${cleanAlt}` : '',
+          city: editCity,
+          state: editState,
+          pincode: editPincode,
+          gstin: editGstin,
+          verification_requirement: editVerificationReq,
+          status: selectedLead.status || 'pending_review'
         });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed to save employer lead');
+        if (!data || !data.success) throw new Error(data?.error || 'Failed to save employer lead');
         showToast("Employer details & uploaded verification documents saved successfully!", "success");
       }
       setIsSheetOpen(false);
@@ -510,13 +491,9 @@ export default function TeleOnboardingPage() {
 
     setSwitchingRole(true);
     try {
-      const res = await fetch('/api/admin/user/switch-role', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selectedLead.id, targetRole })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed switching role');
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/user/switch-role', { userId: selectedLead.id, targetRole });
+      if (!data || !data.success) throw new Error(data?.error || 'Failed switching role');
 
       showToast(`Successfully switched user to ${targetRole.toUpperCase()}!`, "success");
       setIsSheetOpen(false);
@@ -532,13 +509,9 @@ export default function TeleOnboardingPage() {
   const handleSendUploadSms = async () => {
     if (!selectedLead?.phone) return;
     try {
-      const res = await fetch('/api/admin/worker/send-upload-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selectedLead.id, phone: selectedLead.phone })
-      });
-      const data = await res.json();
-      if (data.success) {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/worker/send-upload-sms', { userId: selectedLead.id, phone: selectedLead.phone });
+      if (data && data.success) {
         setSmsSent(true);
         showToast(`1-Click Document Upload Link sent to ${formatPhone(selectedLead.phone)}!`, 'success');
         setTimeout(() => setSmsSent(false), 4000);
@@ -560,12 +533,9 @@ export default function TeleOnboardingPage() {
       formData.append('assetType', assetType);
       formData.append('role', isWorker ? 'worker' : 'employer');
 
-      const res = await fetch('/api/upload/cloudinary', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.success && data.publicUrl) {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/upload/cloudinary', formData);
+      if (data && data.success && data.publicUrl) {
         setSelectedLead((prev: any) => {
           if (!prev) return null;
           if (assetType === 'profile_picture_url') {

@@ -34,24 +34,20 @@ export default function SocietiesPage() {
 
     const loadRequests = async () => {
       try {
-        const res = await fetch('/api/societies');
-        if (res.ok && isMounted) {
-          const data = await res.json();
-          if (data.success && data.societies) {
-            setPendingRequests(data.societies.filter((s: any) => s.status === 'pending_verification'));
-          }
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/societies');
+        if (data && isMounted && data.success && data.societies) {
+          setPendingRequests(data.societies.filter((s: any) => s.status === 'pending_verification'));
         }
       } catch (err) {
         console.error("Error fetching pending society requests:", err);
       }
 
       try {
-        const relRes = await fetch('/api/admin/society-relocations');
-        if (relRes.ok && isMounted) {
-          const relData = await relRes.json();
-          if (relData.success && relData.requests) {
-            setRelocationRequests(relData.requests);
-          }
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const relData = await webApiClient.get('/api/admin/society-relocations');
+        if (relData && isMounted && relData.success && relData.requests) {
+          setRelocationRequests(relData.requests);
         }
       } catch (relErr) {
         console.error("Error fetching relocation requests:", relErr);
@@ -69,18 +65,14 @@ export default function SocietiesPage() {
 
   const handleApproveRelocation = async (reqItem: any) => {
     try {
-      const res = await fetch('/api/admin/society-relocations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requestId: reqItem.id,
-          employerId: reqItem.employer_id,
-          targetSociety: reqItem.target_society,
-          action: 'approve'
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/society-relocations', {
+        requestId: reqItem.id,
+        employerId: reqItem.employer_id,
+        targetSociety: reqItem.target_society,
+        action: 'approve'
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'Approval failed');
+      if (data.error) throw new Error(data.error || 'Approval failed');
 
       setRelocationRequests(prev => prev.filter(r => r.id !== reqItem.id));
       showToast(`Society transfer approved! Employer moved to "${reqItem.target_society}"`, 'success');
@@ -91,17 +83,13 @@ export default function SocietiesPage() {
 
   const handleRejectRelocation = async (reqItem: any) => {
     try {
-      const res = await fetch('/api/admin/society-relocations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requestId: reqItem.id,
-          employerId: reqItem.employer_id,
-          action: 'reject'
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/society-relocations', {
+        requestId: reqItem.id,
+        employerId: reqItem.employer_id,
+        action: 'reject'
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'Rejection failed');
+      if (data.error) throw new Error(data.error || 'Rejection failed');
 
       setRelocationRequests(prev => prev.filter(r => r.id !== reqItem.id));
       showToast('Relocation request rejected.', 'info');

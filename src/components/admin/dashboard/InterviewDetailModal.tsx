@@ -63,8 +63,8 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
     setMounted(true);
     const loadSocieties = async () => {
       try {
-        const res = await fetch('/api/societies');
-        const data = await res.json();
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/societies');
         if (data?.societies && data.societies.length > 0) {
           setAllSocieties(data.societies);
           return;
@@ -72,8 +72,8 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
       } catch (e) {}
 
       try {
-        const res2 = await fetch('/api/super-admin/data?tab=societies');
-        const data2 = await res2.json();
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data2 = await webApiClient.get('/api/super-admin/data?tab=societies');
         if (data2?.societies && data2.societies.length > 0) {
           setAllSocieties(data2.societies);
         }
@@ -147,23 +147,20 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
     try {
       const skillsArray = editSkills.split(',').map(s => s.trim()).filter(Boolean);
       const languagesArray = editLanguages.split(',').map(s => s.trim()).filter(Boolean);
-      const res = await fetch('/api/admin/worker/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: interview.worker?.id || interview.id,
-          full_name: editFullName,
-          age: editAge,
-          gender: editGender,
-          experience_years: editExperience,
-          expected_salary: editSalary,
-          skills: skillsArray,
-          languages_spoken: languagesArray,
-          emergency_contact: editEmergencyContact,
-          primary_society_id: editPrimarySociety
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/worker/update', {
+        userId: interview.worker?.id || interview.id,
+        full_name: editFullName,
+        age: editAge,
+        gender: editGender,
+        experience_years: editExperience,
+        expected_salary: editSalary,
+        skills: skillsArray,
+        languages_spoken: languagesArray,
+        emergency_contact: editEmergencyContact,
+        primary_society_id: editPrimarySociety
       });
-      if (res.ok) {
+      if (data && !data.error) {
         setIsEditingBio(false);
         if (interview.worker) {
           interview.worker.full_name = editFullName;
@@ -189,13 +186,9 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
     const activePhone = worker?.phone;
     if (!activePhone) return;
     try {
-      const res = await fetch('/api/admin/worker/send-upload-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: worker.id || interview.id, phone: activePhone })
-      });
-      const data = await res.json();
-      if (data.success) {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/worker/send-upload-sms', { userId: worker.id || interview.id, phone: activePhone });
+      if (data && data.success) {
         setUploadLinkSent(true);
         setTimeout(() => setUploadLinkSent(false), 4000);
       }
@@ -208,17 +201,14 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
     if (!worker?.phone) return;
     setSmsSending(true);
     try {
-      await fetch('/api/notifications/trigger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'interview_scheduled',
-          userId: worker.id || interview.id,
-          name: interview.workerName,
-          phone: worker.phone,
-          email: worker.email || null,
-          userLanguage: worker.preferred_language || 'hi'
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/notifications/trigger', {
+        type: 'interview_scheduled',
+        userId: worker.id || interview.id,
+        name: interview.workerName,
+        phone: worker.phone,
+        email: worker.email || null,
+        userLanguage: worker.preferred_language || 'hi'
       });
       setSmsSent(true);
     } catch (e) {
@@ -243,12 +233,9 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
       formData.append('userId', worker?.id || interview?.id);
       formData.append('assetType', assetType);
 
-      const res = await fetch('/api/admin/worker/upload-asset', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.success && data.publicUrl && interview?.worker) {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/worker/upload-asset', formData);
+      if (data && data.success && data.publicUrl && interview?.worker) {
         interview.worker[assetType] = data.publicUrl;
       }
     } catch (err) {

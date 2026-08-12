@@ -66,11 +66,8 @@ export default function AdminReviewsPage() {
     setToastMessage('Review approved and published to public profiles ✓');
     setTimeout(() => setToastMessage(null), 3000);
     try {
-      await fetch('/api/super-admin/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewId: id, status: 'approved', adminEmail: 'societyadmin@sevikaa.in' })
-      });
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/super-admin/reviews', { reviewId: id, status: 'approved', adminEmail: 'societyadmin@sevikaa.in' });
     } catch (err) {
       console.error(err);
     }
@@ -81,11 +78,8 @@ export default function AdminReviewsPage() {
     setToastMessage('Review rejected and archived.');
     setTimeout(() => setToastMessage(null), 3000);
     try {
-      await fetch('/api/super-admin/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewId: id, status: 'rejected', adminEmail: 'societyadmin@sevikaa.in' })
-      });
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/super-admin/reviews', { reviewId: id, status: 'rejected', adminEmail: 'societyadmin@sevikaa.in' });
     } catch (err) {
       console.error(err);
     }
