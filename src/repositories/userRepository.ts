@@ -80,8 +80,8 @@ export class UserRepository {
 
     if (targetRole === 'employer') {
       await queryDb(
-        `INSERT INTO public.employer_profiles (id, user_id, company_name, created_at, updated_at) 
-         VALUES ($1, $1, 'Household Owner', NOW(), NOW()) 
+        `INSERT INTO public.employer_profiles (id, user_id, name, company_name, created_at, updated_at) 
+         VALUES ($1, $1, 'Household Owner', 'Household Owner', NOW(), NOW()) 
          ON CONFLICT (id) DO UPDATE SET updated_at = NOW()`,
         [userId]
       );

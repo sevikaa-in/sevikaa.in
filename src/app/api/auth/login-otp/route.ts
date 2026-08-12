@@ -363,29 +363,7 @@ export async function POST(req: NextRequest) {
       // STATE MACHINE STEP 3: PROVISION / REPAIR ROLE SUB-PROFILE (IDEMPOTENT)
       // =========================================================================
       if (effectiveRole === 'worker') {
-        try {
-          await queryDb(
-            `INSERT INTO public.worker_profiles (id, user_id, full_name, created_at)
-             VALUES ($1, $1, $2, NOW())
-             ON CONFLICT (id) DO UPDATE
-             SET user_id = EXCLUDED.user_id,
-                 full_name = COALESCE(public.worker_profiles.full_name, EXCLUDED.full_name)`,
-            [resolvedUserId, displayFullName || 'Worker Candidate']
-          );
-        } catch (wpErr: any) {
-          console.error('[login-otp] worker_profiles upsert error:', wpErr?.message);
-          if (supabaseAdmin) {
-            try {
-              await supabaseAdmin.from('worker_profiles').upsert({
-                id: resolvedUserId,
-                user_id: resolvedUserId,
-                full_name: displayFullName || 'Worker Candidate'
-              });
-            } catch (sbWpErr) {}
-          }
-        }
-
-        // VERIFY worker_profiles ROW (FAIL CLOSED CASE 7)
+        // Check if worker_profiles row already exists (e.g. existing worker or completed onboarding)
         let verifiedWp = false;
         try {
           const checkWp = await queryDb(
@@ -399,23 +377,38 @@ export async function POST(req: NextRequest) {
           console.error('[login-otp] Worker profile verification query failed:', checkWpErr);
         }
 
+        // If worker_profiles does not exist yet, required fields (gender, age, expected_salary)
+        // have not been collected at OTP time. Do NOT fabricate fake values and do NOT issue JWT.
+        // Return existing application's intended incomplete onboarding response.
         if (!verifiedWp) {
-          console.error('[login-otp] CRITICAL: Mandatory worker_profiles record missing after provisioning.');
-          return NextResponse.json(
-            { error: 'Worker Profile Creation Failed', message: 'Failed to establish mandatory worker profile record.' },
-            { status: 500 }
-          );
+          return NextResponse.json({
+            success: true,
+            isExistingUser,
+            hasCompletedProfile: false,
+            requiresOnboarding: true,
+            onboardingUrl: '/worker/onboarding',
+            user: {
+              id: resolvedUserId,
+              email: userEmail,
+              phone: userPhone,
+              role: 'worker',
+              status: 'onboarding_pending'
+            },
+            message: 'OTP verified. Worker onboarding required before profile activation.'
+          });
         }
 
       } else if (effectiveRole === 'employer') {
+        const empName = displayFullName || 'Employer Household';
         try {
           await queryDb(
-            `INSERT INTO public.employer_profiles (id, user_id, company_name, created_at)
-             VALUES ($1, $1, $2, NOW())
+            `INSERT INTO public.employer_profiles (id, user_id, name, company_name, created_at)
+             VALUES ($1, $1, $2, $2, NOW())
              ON CONFLICT (id) DO UPDATE
              SET user_id = EXCLUDED.user_id,
+                 name = COALESCE(public.employer_profiles.name, EXCLUDED.name),
                  company_name = COALESCE(public.employer_profiles.company_name, EXCLUDED.company_name)`,
-            [resolvedUserId, displayFullName || 'Employer Candidate']
+            [resolvedUserId, empName]
           );
         } catch (epErr: any) {
           console.error('[login-otp] employer_profiles upsert error:', epErr?.message);
@@ -424,7 +417,8 @@ export async function POST(req: NextRequest) {
               await supabaseAdmin.from('employer_profiles').upsert({
                 id: resolvedUserId,
                 user_id: resolvedUserId,
-                company_name: displayFullName || 'Employer Candidate'
+                name: empName,
+                company_name: empName
               });
             } catch (sbEpErr) {}
           }

@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
       if (!epCheck || epCheck.rows.length === 0) {
         try {
           await queryDb(
-            `INSERT INTO public.employer_profiles (id, user_id, company_name, status) VALUES ($1, $1, $2, $3)`,
+            `INSERT INTO public.employer_profiles (id, user_id, name, company_name, status) VALUES ($1, $1, $2, $2, $3)`,
             [userId, 'Household Owner', initialStatus]
           );
         } catch (epErr) {

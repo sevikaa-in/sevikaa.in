@@ -904,9 +904,9 @@ async function runSecurityTests() {
       }
     );
 
-    // Test 10.3: Mandatory worker_profiles creation failure -> 500 & NO tokens issued
+    // Test 10.3: New worker without worker_profiles -> pending onboarding response (200) & NO tokens issued
     await assertTest(
-      'Task 10: Mandatory worker_profiles creation failure returns 500 and NEVER issues access or refresh token',
+      'Task 10B: New worker without worker_profiles returns requiresOnboarding=true and NEVER issues access or refresh token',
       async () => {
         const origUrl = process.env.UPSTASH_REDIS_REST_URL;
         const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -921,13 +921,13 @@ async function runSecurityTests() {
               return { rows: [{ target_key: 'phone:9988776655' }] } as any;
             }
             if (sql.includes('auth.users')) {
-              return { rows: [{ id: 'mock-user-wp-fail', email: 'test@sevikaa.in', phone: '+919988776655' }] } as any;
+              return { rows: [{ id: 'mock-user-wp-pending', email: 'test@sevikaa.in', phone: '+919988776655' }] } as any;
             }
             if (sql.includes('SELECT id, role, phone, email FROM public.profiles')) {
-              return { rows: [{ id: 'mock-user-wp-fail', role: 'worker' }] } as any; // Profiles verify OK
+              return { rows: [{ id: 'mock-user-wp-pending', role: 'worker' }] } as any;
             }
             if (sql.includes('SELECT id FROM public.worker_profiles')) {
-              return { rows: [] } as any; // worker_profiles verification fails (0 rows)
+              return { rows: [] } as any; // worker_profiles row does not exist yet
             }
             return { rows: [] } as any;
           },
@@ -941,16 +941,16 @@ async function runSecurityTests() {
             headers: { 'Content-Type': 'application/json' }
           });
           const res = await loginOtpPost(req);
-          if (res.status !== 500) {
-            console.error(`[FAIL] Expected 500 on worker_profiles creation failure but got ${res.status}`);
+          if (res.status !== 200) {
+            console.error(`[FAIL] Expected 200 on new worker pending onboarding but got ${res.status}`);
             return false;
           }
           const data = await res.json();
-          if (data.access_token || data.token || data.refresh_token || data.session) {
-            console.error('[FAIL] CRITICAL SECURITY VIOLATION: Issued tokens when worker_profiles creation failed!');
+          if (data.access_token || data.token || data.refresh_token || data.session?.access_token) {
+            console.error('[FAIL] CRITICAL SECURITY VIOLATION: Issued JWT tokens for incomplete worker profile!');
             return false;
           }
-          return data.error === 'Worker Profile Creation Failed';
+          return data.hasCompletedProfile === false && data.requiresOnboarding === true && data.onboardingUrl === '/worker/onboarding';
         } finally {
           dbPool.connect = prevConnect;
           process.env.UPSTASH_REDIS_REST_URL = origUrl;
