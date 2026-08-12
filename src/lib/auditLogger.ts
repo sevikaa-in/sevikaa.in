@@ -70,6 +70,51 @@ export function sanitizeAuditPayload(payload: any): any {
   return sanitized;
 }
 
+export function sanitizeAuditText(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+
+  let sanitized = text;
+
+  // 1. Contextual Transformations (preserves useful audit information without fabricated data)
+  sanitized = sanitized.replace(/worker\s+phone\s+(changed|updated)\s+to\s+\+?\d+/gi, 'Worker contact information updated');
+  sanitized = sanitized.replace(/expected\s+salary\s+(changed|updated)\s+to\s+₹?\d+/gi, 'expected salary updated');
+  sanitized = sanitized.replace(/salary\s+(changed|updated)\s+to\s+₹?\d+/gi, 'salary updated');
+  sanitized = sanitized.replace(/unlocked\s+(candidate\s+)?(contact\s+)?phone\s+number\s*\(\+?\d+\)/gi, 'unlocked candidate contact details');
+  sanitized = sanitized.replace(/phone\s+number\s*\(\+?\d+\)/gi, 'contact details');
+
+  // 2. Token, Authorization & Secret Redaction
+  sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9\-_~+/=.]+/gi, '[REDACTED_TOKEN]');
+  sanitized = sanitized.replace(/eyJ[A-Za-z0-9\-_~+/=.]+\.[A-Za-z0-9\-_~+/=.]+\.[A-Za-z0-9\-_~+/=.]+/g, '[REDACTED_TOKEN]');
+
+  // 3. Document, Selfie & Storage URL Redaction
+  sanitized = sanitized.replace(/https?:\/\/[^\s"'\)>]+/gi, '[REDACTED_URL]');
+
+  // 4. Phone Number Redaction: +91 9876543210 or 10-12 digit phone numbers
+  sanitized = sanitized.replace(/(phone\s*(number)?\s*[:=]?\s*)\+?91[\s-]?\d{10}|\b\+?91[\s-]?\d{10}\b|\b\d{10}\b/gi, (match, prefix) => {
+    return prefix ? `${prefix}[REDACTED_PHONE]` : '[REDACTED_PHONE]';
+  });
+
+  // 5. Aadhaar Number Redaction: 12-digit format
+  sanitized = sanitized.replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, '[REDACTED_AADHAAR]');
+
+  // 6. OTP & Passcode Redaction
+  sanitized = sanitized.replace(/\b(otp|passcode|code)\s*[:=]?\s*\d{4,8}\b/gi, '$1: [REDACTED_OTP]');
+
+  // 7. Password & Secret Redaction
+  sanitized = sanitized.replace(/\b(password|secret|api_key)\s*[:=]?\s*\S+/gi, '$1: [REDACTED_SECRET]');
+
+  // 8. Salary & Currency Redaction
+  sanitized = sanitized.replace(/₹\s?\d+|\b(expected_salary|salary)\s*[:=]?\s*₹?\s?\d+/gi, (match) => {
+    if (match.toLowerCase().includes('salary')) {
+      const parts = match.split(/[:=]/);
+      return `${parts[0]}: [REDACTED_SALARY]`;
+    }
+    return '[REDACTED_SALARY]';
+  });
+
+  return sanitized;
+}
+
 export async function logAuditAction(options: AuditLogOptions) {
   try {
     const {
@@ -96,17 +141,22 @@ export async function logAuditAction(options: AuditLogOptions) {
     const detectedIp = (rawDetectedIp && rawDetectedIp !== 'null') ? rawDetectedIp : 'unknown';
     const finalAdminEmail = admin_email || (actor && actor.includes('@') ? actor : 'admin@sevikaa.in');
     const finalAdminName = admin_name || (actor && !actor.includes('@') ? actor : 'Admin Moderator');
-    const finalTargetName = target_name || resource || 'System Resource';
+    const finalTargetName = sanitizeAuditText(target_name || resource || 'System Resource');
     const finalTargetId = (target_id || userId) ? String(target_id || userId) : null;
-    const finalChangesSummary = changes_summary || (typeof details === 'string' ? details : JSON.stringify(sanitizeAuditPayload(details)));
 
-    const sanitizedDetails = typeof details === 'object' && details !== null ? sanitizeAuditPayload(details) : details;
+    const sanitizedDetails = typeof details === 'object' && details !== null 
+      ? sanitizeAuditPayload(details) 
+      : (typeof details === 'string' ? sanitizeAuditText(details) : details);
+
+    const rawChangesSummary = changes_summary || (typeof details === 'string' ? details : JSON.stringify(sanitizedDetails));
+    const finalChangesSummary = sanitizeAuditText(rawChangesSummary);
+
     const formattedDetails = typeof sanitizedDetails === 'object' && sanitizedDetails !== null 
-      ? JSON.stringify(resource ? { ...sanitizedDetails, resource } : sanitizedDetails) 
-      : (resource ? `${resource}: ${sanitizedDetails || ''}` : String(sanitizedDetails || ''));
+      ? sanitizeAuditText(JSON.stringify(resource ? { ...sanitizedDetails, resource } : sanitizedDetails)) 
+      : sanitizeAuditText(resource ? `${resource}: ${sanitizedDetails || ''}` : String(sanitizedDetails || ''));
 
     const sanitizedPayload = raw_payload ? sanitizeAuditPayload(raw_payload) : (typeof details === 'object' ? sanitizeAuditPayload(details) : null);
-    const rawPayloadJson = sanitizedPayload ? JSON.stringify(sanitizedPayload) : null;
+    const rawPayloadJson = sanitizedPayload ? sanitizeAuditText(JSON.stringify(sanitizedPayload)) : null;
     const finalRole = actorRole || role || 'Moderator';
 
     // audit_logs table managed via migrations — no runtime DDL or runtime DELETE operations
