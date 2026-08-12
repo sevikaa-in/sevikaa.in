@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  StyleSheet, Text, View, ScrollView, TouchableOpacity, 
-  ActivityIndicator, TextInput, Modal, Alert, Platform 
+import {
+  StyleSheet, Text, View, ScrollView, TouchableOpacity,
+  ActivityIndicator, TextInput, Modal, Platform
 } from 'react-native';
-import { 
-  Building2, MapPin, Search, Check, ShieldCheck, 
-  Briefcase, Users, Star, Plus, X, Globe, Home, 
+import {
+  Building2, MapPin, Search, Check, ShieldCheck,
+  Briefcase, Users, Star, Plus, X, Globe, Home,
   Compass, Sparkles, Send, Clock, CheckCircle2
 } from 'lucide-react-native';
 import * as Location from 'expo-location';
-import { supabase } from '../../lib/supabase';
-import { getApiUrl } from '../../config/api';
+import { apiClient } from '../../services/apiClient';
 import { useMobileLanguage } from '../../context/LanguageContext';
 import { useUserProfile } from '../../context/UserProfileContext';
-import { SocietyCard } from '../../components/SocietyCard';
+import { SocietyCard, SocietyItem } from '../../components/SocietyCard';
 
 // Haversine formula to compute exact distance in km between two GPS coordinates
 function calculateHaversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -41,12 +40,45 @@ const SOCIETY_GEO_MAP: Record<string, { lat: number; lng: number }> = {
   'Sobha Royal Pavilion': { lat: 12.9100, lng: 77.7000 }
 };
 
+// Shape returned by GET /api/worker/societies
+interface WorkerSocietyContext {
+  primarySocietyId: string | null;
+  primarySocietyName: string | null;
+  secondarySocietyNames: string[];
+}
+
+interface Society {
+  id: string;
+  name: string;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  securityType: string;
+  activeJobsCount: number;
+  employersCount: number;
+}
+
+interface WorkerSocietiesApiResponse {
+  success: boolean;
+  workerSocietyContext: WorkerSocietyContext;
+  societies: Society[];
+}
+
+// Internal shape: extends the SocietyCard's SocietyItem with GPS fields used for distance calculation.
+// lat/lng/rawDistance are kept in state but are NOT part of the SocietyItem surface that SocietyCard sees.
+interface MappedSociety extends SocietyItem {
+  rawDistance: string;
+  lat: number;
+  lng: number;
+}
+
 export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
   const { t } = useMobileLanguage();
   const { user: ctxUser, profile: ctxProfile, workerProfile: ctxWp, refreshProfile } = useUserProfile();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'selected' | 'high_hiring'>('all');
-  const [societies, setSocieties] = useState<any[]>([]);
+  const [societies, setSocieties] = useState<MappedSociety[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Real GPS Geolocation State
@@ -75,209 +107,93 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
   };
 
   useEffect(() => {
-    fetchWorkerProfileAndSocieties();
-  }, [user, ctxUser, ctxProfile, ctxWp]);
+    fetchWorkerSocieties();
+  }, []);
 
-  const fetchWorkerProfileAndSocieties = async () => {
+  /**
+   * Single authenticated API call — GET /api/worker/societies
+   *
+   * The server:
+   *  - verifies the JWT and resolves the worker identity
+   *  - fetches the worker's primary/secondary society assignments
+   *  - computes active_jobs_count per society via a DB subquery
+   *  - returns everything in one response
+   *
+   * No direct Supabase calls. No silent fallback to the database.
+   * On failure: log the error and leave the list empty so the UI shows
+   * its existing empty/error state. Do NOT bypass the API architecture.
+   */
+  const fetchWorkerSocieties = async () => {
     setLoading(true);
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      const activeUserId = user?.id || ctxUser?.id || authUser?.id || ctxProfile?.id || ctxWp?.user_id || ctxWp?.id;
-      const activePhone  = user?.phone || ctxUser?.phone || authUser?.phone || ctxProfile?.phone || ctxWp?.phone || '';
-      const activeEmail  = user?.email || ctxUser?.email || authUser?.email || ctxProfile?.email || ctxWp?.email || '';
+      const data: WorkerSocietiesApiResponse = await apiClient.get('api/worker/societies');
 
-      // ── Run profile fetch + societies list IN PARALLEL ──────────────────────
-      const profileFetch = (async () => {
-        let pSocId   = ctxProfile?.primary_society_id || ctxWp?.preferred_society_id || ctxWp?.society_id || '';
-        let pSocName = ctxProfile?.society
-          || ctxWp?.preferred_society_name
-          || ctxWp?.primary_gated_society
-          || ctxWp?.primary_society_name
-          || ctxWp?.society
-          || (Array.isArray(ctxWp?.preferred_areas) ? ctxWp.preferred_areas[0] : '')
-          || '';
+      if (!data.success) {
+        console.error('[WorkerSocietiesScreen] API returned success=false');
+        setSocieties([]);
+        return;
+      }
 
-        let secList: string[] = [];
-        if (ctxProfile?.secondary_societies && (Array.isArray(ctxProfile.secondary_societies) ? ctxProfile.secondary_societies.length > 0 : String(ctxProfile.secondary_societies).trim())) {
-          secList = Array.isArray(ctxProfile.secondary_societies) ? ctxProfile.secondary_societies : String(ctxProfile.secondary_societies).split(',');
-        } else if (ctxWp?.secondary_society_name && String(ctxWp.secondary_society_name).trim()) {
-          secList = String(ctxWp.secondary_society_name).split(',');
-        } else if (ctxWp?.secondary_gated_society && String(ctxWp.secondary_gated_society).trim()) {
-          secList = String(ctxWp.secondary_gated_society).split(',');
-        } else if (Array.isArray(ctxWp?.preferred_areas) && ctxWp.preferred_areas.length > 1) {
-          secList = ctxWp.preferred_areas.slice(1);
-        }
+      // Map API societies to UI shape
+      const mapped: MappedSociety[] = data.societies.map(soc => ({
+        id: soc.id,
+        name: soc.name,
+        locality: soc.city || 'Bangalore',
+        distance: 'Near you',   // required by SocietyItem; overwritten by GPS useMemo
+        rawDistance: 'Near you',
+        lat: soc.latitude,
+        lng: soc.longitude,
+        activeJobsCount: soc.activeJobsCount,
+        employersCount: soc.employersCount,
+        securityType: soc.securityType || 'Physical Gate Security',
+      }));
 
-        const cleanP = pSocName.toLowerCase().trim();
-        let secSocNames = [...new Set(secList.map(s => String(s).trim()).filter(s => Boolean(s) && s.toLowerCase() !== cleanP))];
-
-        if (activeUserId || activePhone || activeEmail) {
-          // 1. Try backend /api/auth/me
-          try {
-            const { apiClient } = await import('../../services/apiClient');
-            const meData = await apiClient.get('api/auth/me');
-            if (meData && meData.success) {
-              const prof = meData.profile;
-              const wp   = meData.workerProfile;
-              if (prof || wp) {
-                pSocId   = prof?.primary_society_id || wp?.preferred_society_id || wp?.society_id || '';
-                pSocName = prof?.society
-                  || wp?.preferred_society_name
-                  || wp?.primary_gated_society
-                  || wp?.primary_society_name
-                  || wp?.society
-                  || (Array.isArray(wp?.preferred_areas) ? wp.preferred_areas[0] : '')
-                  || '';
-
-                let secList: string[] = [];
-                if (prof?.secondary_societies && (Array.isArray(prof.secondary_societies) ? prof.secondary_societies.length > 0 : String(prof.secondary_societies).trim())) {
-                  secList = Array.isArray(prof.secondary_societies) ? prof.secondary_societies : String(prof.secondary_societies).split(',');
-                } else if (wp?.secondary_society_name && String(wp.secondary_society_name).trim()) {
-                  secList = String(wp.secondary_society_name).split(',');
-                } else if (wp?.secondary_gated_society && String(wp.secondary_gated_society).trim()) {
-                  secList = String(wp.secondary_gated_society).split(',');
-                } else if (Array.isArray(wp?.preferred_areas) && wp.preferred_areas.length > 1) {
-                  secList = wp.preferred_areas.slice(1);
-                }
-
-                const cleanP = pSocName.toLowerCase().trim();
-                secSocNames = [...new Set(secList.map(s => String(s).trim()).filter(s => Boolean(s) && s.toLowerCase() !== cleanP))];
-              }
-            }
-          } catch (e) {}
-
-          // 2. Supabase direct fallback if API missed
-          if (!pSocName && activeUserId) {
-            try {
-              const { data: prof } = await supabase
-                .from('profiles')
-                .select('society, primary_society_id, secondary_societies')
-                .eq('id', activeUserId)
-                .maybeSingle();
-              if (prof) {
-                if (prof.primary_society_id) pSocId = prof.primary_society_id;
-                if (prof.society) pSocName = prof.society;
-                if (secSocNames.length === 0) {
-                  const raw = prof.secondary_societies || [];
-                  secSocNames = Array.isArray(raw) ? raw : String(raw).split(',').map((s: string) => s.trim()).filter(Boolean);
-                }
-              }
-            } catch (e) {}
-
-            if (!pSocName) {
-              try {
-                const { data: wp } = await supabase
-                  .from('worker_profiles')
-                  .select('preferred_society_name, secondary_society_name, preferred_society_id, preferred_areas')
-                  .eq('user_id', activeUserId)
-                  .maybeSingle();
-                if (wp) {
-                  if (!pSocId   && wp.preferred_society_id)   pSocId   = wp.preferred_society_id;
-                  if (!pSocName && wp.preferred_society_name) pSocName = wp.preferred_society_name;
-                  if (secSocNames.length === 0) {
-                    if (wp.secondary_society_name) {
-                      secSocNames = String(wp.secondary_society_name).split(',').map((s: string) => s.trim()).filter(Boolean);
-                    } else if (Array.isArray(wp.preferred_areas) && wp.preferred_areas.length > 1) {
-                      secSocNames = wp.preferred_areas.slice(1);
-                    }
-                  }
-                }
-              } catch (e) {}
-            }
-          }
-        }
-        return { pSocId, pSocName, secSocNames };
-      })();
-
-      const societiesFetch = (async () => {
-        let fetchedSocieties: any[] = [];
-        try {
-          const { apiClient } = await import('../../services/apiClient');
-          const apiData = await apiClient.get('api/societies');
-          if (apiData && Array.isArray(apiData.societies)) fetchedSocieties = apiData.societies;
-        } catch (e) {}
-
-        if (fetchedSocieties.length === 0) {
-          try {
-            const { data: dbSocieties } = await supabase.from('societies').select('*').order('name', { ascending: true });
-            if (dbSocieties) fetchedSocieties = dbSocieties;
-          } catch (e) {}
-        }
-        return fetchedSocieties;
-      })();
-
-      // Wait for BOTH to finish
-      const [{ pSocId, pSocName, secSocNames }, fetchedSocieties] = await Promise.all([profileFetch, societiesFetch]);
-
-      // Fetch live job counts per society
-      let dbJobs: any[] = [];
-      try {
-        const { data: jData } = await supabase.from('jobs').select('id, society_id, society_name, status');
-        if (jData) dbJobs = jData;
-      } catch (e) {}
-
-      const mapped = fetchedSocieties.map((soc: any) => {
-        const liveJobsCount = dbJobs.filter((j: any) => {
-          const statusOk = !j.status || (j.status !== 'closed' && j.status !== 'deleted');
-          if (!statusOk) return false;
-          if (j.society_id === soc.id) return true;
-          if (j.society_name && soc.name) {
-            const jSoc = j.society_name.toLowerCase().trim();
-            const sName = soc.name.toLowerCase().trim();
-            return jSoc.includes(sName) || sName.includes(jSoc);
-          }
-          return false;
-        }).length;
-
-        const formattedLocality = [soc.area, soc.city, soc.pincode].filter(Boolean).join(', ') || soc.locality || soc.city || 'Bangalore';
-        return {
-          id: String(soc.id || `soc-${soc.name}`),
-          name: soc.name,
-          locality: formattedLocality,
-          rawDistance: soc.distance ? `${soc.distance} away` : 'Near you',
-          activeJobsCount: Number(soc.active_jobs_count) || liveJobsCount || 0,
-          employersCount:  Number(soc.employers_count) || 0,
-          securityType:    soc.gate_security || soc.security_type || 'Physical Gate Security',
-          lat:  Number(soc.latitude  || soc.lat) || 12.9716,
-          lng:  Number(soc.longitude || soc.lng) || 77.5946,
-        };
-      });
 
       setSocieties(mapped);
 
-      // ── Match primary society ────────────────────────────────────────────────
+      // ── Resolve primary society ─────────────────────────────────────────
+      const { primarySocietyId: apiPrimId, primarySocietyName: apiPrimName, secondarySocietyNames } =
+        data.workerSocietyContext;
+
       let matchedPrimaryId = '';
-      if (pSocId) {
-        const hit = mapped.find(s => String(s.id).toLowerCase() === String(pSocId).toLowerCase());
+
+      if (apiPrimId) {
+        const hit = mapped.find(s => s.id.toLowerCase() === apiPrimId.toLowerCase());
         if (hit) matchedPrimaryId = hit.id;
       }
-      if (!matchedPrimaryId && pSocName) {
-        const cleanP = pSocName.toLowerCase().trim();
+
+      if (!matchedPrimaryId && apiPrimName) {
+        const cleanP = apiPrimName.toLowerCase().trim();
         const hit = mapped.find(s => {
           const n = s.name.toLowerCase().trim();
           return n === cleanP || n.includes(cleanP) || cleanP.includes(n);
         });
         if (hit) matchedPrimaryId = hit.id;
       }
+
       setPrimarySocietyId(matchedPrimaryId);
 
-      // ── Match secondary societies ────────────────────────────────────────────
-      if (secSocNames.length > 0) {
+      // ── Resolve secondary societies ─────────────────────────────────────
+      if (secondarySocietyNames.length > 0) {
         const secMatches = mapped
-          .filter(s => s.id !== matchedPrimaryId && secSocNames.some(secName => {
-            if (!secName) return false;
-            const cleanSec = String(secName).toLowerCase().trim();
-            const sName    = s.name.toLowerCase().trim();
-            return cleanSec === sName || sName.includes(cleanSec) || cleanSec.includes(sName);
-          }))
+          .filter(
+            s =>
+              s.id !== matchedPrimaryId &&
+              secondarySocietyNames.some(secName => {
+                if (!secName) return false;
+                const cleanSec = secName.toLowerCase().trim();
+                const sName = s.name.toLowerCase().trim();
+                return cleanSec === sName || sName.includes(cleanSec) || cleanSec.includes(sName);
+              })
+          )
           .map(s => s.id);
         setSecondarySocietyIds(secMatches);
       } else {
         setSecondarySocietyIds([]);
       }
-
-    } catch (err) {
-      console.error('Societies fetch error:', err);
+    } catch (err: any) {
+      // Hard failure — do NOT fall back to Supabase or any other source.
+      console.error('[WorkerSocietiesScreen] Failed to fetch societies:', err?.message || err);
       setSocieties([]);
     } finally {
       setLoading(false);
@@ -293,7 +209,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
         const permissionRes = await Location.requestForegroundPermissionsAsync();
         status = permissionRes.status;
       }
-      
+
       if (status === 'granted') {
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
@@ -307,7 +223,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
         setUserGeoLocation({ lat: 12.9716, lng: 77.5946 });
       }
     } catch (error) {
-      console.warn("GPS Location error:", error);
+      console.warn('GPS Location error:', error);
       setUserGeoLocation({ lat: 12.9716, lng: 77.5946 });
     } finally {
       setIsLocating(false);
@@ -339,10 +255,10 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
 
   const filteredSocieties = useMemo(() => {
     return societiesWithDistance.filter(soc => {
-      const matchesSearch = 
+      const matchesSearch =
         soc.name.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
         soc.locality.toLowerCase().includes(searchQuery.toLowerCase().trim());
-      
+
       if (!matchesSearch) return false;
 
       if (activeTab === 'selected') {
@@ -355,38 +271,35 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
     });
   }, [societiesWithDistance, searchQuery, activeTab, primarySocietyId, secondarySocietyIds, highHiringThreshold]);
 
-  const handleSetPrimary = async (society: any) => {
+  const handleSetPrimary = async (society: SocietyItem) => {
     setPrimarySocietyId(society.id);
     const newSecondary = secondarySocietyIds.filter(id => id !== society.id);
     setSecondarySocietyIds(newSecondary);
 
     showToast(`Primary Workplace Updated 🟢 ${society.name} set as primary.`);
 
-    const activeUserId = user?.id || ctxUser?.id || ctxProfile?.id || ctxWp?.user_id || ctxWp?.id;
-    if (activeUserId) {
-      const secNames = newSecondary.map(id => societies.find(s => s.id === id)?.name).filter(Boolean) as string[];
-      
-      // 1. Call backend API route via POST (exact same payload as web app)
-      try {
-        const { apiClient } = await import('../../services/apiClient');
-        await apiClient.post('api/worker/profile/update', {
-          primary_gated_society: society.name,
-          primary_society_name: society.name,
-          primary_society_id: society.id,
-          society: society.name,
-          secondary_gated_society: secNames.join(', '),
-          secondary_societies: secNames,
-          preferred_areas: [society.name, ...secNames]
-        });
-      } catch (e) {
-        console.warn("Primary society update notice:", e);
-      }
+    const secNames = newSecondary
+      .map(id => societies.find(s => s.id === id)?.name)
+      .filter(Boolean) as string[];
 
-      refreshProfile().catch(() => {});
+    try {
+      await apiClient.post('api/worker/profile/update', {
+        primary_gated_society: society.name,
+        primary_society_name: society.name,
+        primary_society_id: society.id,
+        society: society.name,
+        secondary_gated_society: secNames.join(', '),
+        secondary_societies: secNames,
+        preferred_areas: [society.name, ...secNames]
+      });
+    } catch (e) {
+      console.warn('[WorkerSocietiesScreen] Primary society update failed:', e);
     }
+
+    refreshProfile().catch(() => {});
   };
 
-  const handleToggleSecondary = async (society: any) => {
+  const handleToggleSecondary = async (society: SocietyItem) => {
     if (society.id === primarySocietyId) {
       showToast(`⚠️ ${society.name} is already your Primary workplace!`);
       return;
@@ -399,7 +312,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
       showToast(`Removed 🟢 ${society.name} from secondary workplaces.`);
     } else {
       if (secondarySocietyIds.length >= 5) {
-        showToast("⚠️ Limit Reached: You can select up to 5 secondary workplace societies.");
+        showToast('⚠️ Limit Reached: You can select up to 5 secondary workplace societies.');
         return;
       }
       updatedSecIds = [...secondarySocietyIds, society.id];
@@ -407,52 +320,48 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
       showToast(`Secondary Workplace Added 🟢 Added ${society.name}`);
     }
 
-    const activeUserId = user?.id || ctxUser?.id || ctxProfile?.id || ctxWp?.user_id || ctxWp?.id;
-    if (activeUserId) {
-      const secNames = updatedSecIds.map(id => societies.find(s => s.id === id)?.name).filter(Boolean) as string[];
-      const primarySocObj = societies.find(s => s.id === primarySocietyId);
-      const primaryName = primarySocObj?.name || '';
+    const secNames = updatedSecIds
+      .map(id => societies.find(s => s.id === id)?.name)
+      .filter(Boolean) as string[];
+    const primarySocObj = societies.find(s => s.id === primarySocietyId);
+    const primaryName = primarySocObj?.name || '';
 
-      // 1. Call backend API route via POST (exact same payload as web app)
-      try {
-        const { apiClient } = await import('../../services/apiClient');
-        await apiClient.post('api/worker/profile/update', {
-          primary_gated_society: primaryName,
-          primary_society_name: primaryName,
-          secondary_gated_society: secNames.join(', '),
-          secondary_societies: secNames,
-          preferred_areas: primaryName ? [primaryName, ...secNames] : secNames
-        });
-      } catch (e) {
-        console.warn("Secondary society update notice:", e);
-      }
-
-      refreshProfile().catch(() => {});
+    try {
+      await apiClient.post('api/worker/profile/update', {
+        primary_gated_society: primaryName,
+        primary_society_name: primaryName,
+        secondary_gated_society: secNames.join(', '),
+        secondary_societies: secNames,
+        preferred_areas: primaryName ? [primaryName, ...secNames] : secNames
+      });
+    } catch (e) {
+      console.warn('[WorkerSocietiesScreen] Secondary society update failed:', e);
     }
+
+    refreshProfile().catch(() => {});
   };
 
   const handleRequestSocietySubmit = async () => {
     if (!newSocietyName.trim()) {
-      showToast("⚠️ Please enter the society name.");
+      showToast('⚠️ Please enter the society name.');
       return;
     }
     setIsSubmittingRequest(true);
     try {
-      const { apiClient } = await import('../../services/apiClient');
       await apiClient.post('api/societies', {
         name: newSocietyName.trim(),
         area: newSocietyLocality.trim() || 'Bengaluru',
         city: 'Bengaluru'
       });
     } catch (err) {
-      console.warn("Society request notice:", err);
+      console.warn('[WorkerSocietiesScreen] Society request failed:', err);
     } finally {
       setIsSubmittingRequest(false);
       setShowRequestModal(false);
       setNewSocietyName('');
       setNewSocietyLocality('');
       setNewSocietyTower('');
-      showToast("Request Submitted 🟢 Onboarding request sent to Sevikaa Admin.");
+      showToast('Request Submitted 🟢 Onboarding request sent to Sevikaa Admin.');
     }
   };
 
@@ -468,7 +377,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
       )}
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      
+
       {/* PAGE HEADER */}
       <View style={styles.pageHeader}>
         <View style={styles.eyebrowPill}>
@@ -484,13 +393,13 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
             {t('preferredSocietiesTitle', 'Preferred Working Societies')}
           </Text>
         </View>
-        
+
         <Text style={styles.pageSub}>
           {t('preferredSocietiesSub', 'Select gated communities near you to receive instant job alerts and priority matching from resident employers.')}
         </Text>
       </View>
 
-      {/* 🌟 1. HERO COVERAGE BANNER (100% MATCH WITH WEB SCREENSHOT) */}
+      {/* 🌟 1. HERO COVERAGE BANNER */}
       <View style={styles.heroBanner}>
         <View style={styles.heroHeaderRow}>
           <View style={[styles.liveDot, primarySocietyObj ? styles.liveDotActive : styles.liveDotAmber]} />
@@ -528,11 +437,11 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
 
       {/* 🔍 2. SEARCH & FILTER TOOLBAR */}
       <View style={styles.toolbarContainer}>
-        
+
         {/* Row 1: Search Input */}
         <View style={styles.searchBar}>
           <Search size={16} color="#94A3B8" />
-          <TextInput 
+          <TextInput
             style={styles.searchInput}
             placeholder={t('searchSocietyPlaceholder', 'Search society name, locality, or landmark...')}
             placeholderTextColor="#94A3B8"
@@ -547,18 +456,18 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
         </View>
 
         {/* Row 2: Live GPS Location Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.gpsBtn, userGeoLocation && styles.gpsBtnActive]}
           onPress={handleRequestLiveLocation}
           disabled={isLocating}
         >
-          <Compass size={14} color={userGeoLocation ? "#15803D" : "#1A73E8"} />
+          <Compass size={14} color={userGeoLocation ? '#15803D' : '#1A73E8'} />
           <Text style={[styles.gpsBtnText, userGeoLocation && styles.gpsBtnTextActive]}>
-            {isLocating 
-              ? (t('locatingBtn', 'Locating...')) 
-              : userGeoLocation 
-              ? (t('gpsActiveBtn', 'GPS Live Active 🟢')) 
-              : (t('useLiveLocationBtn', '📍 Use Live Location'))}
+            {isLocating
+              ? t('locatingBtn', 'Locating...')
+              : userGeoLocation
+              ? t('gpsActiveBtn', 'GPS Live Active 🟢')
+              : t('useLiveLocationBtn', '📍 Use Live Location')}
           </Text>
         </TouchableOpacity>
 
@@ -567,8 +476,8 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
       {/* 📊 3. HORIZONTAL SCROLLABLE TAB FILTERS */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScrollView}>
         <View style={styles.tabsRow}>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.tabBtn, activeTab === 'all' && styles.tabBtnActive]}
             onPress={() => setActiveTab('all')}
           >
@@ -578,7 +487,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tabBtn, activeTab === 'selected' && styles.tabBtnActive]}
             onPress={() => setActiveTab('selected')}
           >
@@ -588,7 +497,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tabBtn, activeTab === 'high_hiring' && styles.tabBtnActive]}
             onPress={() => setActiveTab('high_hiring')}
           >
@@ -613,7 +522,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
             {t('noSocietiesFoundSub', 'No gated community matches your search. Try a different keyword or request an unlisted society.')}
           </Text>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.requestNewBtn}
             onPress={() => setShowRequestModal(true)}
           >
@@ -624,7 +533,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
       ) : (
         /* Society Cards */
         filteredSocieties.map(soc => (
-          <SocietyCard 
+          <SocietyCard
             key={soc.id}
             society={{
               ...soc,
@@ -646,7 +555,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
         <Text style={styles.helpNoteSub}>
           Resident Employers can request society onboarding directly when posting job requisitions on Sevikaa.
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.helpNoteRequestBtn}
           onPress={() => setShowRequestModal(true)}
         >
@@ -676,7 +585,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
               </View>
 
               <Text style={styles.inputLabel}>{t('societyNameLabel', 'GATED SOCIETY / APARTMENT NAME')}:</Text>
-              <TextInput 
+              <TextInput
                 style={styles.modalInput}
                 placeholder={t('societyNamePlaceholder', 'e.g. Sobha Royal Pavilion')}
                 placeholderTextColor="#94A3B8"
@@ -685,7 +594,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
               />
 
               <Text style={styles.inputLabel}>{t('localityLabel', 'LOCALITY / AREA / LANDMARK')}:</Text>
-              <TextInput 
+              <TextInput
                 style={styles.modalInput}
                 placeholder={t('localityPlaceholder', 'e.g. Sarjapur Main Road, HSR Layout')}
                 placeholderTextColor="#94A3B8"
@@ -694,7 +603,7 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
               />
 
               <Text style={styles.inputLabel}>{t('towerLabel', 'TOWER / BLOCK OR GATE NUMBER (OPTIONAL)')}:</Text>
-              <TextInput 
+              <TextInput
                 style={styles.modalInput}
                 placeholder={t('towerPlaceholder', 'e.g. Tower 3 / Gate 2')}
                 placeholderTextColor="#94A3B8"
@@ -703,21 +612,21 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
               />
 
               <View style={styles.modalFooter}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.modalCancelBtn}
                   onPress={() => setShowRequestModal(false)}
                 >
                   <Text style={styles.modalCancelText}>{t('cancelBtn', 'Cancel')}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.modalSubmitBtn}
                   onPress={handleRequestSocietySubmit}
                   disabled={isSubmittingRequest || !newSocietyName.trim()}
                 >
                   <Send size={13} color="#FFFFFF" />
                   <Text style={styles.modalSubmitText}>
-                    {isSubmittingRequest ? (t('submittingState', 'Submitting...')) : (t('submitRequestBtn', 'Submit Request'))}
+                    {isSubmittingRequest ? t('submittingState', 'Submitting...') : t('submitRequestBtn', 'Submit Request')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -979,7 +888,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // 4. Society Cards List (100% MATCH WITH SCREENSHOTS)
+  // 4. Society Cards List
   societyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
