@@ -139,46 +139,18 @@ export const WorkerProfileScreen: React.FC<{
 
     setIsUpdatingPhone(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id || user?.id;
+      const fullPhoneStr = `+91${cleanDigits}`;
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/worker/profile/update', {
+        phone: fullPhoneStr,
+        alternate_phone: cleanDigits,
+        emergency_contact: cleanDigits
+      });
 
-      if (activeUserId) {
-        const fullPhoneStr = `+91${cleanDigits}`;
-        
-        await supabase
-          .from('profiles')
-          .update({ 
-            phone: fullPhoneStr,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', activeUserId);
-
-        const { data: phoneUp, error: phoneErr } = await supabase
-          .from('worker_profiles')
-          .update({
-            alternate_phone: cleanDigits,
-            emergency_contact: cleanDigits,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', activeUserId)
-          .select();
-
-        if (phoneErr || !phoneUp || phoneUp.length === 0) {
-          await supabase
-            .from('worker_profiles')
-            .upsert({
-              user_id: activeUserId,
-              alternate_phone: cleanDigits,
-              emergency_contact: cleanDigits,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'user_id' });
-        }
-
-        setPhone(cleanDigits);
-        setShowPhoneUpdateBox(false);
-        setNewPhoneInput('');
-        showToast("Primary Mobile Number updated successfully! 🟢");
-      }
+      setPhone(cleanDigits);
+      setShowPhoneUpdateBox(false);
+      setNewPhoneInput('');
+      showToast("Primary Mobile Number updated successfully! 🟢");
     } catch (err: any) {
       console.error("Phone update error:", err);
       showToast(err.message || "Failed to update phone number");
@@ -195,25 +167,16 @@ export const WorkerProfileScreen: React.FC<{
 
     setIsUpdatingEmail(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id || user?.id;
+      const cleanEmail = newEmailInput.trim().toLowerCase();
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/worker/profile/update', {
+        email: cleanEmail
+      });
 
-      if (activeUserId) {
-        const cleanEmail = newEmailInput.trim().toLowerCase();
-
-        await supabase
-          .from('profiles')
-          .update({ 
-            email: cleanEmail,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', activeUserId);
-
-        setEmail(cleanEmail);
-        setShowEmailUpdateBox(false);
-        setNewEmailInput('');
-        showToast("Primary Email Address updated successfully! 🟢");
-      }
+      setEmail(cleanEmail);
+      setShowEmailUpdateBox(false);
+      setNewEmailInput('');
+      showToast("Primary Email Address updated successfully! 🟢");
     } catch (err: any) {
       console.error("Email update error:", err);
       showToast(err.message || "Failed to update email address");
@@ -297,18 +260,11 @@ export const WorkerProfileScreen: React.FC<{
       // 1. Fetch live profile & sub-profile from PostgreSQL via /api/auth/me
       if (activeUserId || activePhone || activeEmail) {
         try {
-          const queryParams = new URLSearchParams();
-          if (activeUserId) queryParams.append('userId', activeUserId);
-          if (activePhone) queryParams.append('phone', activePhone);
-          if (activeEmail) queryParams.append('email', activeEmail);
-
-          const res = await fetch(getApiUrl(`api/auth/me?${queryParams.toString()}`));
-          if (res.ok) {
-            const apiData = await res.json();
-            if (apiData.success) {
-              prof = apiData.profile;
-              wp = apiData.workerProfile;
-            }
+          const { apiClient } = await import('../../services/apiClient');
+          const apiData = await apiClient.get('api/auth/me');
+          if (apiData && apiData.success) {
+            prof = apiData.profile;
+            wp = apiData.workerProfile;
           }
         } catch (apiErr) {
           console.warn("API profile fetch notice:", apiErr);
@@ -428,10 +384,10 @@ export const WorkerProfileScreen: React.FC<{
             formData.append('assetType', 'video_url');
             formData.append('role', 'worker');
 
-            const response = await fetch(getApiUrl('api/upload/cloudinary'), {
+            const { apiClient } = await import('../../services/apiClient');
+            const response = await apiClient.request('api/upload/cloudinary', {
               method: 'POST',
               body: formData,
-              headers: { 'Accept': 'application/json' },
             });
 
             const data = await response.json();
@@ -506,12 +462,10 @@ export const WorkerProfileScreen: React.FC<{
             formData.append('assetType', assetType);
             formData.append('role', 'worker');
 
-            const response = await fetch(getApiUrl('api/upload/cloudinary'), {
+            const { apiClient } = await import('../../services/apiClient');
+            const response = await apiClient.request('api/upload/cloudinary', {
               method: 'POST',
               body: formData,
-              headers: {
-                'Accept': 'application/json',
-              },
             });
 
             const data = await response.json();
@@ -599,63 +553,11 @@ export const WorkerProfileScreen: React.FC<{
       // 1. Backend API route (handles worker_profiles + profiles)
       let saveSuccess = false;
       try {
-        const res = await fetch(getApiUrl('api/worker/profile/update'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatePayload),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) saveSuccess = true;
-        } else {
-          const errText = await res.text().catch(() => '');
-          console.warn("API update non-OK:", res.status, errText);
-        }
+        const { apiClient } = await import('../../services/apiClient');
+        const data = await apiClient.post('api/worker/profile/update', updatePayload);
+        if (data && data.success) saveSuccess = true;
       } catch (apiErr) {
         console.warn("API update error:", apiErr);
-      }
-
-      // 2. Direct Supabase fallback — only changed fields
-      if (!saveSuccess) {
-        const profilePatch: Record<string, any> = {};
-        if (name.trim())   profilePatch.full_name = name.trim();
-        if (email.trim())  profilePatch.email     = email.trim();
-
-        if (Object.keys(profilePatch).length > 0) {
-          await supabase.from('profiles').update(profilePatch).eq('id', activeUserId);
-        }
-
-        const wpPatch: Record<string, any> = {};
-        if (name.trim())           wpPatch.full_name         = name.trim();
-        if (gender)                wpPatch.gender            = gender.toLowerCase().trim();
-        if (age)                   wpPatch.age               = Number(age) || undefined;
-        if (expectedSalary)        wpPatch.expected_salary   = Number(expectedSalary) || undefined;
-        if (experience !== '')     { wpPatch.experience_years = Number(experience) || 0; }
-        if (preferredShift)        wpPatch.preferred_shift   = preferredShift;
-        if (alternatePhone)        { wpPatch.alternate_phone = alternatePhone; wpPatch.emergency_contact = alternatePhone; }
-        if (bio)                   wpPatch.bio               = bio;
-        if (selectedSkills?.length)   wpPatch.skills           = selectedSkills;
-        if (selectedLangs?.length)    { wpPatch.languages = selectedLangs; wpPatch.languages_spoken = selectedLangs; }
-        if (profilePhoto)          wpPatch.profile_picture_url     = profilePhoto;
-        if (aadhaarFrontUrl)       wpPatch.aadhaar_front_url       = aadhaarFrontUrl;
-        if (aadhaarBackUrl)        wpPatch.aadhaar_back_url        = aadhaarBackUrl;
-        if (policeDocUrl)          wpPatch.police_verification_url = policeDocUrl;
-        if (introVideoUrl)         wpPatch.video_url               = introVideoUrl;
-
-        if (Object.keys(wpPatch).length > 0) {
-          const { error: wpErr } = await supabase
-            .from('worker_profiles')
-            .update(wpPatch)
-            .eq('user_id', activeUserId);
-
-          if (wpErr) {
-            await supabase
-              .from('worker_profiles')
-              .upsert({ user_id: activeUserId, ...wpPatch }, { onConflict: 'user_id' });
-          }
-        }
-
-        saveSuccess = true;
       }
 
       showToast("Profile saved successfully 🟢");
@@ -671,53 +573,12 @@ export const WorkerProfileScreen: React.FC<{
   const handleSaveSkills = async () => {
     setSaveSkillsLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id || user?.id;
-
-      if (activeUserId) {
-        let saveSuccess = false;
-        try {
-          const res = await fetch(getApiUrl('api/worker/profile/update'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: activeUserId,
-              skills: selectedSkills,
-              languages: selectedLangs,
-              languages_spoken: selectedLangs,
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success) saveSuccess = true;
-          }
-        } catch (apiErr) {}
-
-        if (!saveSuccess) {
-          const skillsPayload: Record<string, any> = {
-            updated_at: new Date().toISOString()
-          };
-          if (selectedSkills && selectedSkills.length > 0) skillsPayload.skills = selectedSkills;
-          if (selectedLangs && selectedLangs.length > 0) {
-            skillsPayload.languages = selectedLangs;
-            skillsPayload.languages_spoken = selectedLangs;
-          }
-
-          const { error: skillsErr } = await supabase
-            .from('worker_profiles')
-            .update(skillsPayload)
-            .eq('user_id', activeUserId);
-
-          if (skillsErr) {
-            await supabase
-              .from('worker_profiles')
-              .upsert({
-                user_id: activeUserId,
-                ...skillsPayload
-              }, { onConflict: 'user_id' });
-          }
-        }
-      }
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/worker/profile/update', {
+        skills: selectedSkills,
+        languages: selectedLangs,
+        languages_spoken: selectedLangs
+      });
       showToast("Skills & Languages saved successfully 🟢");
       setSaveSkillsLoading(false);
       refreshProfile().catch(() => {});
@@ -730,12 +591,8 @@ export const WorkerProfileScreen: React.FC<{
   const handleDeleteAccount = async () => {
     setIsDeletingAccount(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id || user?.id;
-
-      if (activeUserId) {
-        await supabase.from('profiles').update({ status: 'deletion_requested' }).eq('id', activeUserId);
-      }
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/worker/profile/update', { status: 'deletion_requested' });
       setShowDeleteModal(false);
       Alert.alert("Account Deletion Requested 🟢", "Your account deletion request has been registered.");
       if (onLogout) onLogout();

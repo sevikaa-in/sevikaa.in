@@ -99,23 +99,12 @@ export function ChangeEmailInlineSection({ currentEmail, onSuccess, label }: Cha
 
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const response = await fetch('/api/auth/change-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action: 'request-step1-otp',
-          newEmail: cleanNew
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/auth/change-email', {
+        action: 'request-step1-otp',
+        newEmail: cleanNew
       });
-
-      const data = await response.json();
-      if (!response.ok) {
+      if (data.error) {
         throw new Error(data.error || 'Failed to send security verification code');
       }
 
@@ -145,24 +134,13 @@ export function ChangeEmailInlineSection({ currentEmail, onSuccess, label }: Cha
 
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const response = await fetch('/api/auth/change-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action: 'verify-step1-otp',
-          requestId,
-          oldOtp: oldOtp.trim()
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/auth/change-email', {
+        action: 'verify-step1-otp',
+        requestId,
+        oldOtp: oldOtp.trim()
       });
-
-      const data = await response.json();
-      if (!response.ok) {
+      if (data.error) {
         throw new Error(data.error || 'Step 1 OTP verification failed');
       }
 
@@ -192,25 +170,14 @@ export function ChangeEmailInlineSection({ currentEmail, onSuccess, label }: Cha
 
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const response = await fetch('/api/auth/change-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action: 'verify-step2-otp',
-          requestId,
-          newOtp: newOtp.trim()
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/auth/change-email', {
+        action: 'verify-step2-otp',
+        requestId,
+        newOtp: newOtp.trim()
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'New email OTP verification failed');
+      if (data.error) {
+        throw new Error(data.error || 'Step 2 OTP verification failed');
       }
 
       setStep('success');

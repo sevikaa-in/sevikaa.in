@@ -456,13 +456,13 @@ export default function WorkerProfilePage() {
     setDeleteOtpNotice('');
     try {
       const finalReason = deletionReason === 'Other' ? customReason : deletionReason;
-      const res = await fetch('/api/auth/delete-account-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'send', phone, reason: finalReason })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/auth/delete-account-otp', {
+        action: 'send',
+        phone,
+        reason: finalReason
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (data.error) {
         throw new Error(data.error || 'Failed to send deletion OTP');
       }
       setDeleteOtpNotice(data.message);
@@ -483,13 +483,14 @@ export default function WorkerProfilePage() {
     setDeleteOtpError('');
     try {
       const finalReason = deletionReason === 'Other' ? customReason : deletionReason;
-      const res = await fetch('/api/auth/delete-account-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify', phone, otp: deleteOtp.trim(), reason: finalReason })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/auth/delete-account-otp', {
+        action: 'verify',
+        phone,
+        otp: deleteOtp.trim(),
+        reason: finalReason
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (data.error) {
         throw new Error(data.error || 'Invalid OTP code');
       }
       await handleRequestAccountDeletion(finalReason);

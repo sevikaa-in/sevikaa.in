@@ -22,11 +22,10 @@ export const EmployerHomeScreen: React.FC = () => {
   const fetchCandidates = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('worker_profiles').select('*').order('created_at', { ascending: false });
-      
-      const { data, error } = await query;
-      if (data && data.length > 0) {
-        setCandidates(data);
+      const { apiClient } = await import('../../services/apiClient');
+      const data = await apiClient.get('api/employer/workers');
+      if (data && Array.isArray(data.workers)) {
+        setCandidates(data.workers);
       } else {
         setCandidates([]);
       }

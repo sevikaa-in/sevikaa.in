@@ -103,28 +103,22 @@ export const EmployerPostJobScreen: React.FC<{
 
     setIsSubmitting(true);
     try {
-      const targetUserId = activeUser?.id || user?.id;
-      if (targetUserId) {
-        await supabase.from('jobs').insert([{
-          employer_id: targetUserId,
-          employer_name: employerProfile?.company_name || profile?.full_name || activeUser?.full_name || activeUser?.phone || 'Employer Household',
-          title: title.trim(),
-          category: category,
-          salary_offered: Number(salary) || 15000,
-          society_name: society,
-          shift_hours: shiftHours,
-          flat_type: flatType,
-          family_members: familyMembers,
-          dietary_pref: dietaryPref,
-          perks: selectedPerks,
-          qualifications: selectedRequirements,
-          leave_policy: leavePolicy,
-          deduction_policy: deductionPolicy,
-          description: description.trim() || 'Daily household work required.',
-          status: 'pending', // Sent for Admin Audit
-          created_at: new Date().toISOString()
-        }]);
-      }
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/employer/jobs', {
+        title: title.trim(),
+        category: category,
+        salary_offered: Number(salary) || 15000,
+        society_name: society,
+        shift_hours: shiftHours,
+        flat_type: flatType,
+        family_members: familyMembers,
+        dietary_pref: dietaryPref,
+        perks: selectedPerks,
+        qualifications: selectedRequirements,
+        leave_policy: leavePolicy,
+        deduction_policy: deductionPolicy,
+        description: description.trim() || 'Daily household work required.'
+      });
     } catch (err) {
       console.warn("Post job error notice:", err);
     }

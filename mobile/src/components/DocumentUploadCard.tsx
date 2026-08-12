@@ -36,17 +36,11 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
         const asset = result.assets[0];
         setUploading(true);
 
-        // Upload to Sevikaa Cloudinary Upload Endpoint
-        const uploadRes = await fetch(getApiUrl('api/upload'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            file: `data:image/jpeg;base64,${asset.base64}`,
-            docType: docType
-          })
+        const { apiClient } = await import('../services/apiClient');
+        const data = await apiClient.post('api/upload', {
+          file: `data:image/jpeg;base64,${asset.base64}`,
+          docType: docType
         });
-
-        const data = await uploadRes.json();
         if (data.success && data.url) {
           setPreviewUrl(data.url);
           onUploadSuccess(data.url);

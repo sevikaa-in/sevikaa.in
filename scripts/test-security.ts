@@ -304,45 +304,138 @@ async function runSecurityTests() {
     return typeof withTxDb === 'function';
   });
 
-  // Test 31: Concurrent Refresh Simulation -> FOR UPDATE transaction enforces atomic rotation
+  // Test 31: Concurrent Refresh Security Test -> FOR UPDATE transaction enforces atomic rotation & reuse revocation
   await assertTest('Concurrent refresh simulation enforces FOR UPDATE single-connection transaction atomicity', async () => {
     const { POST: postRefresh } = await import('../src/app/api/auth/refresh/route');
     const { generateRefreshToken, hashRefreshToken } = await import('../src/lib/jwtHelper');
     const { queryDb } = await import('../src/lib/db');
 
+    // 1. Verify PostgreSQL database availability — MUST FAIL if DB is offline
+    try {
+      const dbCheck = await queryDb('SELECT 1');
+      if (!dbCheck || !dbCheck.rows?.length) {
+        throw new Error('PostgreSQL database is offline or unconfigured.');
+      }
+    } catch (dbErr: any) {
+      console.error('❌ [FAIL] Concurrent Refresh Test: PostgreSQL database is UNAVAILABLE:', dbErr?.message);
+      return false; // MUST FAIL if DB is unavailable
+    }
+
     const validToken = generateRefreshToken();
     const tokenHash = hashRefreshToken(validToken);
     const mockUserId = '00000000-0000-0000-0000-000000000001';
+    const mockFamilyId = '00000000-0000-0000-0000-000000000002';
+    const mockSessionId = '00000000-0000-0000-0000-000000000003';
 
-    // Insert mock valid refresh token into DB if DB is active
     try {
+      // Ensure user profile exists in public.profiles so token rotation lookup succeeds
       await queryDb(
-        `INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at)
-         VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
-        [mockUserId, tokenHash]
+        `INSERT INTO public.profiles (id, email, role, status)
+         VALUES ($1, 'test_concurrency@sevikaa.in', 'worker', 'active')
+         ON CONFLICT (id) DO UPDATE SET status = 'active'`,
+        [mockUserId]
       );
-    } catch (e) {
-      // Local offline unit test mode without running PostgreSQL
-    }
-    
-    // Execute 2 concurrent refresh requests with the exact same token
-    const [res1, res2] = await Promise.all([
-      postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: validToken })
-      })),
-      postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: validToken })
-      }))
-    ]);
 
-    // Either exactly 1 succeeds (status 200) and 1 fails (status 401), or both fail cleanly (status 401/500 if DB offline).
-    // MUST NOT allow both to succeed simultaneously (which would violate atomic rotation)!
-    const successCount = (res1.status === 200 ? 1 : 0) + (res2.status === 200 ? 1 : 0);
-    return successCount <= 1;
+      // Clean up previous test refresh tokens for mockUserId
+      await queryDb(`DELETE FROM public.refresh_tokens WHERE user_id = $1`, [mockUserId]);
+
+      // 2. Insert valid unrevoked refresh token with family_id
+      await queryDb(
+        `INSERT INTO public.refresh_tokens (user_id, token_hash, session_id, family_id, is_revoked, expires_at)
+         VALUES ($1, $2, $3, $4, FALSE, NOW() + INTERVAL '7 days')`,
+        [mockUserId, tokenHash, mockSessionId, mockFamilyId]
+      );
+
+      // 3. Execute 2 CONCURRENT refresh requests with the exact same token
+      const [res1, res2] = await Promise.all([
+        postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: validToken })
+        })),
+        postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: validToken })
+        }))
+      ]);
+
+      // Exactly ONE request must succeed (HTTP 200) and ONE must fail (HTTP 401)
+      const successCount = (res1.status === 200 ? 1 : 0) + (res2.status === 200 ? 1 : 0);
+      if (successCount !== 1) {
+        console.error(`❌ [FAIL] Concurrency violation: successCount was ${successCount} (expected exactly 1)`);
+        return false;
+      }
+
+      // Extract new rotated refresh token from the successful response
+      const successRes = res1.status === 200 ? res1 : res2;
+      const successBody = await successRes.json().catch(() => ({}));
+      const replacementToken = successBody.refresh_token;
+
+      if (!replacementToken) {
+        console.error('❌ [FAIL] Successful rotation response missing new refresh_token');
+        return false;
+      }
+
+      // 4. Verify Original refresh token is revoked in DB
+      const origCheck = await queryDb(
+        `SELECT is_revoked FROM public.refresh_tokens WHERE token_hash = $1`,
+        [tokenHash]
+      );
+      if (!origCheck?.rows?.[0]?.is_revoked) {
+        console.error('❌ [FAIL] Original refresh token was not marked as revoked in DB');
+        return false;
+      }
+
+      // 5. Verify exactly ONE unrevoked replacement token exists in family
+      const replacementCheck = await queryDb(
+        `SELECT token_hash FROM public.refresh_tokens WHERE family_id = $1 AND is_revoked = FALSE`,
+        [mockFamilyId]
+      );
+      if (replacementCheck?.rows?.length !== 1) {
+        console.error(`❌ [FAIL] Expected exactly 1 active token in family, found ${replacementCheck?.rows?.length}`);
+        return false;
+      }
+
+      // 6. Verify replacement token works when refreshed
+      const replacementRes = await postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: replacementToken })
+      }));
+      if (replacementRes.status !== 200) {
+        console.error('❌ [FAIL] Replacement token rotation failed with status:', replacementRes.status);
+        return false;
+      }
+
+      // 7. Verify reusing original token triggers family reuse detection & revokes all tokens
+      const reuseRes = await postRefresh(new NextRequest('http://localhost:3000/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: validToken })
+      }));
+      if (reuseRes.status !== 401) {
+        console.error('❌ [FAIL] Reused token request expected 401, got:', reuseRes.status);
+        return false;
+      }
+
+      // Confirm all family tokens were revoked by family reuse detection
+      const familyCheck = await queryDb(
+        `SELECT COUNT(*) as active_count FROM public.refresh_tokens WHERE family_id = $1 AND is_revoked = FALSE`,
+        [mockFamilyId]
+      );
+      const activeCount = parseInt(familyCheck?.rows?.[0]?.active_count || '0', 10);
+      if (activeCount !== 0) {
+        console.error(`❌ [FAIL] Family reuse detection failed to revoke family: active count is ${activeCount}`);
+        return false;
+      }
+
+      return true;
+    } finally {
+      // Clean up test session tokens
+      await queryDb(`DELETE FROM public.refresh_tokens WHERE user_id = $1`, [mockUserId]).catch(() => {});
+      await queryDb(`DELETE FROM public.profiles WHERE id = $1`, [mockUserId]).catch(() => {});
+    }
   });
 
   console.log('\n====================================================');

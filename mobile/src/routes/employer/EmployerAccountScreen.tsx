@@ -61,34 +61,17 @@ export const EmployerAccountScreen: React.FC<{
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
-      const activeUserId = activeUser?.id;
-      if (activeUserId) {
-        if (name.trim()) {
-          await supabase.from('profiles').update({ full_name: name.trim(), updated_at: new Date().toISOString() }).eq('id', activeUserId);
-        }
-
-        const empUpdatePayload: Record<string, any> = {
-          updated_at: new Date().toISOString()
-        };
-        if (name.trim()) empUpdatePayload.company_name = name.trim();
-        if (society.trim()) empUpdatePayload.society_name = society.trim();
-        if (tower.trim()) empUpdatePayload.tower = tower.trim();
-        if (flat.trim()) empUpdatePayload.address = flat.trim();
-
-        const { error: empErr } = await supabase
-          .from('employer_profiles')
-          .update(empUpdatePayload)
-          .eq('user_id', activeUserId);
-
-        if (empErr) {
-          await supabase.from('employer_profiles').upsert({
-            user_id: activeUserId,
-            ...empUpdatePayload
-          }, { onConflict: 'user_id' });
-        }
-        refreshProfile().catch(() => {});
-      }
-    } catch (e) {}
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/employer/profile/update', {
+        company_name: name.trim(),
+        society_name: society.trim(),
+        tower_block: tower.trim(),
+        address: flat.trim()
+      });
+      refreshProfile().catch(() => {});
+    } catch (e) {
+      console.warn("Save profile error notice:", e);
+    }
 
     setIsSaving(false);
     Alert.alert(

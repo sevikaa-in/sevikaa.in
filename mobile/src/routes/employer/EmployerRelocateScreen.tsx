@@ -82,16 +82,16 @@ export const EmployerRelocateScreen: React.FC<EmployerRelocateProps> = ({ onBack
 
     setSubmitting(true);
     try {
-      const activeUserId = employerProfile?.user_id || employerProfile?.id || profile?.id;
-      if (activeUserId) {
-        await supabase.from('employer_profiles').update({
-          society_name: targetSociety.trim(),
-          residency_proof_url: relocationProofUrl,
-          status: 'changes_requested',
-          updated_at: new Date().toISOString()
-        }).eq('user_id', activeUserId);
-      }
-    } catch (e) {}
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/employer/relocate', {
+        targetSociety: targetSociety.trim(),
+        targetSocietyId: targetSocietyId || null,
+        residencyProofUrl: relocationProofUrl,
+        reason: 'Society relocation request'
+      });
+    } catch (e) {
+      console.warn("Relocate request notice:", e);
+    }
 
     setSubmitting(false);
     Alert.alert(

@@ -63,25 +63,22 @@ export default function ReviewModal({
         ? { punctuality: cat1, skill_hygiene: cat2, polite_behavior: cat3 }
         : { respectful_behavior: cat1, clear_job_terms: cat2, timely_payment: cat3 };
 
-      const res = await fetch('/api/reviews/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reviewer_id: reviewerId,
-          reviewer_name: reviewerName,
-          reviewer_role: reviewerRole,
-          reviewee_id: revieweeId,
-          reviewee_name: revieweeName,
-          reviewee_role: revieweeRole,
-          interaction_type: interactionType,
-          rating,
-          categories: categoriesData,
-          comment,
-          interview_id: interviewId
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const resData = await webApiClient.post('/api/reviews/submit', {
+        reviewer_id: reviewerId,
+        reviewer_name: reviewerName,
+        reviewer_role: reviewerRole,
+        reviewee_id: revieweeId,
+        reviewee_name: revieweeName,
+        reviewee_role: revieweeRole,
+        interaction_type: interactionType,
+        rating,
+        categories: categoriesData,
+        comment,
+        interview_id: interviewId
       });
 
-      const data = await res.json();
+      const data = resData;
       if (data.success) {
         setSubmittedSuccess(true);
         if (onSuccess) onSuccess();

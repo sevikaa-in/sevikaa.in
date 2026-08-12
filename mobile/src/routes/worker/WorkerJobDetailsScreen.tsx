@@ -74,14 +74,10 @@ export const WorkerJobDetailsScreen: React.FC<{
       const { data: { session } } = await supabase.auth.getSession();
       const activeUserId = session?.user?.id;
       if (activeUserId) {
-        const queryParams = new URLSearchParams({ userId: activeUserId });
-        const res = await fetch(getApiUrl(`api/auth/me?${queryParams.toString()}`));
-        if (res.ok) {
-          const meData = await res.json();
-          const prof = meData.profile;
-          if (prof) {
-            setIsWorkerVerified(prof.status === 'live' || prof.status === 'approved');
-          }
+        const { apiClient } = await import('../../services/apiClient');
+        const meData = await apiClient.get('api/auth/me');
+        if (meData && meData.success && meData.profile) {
+          setIsWorkerVerified(meData.profile.status === 'live' || meData.profile.status === 'approved');
         }
       }
     } catch (e) {}
@@ -99,12 +95,10 @@ export const WorkerJobDetailsScreen: React.FC<{
       if (dbJob) {
         setJob(dbJob);
       } else {
-        const res = await fetch(getApiUrl(`api/worker/jobs?limit=50`));
-        if (res.ok) {
-          const apiData = await res.json();
-          const found = apiData.jobs?.find((j: any) => j.id === targetId);
-          if (found) setJob(found);
-        }
+        const { apiClient } = await import('../../services/apiClient');
+        const apiData = await apiClient.get(`api/worker/jobs?limit=50`);
+        const found = apiData?.jobs?.find((j: any) => j.id === targetId);
+        if (found) setJob(found);
       }
     } catch (e) {
       console.warn("Job detail fetch notice:", e);
@@ -118,19 +112,8 @@ export const WorkerJobDetailsScreen: React.FC<{
     setIsApplying(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id;
-
-      if (activeUserId) {
-        await supabase
-          .from('job_applications')
-          .insert([{
-            job_id: job.id,
-            worker_id: activeUserId,
-            status: 'applied',
-            created_at: new Date().toISOString()
-          }]);
-      }
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/worker/apply', { jobId: job.id });
     } catch (e) {
       console.warn("Application submit notice:", e);
     } finally {

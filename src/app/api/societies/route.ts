@@ -98,3 +98,30 @@ export async function GET() {
     return NextResponse.json({ success: false, error: err.message, societies: [] }, { status: 500 });
   }
 }
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const { name, area, city } = body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return NextResponse.json({ error: 'Bad Request', message: 'Society name is required.' }, { status: 400 });
+    }
+
+    const insertRes = await queryDb(
+      `INSERT INTO public.societies (name, area, city, status, created_at)
+       VALUES ($1, $2, $3, 'pending_verification', NOW())
+       RETURNING *`,
+      [name.trim(), area?.trim() || 'Bengaluru', city?.trim() || 'Bengaluru']
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: 'Society request submitted for verification.',
+      society: insertRes?.rows?.[0] || null
+    }, { status: 201 });
+  } catch (err: any) {
+    console.error('POST /api/societies error:', err?.message);
+    return NextResponse.json({ error: 'Server Error', message: err?.message || 'Failed to submit society request.' }, { status: 500 });
+  }
+}

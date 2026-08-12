@@ -128,20 +128,15 @@ export const EmployerWorkersScreen: React.FC = () => {
     if (!schedulingWorker) return;
     setIsScheduling(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const employerId = session?.user?.id;
-
-      if (employerId) {
-        await supabase.from('interviews').insert([{
-          employer_id: employerId,
-          worker_id: schedulingWorker.id,
-          date: interviewDate,
-          time: interviewTime,
-          status: 'scheduled',
-          created_at: new Date().toISOString()
-        }]);
-      }
-    } catch (e) {}
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/employer/interview', {
+        workerId: schedulingWorker.id,
+        date: interviewDate,
+        time: interviewTime
+      });
+    } catch (e) {
+      console.warn("Interview scheduling notice:", e);
+    }
 
     setIsScheduling(false);
     setSchedulingWorker(null);

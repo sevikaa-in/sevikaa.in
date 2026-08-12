@@ -613,28 +613,20 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
 
   const handleUpdateWorkerStatus = async (workerId: string, newStatus: string, adminNote?: string) => {
     try {
-      const res = await fetch('/api/admin/worker/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: workerId,
-          status: newStatus,
-          is_tele_onboarded: true,
-          is_interview_verified: true,
-          notes: adminNote
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/admin/worker/update', {
+        userId: workerId,
+        status: newStatus,
+        is_tele_onboarded: true,
+        is_interview_verified: true,
+        notes: adminNote
       });
-      const data = await res.json();
       if (!data.success) {
         throw new Error(data.error || 'Failed to update candidate status');
       }
 
       if (newStatus === 'changes_requested') {
-        fetch('/api/admin/worker/send-upload-sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: workerId })
-        }).catch(err => console.warn('Send upload SMS error:', err));
+        webApiClient.post('/api/admin/worker/send-upload-sms', { userId: workerId }).catch(err => console.warn('Send upload SMS error:', err));
       }
 
       setWorkersList(prev => prev.map(w => w.id === workerId ? { ...w, status: newStatus, is_tele_onboarded: true, is_interview_verified: true, admin_note: adminNote || w.admin_note } : w));

@@ -112,18 +112,11 @@ export const InviteWorkersScreen: React.FC<InviteWorkersScreenProps> = ({
 
     setIsSending(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const employerId = session?.user?.id || 'emp_current';
-
-      const inserts = selectedWorkerIds.map(wId => ({
-        employer_id: employerId,
-        job_id: activeJob.id,
-        worker_id: wId,
-        status: 'invited',
-        admin_note: 'Mass Job Invitation dispatched by Employer via Mobile'
-      }));
-
-      await supabase.from('applications').insert(inserts);
+      const { apiClient } = await import('../services/apiClient');
+      await apiClient.post('api/employer/invite', {
+        jobId: activeJob.id,
+        workerIds: selectedWorkerIds
+      });
 
       Alert.alert(
         "Invitations Sent! 🟢",

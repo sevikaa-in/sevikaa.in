@@ -111,22 +111,18 @@ export default function EmployerRelocatePage() {
     setRelocationSubmitLoading(true);
     try {
       const activeUserId = employerProfile?.user_id || employerProfile?.id || user?.id;
-      const res = await fetch('/api/employer/relocate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: activeUserId,
-          currentSociety: employerProfile?.society_name || '',
-          targetSociety: targetSociety.trim(),
-          targetSocietyId: targetSocietyId || null,
-          reason: relocationReason,
-          residencyProofUrl: relocationProofUrl,
-          employerName: employerProfile?.company_name || employerProfile?.name || 'Employer Household',
-          employerPhone: employerProfile?.phone || ''
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/employer/relocate', {
+        userId: activeUserId,
+        currentSociety: employerProfile?.society_name || '',
+        targetSociety: targetSociety.trim(),
+        targetSocietyId: targetSocietyId || null,
+        reason: relocationReason,
+        residencyProofUrl: relocationProofUrl,
+        employerName: employerProfile?.company_name || employerProfile?.name || 'Employer Household',
+        employerPhone: employerProfile?.phone || ''
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'Submission failed');
+      if (data.error) throw new Error(data.error || 'Submission failed');
 
       setEmployerProfile((prev: any) => ({
         ...prev,

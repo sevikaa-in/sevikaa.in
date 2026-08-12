@@ -23,19 +23,15 @@ export const EmployerOnboardingChoiceModal: React.FC<EmployerOnboardingChoiceMod
 
     try {
       const savedLang = (typeof window !== 'undefined' && localStorage.getItem('sevikaa_language')) || 'en';
-      const res = await fetch('/api/auth/set-role', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          role: 'employer',
-          onboarding_mode: mode,
-          preferred_language: savedLang
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/auth/set-role', {
+        userId,
+        role: 'employer',
+        onboarding_mode: mode,
+        preferred_language: savedLang
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (data.error) {
         throw new Error(data.error || 'Failed to initialize employer profile');
       }
 

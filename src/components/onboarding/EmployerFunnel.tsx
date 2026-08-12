@@ -36,9 +36,9 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
   useEffect(() => {
     const fetchSocieties = async () => {
       try {
-        const res = await fetch('/api/societies');
-        const data = await res.json();
-        if (data.success && data.societies && data.societies.length > 0) {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/societies');
+        if (data && data.success && data.societies && data.societies.length > 0) {
           setSocietiesList(data.societies);
         } else {
           // Fallback to client query if endpoint returns empty
@@ -88,22 +88,17 @@ export const EmployerFunnel: React.FC<EmployerFunnelProps> = ({ userId, onComple
       const activeUserId = userId || localStorage.getItem('sevikaa_user_id') || 'temp_emp';
 
       // Submit via Server API to bypass RLS restrictions
-      const res = await fetch('/api/employer/profile/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: activeUserId,
-          full_name: fullName,
-          company_name: companyName || fullName,
-          billing_address: billingAddress,
-          society_name: preferredSociety,
-          preferredSociety: preferredSociety,
-          status: 'active'
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/employer/profile/update', {
+        userId: activeUserId,
+        full_name: fullName,
+        company_name: companyName || fullName,
+        billing_address: billingAddress,
+        society_name: preferredSociety,
+        preferredSociety: preferredSociety,
+        status: 'active'
       });
-
-      const data = await res.json();
-      if (!res.ok || data.error) {
+      if (!data.success || data.error) {
         // Fallback client update attempt
         await supabase
           .from('profiles')

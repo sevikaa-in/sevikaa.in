@@ -112,6 +112,15 @@ export const webApiClient = {
     return res.json();
   },
 
+  async patch(endpoint: string, body?: any, headers: Record<string, string> = {}): Promise<any> {
+    const res = await this.request(endpoint, {
+      method: 'PATCH',
+      headers,
+      body: body instanceof FormData ? body : JSON.stringify(body || {})
+    });
+    return res.json();
+  },
+
   async delete(endpoint: string, headers: Record<string, string> = {}): Promise<any> {
     const res = await this.request(endpoint, { method: 'DELETE', headers });
     return res.json();

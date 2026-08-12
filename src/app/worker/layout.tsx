@@ -125,13 +125,11 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
       // Fetch real societies from database unconditionally via API
       let dbSocieties: any[] = [];
       try {
-        const socRes = await fetch('/api/societies');
-        if (socRes.ok) {
-          const socData = await socRes.json();
-          if (socData.success && socData.societies) {
-            dbSocieties = socData.societies;
-            setSocietiesList(dbSocieties);
-          }
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const socData = await webApiClient.get('/api/societies');
+        if (socData && socData.societies) {
+          dbSocieties = socData.societies;
+          setSocietiesList(dbSocieties);
         }
       } catch (socErr) {
         console.warn("Societies API fetch warning:", socErr);
@@ -368,16 +366,14 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
       
       if (!isPlaceholder && user?.id) {
-        await fetch('/api/worker/profile/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.id,
-            name: updatedData.name,
-            full_name: updatedData.name,
-            phone: updatedData.phone,
-            email: updatedData.email,
-            gender: updatedData.gender,
+        const { webApiClient } = await import('@/lib/webApiClient');
+        await webApiClient.post('/api/worker/profile/update', {
+          userId: user.id,
+          name: updatedData.name,
+          full_name: updatedData.name,
+          phone: updatedData.phone,
+          email: updatedData.email,
+          gender: updatedData.gender,
             age: updatedData.age,
             expectedSalary: updatedData.expectedSalary,
             experience: updatedData.experience,
@@ -392,7 +388,6 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             video_url: updatedData.introVideoUrl || updatedData.video_url || null,
             police_verification_url: updatedData.policeVerificationUrl || updatedData.police_verification_url || null,
             status: isChangesRequested ? 'pending_review' : undefined
-          })
         });
       }
 

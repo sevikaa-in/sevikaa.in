@@ -33,9 +33,9 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
   useEffect(() => {
     const fetchSocieties = async () => {
       try {
-        const res = await fetch('/api/societies');
-        const data = await res.json();
-        if (data.success && data.societies && data.societies.length > 0) {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/societies');
+        if (data && data.success && data.societies && data.societies.length > 0) {
           setSocietiesList(data.societies);
         } else {
           const { data: clientData } = await supabase.from('societies').select('*').order('name', { ascending: true });
@@ -351,7 +351,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
     loadDraftProfile();
   }, [userId]);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (validateStep()) {
       const nextStep = step + 1;
       const activeId = userId || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_user_id') : '');
@@ -369,15 +369,13 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
         };
         const formattedShiftString = selectedShifts.map((s: string) => SHIFT_LABEL_MAP[s] || s).join(', ');
 
-        fetch('/api/worker/profile/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: activeId,
-            full_name: fullName,
-            gender,
-            age: parseInt(age) || 28,
-            languages: selectedLanguages,
+        const { webApiClient } = await import('@/lib/webApiClient');
+        webApiClient.post('/api/worker/profile/update', {
+          userId: activeId,
+          full_name: fullName,
+          gender,
+          age: parseInt(age) || 28,
+          languages: selectedLanguages,
             languages_spoken: selectedLanguages,
             skills,
             experience: parseInt(experience) || 0,
@@ -388,8 +386,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
             primary_society_id: preferredSociety,
             preferred_areas: preferredAreas,
             onboarding_step: nextStep
-          })
-        }).catch(err => console.warn("Step auto-save notice:", err));
+          }).catch(err => console.warn("Step auto-save notice:", err));
       }
       setStep(nextStep);
     }
@@ -497,12 +494,10 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
       };
       const formattedShiftString = selectedShifts.map((s: string) => SHIFT_LABEL_MAP[s] || s).join(', ');
 
-      await fetch('/api/worker/profile/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: activeUserId,
-          full_name: fullName,
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/worker/profile/update', {
+        userId: activeUserId,
+        full_name: fullName,
           gender,
           age: parseInt(age) || 28,
           languages: selectedLanguages,
@@ -522,8 +517,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
           preferred_areas: preferredAreas,
           onboarding_step: 5,
           status: 'pending_review'
-        })
-      });
+        });
 
       setLoading(false);
       onComplete();

@@ -286,20 +286,17 @@ export default function EmployerDashboardLayout({ children }: { children: React.
     try {
       const empEmail = employerProfile.email || user?.email;
       if (empEmail) {
-        fetch('/api/notifications/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'job-posted',
-            toEmail: empEmail,
-            data: {
-              employerName: employerProfile.company_name,
-              jobTitle: jobData.title,
-              category: jobData.category,
-              salary: jobData.salary,
-              societyName: targetSociety
-            }
-          })
+        const { webApiClient } = await import('@/lib/webApiClient');
+        webApiClient.post('/api/notifications/send-email', {
+          type: 'job-posted',
+          toEmail: empEmail,
+          data: {
+            employerName: employerProfile.company_name,
+            jobTitle: jobData.title,
+            category: jobData.category,
+            salary: jobData.salary,
+            societyName: targetSociety
+          }
         }).catch((err: any) => console.warn("Job posted email notice:", err));
       }
     } catch (emailErr) {
@@ -354,15 +351,13 @@ export default function EmployerDashboardLayout({ children }: { children: React.
 
     try {
       if (user?.id) {
-        await fetch('/api/employer/profile/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.id,
-            company_name: updatedData.company_name ?? employerProfile.company_name ?? employerProfile.name,
-            phone: updatedData.phone ?? employerProfile.phone,
-            email: updatedData.email ?? employerProfile.email,
-            address: updatedData.address ?? employerProfile.address ?? employerProfile.billing_address,
+        const { webApiClient } = await import('@/lib/webApiClient');
+        await webApiClient.post('/api/employer/profile/update', {
+          userId: user.id,
+          company_name: updatedData.company_name ?? employerProfile.company_name ?? employerProfile.name,
+          phone: updatedData.phone ?? employerProfile.phone,
+          email: updatedData.email ?? employerProfile.email,
+          address: updatedData.address ?? employerProfile.address ?? employerProfile.billing_address,
             society_name: updatedData.society_name ?? employerProfile.society_name,
             tower: updatedData.tower ?? employerProfile.tower ?? employerProfile.tower_block,
             city: updatedData.city ?? employerProfile.city,
@@ -376,7 +371,6 @@ export default function EmployerDashboardLayout({ children }: { children: React.
             aadhaar_back_url: updatedData.aadhaar_back_url ?? employerProfile.aadhaar_back_url,
             avatar_url: updatedData.avatar_url ?? employerProfile.avatar_url,
             status: isChangesRequested ? 'pending_review' : undefined
-          })
         });
       }
 

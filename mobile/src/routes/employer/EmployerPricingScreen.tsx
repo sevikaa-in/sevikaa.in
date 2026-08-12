@@ -18,12 +18,10 @@ export const EmployerPricingScreen: React.FC<EmployerPricingProps> = ({ onSelect
   const fetchLivePricing = async () => {
     setLoading(true);
     try {
-      const res = await fetch(getApiUrl('api/pricing'));
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.pricing) {
-          setLivePricing(data.pricing);
-        }
+      const { apiClient } = await import('../../services/apiClient');
+      const data = await apiClient.get('api/pricing');
+      if (data && data.pricing) {
+        setLivePricing(data.pricing);
       }
     } catch (e) {
       console.warn("Notice fetching live pricing:", e);

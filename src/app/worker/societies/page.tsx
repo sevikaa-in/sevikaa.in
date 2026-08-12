@@ -204,18 +204,15 @@ export default function WorkerSocietiesPage() {
       activeUserId = activeUserId || 'w_user';
 
       const secSocietyNames = newSecondary.map(id => allSocieties.find(s => s.id === id)?.name).filter(Boolean);
-      await fetch('/api/worker/profile/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: activeUserId,
-          full_name: workerProfile.full_name || workerProfile.name || undefined,
-          primary_gated_society: society.name,
-          primary_society_name: society.name,
-          primary_society_id: society.id,
-          secondary_gated_society: secSocietyNames.join(', '),
-          preferred_areas: [society.name, ...secSocietyNames]
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/worker/profile/update', {
+        userId: activeUserId,
+        full_name: workerProfile.full_name || workerProfile.name || undefined,
+        primary_gated_society: society.name,
+        primary_society_name: society.name,
+        primary_society_id: society.id,
+        secondary_gated_society: secSocietyNames.join(', '),
+        preferred_areas: [society.name, ...secSocietyNames]
       });
     } catch (err) {
       console.error("Database update error:", err);
@@ -271,18 +268,15 @@ export default function WorkerSocietiesPage() {
 
       const primarySocObj = allSocieties.find(s => s.id === primarySocietyId);
       const primaryName = primarySocObj?.name || workerProfile.society || '';
-      await fetch('/api/worker/profile/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: activeUserId,
-          full_name: workerProfile.full_name || workerProfile.name || undefined,
-          primary_gated_society: primaryName,
-          primary_society_name: primaryName,
-          primary_society_id: primarySocietyId || primarySocObj?.id,
-          secondary_gated_society: secSocietyNames.join(', '),
-          preferred_areas: [primaryName, ...secSocietyNames]
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/worker/profile/update', {
+        userId: activeUserId,
+        full_name: workerProfile.full_name || workerProfile.name || undefined,
+        primary_gated_society: primaryName,
+        primary_society_name: primaryName,
+        primary_society_id: primarySocietyId || primarySocObj?.id,
+        secondary_gated_society: secSocietyNames.join(', '),
+        preferred_areas: [primaryName, ...secSocietyNames]
       });
     } catch (err) {
       console.error("Database secondary society update error:", err);
@@ -299,14 +293,11 @@ export default function WorkerSocietiesPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const activeUserId = session?.user?.id || workerProfile.user_id || workerProfile.id || workerProfile.phone || 'w_user';
-      await fetch('/api/worker/profile/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: activeUserId,
-          preferred_shift: shiftLabel,
-          preferredShift: shiftLabel
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/worker/profile/update', {
+        userId: activeUserId,
+        preferred_shift: shiftLabel,
+        preferredShift: shiftLabel
       });
       showToast(`Preferred shift slot saved: ${shiftLabel}!`, 'success');
     } catch (err) {

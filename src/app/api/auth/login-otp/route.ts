@@ -260,8 +260,6 @@ export async function POST(req: NextRequest) {
 
       // 2. Create new user if still not found
       if (!userObj) {
-        const tempFallbackId = crypto.randomUUID();
-        let newUserId = tempFallbackId;
         const userRole = role || 'worker';
         let createdUserId: string | null = null;
 
@@ -277,9 +275,7 @@ export async function POST(req: NextRequest) {
             });
             if (createdAuthUser?.user?.id) {
               createdUserId = createdAuthUser.user.id;
-              newUserId = createdAuthUser.user.id as `${string}-${string}-${string}-${string}-${string}`;
             } else if (authCreateErr) {
-              // createUser failed — find existing auth.users UUID via direct SQL (no listUsers scan)
               console.warn("createUser notice:", authCreateErr.message, "— fetching existing auth user id via DB");
               try {
                 const existingAuthRes = await queryDb(
@@ -290,7 +286,7 @@ export async function POST(req: NextRequest) {
                   [cleanPhone ? cleanPhone.slice(-10) : '', (email || '').toLowerCase().trim()]
                 );
                 if (existingAuthRes?.rows?.[0]?.id) {
-                  newUserId = existingAuthRes.rows[0].id;
+                  createdUserId = existingAuthRes.rows[0].id;
                   isExistingUser = true;
                 }
               } catch (listErr) {
@@ -301,118 +297,135 @@ export async function POST(req: NextRequest) {
             console.warn("Supabase auth user create notice:", authErr);
           }
         }
-        // Fail closed if new user creation failed and user does not exist in auth/profiles
-        if (!isExistingUser && !createdUserId && (!newUserId || newUserId === tempFallbackId)) {
-          console.error('[login-otp] CRITICAL: Auth user creation failed and no existing user found.');
-          return NextResponse.json({ error: 'Account Creation Failed', message: 'Could not establish user identity. Please try again.' }, { status: 500 });
+
+        // Fail closed if new user creation failed and no canonical auth.users ID was resolved
+        if (!createdUserId) {
+          console.error('[login-otp] CRITICAL: Auth user creation failed and no canonical identity found.');
+          return NextResponse.json({ error: 'Account Creation Failed', message: 'Could not establish canonical user identity.' }, { status: 500 });
         }
 
         userObj = {
-          id: newUserId,
+          id: createdUserId,
           phone: formattedPhone,
           email: email || undefined,
           role: userRole
         };
+      }
 
-        // Only insert into public.profiles if we have a real auth UUID (avoids FK violation)
-        // We track whether newUserId came from a real auth user via isExistingUser flag
-        // OR if createUser succeeded (newUserId changed from the initial crypto.randomUUID())
-        if (!isExistingUser) {
+      // -----------------------------------------------------------------------
+      // MANDATORY PROFILE & ROLE SUB-PROFILE ESTABLISHMENT (FAIL CLOSED)
+      // -----------------------------------------------------------------------
+      const resolvedId = userObj.id;
+      const userRole = userObj.role || role || 'worker';
+      const displayPhone = formattedPhone || userObj.phone || null;
+      const displayEmail = email || userObj.email || null;
+
+      // 1. Establish public.profiles row
+      let profInserted = false;
+      try {
+        await queryDb(
+          `INSERT INTO public.profiles (id, phone, email, role, status, created_at)
+           VALUES ($1, $2, $3, $4, 'pending_review', NOW())
+           ON CONFLICT (id) DO UPDATE 
+             SET phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
+                 email = COALESCE(EXCLUDED.email, public.profiles.email),
+                 role = COALESCE(public.profiles.role, EXCLUDED.role)`,
+          [resolvedId, displayPhone, displayEmail, userRole]
+        );
+        profInserted = true;
+      } catch (profUpsertErr: any) {
+        console.error('[login-otp] Profile upsert error:', profUpsertErr?.message);
+        if (supabaseAdmin) {
           try {
-            await queryDb(
-              `INSERT INTO public.profiles (id, phone, email, role, status, created_at) 
-               VALUES ($1, $2, $3, $4, 'pending_review', NOW())
-               ON CONFLICT (id) DO UPDATE SET phone = EXCLUDED.phone, status = COALESCE(public.profiles.status, 'pending_review')`,
-              [newUserId, formattedPhone || null, email || null, userRole]
-            );
-          } catch (insertErr: any) {
-            console.warn("Profile creation notice:", insertErr.detail || insertErr.message);
-            if (supabaseAdmin) {
-              try {
-                await supabaseAdmin.from('profiles').upsert({
-                  id: newUserId,
-                  phone: formattedPhone || null,
-                  email: email || null,
-                  role: userRole
-                });
-              } catch (sbUpsertErr) {
-                console.warn("Supabase profiles upsert notice:", sbUpsertErr);
-              }
-            }
+            const { error: sbProfErr } = await supabaseAdmin.from('profiles').upsert({
+              id: resolvedId,
+              phone: displayPhone,
+              email: displayEmail,
+              role: userRole
+            });
+            if (!sbProfErr) profInserted = true;
+          } catch (sbErr) {
+            console.error('[login-otp] Supabase profiles fallback error:', sbErr);
           }
         }
       }
 
-      // -----------------------------------------------------------------------
-      // LEAD CAPTURE: After OTP verified, ensure profile + worker_profiles stub exist
-      // This makes the lead appear immediately in admin tele-onboarding for both
-      // email and phone logins, for both existing and new users
-      // -----------------------------------------------------------------------
-      if (userObj?.id) {
-        const resolvedId = userObj.id;
-        const userRole = userObj.role || role || 'worker';
-        const displayPhone = formattedPhone || userObj.phone || null;
-        const displayEmail = email || userObj.email || null;
+      if (!profInserted && !isExistingUser) {
+        console.error('[login-otp] CRITICAL: Mandatory profile creation failed for new user.');
+        return NextResponse.json({ error: 'Profile Creation Failed', message: 'Failed to establish mandatory user profile record.' }, { status: 500 });
+      }
 
-        // 1. Upsert into profiles (preserves existing super_admin/admin/employer/worker role)
+      // 2. Establish mandatory worker_profiles or employer_profiles sub-profile
+      let subProfileEstablished = false;
+      if (userRole === 'worker') {
         try {
           await queryDb(
-            `INSERT INTO public.profiles (id, phone, email, role, status, created_at)
-             VALUES ($1, $2, $3, $4, 'pending_review', NOW())
-             ON CONFLICT (id) DO UPDATE 
-               SET phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
-                   email = COALESCE(EXCLUDED.email, public.profiles.email),
-                   role = COALESCE(public.profiles.role, EXCLUDED.role)`,
-            [resolvedId, displayPhone, displayEmail, userRole]
+            `INSERT INTO public.worker_profiles (id, user_id, full_name, created_at)
+             VALUES ($1, $1, $2, NOW())
+             ON CONFLICT (id) DO NOTHING`,
+            [resolvedId, 'Worker Candidate']
           );
-        } catch (profUpsertErr: any) {
-          console.warn("Lead profile upsert notice:", profUpsertErr.detail || profUpsertErr.message);
+          subProfileEstablished = true;
+        } catch (wpStubErr: any) {
+          console.error('[login-otp] Worker sub-profile creation error:', wpStubErr?.message);
+          if (supabaseAdmin) {
+            try {
+              const { error: sbWpErr } = await supabaseAdmin.from('worker_profiles').upsert({
+                id: resolvedId,
+                user_id: resolvedId,
+                full_name: 'Worker Candidate'
+              });
+              if (!sbWpErr) subProfileEstablished = true;
+            } catch (sbWpExc) {}
+          }
         }
+      } else if (userRole === 'employer') {
+        try {
+          await queryDb(
+            `INSERT INTO public.employer_profiles (id, user_id, company_name, created_at)
+             VALUES ($1, $1, $2, NOW())
+             ON CONFLICT (id) DO NOTHING`,
+            [resolvedId, 'Employer Candidate']
+          );
+          subProfileEstablished = true;
+        } catch (epStubErr: any) {
+          console.error('[login-otp] Employer sub-profile creation error:', epStubErr?.message);
+          if (supabaseAdmin) {
+            try {
+              const { error: sbEpErr } = await supabaseAdmin.from('employer_profiles').upsert({
+                id: resolvedId,
+                user_id: resolvedId,
+                company_name: 'Employer Candidate'
+              });
+              if (!sbEpErr) subProfileEstablished = true;
+            } catch (sbEpExc) {}
+          }
+        }
+      } else {
+        subProfileEstablished = true;
+      }
 
-        // 2. Create worker_profiles or employer_profiles stub if not exists (only for worker/employer roles)
-        if (userRole === 'worker') {
-          try {
-            await queryDb(
-              `INSERT INTO public.worker_profiles (id, user_id, full_name, created_at)
-               VALUES ($1, $1, $2, NOW())
-               ON CONFLICT (id) DO NOTHING`,
-              [resolvedId, 'Worker Candidate']
-            );
-          } catch (wpStubErr: any) {
-            // Silence harmless ON CONFLICT notices for existing worker profiles
-          }
-        } else if (userRole === 'employer') {
-          try {
-            await queryDb(
-              `INSERT INTO public.employer_profiles (id, user_id, company_name, created_at)
-               VALUES ($1, $1, $2, NOW())
-               ON CONFLICT (id) DO NOTHING`,
-              [resolvedId, 'Employer Candidate']
-            );
-          } catch (epStubErr: any) {
-            // Silence harmless ON CONFLICT notices for existing employer profiles
-          }
-        }
+      if (!subProfileEstablished && !isExistingUser) {
+        console.error('[login-otp] CRITICAL: Mandatory role profile creation failed for new user.');
+        return NextResponse.json({ error: 'Role Profile Creation Failed', message: 'Failed to establish mandatory candidate/employer profile record.' }, { status: 500 });
       }
 
       // Generate cryptographically signed HS256 JWT access_token and rotatable refresh_token
-      const accessToken = userObj?.id ? signSupabaseJwt(userObj.id, userObj.email, userObj.phone, userObj.role || 'worker') : '';
+      const accessToken = signSupabaseJwt(resolvedId, userObj.email, userObj.phone, userRole);
       const { generateRefreshToken, hashRefreshToken } = await import('@/lib/jwtHelper');
       const refreshToken = generateRefreshToken();
       const tokenHash = hashRefreshToken(refreshToken);
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      if (userObj?.id) {
-        try {
-          await queryDb(
-            `INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at)
-             VALUES ($1, $2, $3)`,
-            [userObj.id, tokenHash, expiresAt]
-          );
-        } catch (dbInsertErr: any) {
-          console.error('[login-otp] CRITICAL: Refresh token DB persistence failed:', dbInsertErr?.message);
-          return NextResponse.json({ error: 'Authentication Failed', message: 'Failed to establish persistent user session.' }, { status: 500 });
-        }
+      try {
+        await queryDb(
+          `INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at)
+           VALUES ($1, $2, $3)`,
+          [resolvedId, tokenHash, expiresAt]
+        );
+      } catch (dbInsertErr: any) {
+        console.error('[login-otp] CRITICAL: Refresh token DB persistence failed:', dbInsertErr?.message);
+        return NextResponse.json({ error: 'Authentication Failed', message: 'Failed to establish persistent user session.' }, { status: 500 });
       }
 
       const isWebClient = req.headers.get('x-client-platform') === 'web' || Boolean(req.headers.get('origin')) || Boolean(req.headers.get('referer'));

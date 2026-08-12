@@ -88,21 +88,10 @@ export const WorkerJobsScreen: React.FC<{
     setAppliedJobIds(prev => [...prev, job.id]);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id;
-
-      if (activeUserId) {
-        await supabase
-          .from('job_applications')
-          .insert([{
-            job_id: job.id,
-            worker_id: activeUserId,
-            status: 'applied',
-            created_at: new Date().toISOString()
-          }]);
-      }
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/worker/apply', { jobId: job.id });
     } catch (e) {
-      console.warn("Job application DB save notice:", e);
+      console.warn("Job application error notice:", e);
     }
 
     showToast(`Application Sent! 🟢 Employer notified for "${job.title}".`);

@@ -107,25 +107,10 @@ function CheckoutFormContent() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      if (!token) {
-        showToast("Authentication required to process payment. Please log in.", "error");
-        setIsProcessing(false);
-        return;
-      }
-
-      // 2. Call server-side payment order API to get authoritative Razorpay orderId & price
-      const createOrderRes = await fetch('/api/payments/create-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ planId: plan.id })
-      });
-
-      const orderData = await createOrderRes.json();
-      if (!createOrderRes.ok || !orderData.success) {
-        showToast(orderData.error || "Failed to initialize payment order with server.", "error");
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const orderData = await webApiClient.post('/api/payments/create-order', { planId: plan.id });
+      if (!orderData || !orderData.success) {
+        showToast(orderData?.error || "Failed to initialize payment order with server.", "error");
         setIsProcessing(false);
         return;
       }

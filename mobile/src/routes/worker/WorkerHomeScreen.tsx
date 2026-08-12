@@ -61,12 +61,10 @@ export const WorkerHomeScreen: React.FC<{
 
     if (fetched.length === 0) {
       try {
-        const res = await fetch(getApiUrl('api/worker/jobs?limit=20'));
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {
-            fetched = data.jobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
-          }
+        const { apiClient } = await import('../../services/apiClient');
+        const data = await apiClient.get('api/worker/jobs?limit=20');
+        if (data && Array.isArray(data.jobs) && data.jobs.length > 0) {
+          fetched = data.jobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
         }
       } catch (e) {}
     }
@@ -109,21 +107,10 @@ export const WorkerHomeScreen: React.FC<{
     setAppliedJobIds(prev => [...prev, job.id]);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id || user?.id;
-
-      if (activeUserId) {
-        await supabase
-          .from('job_applications')
-          .insert([{
-            job_id: job.id,
-            worker_id: activeUserId,
-            status: 'applied',
-            created_at: new Date().toISOString()
-          }]);
-      }
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/worker/apply', { jobId: job.id });
     } catch (e) {
-      console.warn("Job application DB save notice:", e);
+      console.warn("Job application error notice:", e);
     }
 
     showToast(`Application Sent! 🟢 Employer notified for "${job.title}".`);

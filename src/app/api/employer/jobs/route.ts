@@ -76,3 +76,68 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: err.message || 'Failed to fetch employer jobs' }, { status: 500 });
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to post job requisitions.' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      title,
+      category,
+      salary_offered,
+      society_name,
+      shift_hours,
+      flat_type,
+      family_members,
+      dietary_pref,
+      perks,
+      qualifications,
+      leave_policy,
+      deduction_policy,
+      description
+    } = body;
+
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return NextResponse.json({ error: 'Bad Request', message: 'Job requisition title is required.' }, { status: 400 });
+    }
+
+    // Insert job into DB with status 'pending' (for Admin audit)
+    const insertRes = await queryDb(
+      `INSERT INTO public.jobs (
+        employer_id, title, category, salary_offered, society_name, shift_hours,
+        flat_type, family_members, dietary_pref, perks, qualifications, leave_policy,
+        deduction_policy, description, status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'pending', NOW())
+      RETURNING *`,
+      [
+        user.id,
+        title.trim(),
+        category || 'maid',
+        Number(salary_offered) || 15000,
+        society_name || '',
+        shift_hours || '',
+        flat_type || '',
+        family_members || '',
+        dietary_pref || '',
+        perks ? (Array.isArray(perks) ? perks : [perks]) : [],
+        qualifications ? (Array.isArray(qualifications) ? qualifications : [qualifications]) : [],
+        leave_policy || '',
+        deduction_policy || '',
+        description?.trim() || 'Daily household work required.'
+      ]
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: 'Job requisition submitted for admin review.',
+      job: insertRes?.rows?.[0] || null
+    }, { status: 201 });
+  } catch (err: any) {
+    console.error('[employer/jobs] POST error:', err?.message);
+    return NextResponse.json({ error: 'Server Error', message: err?.message || 'Failed to submit job requisition.' }, { status: 500 });
+  }
+}

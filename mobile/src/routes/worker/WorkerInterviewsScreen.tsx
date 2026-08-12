@@ -136,13 +136,14 @@ export const WorkerInterviewsScreen: React.FC<{
   const handleConfirmAttendance = async (app: any) => {
     try {
       if (app.id && !app.id.startsWith('app-')) {
-        await supabase
-          .from('applications')
-          .update({ status: 'confirmed' })
-          .eq('id', app.id);
+        const { apiClient } = await import('../../services/apiClient');
+        await apiClient.post('api/worker/interview/status', {
+          applicationId: app.id,
+          status: 'confirmed'
+        });
       }
     } catch (err) {
-      console.warn("Confirm attendance DB notice:", err);
+      console.warn("Confirm attendance notice:", err);
     }
     setApplications(prev => prev.map(item => item.id === app.id ? { ...item, status: 'confirmed' } : item));
     showToast(`Attendance confirmed for interview with ${app.employerName || 'Employer'}! 🟢`);
@@ -171,17 +172,16 @@ export const WorkerInterviewsScreen: React.FC<{
     setIsSubmittingReschedule(true);
     try {
       if (selectedAppForReschedule.id && !selectedAppForReschedule.id.startsWith('app-')) {
-        await supabase
-          .from('applications')
-          .update({ 
-            status: 'rescheduled',
-            reschedule_time: rescheduleTime,
-            reschedule_note: rescheduleNote 
-          })
-          .eq('id', selectedAppForReschedule.id);
+        const { apiClient } = await import('../../services/apiClient');
+        await apiClient.post('api/worker/interview/status', {
+          applicationId: selectedAppForReschedule.id,
+          status: 'rescheduled',
+          rescheduleTime: rescheduleTime,
+          rescheduleNote: rescheduleNote
+        });
       }
     } catch (err) {
-      console.warn("Reschedule DB notice:", err);
+      console.warn("Reschedule notice:", err);
     } finally {
       setIsSubmittingReschedule(false);
       setSelectedAppForReschedule(null);
@@ -194,22 +194,14 @@ export const WorkerInterviewsScreen: React.FC<{
     if (!selectedEmployerForReview) return;
     setIsSubmittingReview(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id || user?.id;
-
-      if (activeUserId) {
-        await supabase
-          .from('reviews')
-          .insert([{
-            worker_id: activeUserId,
-            employer_name: selectedEmployerForReview.employerName,
-            rating: ratingStars,
-            comment: reviewComment,
-            created_at: new Date().toISOString()
-          }]);
-      }
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/reviews/submit', {
+        revieweeId: selectedEmployerForReview.employerId || selectedEmployerForReview.id || 'employer',
+        rating: ratingStars,
+        comment: reviewComment
+      });
     } catch (err) {
-      console.warn("Submit review DB notice:", err);
+      console.warn("Submit review notice:", err);
     } finally {
       setIsSubmittingReview(false);
       const newRev = {

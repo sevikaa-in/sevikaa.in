@@ -15,12 +15,10 @@ export const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ onBack }) => {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      const res = await fetch(getApiUrl('api/super-admin/transactions?page=1&limit=10'));
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.transactions)) {
-          setInvoices(data.transactions);
-        }
+      const { apiClient } = await import('../services/apiClient');
+      const data = await apiClient.get('api/super-admin/transactions?page=1&limit=10');
+      if (data && Array.isArray(data.transactions)) {
+        setInvoices(data.transactions);
       }
     } catch (e) {
       setInvoices([

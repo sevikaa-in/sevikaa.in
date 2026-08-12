@@ -122,16 +122,6 @@ export const EmployerJobsScreen: React.FC<{
         jobId: editingJob.id,
         status: 'pending',
         notes: `Updated: ${editTitle}`
-      }).catch(async () => {
-        await supabase.from('jobs').update({
-          title: editTitle,
-          salary_offered: Number(editSalary) || 15000,
-          society_name: editSociety,
-          shift_hours: editShift,
-          description: editDesc,
-          status: 'pending',
-          updated_at: new Date().toISOString()
-        }).eq('id', editingJob.id);
       });
     } catch (e) {}
 

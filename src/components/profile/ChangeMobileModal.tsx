@@ -89,23 +89,12 @@ export function ChangeMobileModal({ isOpen, onClose, currentPhone, onSuccess }: 
 
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const response = await fetch('/api/auth/change-mobile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action: 'request-change',
-          newPhone: cleanNew
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const result = await webApiClient.post('/api/auth/change-mobile', {
+        action: 'request-change',
+        newPhone: cleanNew
       });
-
-      const result = await response.json();
-      if (!response.ok || result.error) {
+      if (result.error) {
         throw new Error(result.error || 'Failed to send verification OTPs');
       }
 
@@ -141,26 +130,15 @@ export function ChangeMobileModal({ isOpen, onClose, currentPhone, onSuccess }: 
 
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const response = await fetch('/api/auth/change-mobile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action: 'verify-and-update',
-          requestId,
-          oldOtp: oldOtp.trim(),
-          newOtp: newOtp.trim()
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const result = await webApiClient.post('/api/auth/change-mobile', {
+        action: 'verify-and-update',
+        requestId,
+        oldOtp: oldOtp.trim(),
+        newOtp: newOtp.trim()
       });
-
-      const result = await response.json();
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Verification failed');
+      if (result.error) {
+        throw new Error(result.error || 'Invalid verification OTPs');
       }
 
       setStep('success');

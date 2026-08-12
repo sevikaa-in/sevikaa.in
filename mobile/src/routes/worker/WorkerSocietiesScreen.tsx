@@ -114,14 +114,9 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
         if (activeUserId || activePhone || activeEmail) {
           // 1. Try backend /api/auth/me
           try {
-            const queryParams = new URLSearchParams();
-            if (activeUserId) queryParams.append('userId', activeUserId);
-            if (activePhone)  queryParams.append('phone',  activePhone);
-            if (activeEmail)  queryParams.append('email',  activeEmail);
-
-            const res = await fetch(getApiUrl(`api/auth/me?${queryParams.toString()}`));
-            if (res.ok) {
-              const meData = await res.json();
+            const { apiClient } = await import('../../services/apiClient');
+            const meData = await apiClient.get('api/auth/me');
+            if (meData && meData.success) {
               const prof = meData.profile;
               const wp   = meData.workerProfile;
               if (prof || wp) {
@@ -197,11 +192,9 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
       const societiesFetch = (async () => {
         let fetchedSocieties: any[] = [];
         try {
-          const res = await fetch(getApiUrl('api/societies'));
-          if (res.ok) {
-            const apiData = await res.json();
-            if (apiData.success && Array.isArray(apiData.societies)) fetchedSocieties = apiData.societies;
-          }
+          const { apiClient } = await import('../../services/apiClient');
+          const apiData = await apiClient.get('api/societies');
+          if (apiData && Array.isArray(apiData.societies)) fetchedSocieties = apiData.societies;
         } catch (e) {}
 
         if (fetchedSocieties.length === 0) {
@@ -375,45 +368,19 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
       
       // 1. Call backend API route via POST (exact same payload as web app)
       try {
-        await fetch(getApiUrl('api/worker/profile/update'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: activeUserId,
-            primary_gated_society: society.name,
-            primary_society_name: society.name,
-            primary_society_id: society.id,
-            society: society.name,
-            secondary_gated_society: secNames.join(', '),
-            secondary_societies: secNames,
-            preferred_areas: [society.name, ...secNames]
-          })
+        const { apiClient } = await import('../../services/apiClient');
+        await apiClient.post('api/worker/profile/update', {
+          primary_gated_society: society.name,
+          primary_society_name: society.name,
+          primary_society_id: society.id,
+          society: society.name,
+          secondary_gated_society: secNames.join(', '),
+          secondary_societies: secNames,
+          preferred_areas: [society.name, ...secNames]
         });
-      } catch (e) {}
-
-      // 2. Direct Supabase update fallback
-      try {
-        await supabase
-          .from('profiles')
-          .update({ 
-            society: society.name,
-            primary_society_id: society.id,
-            secondary_societies: secNames,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', activeUserId);
-      } catch (err) {}
-
-      try {
-        await supabase
-          .from('worker_profiles')
-          .update({ 
-            preferred_society_name: society.name,
-            secondary_society_name: secNames.join(', '),  // actual column: text, comma-separated
-            preferred_areas: [society.name, ...secNames],
-          })
-          .eq('user_id', activeUserId);
-      } catch (err) {}
+      } catch (e) {
+        console.warn("Primary society update notice:", e);
+      }
 
       refreshProfile().catch(() => {});
     }
@@ -448,40 +415,17 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
 
       // 1. Call backend API route via POST (exact same payload as web app)
       try {
-        await fetch(getApiUrl('api/worker/profile/update'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: activeUserId,
-            primary_gated_society: primaryName,
-            primary_society_name: primaryName,
-            secondary_gated_society: secNames.join(', '),
-            secondary_societies: secNames,
-            preferred_areas: primaryName ? [primaryName, ...secNames] : secNames
-          })
+        const { apiClient } = await import('../../services/apiClient');
+        await apiClient.post('api/worker/profile/update', {
+          primary_gated_society: primaryName,
+          primary_society_name: primaryName,
+          secondary_gated_society: secNames.join(', '),
+          secondary_societies: secNames,
+          preferred_areas: primaryName ? [primaryName, ...secNames] : secNames
         });
-      } catch (e) {}
-
-      // 2. Direct Supabase update fallback
-      try {
-        await supabase
-          .from('profiles')
-          .update({ 
-            secondary_societies: secNames,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', activeUserId);
-      } catch (err) {}
-
-      try {
-        await supabase
-          .from('worker_profiles')
-          .update({ 
-            secondary_society_name: secNames.join(', '),  // actual column: text, comma-separated
-            preferred_areas: primaryName ? [primaryName, ...secNames] : secNames,
-          })
-          .eq('user_id', activeUserId);
-      } catch (err) {}
+      } catch (e) {
+        console.warn("Secondary society update notice:", e);
+      }
 
       refreshProfile().catch(() => {});
     }
@@ -494,16 +438,14 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
     }
     setIsSubmittingRequest(true);
     try {
-      await supabase
-        .from('societies')
-        .insert([{
-          name: newSocietyName.trim(),
-          area: newSocietyLocality.trim() || 'Bengaluru',
-          city: 'Bengaluru',
-          status: 'pending_verification'
-        }]);
+      const { apiClient } = await import('../../services/apiClient');
+      await apiClient.post('api/societies', {
+        name: newSocietyName.trim(),
+        area: newSocietyLocality.trim() || 'Bengaluru',
+        city: 'Bengaluru'
+      });
     } catch (err) {
-      console.warn("Society request insert notice:", err);
+      console.warn("Society request notice:", err);
     } finally {
       setIsSubmittingRequest(false);
       setShowRequestModal(false);

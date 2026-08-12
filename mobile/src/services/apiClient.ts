@@ -132,6 +132,19 @@ export const apiClient = {
     return await res.json();
   },
 
+  async patch<T = any>(endpoint: string, body?: any, options: RequestOptions = {}): Promise<T> {
+    const res = await this.request(endpoint, {
+      ...options,
+      method: 'PATCH',
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || errData.error || `HTTP ${res.status} error`);
+    }
+    return await res.json();
+  },
+
   async delete<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const res = await this.request(endpoint, { ...options, method: 'DELETE' });
     if (!res.ok) {

@@ -160,25 +160,21 @@ export default function EmployerOnboardingPage() {
     try {
       const activeUserId = user?.id || employerProfile?.user_id || 'employer_guest';
 
-      const res = await fetch('/api/employer/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: activeUserId,
-          company_name: fullName.trim(),
-          name: fullName.trim(),
-          phone: `+91 ${phone}`,
-          email: email.trim(),
-          society_name: societyName,
-          tower_block: towerBlock.trim(),
-          address: address.trim(),
-          alternate_phone: altPhone ? `+91 ${altPhone}` : '',
-          residency_proof_url: residencyProofUrl || employerProfile?.residency_proof_url || null
-        })
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.post('/api/employer/onboarding', {
+        userId: activeUserId,
+        company_name: fullName.trim(),
+        name: fullName.trim(),
+        phone: `+91 ${phone}`,
+        email: email.trim(),
+        society_name: societyName,
+        tower_block: towerBlock.trim(),
+        address: address.trim(),
+        alternate_phone: altPhone ? `+91 ${altPhone}` : '',
+        residency_proof_url: residencyProofUrl || employerProfile?.residency_proof_url || null
       });
 
-      const data = await res.json();
-      if (!data.success) {
+      if (data.error) {
         throw new Error(data.error || 'Failed to complete onboarding setup');
       }
 
