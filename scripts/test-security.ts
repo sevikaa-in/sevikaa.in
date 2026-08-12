@@ -20,6 +20,7 @@ import { GET as reviewsHistory } from '../src/app/api/reviews/history/route';
 import { GET as getHealth } from '../src/app/api/health/route';
 import { GET as getInternalHealth } from '../src/app/api/internal/health/route';
 import { POST as createOrder } from '../src/app/api/payments/create-order/route';
+import { POST as postSocieties } from '../src/app/api/societies/route';
 import { PaymentService } from '../src/services/paymentService';
 
 // Set default test environment variables for local security assertion runner
@@ -637,6 +638,18 @@ async function runSecurityTests() {
         process.env.UPSTASH_REDIS_REST_URL = origUrl;
         process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
       }
+    }
+  );
+
+  await assertTest(
+    'POST /api/societies — blocks unauthenticated society creation requests with 401',
+    async () => {
+      const req = new NextRequest('http://localhost:3000/api/societies', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Test Society', area: 'Sarjapur' })
+      });
+      const res = await postSocieties(req);
+      return res.status === 401;
     }
   );
 

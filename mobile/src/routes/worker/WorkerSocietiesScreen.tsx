@@ -220,11 +220,13 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
           lng: location.coords.longitude,
         });
       } else {
-        setUserGeoLocation({ lat: 12.9716, lng: 77.5946 });
+        // Permission denied — do not fabricate a location. Distance will show as 'Near you'.
+        setUserGeoLocation(null);
       }
     } catch (error) {
       console.warn('GPS Location error:', error);
-      setUserGeoLocation({ lat: 12.9716, lng: 77.5946 });
+      // Do not fabricate a location on error.
+      setUserGeoLocation(null);
     } finally {
       setIsLocating(false);
     }
@@ -233,12 +235,26 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
   // Dynamically calculate GPS distances when user location changes
   const societiesWithDistance = useMemo(() => {
     return societies.map(soc => {
-      let distanceStr = soc.rawDistance || 'Near you';
+      // Only compute a distance if the user has granted GPS AND the society has
+      // verified coordinates (either from the static known-coords map or from
+      // the database lat/lng).  Do NOT use Bengaluru-centre as a fake fallback
+      // for societies whose real coordinates are unknown — show "Distance unavailable"
+      // instead so the user is never given an invented distance.
+      let distanceStr = 'Near you';
       if (userGeoLocation) {
-        const geo = SOCIETY_GEO_MAP[soc.name] || { lat: soc.lat || 12.9716, lng: soc.lng || 77.5946 };
-        if (geo && geo.lat && geo.lng) {
-          const km = calculateHaversineKm(userGeoLocation.lat, userGeoLocation.lng, geo.lat, geo.lng);
+        const geo = SOCIETY_GEO_MAP[soc.name];
+        const hasRealCoords =
+          geo ||
+          (soc.lat && soc.lat !== 12.9716) ||
+          (soc.lng && soc.lng !== 77.5946);
+
+        if (hasRealCoords) {
+          const lat = geo?.lat ?? soc.lat;
+          const lng = geo?.lng ?? soc.lng;
+          const km = calculateHaversineKm(userGeoLocation.lat, userGeoLocation.lng, lat, lng);
           distanceStr = `${km} km away`;
+        } else {
+          distanceStr = 'Distance unavailable';
         }
       }
       return { ...soc, distance: distanceStr };
@@ -272,11 +288,13 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
   }, [societiesWithDistance, searchQuery, activeTab, primarySocietyId, secondarySocietyIds, highHiringThreshold]);
 
   const handleSetPrimary = async (society: SocietyItem) => {
-    setPrimarySocietyId(society.id);
-    const newSecondary = secondarySocietyIds.filter(id => id !== society.id);
-    setSecondarySocietyIds(newSecondary);
+    // Optimistic update: apply the change to local state immediately
+    const prevPrimaryId = primarySocietyId;
+    const prevSecondaryIds = secondarySocietyIds;
 
-    showToast(`Primary Workplace Updated 🟢 ${society.name} set as primary.`);
+    const newSecondary = secondarySocietyIds.filter(id => id !== society.id);
+    setPrimarySocietyId(society.id);
+    setSecondarySocietyIds(newSecondary);
 
     const secNames = newSecondary
       .map(id => societies.find(s => s.id === id)?.name)
@@ -292,11 +310,15 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
         secondary_societies: secNames,
         preferred_areas: [society.name, ...secNames]
       });
-    } catch (e) {
-      console.warn('[WorkerSocietiesScreen] Primary society update failed:', e);
+      showToast(`Primary Workplace Updated 🟢 ${society.name} set as primary.`);
+      refreshProfile().catch(() => {});
+    } catch (e: any) {
+      // API failed — roll back the optimistic UI update
+      console.error('[WorkerSocietiesScreen] Primary society update failed:', e);
+      setPrimarySocietyId(prevPrimaryId);
+      setSecondarySocietyIds(prevSecondaryIds);
+      showToast(`⚠️ Failed to update primary workplace. Please try again.`);
     }
-
-    refreshProfile().catch(() => {});
   };
 
   const handleToggleSecondary = async (society: SocietyItem) => {
@@ -305,20 +327,25 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
       return;
     }
 
+    // Optimistic update: apply change locally, then persist; roll back on failure
+    const prevSecondaryIds = secondarySocietyIds;
     let updatedSecIds: string[];
+    let toastOnSuccess: string;
+
     if (secondarySocietyIds.includes(society.id)) {
       updatedSecIds = secondarySocietyIds.filter(id => id !== society.id);
-      setSecondarySocietyIds(updatedSecIds);
-      showToast(`Removed 🟢 ${society.name} from secondary workplaces.`);
+      toastOnSuccess = `Removed 🟢 ${society.name} from secondary workplaces.`;
     } else {
       if (secondarySocietyIds.length >= 5) {
         showToast('⚠️ Limit Reached: You can select up to 5 secondary workplace societies.');
         return;
       }
       updatedSecIds = [...secondarySocietyIds, society.id];
-      setSecondarySocietyIds(updatedSecIds);
-      showToast(`Secondary Workplace Added 🟢 Added ${society.name}`);
+      toastOnSuccess = `Secondary Workplace Added 🟢 Added ${society.name}`;
     }
+
+    // Apply optimistic change
+    setSecondarySocietyIds(updatedSecIds);
 
     const secNames = updatedSecIds
       .map(id => societies.find(s => s.id === id)?.name)
@@ -334,11 +361,14 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
         secondary_societies: secNames,
         preferred_areas: primaryName ? [primaryName, ...secNames] : secNames
       });
-    } catch (e) {
-      console.warn('[WorkerSocietiesScreen] Secondary society update failed:', e);
+      showToast(toastOnSuccess);
+      refreshProfile().catch(() => {});
+    } catch (e: any) {
+      // API failed — roll back the optimistic UI update
+      console.error('[WorkerSocietiesScreen] Secondary society update failed:', e);
+      setSecondarySocietyIds(prevSecondaryIds);
+      showToast(`⚠️ Failed to update secondary workplaces. Please try again.`);
     }
-
-    refreshProfile().catch(() => {});
   };
 
   const handleRequestSocietySubmit = async () => {
@@ -353,15 +383,19 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
         area: newSocietyLocality.trim() || 'Bengaluru',
         city: 'Bengaluru'
       });
-    } catch (err) {
-      console.warn('[WorkerSocietiesScreen] Society request failed:', err);
-    } finally {
-      setIsSubmittingRequest(false);
+      // Success — close modal and show confirmation
       setShowRequestModal(false);
       setNewSocietyName('');
       setNewSocietyLocality('');
       setNewSocietyTower('');
       showToast('Request Submitted 🟢 Onboarding request sent to Sevikaa Admin.');
+    } catch (err: any) {
+      // Failure — keep modal open so the user can retry; show the actual error
+      const errMsg = err?.message || 'Request failed. Please try again.';
+      console.error('[WorkerSocietiesScreen] Society request failed:', err);
+      showToast(`⚠️ ${errMsg}`);
+    } finally {
+      setIsSubmittingRequest(false);
     }
   };
 
