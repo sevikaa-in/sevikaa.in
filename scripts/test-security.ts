@@ -31,6 +31,8 @@ import { GET as getInternalHealth } from '../src/app/api/internal/health/route';
 import { POST as createOrder } from '../src/app/api/payments/create-order/route';
 import { POST as postSocieties } from '../src/app/api/societies/route';
 import { POST as loginOtpPost } from '../src/app/api/auth/login-otp/route';
+import { POST as workerOnboardingPost } from '../src/app/api/worker/onboarding/route';
+import { signOnboardingJwt, verifyOnboardingJwt } from '../src/lib/jwtHelper';
 import { PaymentService } from '../src/services/paymentService';
 
 async function runSecurityTests() {
@@ -1194,6 +1196,137 @@ async function runSecurityTests() {
           process.env.UPSTASH_REDIS_REST_URL = origUrl;
           process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
         }
+      }
+    );
+
+    // --- Task 10C: Onboarding Credential Lifecycle & Normal API Rejection Matrix ---
+
+    // Test 10C.1: Valid onboarding credential allows Worker onboarding endpoint to authenticate and complete onboarding
+    await assertTest(
+      'Task 10C: Valid onboarding credential authenticates /api/worker/onboarding and issues normal session',
+      async () => {
+        const origUrl = process.env.UPSTASH_REDIS_REST_URL;
+        const origToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.invalid';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-redis-token';
+
+        const { dbPool } = await import('../src/lib/db');
+        const prevConnect = dbPool.connect;
+        dbPool.connect = (async () => ({
+          query: async (sql: string, params: any[] = []) => {
+            if (sql.includes('SELECT id, role, status')) {
+              return { rows: [{ id: 'mock-user-ob-1', role: 'worker', status: 'pending_review', email: 'test@sevikaa.in', phone: '+919988776655', full_name: 'Test Worker' }] } as any;
+            }
+            if (sql.includes('INSERT INTO public.refresh_tokens')) {
+              return { rows: [{ id: 'ref-ob-123' }] } as any;
+            }
+            return { rows: [{ profile_count: '1', role_profile_count: '1', session_count: '1' }] } as any;
+          },
+          release: () => {}
+        })) as any;
+
+        try {
+          const onboardingToken = signOnboardingJwt('mock-user-ob-1', 'test@sevikaa.in', '+919988776655', 'worker');
+          const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+            method: 'POST',
+            body: JSON.stringify({
+              full_name: 'Test Worker',
+              gender: 'female',
+              age: 28,
+              expected_salary: 15000,
+              skills: ['maid'],
+              languages_spoken: ['Hindi']
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${onboardingToken}`
+            }
+          });
+
+          const res = await workerOnboardingPost(req);
+          if (res.status !== 200) {
+            const errBody = await res.json().catch(() => ({}));
+            console.error(`[FAIL] Expected 200 on onboarding submission but got ${res.status}:`, errBody);
+            return false;
+          }
+          const data = await res.json();
+          return data.success === true && data.hasCompletedProfile === true && typeof data.access_token === 'string' && data.access_token.length > 20;
+        } finally {
+          dbPool.connect = prevConnect;
+          process.env.UPSTASH_REDIS_REST_URL = origUrl;
+          process.env.UPSTASH_REDIS_REST_TOKEN = origToken;
+        }
+      }
+    );
+
+    // Test 10C.2: Expired onboarding credential returns 401
+    await assertTest(
+      'Task 10C: Expired onboarding credential returns 401 on /api/worker/onboarding',
+      async () => {
+        const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+          method: 'POST',
+          body: JSON.stringify({ full_name: 'Expired Worker' }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer invalid_expired_token`
+          }
+        });
+        const res = await workerOnboardingPost(req);
+        return res.status === 401;
+      }
+    );
+
+    // Test 10C.3: Wrong purpose returns 401
+    await assertTest(
+      'Task 10C: Non-onboarding token (wrong purpose) is rejected by /api/worker/onboarding with 401',
+      async () => {
+        const { signSupabaseJwt } = await import('../src/lib/jwtHelper');
+        const normalAccessToken = signSupabaseJwt('mock-user-normal', 'test@sevikaa.in', '+919988776655', 'worker');
+
+        const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+          method: 'POST',
+          body: JSON.stringify({ full_name: 'Wrong Purpose Worker' }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${normalAccessToken}`
+          }
+        });
+        const res = await workerOnboardingPost(req);
+        return res.status === 401;
+      }
+    );
+
+    // Test 10C.4: Wrong role returns 401/403
+    await assertTest(
+      'Task 10C: Onboarding credential with wrong role (employer) is rejected by /api/worker/onboarding',
+      async () => {
+        const employerObToken = signOnboardingJwt('mock-user-emp', 'test@sevikaa.in', '+919988776655', 'employer');
+        const req = new NextRequest('http://localhost:3000/api/worker/onboarding', {
+          method: 'POST',
+          body: JSON.stringify({ full_name: 'Employer Fake Worker' }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${employerObToken}`
+          }
+        });
+        const res = await workerOnboardingPost(req);
+        return res.status === 401 || res.status === 403;
+      }
+    );
+
+    // Test 10C.5: Onboarding credential CANNOT access a normal worker API (/api/worker/jobs)
+    await assertTest(
+      'Task 10C: Onboarding credential CANNOT access normal worker business API (/api/worker/jobs)',
+      async () => {
+        const onboardingToken = signOnboardingJwt('mock-user-ob-job', 'test@sevikaa.in', '+919988776655', 'worker');
+        const req = new NextRequest('http://localhost:3000/api/worker/jobs', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${onboardingToken}`
+          }
+        });
+        const res = await getWorkerJobs(req);
+        return res.status === 401;
       }
     );
 

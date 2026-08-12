@@ -14,7 +14,9 @@ interface AuthLoginProps {
     userObj?: { id?: string; role?: string; phone?: string; email?: string } | null,
     isExistingUser?: boolean,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    requiresOnboarding?: boolean,
+    onboardingToken?: string
   ) => void;
   onBack?: () => void;
 }
@@ -136,6 +138,16 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
 
       setLoading(false);
       const identifier = authMode === 'phone' ? phone : email;
+
+      if (data.requiresOnboarding || data.onboarding_token) {
+        if (data.onboarding_token) {
+          const { secureTokenStorage } = await import('../services/secureTokenStorage');
+          await secureTokenStorage.saveTokens(data.onboarding_token);
+        }
+        onLoginSuccess(identifier, authMode, data.user, false, '', '', true, data.onboarding_token);
+        return;
+      }
+
       const token = data.access_token || data.token || data.session?.access_token || '';
       const refToken = data.refresh_token || data.session?.refresh_token || '';
       onLoginSuccess(identifier, authMode, data.user, data.isExistingUser, token, refToken);

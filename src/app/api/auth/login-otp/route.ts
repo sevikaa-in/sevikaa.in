@@ -5,7 +5,7 @@ import { sendEmail as dispatchEmail, sendSMS } from '@/lib/notifications';
 import { getMagicLinkOrLoginOtpEmailHtml } from '@/lib/emailTemplates';
 import crypto from 'crypto';
 import { checkRateLimitCritical, extractClientIp } from '@/lib/rateLimiter';
-import { signSupabaseJwt } from '@/lib/jwtHelper';
+import { signSupabaseJwt, signOnboardingJwt } from '@/lib/jwtHelper';
 
 // Allowed roles that can self-select during OTP registration
 const SELF_SELECTABLE_ROLES = new Set(['worker', 'employer']);
@@ -378,15 +378,19 @@ export async function POST(req: NextRequest) {
         }
 
         // If worker_profiles does not exist yet, required fields (gender, age, expected_salary)
-        // have not been collected at OTP time. Do NOT fabricate fake values and do NOT issue JWT.
-        // Return existing application's intended incomplete onboarding response.
+        // have not been collected at OTP time. Do NOT fabricate fake values and do NOT issue normal JWT.
+        // Issue short-lived onboarding credential and return pending onboarding response.
         if (!verifiedWp) {
-          return NextResponse.json({
+          const onboardingToken = signOnboardingJwt(resolvedUserId, userEmail, userPhone, 'worker');
+          const isWebClient = req.headers.get('x-client-platform') === 'web' || Boolean(req.headers.get('origin')) || Boolean(req.headers.get('referer'));
+
+          const pendingRes = NextResponse.json({
             success: true,
             isExistingUser,
             hasCompletedProfile: false,
             requiresOnboarding: true,
             onboardingUrl: '/worker/onboarding',
+            onboarding_token: onboardingToken,
             user: {
               id: resolvedUserId,
               email: userEmail,
@@ -396,6 +400,18 @@ export async function POST(req: NextRequest) {
             },
             message: 'OTP verified. Worker onboarding required before profile activation.'
           });
+
+          if (isWebClient) {
+            pendingRes.cookies.set('sevikaa_onboarding_token', onboardingToken, {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              maxAge: 900,
+              path: '/'
+            });
+          }
+
+          return pendingRes;
         }
 
       } else if (effectiveRole === 'employer') {

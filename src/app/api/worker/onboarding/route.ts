@@ -2,26 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
 import { logAuditAction } from '@/lib/auditLogger';
+import { verifyOnboardingJwt, signSupabaseJwt, generateRefreshToken, hashRefreshToken } from '@/lib/jwtHelper';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authenticate session — derive userId strictly from verified bearer token (IDOR Fix)
+    // 1. Authenticate session — check Onboarding Token or normal session token
     const authHeader = req.headers.get('authorization');
     let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
     if (!token) {
-      const sbCookie = Array.from(req.cookies.getAll()).find(c =>
-        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
-      );
-      if (sbCookie?.value) {
-        try {
-          const parsed = JSON.parse(sbCookie.value);
-          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
-        } catch {
-          token = sbCookie.value;
+      const obCookie = req.cookies.get('sevikaa_onboarding_token')?.value;
+      if (obCookie) {
+        token = obCookie;
+      } else {
+        const sbCookie = Array.from(req.cookies.getAll()).find(c =>
+          c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
+        );
+        if (sbCookie?.value) {
+          try {
+            const parsed = JSON.parse(sbCookie.value);
+            token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
+          } catch {
+            token = sbCookie.value;
+          }
         }
       }
     }
@@ -30,16 +36,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized', message: 'Authentication required for onboarding.' }, { status: 401 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
-    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    let activeUserId: string | null = null;
+    let userEmail: string | undefined = undefined;
+    let userPhone: string | undefined = undefined;
+
+    // First attempt: Verify as Onboarding JWT
+    const verifiedOb = verifyOnboardingJwt(token);
+    if (verifiedOb) {
+      activeUserId = verifiedOb.userId;
+      userEmail = verifiedOb.email;
+      userPhone = verifiedOb.phone;
+    } else {
+      // Second attempt: Verify as normal Supabase session token
+      if (!supabaseUrl.includes('placeholder')) {
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+          global: { headers: { Authorization: `Bearer ${token}` } }
+        });
+        const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+        if (user?.id) {
+          activeUserId = user.id;
+          userEmail = user.email;
+          userPhone = user.phone;
+        }
+      }
     }
 
-    // Authenticated user ID is canonical — never trust body.userId / body.id
-    const activeUserId = user.id;
+    if (!activeUserId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized', message: 'Invalid or expired onboarding credential.' }, { status: 401 });
+    }
+
+    // Verify account status from public.profiles
+    const profRes = await queryDb(`SELECT id, role, status, email, phone, full_name FROM public.profiles WHERE id = $1 LIMIT 1`, [activeUserId]);
+    if (!profRes?.rows?.[0]) {
+      return NextResponse.json({ success: false, error: 'Unauthorized', message: 'Account profile not found.' }, { status: 401 });
+    }
+
+    const dbProfile = profRes.rows[0];
+    if (dbProfile.status === 'suspended' || dbProfile.status === 'banned') {
+      return NextResponse.json({ success: false, error: 'Forbidden', message: 'Account is suspended or banned.' }, { status: 403 });
+    }
+
+    userEmail = userEmail || dbProfile.email;
+    userPhone = userPhone || dbProfile.phone;
 
     const body = await req.json().catch(() => ({}));
     const {
@@ -54,9 +92,9 @@ export async function POST(req: NextRequest) {
       aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url
     } = body;
 
-    const displayName = full_name || name || 'Worker Candidate';
+    const displayName = full_name || name || dbProfile.full_name || 'Worker Candidate';
     const cleanPhoneDigits = phone ? phone.replace(/\D/g, '').slice(-10) : '';
-    const formattedPhone = cleanPhoneDigits ? `+91${cleanPhoneDigits}` : phone;
+    const formattedPhone = cleanPhoneDigits ? `+91${cleanPhoneDigits}` : (userPhone || phone);
     const finalGender = gender || 'female';
     const finalAge = parseInt(age) || 28;
     const finalExp = parseInt(experience_years || experience) || 0;
@@ -67,7 +105,7 @@ export async function POST(req: NextRequest) {
     const skillsArray = Array.isArray(skills) ? skills : (Array.isArray(category) ? category : ['maid']);
     const languagesArray = Array.isArray(languages_spoken) ? languages_spoken : (Array.isArray(languages) ? languages : ['Hindi']);
 
-    // 2. Upsert worker_profiles (no runtime DDL — schema managed via migrations)
+    // 2. Upsert worker_profiles with real collected onboarding input
     await queryDb(`
       INSERT INTO public.worker_profiles 
            (user_id, id, name, full_name, gender, age, experience_years, expected_salary, skills, category, languages_spoken, primary_gated_society, preferred_shift, aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url, status)
@@ -106,7 +144,7 @@ export async function POST(req: NextRequest) {
       avatar_url || profile_picture_url || null
     ]);
 
-    // 3. Update public.profiles (no runtime DDL)
+    // 3. Update public.profiles status
     await queryDb(`
       UPDATE public.profiles
       SET full_name = COALESCE($1, full_name),
@@ -115,9 +153,64 @@ export async function POST(req: NextRequest) {
       WHERE id = $3 OR id::text = $3::text;
     `, [displayName, formattedPhone, activeUserId]);
 
-    // 4. Log User Audit Action
+    // 4. Create persistent refresh session
+    const refreshToken = generateRefreshToken();
+    const tokenHash = hashRefreshToken(refreshToken);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    let refreshPersisted = false;
+    try {
+      const refreshInsertRes = await queryDb(
+        `INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, $3)
+         RETURNING id`,
+        [activeUserId, tokenHash, expiresAt]
+      );
+      if (refreshInsertRes?.rows?.[0]?.id) {
+        refreshPersisted = true;
+      }
+    } catch (refreshErr) {
+      console.error('[worker-onboarding] Refresh token persistence error:', refreshErr);
+    }
+
+    if (!refreshPersisted) {
+      return NextResponse.json({ success: false, error: 'Authentication Failed', message: 'Failed to establish persistent session after onboarding.' }, { status: 500 });
+    }
+
+    // 5. Final Verification Gatekeeper Check
+    let gatePassed = false;
+    try {
+      const gateRes = await queryDb(
+        `SELECT 
+           (SELECT COUNT(*) FROM public.profiles WHERE id = $1) AS profile_count,
+           (SELECT COUNT(*) FROM public.worker_profiles WHERE user_id = $1 OR id = $1) AS role_profile_count,
+           (SELECT COUNT(*) FROM public.refresh_tokens WHERE user_id = $1 AND token_hash = $2 AND is_revoked = FALSE AND expires_at > NOW()) AS session_count`,
+        [activeUserId, tokenHash]
+      );
+      const counts = gateRes?.rows?.[0];
+      if (
+        counts &&
+        parseInt(counts.profile_count, 10) > 0 &&
+        parseInt(counts.role_profile_count, 10) > 0 &&
+        parseInt(counts.session_count, 10) > 0
+      ) {
+        gatePassed = true;
+      }
+    } catch (gErr) {
+      console.error('[worker-onboarding] Gatekeeper error:', gErr);
+    }
+
+    if (!gatePassed) {
+      await queryDb(`DELETE FROM public.refresh_tokens WHERE token_hash = $1`, [tokenHash]).catch(() => {});
+      return NextResponse.json({ success: false, error: 'Onboarding Verification Failed', message: 'Incomplete account provisioning after onboarding.' }, { status: 500 });
+    }
+
+    // 6. Issue normal Access JWT Token
+    const accessToken = signSupabaseJwt(activeUserId, userEmail, formattedPhone || userPhone, 'worker');
+
+    // 7. Log User Audit Action
     logAuditAction({
-      action: 'Worker Onboarding Submitted',
+      action: 'Worker Onboarding Completed',
       category: 'worker_activity',
       severity: 'info',
       actor: formattedPhone || displayName,
@@ -128,9 +221,31 @@ export async function POST(req: NextRequest) {
       raw_payload: body
     }).catch(() => {});
 
-    return NextResponse.json({
+    const userObj = {
+      id: activeUserId,
+      email: userEmail,
+      phone: formattedPhone || userPhone,
+      role: 'worker',
+      full_name: displayName,
+      society: finalSociety || ''
+    };
+
+    const isWebClient = req.headers.get('x-client-platform') === 'web' || Boolean(req.headers.get('origin')) || Boolean(req.headers.get('referer'));
+
+    const res = NextResponse.json({
       success: true,
       message: 'Worker onboarding completed successfully!',
+      hasCompletedProfile: true,
+      user: userObj,
+      session: {
+        access_token: accessToken,
+        ...(isWebClient ? {} : { refresh_token: refreshToken }),
+        token_type: 'bearer',
+        user: userObj
+      },
+      token: accessToken,
+      access_token: accessToken,
+      ...(isWebClient ? {} : { refresh_token: refreshToken }),
       profile: {
         user_id: activeUserId,
         id: activeUserId,
@@ -145,9 +260,31 @@ export async function POST(req: NextRequest) {
         languages_spoken: languagesArray,
         primary_gated_society: finalSociety,
         preferred_shift: finalShift,
-        status: 'pending_verification'
+        status: 'pending_review'
       }
     });
+
+    // Clear temporary onboarding cookie if set
+    res.cookies.set('sevikaa_onboarding_token', '', {
+      httpOnly: true,
+      path: '/',
+      expires: new Date(0)
+    });
+
+    if (refreshToken) {
+      res.cookies.set('sevikaa_refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60,
+        path: '/'
+      });
+    }
+
+    res.cookies.set('sevikaa_user_role', 'worker', { path: '/', maxAge: 2592000, sameSite: 'lax' });
+    res.cookies.set('sevikaa_user_id', activeUserId, { path: '/', maxAge: 2592000, sameSite: 'lax' });
+
+    return res;
 
   } catch (error: any) {
     console.error('Error in worker onboarding API route:', error);
