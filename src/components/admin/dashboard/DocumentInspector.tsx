@@ -2,22 +2,12 @@
 
 import React, { useState } from 'react';
 import { Camera, FileText, Video, RotateCw, ZoomIn, ZoomOut, Check, X, ShieldAlert } from 'lucide-react';
+import { usePrivateUrl } from '@/hooks/usePrivateUrl';
 
 interface DocumentInspectorProps {
   worker: any;
   onUpdateBadge: (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => void;
 }
-
-const getPublicUrl = (bucketName: string, path: string) => {
-  if (!path) return '';
-  const trimmed = path.trim();
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
-    return trimmed;
-  }
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lxfwvyugikydllqmsaow.supabase.co';
-  const cleanPath = trimmed.replace(new RegExp(`^${bucketName}\/`), '');
-  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${cleanPath}`;
-};
 
 export const DocumentInspector: React.FC<DocumentInspectorProps> = ({
   worker,
@@ -27,6 +17,10 @@ export const DocumentInspector: React.FC<DocumentInspectorProps> = ({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [notes, setNotes] = useState('');
+
+  const selfieRes = usePrivateUrl(worker?.profile_picture_url || worker?.selfie);
+  const aadhaarFrontRes = usePrivateUrl(worker?.aadhaar_front_url);
+  const videoRes = usePrivateUrl(worker?.video_url);
 
   if (!worker) {
     return (
@@ -144,9 +138,9 @@ export const DocumentInspector: React.FC<DocumentInspectorProps> = ({
               transform: `scale(${zoomLevel}) rotate(${rotation}deg)`,
             }}
           >
-            {worker.profile_picture_url || worker.selfie ? (
+            {selfieRes.url ? (
               <img 
-                src={getPublicUrl('worker-selfies', worker.profile_picture_url) || '/logo.png'} 
+                src={selfieRes.url} 
                 alt="Selfie audit" 
                 className="w-full h-full object-cover" 
               />
@@ -165,9 +159,9 @@ export const DocumentInspector: React.FC<DocumentInspectorProps> = ({
               transform: `scale(${zoomLevel}) rotate(${rotation}deg)`,
             }}
           >
-            {worker.aadhaar_front_url ? (
+            {aadhaarFrontRes.url ? (
               <img 
-                src={getPublicUrl('worker-documents', worker.aadhaar_front_url)} 
+                src={aadhaarFrontRes.url} 
                 alt="Aadhaar Front audit" 
                 className="max-w-full max-h-full object-contain" 
               />
@@ -193,9 +187,9 @@ export const DocumentInspector: React.FC<DocumentInspectorProps> = ({
 
         {activeDocTab === 'video' && (
           <div className="w-full h-full flex items-center justify-center">
-            {worker.video_url ? (
+            {videoRes.url ? (
               <video 
-                src={getPublicUrl('worker-videos', worker.video_url)} 
+                src={videoRes.url} 
                 controls 
                 className="max-w-full max-h-full rounded-lg" 
               />

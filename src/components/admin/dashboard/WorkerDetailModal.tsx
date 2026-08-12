@@ -18,16 +18,7 @@ interface WorkerDetailModalProps {
   onUpdateBadge: (badgeKey: string, status: 'Pending' | 'Verified' | 'Rejected') => void;
 }
 
-const getPublicUrl = (bucketName: string, path: string) => {
-  if (!path) return '';
-  const trimmed = path.trim();
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
-    return trimmed;
-  }
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lxfwvyugikydllqmsaow.supabase.co';
-  const cleanPath = trimmed.replace(new RegExp(`^${bucketName}\/`), '');
-  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${cleanPath}`;
-};
+
 
 export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
   isOpen,
@@ -417,7 +408,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               {activeDocTab === 'selfie' && (
                 worker.profile_picture_url ? (
                   <img 
-                    src={selfieRes.url || getPublicUrl('worker-selfies', worker.profile_picture_url)} 
+                    src={selfieRes.url} 
                     alt="Candidate Selfie" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -433,7 +424,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               {activeDocTab === 'aadhaar_front' && (
                 worker.aadhaar_front_url ? (
                   <img 
-                    src={aadhaarFrontRes.url || getPublicUrl('worker-documents', worker.aadhaar_front_url)} 
+                    src={aadhaarFrontRes.url} 
                     alt="Aadhaar Front" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -449,7 +440,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               {activeDocTab === 'aadhaar_back' && (
                 worker.aadhaar_back_url ? (
                   <img 
-                    src={aadhaarBackRes.url || getPublicUrl('worker-documents', worker.aadhaar_back_url)} 
+                    src={aadhaarBackRes.url} 
                     alt="Aadhaar Back" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -465,7 +456,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               {activeDocTab === 'police' && (
                 worker.police_verification_url ? (
                   <img 
-                    src={policeDocRes.url || getPublicUrl('worker-documents', worker.police_verification_url)} 
+                    src={policeDocRes.url} 
                     alt="Police Verification Document" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -482,7 +473,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
                 worker.video_url ? (
                   <video 
                     controls 
-                    src={videoRes.url || getPublicUrl('worker-videos', worker.video_url)} 
+                    src={videoRes.url} 
                     className="max-h-full max-w-full rounded-lg shadow-sm"
                   />
                 ) : (

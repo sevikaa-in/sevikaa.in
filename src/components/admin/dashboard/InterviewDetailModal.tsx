@@ -234,9 +234,9 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
       formData.append('assetType', assetType);
 
       const { webApiClient } = await import('@/lib/webApiClient');
-      const data = await webApiClient.post('/api/admin/worker/upload-asset', formData);
-      if (data && data.success && data.publicUrl && interview?.worker) {
-        interview.worker[assetType] = data.publicUrl;
+      const data = await webApiClient.post('/api/upload/cloudinary', formData);
+      if (data && data.success && (data.publicUrl || data.url) && interview?.worker) {
+        interview.worker[assetType] = data.publicUrl || data.url;
       }
     } catch (err) {
       console.error("Direct admin upload error:", err);
@@ -268,18 +268,10 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
     (worker?.email ? worker.email.split('@')[0].charAt(0).toUpperCase() + worker.email.split('@')[0].slice(1) : null) ||
     (worker?.phone ? `Candidate (${worker.phone.slice(-4)})` : 'Registered Candidate');
 
-  const getPublicUrl = (bucket: string, path: string | null) => {
-    if (!path) return '';
-    if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-    const base = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-    return `${base}/storage/v1/object/public/${bucket}/${cleanPath}`;
-  };
-
-  const selfieUrl = selfieRes.url || (worker ? getPublicUrl('worker-selfies', worker.profile_picture_url) : '');
-  const aadhaarFrontUrl = aadhaarFrontRes.url || (worker ? getPublicUrl('worker-documents', worker.aadhaar_front_url) : '');
-  const aadhaarBackUrl = aadhaarBackRes.url || (worker ? getPublicUrl('worker-documents', worker.aadhaar_back_url) : '');
-  const videoUrl = videoRes.url || (worker ? getPublicUrl('worker-videos', worker.video_url) : '');
+  const selfieUrl = selfieRes.url || '';
+  const aadhaarFrontUrl = aadhaarFrontRes.url || '';
+  const aadhaarBackUrl = aadhaarBackRes.url || '';
+  const videoUrl = videoRes.url || '';
 
   return createPortal(
     <div 

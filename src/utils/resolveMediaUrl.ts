@@ -45,28 +45,17 @@ export const resolveMediaUrl = (bucketName: string, path: string | null | undefi
     return undefined;
   }
 
-  // Relative Supabase storage path fallback
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hcuvizvdsooeypetvmhm.supabase.co';
-  
-  // Check if path already starts with any known storage bucket
-  const knownBuckets = ['worker-documents', 'verification-documents', 'employer-documents', 'worker-videos', 'employer-avatars', 'worker-selfies', 'documents'];
-  for (const b of knownBuckets) {
-    if (trimmed.startsWith(`${b}/`)) {
-      const cleanPath = trimmed.slice(b.length + 1);
-      return `${supabaseUrl}/storage/v1/object/public/${b}/${cleanPath}`;
-    }
+  // Sensitive private storage buckets must NOT generate public URLs
+  const SENSITIVE_PRIVATE_BUCKETS = new Set(['worker-documents', 'verification-documents', 'worker-selfies', 'worker-videos', 'employer-documents']);
+  if (SENSITIVE_PRIVATE_BUCKETS.has(bucketName) || SENSITIVE_PRIVATE_BUCKETS.has(trimmed.split('/')[0])) {
+    return undefined;
   }
 
-  // Map verification-documents / employer-documents / employer-avatars buckets to actual Supabase worker-documents bucket
-  let effectiveBucket = bucketName;
-  if (effectiveBucket === 'verification-documents' || effectiveBucket === 'employer-documents' || effectiveBucket === 'employer-avatars') {
-    effectiveBucket = 'worker-documents';
-  }
-
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
   const cleanPath = trimmed
-    .replace(new RegExp(`^${effectiveBucket}\\/`), '')
-    .replace(/^(employer-documents|verification-documents|worker-documents)\//, '');
-  return `${supabaseUrl}/storage/v1/object/public/${effectiveBucket}/${cleanPath}`;
+    .replace(new RegExp(`^${bucketName}\\/`), '')
+    .replace(/^(employer-documents|verification-documents|worker-documents|worker-selfies|worker-videos)\//, '');
+  return undefined;
 };
 
 /**

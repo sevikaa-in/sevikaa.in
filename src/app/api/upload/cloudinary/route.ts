@@ -91,8 +91,8 @@ function validateMagicBytes(buffer: Buffer, declaredMime: string): boolean {
   return signatures.some(sig => buffer.subarray(0, sig.length).equals(sig));
 }
 
-// Aadhaar & residency docs are stored PRIVATE — requires signed URL to view
-const PRIVATE_ASSETS = new Set(['aadhaar_front_url', 'aadhaar_back_url', 'residency_proof_url']);
+// Aadhaar, residency & police docs are stored PRIVATE — requires signed URL to view
+const PRIVATE_ASSETS = new Set(['aadhaar_front_url', 'aadhaar_back_url', 'residency_proof_url', 'police_verification_url']);
 
 export async function POST(req: NextRequest) {
   try {
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
       uploadStream.end(buffer);
     });
 
-    const storedValue = uploadResult.secure_url;
+    const storedValue = isPrivate ? `cloudinary:${resourceType}:${uploadResult.public_id}` : uploadResult.secure_url;
 
     // 7. Persist URL to DB using a STATIC column map — prevents SQL injection (P0 #7 fix)
     // P0 #8: use server-derived effectiveRole, never client-supplied `role` param
