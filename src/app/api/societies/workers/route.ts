@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { checkRateLimit } from '@/lib/rateLimiter';
+import { checkRateLimitAsync, extractClientIp } from '@/lib/rateLimiter';
 import { queryDb } from '@/lib/db';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export async function GET(req: NextRequest) {
-  const rateLimit = checkRateLimit(req, 60, 60000);
+  const rateLimit = await checkRateLimitAsync(extractClientIp(req), 60, 60000);
   if (!rateLimit.success) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again later.' },
@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
         wp.verification_status,
         wp.rating,
         wp.profile_picture_url,
-        wp.video_url,
         wp.created_at
       FROM worker_profiles wp
       LEFT JOIN profiles p ON p.id = wp.user_id OR p.id = wp.id
@@ -56,7 +55,7 @@ export async function GET(req: NextRequest) {
     const supabase = createClient(supabaseUrl, apiKey);
     const { data: workers } = await supabase
       .from('worker_profiles')
-      .select('id, user_id, full_name, skills, languages, experience_years, preferred_society, preferred_location, expected_salary, verification_status, rating, profile_picture_url, video_url, created_at')
+      .select('id, user_id, full_name, skills, languages, experience_years, preferred_society, preferred_location, expected_salary, verification_status, rating, profile_picture_url, created_at')
       .eq('verification_status', 'approved')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);

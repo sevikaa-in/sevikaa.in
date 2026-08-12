@@ -123,8 +123,9 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
 
       setLoading(false);
       const token = data.access_token || data.token || data.session?.access_token || '';
-      if (typeof window !== 'undefined' && token) {
-        localStorage.setItem('sevikaa_token', token);
+      if (token) {
+        const { setInMemoryAccessToken } = await import('@/lib/webApiClient');
+        setInMemoryAccessToken(token);
       }
 
       onSuccess({

@@ -50,11 +50,8 @@ export default function EmployerJobInvitePage() {
         setJob(targetJob || null);
 
         // 2. Fetch candidate directory from authenticated /api/employer/workers API
-        const token = typeof window !== 'undefined' ? (localStorage.getItem('sevikaa_token') || '') : '';
-        const res = await fetch('/api/employer/workers', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        const apiData = await res.json();
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const apiData = await webApiClient.get('/api/employer/workers');
         const dbWorkers = apiData?.workers || [];
 
         if (dbWorkers && dbWorkers.length > 0) {

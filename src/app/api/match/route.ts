@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { checkRateLimit } from '@/lib/rateLimiter';
+import { checkRateLimitAsync, extractClientIp } from '@/lib/rateLimiter';
 
 export async function GET(request: NextRequest) {
-  // Item 27: Rate limit match endpoint (primary egress generator)
-  const rateLimit = checkRateLimit(request, 30, 60000); // 30 req/min per IP
+  // Rate limit match endpoint via distributed Redis sliding window
+  const rateLimit = await checkRateLimitAsync(extractClientIp(request), 30, 60000); // 30 req/min per IP
   if (!rateLimit.success) {
     return NextResponse.json({ error: 'Too many requests. Please wait before searching again.' }, { status: 429 });
   }

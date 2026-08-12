@@ -22,11 +22,8 @@ export default function EmployerOverviewPage() {
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
-        const token = typeof window !== 'undefined' ? (localStorage.getItem('sevikaa_token') || '') : '';
-        const res = await fetch('/api/employer/workers', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        const data = await res.json();
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/employer/workers');
         const dbWorkers = data?.workers || [];
 
         if (dbWorkers.length > 0) {

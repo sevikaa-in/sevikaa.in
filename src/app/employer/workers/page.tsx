@@ -88,11 +88,8 @@ export default function EmployerWorkersPage() {
           setCandidatesList(mapped);
         } else {
           // Query authenticated employer candidate directory API (/api/employer/workers)
-          const token = typeof window !== 'undefined' ? (localStorage.getItem('sevikaa_token') || '') : '';
-          const res = await fetch('/api/employer/workers', {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          const apiData = await res.json();
+          const { webApiClient } = await import('@/lib/webApiClient');
+          const apiData = await webApiClient.get('/api/employer/workers');
           const dbWorkers = apiData?.workers || [];
 
           if (dbWorkers && dbWorkers.length > 0) {
