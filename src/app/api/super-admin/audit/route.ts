@@ -13,9 +13,6 @@ export async function GET(request: NextRequest) {
 
     // Item 30: audit_logs table created in migration 20260810000004 — no runtime DDL
 
-    // Clean up empty/null legacy rows
-    await queryDb(`DELETE FROM public.audit_logs WHERE details IS NULL OR details = 'null' OR details = '';`).catch(() => {});
-
     // 2. Fetch logs safely
     const res = await queryDb(
       `SELECT * FROM public.audit_logs ORDER BY created_at DESC LIMIT $1`,
@@ -56,6 +53,8 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      const ip = (row.ip_address && row.ip_address !== 'null') ? row.ip_address : 'unknown';
+
       return {
         id: row.id || `log_${idx}_${Date.now()}`,
         action: row.action || 'Admin Operation',
@@ -69,7 +68,7 @@ export async function GET(request: NextRequest) {
         target_id: row.target_id || null,
         changes_summary: detailsText,
         raw_payload: parsedPayload,
-        ipAddress: row.ip_address && row.ip_address !== 'null' ? row.ip_address : '103.142.12.44',
+        ipAddress: ip,
         timestamp: formatIstTimestamp(row.created_at),
         details: detailsText
       };
