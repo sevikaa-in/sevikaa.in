@@ -30,10 +30,9 @@ export function usePrivateUrl(ref: string | null | undefined) {
 
     setLoading(true);
     try {
-      const res = await window.fetch(`/api/upload/cloudinary/sign?ref=${encodeURIComponent(ref)}`);
-      if (!res.ok) { setUrl(''); return; }
-      const data = await res.json();
-      setUrl(data.url || '');
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.get(`/api/upload/cloudinary/sign?ref=${encodeURIComponent(ref)}`);
+      setUrl(data?.url || '');
 
       // Schedule refresh at 50 minutes (before 1-hour expiry)
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);

@@ -44,8 +44,8 @@ export default function VerifyUploadPage() {
 
     const validateToken = async () => {
       try {
-        const res = await fetch(`/api/worker/upload-token?t=${tok}`);
-        const data = await res.json();
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get(`/api/worker/upload-token?t=${tok}`);
         if (data.success) {
           setUserId(data.userId);
           if (data.role) setUserRole(data.role);

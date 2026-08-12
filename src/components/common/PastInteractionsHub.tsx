@@ -37,9 +37,9 @@ export default function PastInteractionsHub({
   const fetchHistory = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/reviews/history?userId=${currentUserId}&role=${currentUserRole}`);
-      const data = await res.json();
-      if (data.success) {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.get(`/api/reviews/history?userId=${currentUserId}&role=${currentUserRole}`);
+      if (data && data.success) {
         setInteractedPeople(data.interactedPeople || []);
         setReviewsGiven(data.reviewsGiven || []);
         setReviewsReceived(data.reviewsReceived || []);

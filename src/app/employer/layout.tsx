@@ -107,13 +107,11 @@ export default function EmployerDashboardLayout({ children }: { children: React.
         setUser(activeUser);
 
         try {
-          const res = await fetch(`/api/auth/me?userId=${activeUser.id}`);
-          if (res.ok) {
-            const meData = await res.json();
-            if (meData.success) {
-              profileData = meData.profile;
-              empProf = meData.employerProfile;
-            }
+          const { webApiClient } = await import('@/lib/webApiClient');
+          const meData = await webApiClient.get('/api/auth/me');
+          if (meData && meData.success) {
+            profileData = meData.profile;
+            empProf = meData.employerProfile;
           }
         } catch (apiErr) {
           console.warn("API employer profile fetch warning:", apiErr);

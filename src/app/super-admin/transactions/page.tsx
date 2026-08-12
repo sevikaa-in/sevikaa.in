@@ -36,14 +36,12 @@ export default function TransactionsPage() {
   const fetchLiveTransactions = async (page = currentPage) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/super-admin/transactions?page=${page}&limit=10`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.transactions)) {
-          setTransactionsList(data.transactions);
-          setTotalCount(data.total || data.transactions.length);
-          setTotalPagesCount(data.totalPages || 1);
-        }
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.get(`/api/super-admin/transactions?page=${page}&limit=10`);
+      if (data && data.success && Array.isArray(data.transactions)) {
+        setTransactionsList(data.transactions);
+        setTotalCount(data.total || data.transactions.length);
+        setTotalPagesCount(data.totalPages || 1);
       }
     } catch (err) {
       console.warn("Error fetching live transactions:", err);

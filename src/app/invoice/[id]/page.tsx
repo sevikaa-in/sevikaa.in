@@ -16,18 +16,16 @@ export default function StandaloneInvoiceViewPage() {
       try {
         const cleanId = rawId.replace(/[^a-zA-Z0-9_-]/g, '');
         // Query live transaction from API
-        const res = await fetch(`/api/super-admin/transactions?page=1&limit=100`);
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get(`/api/super-admin/transactions?page=1&limit=100`);
         let matchedTxn: any = null;
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.transactions)) {
-            matchedTxn = data.transactions.find((t: any) => 
-              t.id === cleanId || 
-              t.invoiceNumber === cleanId ||
-              t.invoiceNumber?.replace(/\//g, '-') === cleanId ||
-              cleanId.includes(t.id)
-            );
-          }
+        if (data && data.success && Array.isArray(data.transactions)) {
+          matchedTxn = data.transactions.find((t: any) => 
+            t.id === cleanId || 
+            t.invoiceNumber === cleanId ||
+            t.invoiceNumber?.replace(/\//g, '-') === cleanId ||
+            cleanId.includes(t.id)
+          );
         }
 
         const todayStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });

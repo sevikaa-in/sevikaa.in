@@ -90,10 +90,9 @@ export async function resolvePrivateUrl(ref: string | null | undefined): Promise
   // Cloudinary private reference
   if (trimmed.startsWith('cloudinary:')) {
     try {
-      const res = await fetch(`/api/upload/cloudinary/sign?ref=${encodeURIComponent(trimmed)}`);
-      if (!res.ok) return '';
-      const data = await res.json();
-      return data.url || '';
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.get(`/api/upload/cloudinary/sign?ref=${encodeURIComponent(trimmed)}`);
+      return data?.url || '';
     } catch {
       return '';
     }

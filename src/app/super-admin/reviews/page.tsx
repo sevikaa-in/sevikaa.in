@@ -20,9 +20,9 @@ export default function ReviewsPage() {
   const fetchReviews = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/super-admin/reviews?status=${statusFilter}`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.reviews)) {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.get(`/api/super-admin/reviews?status=${statusFilter}`);
+      if (data && data.success && Array.isArray(data.reviews)) {
         setReviewsList(data.reviews);
       }
     } catch (err) {

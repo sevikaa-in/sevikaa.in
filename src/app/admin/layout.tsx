@@ -318,8 +318,8 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
 
     try {
       const targetTab = currentTab || 'overview';
-      const res = await fetch(`/api/admin/data?tab=${targetTab}&page=${pageVal}&limit=100`);
-      const apiData = await res.json();
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const apiData = await webApiClient.get(`/api/admin/data?tab=${targetTab}&page=${pageVal}&limit=100`);
 
       if (apiData && apiData.success) {
         const { workers, employers, societies, jobs, counts } = apiData;
@@ -851,7 +851,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
               ].map((tab) => {
                 const isActive = (tab.id === 'overview' && pathname === '/admin') || (tab.id !== 'overview' && pathname === tab.href);
                 const apiKey = tab.id === 'tele-onboarding' ? 'tele_onboarding_p1_l12' : `admin_data_${tab.id}_p1_l20`;
-                const apiFetcher = () => fetch(tab.id === 'tele-onboarding' ? '/api/admin/data?tab=tele-onboarding&page=1&limit=12' : `/api/admin/data?tab=${tab.id}&page=1&limit=20`).then(r => r.json());
+                const apiFetcher = () => import('@/lib/webApiClient').then(({ webApiClient }) => webApiClient.get(tab.id === 'tele-onboarding' ? '/api/admin/data?tab=tele-onboarding&page=1&limit=12' : `/api/admin/data?tab=${tab.id}&page=1&limit=20`));
 
                 return (
                   <PrefetchLink

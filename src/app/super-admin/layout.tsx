@@ -642,22 +642,20 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
 
       // 2. Background Re-validation & SWR Cache Store
       try {
-        const apiRes = await fetch(`/api/super-admin/data?tab=${targetTab}&page=${pageVal}&limit=20`);
-        if (apiRes.ok) {
-          const apiData = await apiRes.json();
-          if (apiData.success) {
-            if (
-              (apiData.workers && apiData.workers.length > 0) ||
-              (apiData.employers && apiData.employers.length > 0) ||
-              (apiData.jobs && apiData.jobs.length > 0) ||
-              (apiData.societies && apiData.societies.length > 0)
-            ) {
-              clientCache.set(cacheKey, apiData);
-            }
-            processSuperAdminApiData(apiData);
-            setLoading(false);
-            return;
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const apiData = await webApiClient.get(`/api/super-admin/data?tab=${targetTab}&page=${pageVal}&limit=20`);
+        if (apiData && apiData.success) {
+          if (
+            (apiData.workers && apiData.workers.length > 0) ||
+            (apiData.employers && apiData.employers.length > 0) ||
+            (apiData.jobs && apiData.jobs.length > 0) ||
+            (apiData.societies && apiData.societies.length > 0)
+          ) {
+            clientCache.set(cacheKey, apiData);
           }
+          processSuperAdminApiData(apiData);
+          setLoading(false);
+          return;
         }
       } catch (apiFetchErr) {
         console.warn("Super admin server data API notice:", apiFetchErr);
@@ -1244,7 +1242,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
               ].map((tab) => {
                 const isActive = (tab.id === 'overview' && pathname === '/super-admin') || (tab.id !== 'overview' && pathname === tab.href);
                 const apiKey = `super_admin_data_${tab.id}_p1_l20`;
-                const apiFetcher = () => fetch(`/api/super-admin/data?tab=${tab.id}&page=1&limit=20`).then(r => r.json());
+                const apiFetcher = () => import('@/lib/webApiClient').then(({ webApiClient }) => webApiClient.get(`/api/super-admin/data?tab=${tab.id}&page=1&limit=20`));
 
                 return (
                   <PrefetchLink

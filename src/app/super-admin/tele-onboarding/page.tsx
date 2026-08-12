@@ -162,8 +162,8 @@ export default function TeleOnboardingPage() {
   const nextKey = `tele_onboarding_p${page + 1}_l${limit}`;
 
   const fetchLeadsForPage = async (p: number) => {
-    const res = await fetch(`/api/admin/data?tab=tele-onboarding&page=${p}&limit=${limit}`);
-    return await res.json();
+    const { webApiClient } = await import('@/lib/webApiClient');
+    return await webApiClient.get(`/api/admin/data?tab=tele-onboarding&page=${p}&limit=${limit}`);
   };
 
   const { data: pageData, loading, mutate: mutateCurrentPage } = useAdminData(

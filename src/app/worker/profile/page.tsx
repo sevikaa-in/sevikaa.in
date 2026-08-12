@@ -112,15 +112,16 @@ export default function WorkerProfilePage() {
   useEffect(() => {
     const uid = workerProfile?.user_id || user?.id;
     if (!uid) return;
-    fetch(`/api/reviews/history?userId=${uid}&role=worker`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.reviewsReceived?.length > 0) {
-          const total = data.reviewsReceived.reduce((s: number, r: any) => s + (r.rating || 0), 0);
-          setRatingData({ avg: parseFloat((total / data.reviewsReceived.length).toFixed(1)), count: data.reviewsReceived.length });
-        }
-      })
-      .catch(() => {});
+    import('@/lib/webApiClient').then(({ webApiClient }) => {
+      webApiClient.get(`/api/reviews/history?userId=${uid}&role=worker`)
+        .then(data => {
+          if (data && data.success && data.reviewsReceived?.length > 0) {
+            const total = data.reviewsReceived.reduce((s: number, r: any) => s + (r.rating || 0), 0);
+            setRatingData({ avg: parseFloat((total / data.reviewsReceived.length).toFixed(1)), count: data.reviewsReceived.length });
+          }
+        })
+        .catch(() => {});
+    });
   }, [workerProfile?.user_id, user?.id]);
 
   React.useEffect(() => {

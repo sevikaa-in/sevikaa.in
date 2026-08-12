@@ -113,8 +113,8 @@ export const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/worker/upload-token?userId=${targetId}`);
-        const data = await res.json();
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get(`/api/worker/upload-token?userId=${targetId}`);
         if (data?.existingAssets && interview?.worker) {
           let updated = false;
           if (data.existingAssets.profile_picture_url && !interview.worker.profile_picture_url) {

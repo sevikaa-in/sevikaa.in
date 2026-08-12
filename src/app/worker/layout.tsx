@@ -197,13 +197,11 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         let wProf: any = null;
 
         try {
-          const res = await fetch(`/api/auth/me?userId=${activeUser.id}`);
-          if (res.ok) {
-            const meData = await res.json();
-            if (meData.success) {
-              profile = meData.profile;
-              wProf = meData.workerProfile;
-            }
+          const { webApiClient } = await import('@/lib/webApiClient');
+          const meData = await webApiClient.get('/api/auth/me');
+          if (meData && meData.success) {
+            profile = meData.profile;
+            wProf = meData.workerProfile;
           }
         } catch (apiErr) {
           console.warn("API profile fetch warning:", apiErr);

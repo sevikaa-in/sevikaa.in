@@ -165,62 +165,33 @@ export default function Home() {
             return;
           }
 
-          // Fetch profile to verify route
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role, status')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          const checkUrlParams = () => {
-            const searchParams = new URLSearchParams(window.location.search);
-            const roleParam = searchParams.get('role');
-            const stepParam = searchParams.get('step');
-            const numericStep = parseInt(stepParam || '');
-            if (roleParam === 'worker') {
-              setTargetRole('worker');
-              if (stepParam === 'login' || stepParam === 'language') {
-                // Explicitly in the pre-login language/otp screen
-                setView(stepParam === 'login' ? 'login' : 'language');
-              } else if (!isNaN(numericStep) && numericStep >= 1) {
-                // Numeric step means user is in worker onboarding funnel
-                setView('worker-funnel');
-              } else {
-                setView('language');
-              }
-            } else if (roleParam === 'employer') {
-              setTargetRole('employer');
-              setView('login');
-            }
-          };
-
-          // Fetch user profile via server API
+          // Fetch user profile via server API using webApiClient
+          let profile: any = null;
           try {
-            const meRes = await fetch(`/api/auth/me?userId=${session.user.id}`);
-            if (meRes.ok) {
-              const meData = await meRes.json();
-              if (meData.success && meData.profile) {
-                const dbRole = meData.profile.role;
-                if (dbRole === 'super-admin') {
-                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=2592000; SameSite=Lax`;
-                  router.push('/super-admin/dashboard');
-                  return;
-                }
-                if (dbRole === 'admin') {
-                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=2592000; SameSite=Lax`;
-                  router.push('/admin/dashboard');
-                  return;
-                }
-                if (dbRole === 'employer' || meData.employerProfile) {
-                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=2592000; SameSite=Lax`;
-                  router.push('/employer');
-                  return;
-                }
-                if (dbRole === 'worker' || meData.workerProfile) {
-                  if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=2592000; SameSite=Lax`;
-                  router.push('/worker');
-                  return;
-                }
+            const { webApiClient } = await import('@/lib/webApiClient');
+            const meData = await webApiClient.get('/api/auth/me');
+            if (meData && meData.success && meData.profile) {
+              profile = meData.profile;
+              const dbRole = meData.profile.role;
+              if (dbRole === 'super-admin') {
+                if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=2592000; SameSite=Lax`;
+                router.push('/super-admin/dashboard');
+                return;
+              }
+              if (dbRole === 'admin') {
+                if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=2592000; SameSite=Lax`;
+                router.push('/admin/dashboard');
+                return;
+              }
+              if (dbRole === 'employer' || meData.employerProfile) {
+                if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=2592000; SameSite=Lax`;
+                router.push('/employer');
+                return;
+              }
+              if (dbRole === 'worker' || meData.workerProfile) {
+                if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=2592000; SameSite=Lax`;
+                router.push('/worker');
+                return;
               }
             }
           } catch (meErr) {
@@ -340,38 +311,33 @@ export default function Home() {
 
       // 2. Server-side profile check via /api/auth/me
       try {
-        const meParams = new URLSearchParams({ userId: sessionUser.id });
-        if (sessionUser.phone) meParams.set('phone', sessionUser.phone);
-        if (sessionUser.email) meParams.set('email', sessionUser.email);
-        const meRes = await fetch(`/api/auth/me?${meParams.toString()}`);
-        if (meRes.ok) {
-          const meData = await meRes.json();
-          if (meData.success) {
-            const dbRole = meData.profile?.role;
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const meData = await webApiClient.get('/api/auth/me');
+        if (meData && meData.success) {
+          const dbRole = meData.profile?.role;
 
-            // Check role from profiles table first
-            if (dbRole === 'super-admin') {
-              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400`;
-              router.push('/super-admin/dashboard');
-              return;
-            }
-            if (dbRole === 'admin') {
-              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400`;
-              router.push('/admin/dashboard');
-              return;
-            }
+          // Check role from profiles table first
+          if (dbRole === 'super-admin') {
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400`;
+            router.push('/super-admin/dashboard');
+            return;
+          }
+          if (dbRole === 'admin') {
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400`;
+            router.push('/admin/dashboard');
+            return;
+          }
 
-            // Even if profile row is missing, check for sub-profiles directly
-            if (dbRole === 'employer' || meData.employerProfile) {
-              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
-              router.push('/employer');
-              return;
-            }
-            if (dbRole === 'worker' || meData.workerProfile) {
-              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
-              router.push('/worker');
-              return;
-            }
+          // Even if profile row is missing, check for sub-profiles directly
+          if (dbRole === 'employer' || meData.employerProfile) {
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
+            router.push('/employer');
+            return;
+          }
+          if (dbRole === 'worker' || meData.workerProfile) {
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
+            router.push('/worker');
+            return;
           }
         }
       } catch (meErr) {

@@ -320,27 +320,25 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ userId, onComplete, 
 
     const loadDraftProfile = async () => {
       try {
-        const meRes = await fetch(`/api/auth/me?userId=${activeId}`);
-        if (meRes.ok) {
-          const data = await meRes.json();
-          if (data.success && data.workerProfile) {
-            const wp = data.workerProfile;
-            if (wp.full_name) setFullName(wp.full_name);
-            if (wp.gender) setGender(wp.gender);
-            if (wp.age) setAge(String(wp.age));
-            if (wp.languages_spoken && Array.isArray(wp.languages_spoken)) setSelectedLanguages(wp.languages_spoken);
-            if (wp.skills && Array.isArray(wp.skills)) setSkills(wp.skills);
-            if (wp.experience_years) setExperience(String(wp.experience_years));
-            if (wp.expected_salary) setExpectedSalary(String(wp.expected_salary));
-            if (wp.profile_picture_url) setSelfiePreview(wp.profile_picture_url);
-            
-            // Only resume from saved step on FRESH load (when URL has no step param or step=1)
-            // Never override manual back/forward navigation
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlStep = parseInt(urlParams.get('step') || '1');
-            if (urlStep <= 1 && wp.onboarding_step && wp.onboarding_step > 1 && wp.onboarding_step <= 5) {
-              setStep(wp.onboarding_step);
-            }
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get('/api/auth/me');
+        if (data && data.success && data.workerProfile) {
+          const wp = data.workerProfile;
+          if (wp.full_name) setFullName(wp.full_name);
+          if (wp.gender) setGender(wp.gender);
+          if (wp.age) setAge(String(wp.age));
+          if (wp.languages_spoken && Array.isArray(wp.languages_spoken)) setSelectedLanguages(wp.languages_spoken);
+          if (wp.skills && Array.isArray(wp.skills)) setSkills(wp.skills);
+          if (wp.experience_years) setExperience(String(wp.experience_years));
+          if (wp.expected_salary) setExpectedSalary(String(wp.expected_salary));
+          if (wp.profile_picture_url) setSelfiePreview(wp.profile_picture_url);
+          
+          // Only resume from saved step on FRESH load (when URL has no step param or step=1)
+          // Never override manual back/forward navigation
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlStep = parseInt(urlParams.get('step') || '1');
+          if (urlStep <= 1 && wp.onboarding_step && wp.onboarding_step > 1 && wp.onboarding_step <= 5) {
+            setStep(wp.onboarding_step);
           }
         }
       } catch (err) {

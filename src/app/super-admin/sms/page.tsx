@@ -35,9 +35,9 @@ export default function SmsPage() {
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/notifications/logs?page=${targetPage}&limit=${pageSize}`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.logs)) {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      const data = await webApiClient.get(`/api/notifications/logs?page=${targetPage}&limit=${pageSize}`);
+      if (data && data.success && Array.isArray(data.logs)) {
         setLogsList(data.logs);
         setTotalCount(data.total || data.logs.length);
         setTotalPages(data.totalPages || 1);

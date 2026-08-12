@@ -233,9 +233,9 @@ export default function TeleOnboardingPage() {
     const fetchSharedNotes = async () => {
       setLoadingSharedNotes(true);
       try {
-        const res = await fetch(`/api/admin/tele-notes?lead_id=${selectedLead.id}`);
-        const data = await res.json();
-        if (data.success) {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.get(`/api/admin/tele-notes?lead_id=${selectedLead.id}`);
+        if (data && data.success) {
           setSharedNotes(data.notes || []);
         }
       } catch (e) {
@@ -252,7 +252,9 @@ export default function TeleOnboardingPage() {
 
     return () => {
       clearInterval(heartbeatTimer);
-      fetch(`/api/admin/lead-lock?lead_id=${selectedLead.id}&admin_id=${adminId}`, { method: 'DELETE' }).catch(() => {});
+      import('@/lib/webApiClient').then(({ webApiClient }) => {
+        webApiClient.delete(`/api/admin/lead-lock?lead_id=${selectedLead.id}&admin_id=${adminId}`).catch(() => {});
+      });
     };
   }, [selectedLead, isSheetOpen]);
 
@@ -457,11 +459,8 @@ export default function TeleOnboardingPage() {
         is_aadhaar_back_verified: docKey === 'aadhaar_back' ? isVerified : (selectedLead.is_aadhaar_back_verified || docVerState.aadhaar_back),
       };
 
-      await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
-      });
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post(endpoint, bodyPayload);
       refreshLeads();
     } catch (err) {
       console.warn("Direct doc verification save warning:", err);
