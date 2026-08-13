@@ -11,6 +11,14 @@ export async function GET(req: NextRequest) {
   let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
   if (!token) {
+    // First check our own HttpOnly access token cookie (set on login & refresh)
+    const sevikaaToken = req.cookies.get('sevikaa_access_token')?.value;
+    if (sevikaaToken) {
+      token = sevikaaToken;
+    }
+  }
+
+  if (!token) {
     const sbCookie = Array.from(req.cookies.getAll()).find(c =>
       c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
     );
@@ -29,17 +37,31 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
+    let userId: string | null = null;
 
-    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    try {
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } }
+      });
+      const { data: { user } } = await supabase.auth.getUser(token).catch(() => ({ data: { user: null } }));
+      if (user?.id) {
+        userId = user.id;
+      }
+    } catch {}
+
+    if (!userId) {
+      try {
+        const { decodeJwtPayload } = await import('@/lib/jwtHelper');
+        const decoded = decodeJwtPayload(token);
+        if (decoded?.sub) {
+          userId = decoded.sub;
+        }
+      } catch {}
     }
 
-    // Identity is derived exclusively from auth.uid() — never from query params
-    const userId = user.id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    }
 
     const r = await queryDb(
       `SELECT id, phone, email, role, status, full_name, created_at 

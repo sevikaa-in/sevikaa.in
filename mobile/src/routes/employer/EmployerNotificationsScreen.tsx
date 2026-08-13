@@ -65,49 +65,52 @@ export const EmployerNotificationsScreen: React.FC<{
       }
 
       // 2. Job status-derived notifications
-      const { data: dbJobs } = await supabase
-        .from('jobs').select('*').eq('employer_id', activeUserId);
+      try {
+        const { apiClient } = await import('../../services/apiClient');
+        const jobsData = await apiClient.get('/api/employer/jobs');
+        const dbJobs = jobsData?.jobs || [];
 
-      if (dbJobs && dbJobs.length > 0) {
-        dbJobs.forEach((j: any) => {
-          if (j.status === 'changes_requested' && !notifList.some(n => n.id === `notif_job_${j.id}_changes`)) {
-            notifList.push({
-              id: `notif_job_${j.id}_changes`,
-              type: 'changes_requested',
-              title: `Action Required: "${j.title}"`,
-              message: j.admin_note || 'Admin requested updates before publishing.',
-              time: j.created_at ? new Date(j.created_at).toLocaleDateString('en-IN') : 'Recent',
-              read: false,
-              actionType: 'jobs',
-              actionLabel: 'Revise',
-            });
-          } else if ((j.status === 'approved' || j.status === 'active') && !notifList.some(n => n.id === `notif_job_${j.id}_active`)) {
-            notifList.push({
-              id: `notif_job_${j.id}_active`,
-              type: 'job_approved',
-              title: `Requisition Live: "${j.title}" ??`,
-              message: 'Your job passed Sevikaa verification and is now active.',
-              time: j.created_at ? new Date(j.created_at).toLocaleDateString('en-IN') : 'Recent',
-              read: true,
-              actionType: 'jobs',
-              actionLabel: 'View',
-            });
-          }
+        if (dbJobs && dbJobs.length > 0) {
+          dbJobs.forEach((j: any) => {
+            if (j.status === 'changes_requested' && !notifList.some(n => n.id === `notif_job_${j.id}_changes`)) {
+              notifList.push({
+                id: `notif_job_${j.id}_changes`,
+                type: 'changes_requested',
+                title: `Action Required: "${j.title}"`,
+                message: j.admin_note || 'Admin requested updates before publishing.',
+                time: j.created_at ? new Date(j.created_at).toLocaleDateString('en-IN') : 'Recent',
+                read: false,
+                actionType: 'jobs',
+                actionLabel: 'Revise',
+              });
+            } else if ((j.status === 'approved' || j.status === 'active') && !notifList.some(n => n.id === `notif_job_${j.id}_active`)) {
+              notifList.push({
+                id: `notif_job_${j.id}_active`,
+                type: 'job_approved',
+                title: `Requisition Live: "${j.title}" 🟢`,
+                message: 'Your job passed Sevikaa verification and is now active.',
+                time: j.created_at ? new Date(j.created_at).toLocaleDateString('en-IN') : 'Recent',
+                read: true,
+                actionType: 'jobs',
+                actionLabel: 'View',
+              });
+            }
 
-          if (j.applicationsCount > 0 && !notifList.some(n => n.id === `notif_job_${j.id}_apps`)) {
-            notifList.push({
-              id: `notif_job_${j.id}_apps`,
-              type: 'new_applicant',
-              title: `${j.applicationsCount} Applicants for "${j.title}"`,
-              message: `${j.applicationsCount} verified candidates applied.`,
-              time: 'Recent',
-              read: false,
-              actionType: 'workers',
-              actionLabel: 'Review',
-            });
-          }
-        });
-      }
+            if ((j.applicant_count || j.applicationsCount) > 0 && !notifList.some(n => n.id === `notif_job_${j.id}_apps`)) {
+              notifList.push({
+                id: `notif_job_${j.id}_apps`,
+                type: 'new_applicant',
+                title: `${j.applicant_count || j.applicationsCount} Applicants for "${j.title}"`,
+                message: `${j.applicant_count || j.applicationsCount} verified candidates applied.`,
+                time: 'Recent',
+                read: false,
+                actionType: 'workers',
+                actionLabel: 'Review',
+              });
+            }
+          });
+        }
+      } catch (e) {}
 
     } catch (e) {
       console.warn('Employer notif error:', e);

@@ -80,16 +80,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
 
   const fetchSession = async () => {
     try {
-      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-      if (isPlaceholder) {
-        setUser({ id: 'emp_demo', email: 'lakhan.sah@gmail.com' });
-        setLoading(false);
-        return;
-      }
-
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
       let activeUser: any = session?.user;
 
       if (!activeUser && typeof window !== 'undefined') {
@@ -179,11 +170,15 @@ export default function EmployerDashboardLayout({ children }: { children: React.
           });
 
           // Check if onboarding is pending or incomplete
-          const isComplete = empProf?.society_name && empProf?.company_name && empProf?.company_name !== 'Employer Profile' && empProf?.company_name !== 'Employer';
-          const isPendingStatus = empProf?.status === 'onboarding_pending' || profileData?.status === 'onboarding_pending';
+          // IMPORTANT: Only redirect to onboarding if empProf was explicitly loaded.
+          // If empProf is null because API failed, don't redirect — let them into the dashboard.
+          if (empProf) {
+            const isComplete = empProf.society_name && empProf.company_name && empProf.company_name !== 'Employer Profile' && empProf.company_name !== 'Employer';
+            const isPendingStatus = empProf.status === 'onboarding_pending' || profileData?.status === 'onboarding_pending';
 
-          if ((!isComplete || isPendingStatus) && pathname !== '/employer/onboarding') {
-            router.push('/employer/onboarding');
+            if ((!isComplete || isPendingStatus) && pathname !== '/employer/onboarding') {
+              router.push('/employer/onboarding');
+            }
           }
         }
       }

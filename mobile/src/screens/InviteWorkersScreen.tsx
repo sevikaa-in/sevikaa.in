@@ -41,29 +41,27 @@ export const InviteWorkersScreen: React.FC<InviteWorkersScreenProps> = ({
   const fetchLiveWorkers = async () => {
     setLoading(true);
     try {
-      // Strictly fetch Live & Approved workers from Supabase database
-      const { data: dbWorkers } = await supabase
-        .from('worker_profiles')
-        .select('*')
-        .or('status.eq.live,status.eq.approved')
-        .order('created_at', { ascending: false });
-
-      if (dbWorkers) {
-        setWorkersList(dbWorkers.map((w: any) => ({
+      const { apiClient } = await import('../services/apiClient');
+      const data = await apiClient.get('/api/employer/workers');
+      if (data && Array.isArray(data.workers)) {
+        setWorkersList(data.workers.map((w: any) => ({
           id: w.user_id || w.id,
           full_name: w.full_name || 'Verified Helper',
           category: Array.isArray(w.skills) && w.skills[0] ? w.skills[0] : (w.category || 'Cook'),
           skills: Array.isArray(w.skills) ? w.skills : [w.category || 'Cook'],
-          experience_years: (w.experience_years !== undefined && w.experience_years !== null) ? w.experience_years : (w.experience !== undefined && w.experience !== null ? Number(w.experience) : 0),
+          experience_years: (w.experience_years !== undefined && w.experience_years !== null) ? w.experience_years : 2,
           expected_salary: w.expected_salary || 14000,
-          preferred_society_name: w.preferred_society_name || w.society || 'Gated Society',
+          preferred_society_name: w.preferred_society_name || w.primary_gated_society || 'Gated Society',
           rating: w.rating || 4.9,
           total_reviews: w.total_reviews || 12,
           is_police_verified: w.is_police_verified ?? true
         })));
+      } else {
+        setWorkersList([]);
       }
     } catch (err) {
       console.warn("Fetch live workers notice:", err);
+      setWorkersList([]);
     } finally {
       setLoading(false);
     }

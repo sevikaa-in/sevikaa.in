@@ -261,7 +261,7 @@ export const WorkerProfileScreen: React.FC<{
       if (activeUserId || activePhone || activeEmail) {
         try {
           const { apiClient } = await import('../../services/apiClient');
-          const apiData = await apiClient.get('api/auth/me');
+          const apiData = await apiClient.get('/api/auth/me');
           if (apiData && apiData.success) {
             prof = apiData.profile;
             wp = apiData.workerProfile;
@@ -269,30 +269,6 @@ export const WorkerProfileScreen: React.FC<{
         } catch (apiErr) {
           console.warn("API profile fetch notice:", apiErr);
         }
-      }
-
-      // 2. Fallback to direct Supabase client query
-      if (!prof && activeUserId) {
-        const { data: clientProf } = await supabase
-          .from('profiles')
-          .select('*, worker_profiles(*)')
-          .eq('id', activeUserId)
-          .maybeSingle();
-
-        if (clientProf) {
-          prof = clientProf;
-          wp = prof.worker_profiles;
-          if (Array.isArray(wp)) wp = wp[0];
-        }
-      }
-
-      if (!wp && activeUserId) {
-        const { data: directWp } = await supabase
-          .from('worker_profiles')
-          .select('*')
-          .eq('user_id', activeUserId)
-          .maybeSingle();
-        if (directWp) wp = directWp;
       }
 
       if (prof || wp || activeUser) {

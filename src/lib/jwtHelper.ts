@@ -6,7 +6,7 @@ import crypto from 'crypto';
  * Strictly requires SUPABASE_JWT_SECRET.
  */
 export function signSupabaseJwt(userId: string, email?: string, phone?: string, userRole = 'worker'): string {
-  const secret = process.env.SUPABASE_JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_jwt_secret_must_be_configured_32_bytes' : undefined);
+  const secret = process.env.SUPABASE_JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'sevikaa_dev_jwt_secret_32_bytes_minimum_length_required' : undefined);
   if (!secret) {
     throw new Error('CRITICAL: SUPABASE_JWT_SECRET environment variable is missing.');
   }
@@ -48,7 +48,7 @@ export function signSupabaseJwt(userId: string, email?: string, phone?: string, 
  * Used exclusively for completing worker onboarding. Cannot be used for normal APIs.
  */
 export function signOnboardingJwt(userId: string, email?: string, phone?: string, userRole = 'worker'): string {
-  const secret = process.env.SUPABASE_JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_jwt_secret_must_be_configured_32_bytes' : undefined);
+  const secret = process.env.SUPABASE_JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'sevikaa_dev_jwt_secret_32_bytes_minimum_length_required' : undefined);
   if (!secret) {
     throw new Error('CRITICAL: SUPABASE_JWT_SECRET environment variable is missing.');
   }
@@ -91,7 +91,7 @@ export function signOnboardingJwt(userId: string, email?: string, phone?: string
 export function verifyOnboardingJwt(token: string): { userId: string; role: string; email?: string; phone?: string; purpose: string } | null {
   if (!token) return null;
 
-  const secret = process.env.SUPABASE_JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_jwt_secret_must_be_configured_32_bytes' : undefined);
+  const secret = process.env.SUPABASE_JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'sevikaa_dev_jwt_secret_32_bytes_minimum_length_required' : undefined);
   if (!secret) return null;
 
   try {

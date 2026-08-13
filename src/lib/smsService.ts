@@ -38,6 +38,11 @@ export interface SMSProvider {
   }): Promise<{ success: boolean; messageId?: string; error?: string }>;
 }
 
+export function isMockNotificationsAllowed(): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
+  return process.env.ENABLE_MOCK_NOTIFICATIONS === 'true' || process.env.ALLOW_MOCK_NOTIFICATIONS === 'true';
+}
+
 /**
  * AWS Provider utilizing AWS End User Messaging (via AWS SNS SDK)
  * Incorporates Indian DLT metadata parameters via PublishCommand MessageAttributes.
@@ -57,8 +62,11 @@ export class AWSProvider implements SMSProvider {
                          awsSecretKey && !awsSecretKey.includes('placeholder');
 
     if (!isConfigured) {
-      console.log(`[AWS MOCK SMS] Dispatching to ${params.phoneNumber}: "${params.message}" (DLT: ${params.dltTemplateId || 'none'}, SenderID: ${params.senderId || 'SEVKAA'})`);
-      return { success: true, messageId: `mock-aws-id-${Date.now()}` };
+      if (isMockNotificationsAllowed()) {
+        console.log(`[AWS MOCK SMS] Dispatching to ${params.phoneNumber}: "${params.message}" (DLT: ${params.dltTemplateId || 'none'}, SenderID: ${params.senderId || 'SEVKAA'})`);
+        return { success: true, messageId: `mock-aws-id-${Date.now()}` };
+      }
+      return { success: false, error: 'AWS SMS provider credentials missing or unconfigured' };
     }
 
     try {
@@ -127,8 +135,11 @@ export class MSG91Provider implements SMSProvider {
     const isConfigured = authKey && !authKey.includes('placeholder');
 
     if (!isConfigured) {
-      console.log(`[MSG91 MOCK SMS] Dispatching to ${params.phoneNumber}: "${params.message}" (DLT: ${params.dltTemplateId || 'none'}, SenderID: ${params.senderId || 'SEVKAA'})`);
-      return { success: true, messageId: `mock-msg91-id-${Date.now()}` };
+      if (isMockNotificationsAllowed()) {
+        console.log(`[MSG91 MOCK SMS] Dispatching to ${params.phoneNumber}: "${params.message}" (DLT: ${params.dltTemplateId || 'none'}, SenderID: ${params.senderId || 'SEVKAA'})`);
+        return { success: true, messageId: `mock-msg91-id-${Date.now()}` };
+      }
+      return { success: false, error: 'MSG91 provider credentials missing or unconfigured' };
     }
 
     try {
@@ -230,8 +241,11 @@ export class TwilioProvider implements SMSProvider {
                          authToken && !authToken.includes('placeholder');
 
     if (!isConfigured) {
-      console.log(`[TWILIO MOCK SMS] Dispatching to ${params.phoneNumber}: "${params.message}" (SenderID: ${params.senderId || 'SEVKAA'})`);
-      return { success: true, messageId: `mock-twilio-id-${Date.now()}` };
+      if (isMockNotificationsAllowed()) {
+        console.log(`[TWILIO MOCK SMS] Dispatching to ${params.phoneNumber}: "${params.message}" (SenderID: ${params.senderId || 'SEVKAA'})`);
+        return { success: true, messageId: `mock-twilio-id-${Date.now()}` };
+      }
+      return { success: false, error: 'Twilio provider credentials missing or unconfigured' };
     }
 
     try {
@@ -284,8 +298,11 @@ export class GupshupProvider implements SMSProvider {
                          gupshupPassword && !gupshupPassword.includes('placeholder');
 
     if (!isConfigured) {
-      console.log(`[GUPSHUP MOCK SMS] Dispatching to ${params.phoneNumber}: "${params.message}" (DLT: ${params.dltTemplateId || 'none'})`);
-      return { success: true, messageId: `mock-gupshup-id-${Date.now()}` };
+      if (isMockNotificationsAllowed()) {
+        console.log(`[GUPSHUP MOCK SMS] Dispatching to ${params.phoneNumber}: "${params.message}" (DLT: ${params.dltTemplateId || 'none'})`);
+        return { success: true, messageId: `mock-gupshup-id-${Date.now()}` };
+      }
+      return { success: false, error: 'Gupshup provider credentials missing or unconfigured' };
     }
 
     try {

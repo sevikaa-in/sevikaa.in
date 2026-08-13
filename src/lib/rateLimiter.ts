@@ -102,7 +102,21 @@ export async function checkRateLimitCritical(
   if (redisResult.ok) {
     return redisResult.result;
   }
-  // Redis unavailable — fail closed, no in-memory fallback.
+
+  // In non-production (development/test) environments without Redis, fallback to in-memory limiter
+  if (process.env.NODE_ENV !== 'production') {
+    const now = Date.now();
+    if (!rateLimitStore[identifier] || now > rateLimitStore[identifier].resetTime) {
+      rateLimitStore[identifier] = { count: 1, resetTime: now + windowMs };
+      return { success: true, limit: maxRequests, remaining: maxRequests - 1, resetTime: now + windowMs };
+    }
+    rateLimitStore[identifier].count++;
+    const isSuccess = rateLimitStore[identifier].count <= maxRequests;
+    const remaining = Math.max(0, maxRequests - rateLimitStore[identifier].count);
+    return { success: isSuccess, limit: maxRequests, remaining, resetTime: rateLimitStore[identifier].resetTime };
+  }
+
+  // Production: Redis unavailable — fail closed, no in-memory fallback.
   console.error('[RateLimiter] CRITICAL: Redis unavailable — returning 503 (fail-closed).');
   return {
     success: false,

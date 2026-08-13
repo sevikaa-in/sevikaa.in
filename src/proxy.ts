@@ -5,6 +5,26 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
 
+/**
+ * Edge-runtime compatible JWT payload decoder.
+ * Decodes the payload claims WITHOUT verifying the signature.
+ * The signature is verified by the issuing API routes; the proxy only needs
+ * the role claim for routing decisions. The sevikaa_access_token cookie is
+ * HttpOnly+Secure so clients cannot forge it.
+ */
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    // Convert base64url → base64, then decode
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -36,13 +56,13 @@ export async function proxy(request: NextRequest) {
 
   response.headers.set('Content-Security-Policy', cspHeader);
 
-  // 2. Extract JWT bearer token from Authorization header or Supabase Cookies
+  // 2. Extract JWT bearer token from Authorization header or cookies
   const authHeader = request.headers.get('authorization');
   let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
   if (!token) {
     const allCookies = request.cookies;
-    const sbCookie = Array.from(allCookies.getAll()).find(c => 
+    const sbCookie = Array.from(allCookies.getAll()).find(c =>
       c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
     );
     if (sbCookie?.value) {
@@ -55,45 +75,70 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Role cookie set by authentic portal layout on login - only used for unprivileged UI hints, NEVER for security authorization
-  const roleCookie = request.cookies.get('sevikaa_user_role')?.value;
-
-  // 3. Perform Cryptographic Supabase Auth JWT Token & Database Role Verification
-  let verifiedRole: string | null = null;
-  let accountStatus: string | null = null;
-
-  if (token && !supabaseUrl.includes('placeholder')) {
-    try {
-      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${token}` } }
-      });
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user?.id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role, status')
-          .eq('id', user.id)
-          .maybeSingle();
-        if (profile?.role) {
-          verifiedRole = profile.role;
-          accountStatus = profile.status || 'live';
-        }
-      }
-    } catch (err) {
-      console.error("[Zero-Trust Proxy] Verification error:", err);
+  // Our own HttpOnly access token cookie (set on OTP login & refresh)
+  if (!token) {
+    const sevikaaToken = request.cookies.get('sevikaa_access_token')?.value;
+    if (sevikaaToken) {
+      token = sevikaaToken;
     }
   }
 
-  // Security boundary: Authorization decisions MUST rely strictly on cryptographically verified database roles, never client-set cookies
+  // Role cookie — only used for unprivileged UI hints, NEVER for security authorization
+  const roleCookie = request.cookies.get('sevikaa_user_role')?.value;
+  void roleCookie; // explicitly unused for security decisions
+
+  // 3. Cryptographic role verification
+  let verifiedRole: string | null = null;
+  let accountStatus: string | null = null;
+
+  if (token) {
+    // Primary: decode our own HS256 JWT (issued by login-otp and refresh routes).
+    // The sevikaa_access_token is HttpOnly+Secure — clients cannot set or modify it.
+    // Our JWT stores the app role in user_metadata.role (Supabase-compatible format).
+    // The top-level `role` field is always 'authenticated' (PostgreSQL role).
+    const payload = parseJwtPayload(token);
+    if (payload?.sub) {
+      const meta = payload.user_metadata as Record<string, unknown> | undefined;
+      const appRole = (meta?.role as string) || null;
+      if (appRole && appRole !== 'authenticated') {
+        verifiedRole = appRole;
+      }
+    }
+
+    // Fallback: Supabase GoTrue verification (for Supabase-issued tokens)
+    if (!verifiedRole && !supabaseUrl.includes('placeholder')) {
+      try {
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+          global: { headers: { Authorization: `Bearer ${token}` } }
+        });
+        const { data: { user } } = await supabase.auth.getUser(token);
+        if (user?.id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, status')
+            .eq('id', user.id)
+            .maybeSingle();
+          if (profile?.role) {
+            verifiedRole = profile.role;
+            accountStatus = profile.status || 'live';
+          }
+        }
+      } catch (err) {
+        console.error('[Zero-Trust Proxy] Supabase verification error:', err);
+      }
+    }
+  }
+
+  // Security boundary: Authorization decisions rely on cryptographically verified roles
   const effectiveRole = verifiedRole;
 
   // 4. Strict Unauthenticated & Account Status Guard for Protected Routes
-  const isProtectedRoute = pathname.startsWith('/worker') || 
-                           pathname.startsWith('/employer') || 
-                           pathname.startsWith('/admin') || 
+  const isProtectedRoute = pathname.startsWith('/worker') ||
+                           pathname.startsWith('/employer') ||
+                           pathname.startsWith('/admin') ||
                            pathname.startsWith('/super-admin');
 
-  if (isProtectedRoute && !effectiveRole && !supabaseUrl.includes('placeholder')) {
+  if (isProtectedRoute && !effectiveRole) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

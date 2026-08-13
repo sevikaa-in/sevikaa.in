@@ -77,17 +77,21 @@ export async function POST(req: NextRequest) {
 
       // Persist hashed OTP in DB — table created via migration 20260810000002
       try {
-        // Check send rate limit: max 3 sends per hour per target
+        // Check send rate limit: max 5 sends per 15 minutes per target (window starts from 1st OTP)
         const rateRes = await queryDb(
           `SELECT send_count, last_sent_at FROM public.otp_verifications WHERE target_key = $1`,
           [targetKey]
         );
         const existing = rateRes?.rows?.[0];
         if (existing) {
-          const lastSentAt = existing.last_sent_at ? new Date(existing.last_sent_at).getTime() : 0;
-          const withinHour = Date.now() - lastSentAt < 60 * 60 * 1000;
-          if (withinHour && (existing.send_count || 0) >= 3) {
-            return NextResponse.json({ error: 'Too many OTP requests. Please wait before requesting another code.' }, { status: 429 });
+          const windowStartAt = existing.last_sent_at ? new Date(existing.last_sent_at).getTime() : 0;
+          const elapsedMs = Date.now() - windowStartAt;
+          const withinWindow = elapsedMs < 15 * 60 * 1000; // 15 minutes
+          if (withinWindow && (existing.send_count || 0) >= 5) {
+            const minutesLeft = Math.max(1, Math.ceil((15 * 60 * 1000 - elapsedMs) / 60000));
+            return NextResponse.json({
+              error: `Too many OTP requests. Maximum 5 OTPs allowed per 15 minutes. Please try again in ${minutesLeft} minute(s).`
+            }, { status: 429 });
           }
         }
 
@@ -100,11 +104,15 @@ export async function POST(req: NextRequest) {
                attempt_count = 0,
                consumed_at = NULL,
                send_count = CASE
-                 WHEN EXTRACT(EPOCH FROM (NOW() - public.otp_verifications.last_sent_at)) > 3600
+                 WHEN EXTRACT(EPOCH FROM (NOW() - public.otp_verifications.last_sent_at)) > 900
                  THEN 1
                  ELSE public.otp_verifications.send_count + 1
                END,
-               last_sent_at = NOW()`,
+               last_sent_at = CASE
+                 WHEN EXTRACT(EPOCH FROM (NOW() - public.otp_verifications.last_sent_at)) > 900
+                 THEN NOW()
+                 ELSE public.otp_verifications.last_sent_at
+               END`,
           [targetKey, otpHash, expiresAtMs]
         );
 
@@ -162,7 +170,7 @@ export async function POST(req: NextRequest) {
            WHERE target_key = $1
              AND otp_hash = $2
              AND consumed_at IS NULL
-             AND expires_at > NOW()
+             AND (expires_at > (EXTRACT(EPOCH FROM NOW()) * 1000))
              AND (attempt_count IS NULL OR attempt_count < 5)
            RETURNING target_key`,
           [targetKey, submittedHash]
@@ -423,31 +431,8 @@ export async function POST(req: NextRequest) {
 
       } else if (effectiveRole === 'employer') {
         const empName = displayFullName || 'Employer Household';
-        try {
-          await queryDb(
-            `INSERT INTO public.employer_profiles (id, user_id, name, company_name, created_at)
-             VALUES ($1, $1, $2, $2, NOW())
-             ON CONFLICT (id) DO UPDATE
-             SET user_id = EXCLUDED.user_id,
-                 name = COALESCE(public.employer_profiles.name, EXCLUDED.name),
-                 company_name = COALESCE(public.employer_profiles.company_name, EXCLUDED.company_name)`,
-            [resolvedUserId, empName]
-          );
-        } catch (epErr: any) {
-          console.error('[login-otp] employer_profiles upsert error:', epErr?.message);
-          if (supabaseAdmin) {
-            try {
-              await supabaseAdmin.from('employer_profiles').upsert({
-                id: resolvedUserId,
-                user_id: resolvedUserId,
-                name: empName,
-                company_name: empName
-              });
-            } catch (sbEpErr) {}
-          }
-        }
 
-        // VERIFY employer_profiles ROW (FAIL CLOSED CASE 8)
+        // 1. Check if employer_profiles row already exists
         let verifiedEp = false;
         try {
           const checkEp = await queryDb(
@@ -458,7 +443,33 @@ export async function POST(req: NextRequest) {
             verifiedEp = true;
           }
         } catch (checkEpErr) {
-          console.error('[login-otp] Employer profile verification query failed:', checkEpErr);
+          console.error('[login-otp] Employer profile check query failed:', checkEpErr);
+        }
+
+        // 2. If employer_profiles does not exist yet, insert it
+        if (!verifiedEp) {
+          try {
+            await queryDb(
+              `INSERT INTO public.employer_profiles (id, user_id, name, company_name, created_at)
+               VALUES ($1, $1, $2, $2, NOW())
+               ON CONFLICT (id) DO UPDATE
+               SET user_id = EXCLUDED.user_id,
+                   name = COALESCE(public.employer_profiles.name, EXCLUDED.name),
+                   company_name = COALESCE(public.employer_profiles.company_name, EXCLUDED.company_name)`,
+              [resolvedUserId, empName]
+            );
+            verifiedEp = true;
+          } catch (epErr: any) {
+            console.error('[login-otp] employer_profiles upsert error:', epErr?.message);
+            // Fallback: check if row was created or exists via user_id
+            const retryEp = await queryDb(
+              `SELECT id FROM public.employer_profiles WHERE user_id = $1 OR id = $1 LIMIT 1`,
+              [resolvedUserId]
+            ).catch(() => null);
+            if (retryEp?.rows?.[0]) {
+              verifiedEp = true;
+            }
+          }
         }
 
         if (!verifiedEp) {
@@ -581,6 +592,16 @@ export async function POST(req: NextRequest) {
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
           maxAge: 7 * 24 * 60 * 60,
+          path: '/'
+        });
+      }
+
+      if (accessToken) {
+        res.cookies.set('sevikaa_access_token', accessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 3600,
           path: '/'
         });
       }

@@ -42,15 +42,26 @@ export async function sendSMS(
     });
 
     // Auto-log SMS dispatch to notification_logs table
-    await logNotificationDispatch({
-      channel: 'sms',
-      provider: 'msg91',
-      recipient: phoneNumber,
-      template_id: templateKey,
-      message_id: result.messageId || `msg91_${Date.now()}`,
-      status: result.success ? 'delivered' : 'failed',
-      description: result.error ? `MSG91 Error: ${result.error}` : `MSG91 SMS dispatched: ${templateKey}`
-    }).catch(() => {});
+    if (result.success) {
+      await logNotificationDispatch({
+        channel: 'sms',
+        provider: 'msg91',
+        recipient: phoneNumber,
+        template_id: templateKey,
+        message_id: result.messageId,
+        status: 'delivered',
+        description: `MSG91 SMS dispatched: ${templateKey}`
+      }).catch(() => {});
+    } else {
+      await logNotificationDispatch({
+        channel: 'sms',
+        provider: 'msg91',
+        recipient: phoneNumber,
+        template_id: templateKey,
+        status: 'failed',
+        description: `MSG91 Error: ${result.error || 'SMS dispatch failed'}`
+      }).catch(() => {});
+    }
 
     return { success: result.success, messageId: result.messageId, error: result.error };
   } catch (err: any) {
@@ -91,22 +102,46 @@ export async function sendEmail(
       return { success: true, messageId: info.messageId };
     } catch (err: any) {
       console.error("Amazon SES SMTP send email error:", err);
+      await logNotificationDispatch({
+        channel: 'email',
+        provider: 'aws_ses',
+        recipient: toEmail,
+        template_id: subject,
+        status: 'failed',
+        description: `AWS SES Email failed: ${err.message || 'SMTP error'}`
+      }).catch(() => {});
+      return { success: false, error: err.message || 'AWS SES SMTP email delivery failed' };
     }
   }
 
-  // Fallback to recording mock dispatch if SMTP credentials are omitted
-  const mockId = `ses_${Date.now()}`;
-  console.log(`[SES EMAIL DISPATCH] To: ${toEmail}\nSubject: "${subject}"`);
+  // Check if explicit mock notifications are allowed in non-production
+  const { isMockNotificationsAllowed } = await import('./smsService');
+  if (isMockNotificationsAllowed()) {
+    const mockId = `mock-ses-id-${Date.now()}`;
+    console.log(`[MOCK SES EMAIL DISPATCH] To: ${toEmail}\nSubject: "${subject}"`);
 
+    await logNotificationDispatch({
+      channel: 'email',
+      provider: 'aws_ses',
+      recipient: toEmail,
+      template_id: subject,
+      message_id: mockId,
+      status: 'delivered',
+      description: `Mock AWS SES Email sent: ${subject}`
+    }).catch(() => {});
+
+    return { success: true, messageId: mockId };
+  }
+
+  console.error("Amazon SES SMTP credentials missing or unconfigured.");
   await logNotificationDispatch({
     channel: 'email',
     provider: 'aws_ses',
     recipient: toEmail,
     template_id: subject,
-    message_id: mockId,
-    status: 'delivered',
-    description: `AWS SES Email sent: ${subject}`
+    status: 'failed',
+    description: 'AWS SES SMTP credentials missing'
   }).catch(() => {});
 
-  return { success: true, messageId: mockId };
+  return { success: false, error: 'AWS SES SMTP credentials missing or unconfigured' };
 }

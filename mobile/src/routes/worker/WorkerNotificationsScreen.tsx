@@ -65,27 +65,30 @@ export const WorkerNotificationsScreen: React.FC<{
       }
 
       // 2. Profile verification status
-      const { data: prof } = await supabase
-        .from('profiles').select('*, worker_profiles(*)').eq('id', activeUserId).maybeSingle();
-      const wp = prof && (Array.isArray(prof.worker_profiles) ? prof.worker_profiles[0] : prof.worker_profiles);
-      const isLive = wp?.status === 'live' || wp?.status === 'approved' || prof?.status === 'approved' || prof?.status === 'live';
+      try {
+        const { apiClient } = await import('../../services/apiClient');
+        const meData = await apiClient.get('/api/auth/me');
+        const prof = meData?.profile;
+        const wp = meData?.workerProfile;
+        const isLive = wp?.status === 'live' || wp?.status === 'approved' || prof?.status === 'approved' || prof?.status === 'live';
 
-      if (!notifList.some(n => n.id === 'notif_w_profile')) {
-        notifList.unshift({
-          id: 'notif_w_profile',
-          type: 'profile_approved',
-          title: isLive ? 'Worker Passport Verified & Live ??' : 'Verification Documents Under Admin Audit ?',
-          message: isLive
-            ? 'Your profile passed Aadhaar & background audit. Employers can now view and contact you.'
-            : 'Sevikaa officers are checking your Aadhaar & profile details. Approval within 24 hrs.',
-          time: 'Status',
-          read: isLive,
-          actionType: 'profile',
-          actionLabel: 'View Passport',
-        });
-      }
+        if (!notifList.some(n => n.id === 'notif_w_profile')) {
+          notifList.unshift({
+            id: 'notif_w_profile',
+            type: 'profile_approved',
+            title: isLive ? 'Worker Passport Verified & Live 🟢' : 'Verification Documents Under Admin Audit ⏳',
+            message: isLive
+              ? 'Your profile passed Aadhaar & background audit. Employers can now view and contact you.'
+              : 'Sevikaa officers are checking your Aadhaar & profile details. Approval within 24 hrs.',
+            time: 'Status',
+            read: isLive,
+            actionType: 'profile',
+            actionLabel: 'View Passport',
+          });
+        }
+      } catch (e) {}
 
-      // 3. Interview invites from real applications
+      // 3. Interview invites from real applications (Leave direct query for missing API endpoint: GET /api/worker/applications)
       const { data: dbApps } = await supabase
         .from('job_applications').select('*, jobs(*)').eq('worker_id', activeUserId);
 
@@ -107,21 +110,25 @@ export const WorkerNotificationsScreen: React.FC<{
         });
       }
 
-      // 4. Nearby jobs (real only)
-      const { count: jobCount } = await supabase
-        .from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'active');
-      if (jobCount && jobCount > 0 && !notifList.some(n => n.id === 'notif_w_jobs')) {
-        notifList.push({
-          id: 'notif_w_jobs',
-          type: 'job_match',
-          title: `${jobCount} Job Requisitions Nearby`,
-          message: `${jobCount} active household requisitions open in your area.`,
-          time: 'Live',
-          read: true,
-          actionType: 'jobs',
-          actionLabel: 'Explore Jobs',
-        });
-      }
+      // 4. Nearby jobs
+      try {
+        const { apiClient } = await import('../../services/apiClient');
+        const jobsData = await apiClient.get('/api/worker/jobs');
+        const jobCount = jobsData?.count || (Array.isArray(jobsData?.jobs) ? jobsData.jobs.length : 0);
+
+        if (jobCount && jobCount > 0 && !notifList.some(n => n.id === 'notif_w_jobs')) {
+          notifList.push({
+            id: 'notif_w_jobs',
+            type: 'job_match',
+            title: `${jobCount} Job Requisitions Nearby`,
+            message: `${jobCount} active household requisitions open in your area.`,
+            time: 'Live',
+            read: true,
+            actionType: 'jobs',
+            actionLabel: 'Explore Jobs',
+          });
+        }
+      } catch (e) {}
 
     } catch (e) {
       console.warn('Worker notif error:', e);

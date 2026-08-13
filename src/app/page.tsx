@@ -127,7 +127,7 @@ export default function Home() {
         setView(stepParam === 'login' ? 'login' : 'language');
       } else if (roleParam === 'employer') {
         setTargetRole('employer');
-        setView('login');
+        setView(stepParam === 'login' ? 'login' : 'language');
       }
     }
   }, [searchParams]);
@@ -136,116 +136,64 @@ export default function Home() {
   useEffect(() => {
     const initializeSession = async () => {
       try {
-        const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                              !process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const currentSearch = typeof window !== 'undefined' ? window.location.search : '';
+        const currentParams = new URLSearchParams(currentSearch);
+        const isBrowsing = currentParams.get('browse') === 'true' || currentParams.get('mode') === 'public';
 
-        if (isPlaceholder) {
+        if (isBrowsing) {
           setView('landing');
           setLoading(false);
           return;
         }
 
-        // Live Supabase check
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          setUser({
-            id: session.user.id,
-            email: session.user.email,
-            phone: session.user.phone
-          });
+        // Fetch user profile via server API using webApiClient
+        try {
+          const { webApiClient } = await import('@/lib/webApiClient');
+          const meData = await webApiClient.get('/api/auth/me');
+          if (meData && meData.success && (meData.profile || meData.user)) {
+            const userObj = meData.user || meData.profile;
+            setUser({ id: userObj.id, email: userObj.email, phone: userObj.phone });
+            const dbRole = userObj.role;
 
-          // If user explicitly navigated to browse public homepage
-          const searchParams = new URLSearchParams(window.location.search);
-          const isBrowsing = searchParams.get('browse') === 'true' || searchParams.get('mode') === 'public';
-
-          if (isBrowsing) {
-            setView('landing');
-            setLoading(false);
-            return;
-          }
-
-          // Fetch user profile via server API using webApiClient
-          let profile: any = null;
-          try {
-            const { webApiClient } = await import('@/lib/webApiClient');
-            const meData = await webApiClient.get('/api/auth/me');
-            if (meData && meData.success && meData.profile) {
-              profile = meData.profile;
-              const dbRole = meData.profile.role;
-              if (dbRole === 'super-admin') {
-                if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=2592000; SameSite=Lax`;
-                router.push('/super-admin/dashboard');
-                return;
-              }
-              if (dbRole === 'admin') {
-                if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=2592000; SameSite=Lax`;
-                router.push('/admin/dashboard');
-                return;
-              }
-              if (dbRole === 'employer' || meData.employerProfile) {
-                if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=2592000; SameSite=Lax`;
-                router.push('/employer');
-                return;
-              }
-              if (dbRole === 'worker' || meData.workerProfile) {
-                if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=2592000; SameSite=Lax`;
-                router.push('/worker');
-                return;
-              }
+            if (dbRole === 'super-admin') {
+              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=2592000; SameSite=Lax`;
+              router.push('/super-admin/dashboard');
+              return;
             }
-          } catch (meErr) {
-            console.warn("Auth me fetch notice:", meErr);
-          }
-
-          // Check Admin / Super Admin roles
-          if (profile?.role === 'super-admin') {
-            router.push('/super-admin/dashboard');
-            return;
-          }
-          if (profile?.role === 'admin') {
-            router.push('/admin/dashboard');
-            return;
-          }
-
-          // 1. Check existing employer_profiles
-          const employerProfile = await findEmployerProfile(session.user.id, session.user.phone, session.user.email);
-          if (employerProfile) {
-            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=2592000; SameSite=Lax`;
-            router.push('/employer');
-            return;
-          }
-
-          // 2. Check existing worker_profiles
-          const workerProfile = await findWorkerProfile(session.user.id, session.user.phone, session.user.email);
-          if (workerProfile) {
-            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=2592000; SameSite=Lax`;
-            router.push('/worker');
-            return;
-          }
-
-          // 4. Brand-new user with no completed sub-profile: route to role & onboarding method selection
-          setView('new-user-role-select');
-        } else {
-          setView('landing');
-          const searchParams = new URLSearchParams(window.location.search);
-          const roleParam = searchParams.get('role');
-          const stepParam = searchParams.get('step');
-          const numericStep = parseInt(stepParam || '');
-          if (roleParam === 'worker') {
-            setTargetRole('worker');
-            if (stepParam === 'login' || stepParam === 'language') {
-              setView(stepParam === 'login' ? 'login' : 'language');
-            } else if (!isNaN(numericStep) && numericStep >= 1) {
-              // Numeric step → user was in worker funnel, send to login
-              setView('login');
-            } else {
-              setView('language');
+            if (dbRole === 'admin') {
+              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=2592000; SameSite=Lax`;
+              router.push('/admin/dashboard');
+              return;
             }
-          } else if (roleParam === 'employer') {
-            setTargetRole('employer');
-            setView('login');
+            if (dbRole === 'employer' || meData.employerProfile) {
+              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=2592000; SameSite=Lax`;
+              router.push('/employer');
+              return;
+            }
+            if (dbRole === 'worker' || meData.workerProfile) {
+              if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=2592000; SameSite=Lax`;
+              router.push('/worker');
+              return;
+            }
+
+            // User exists in profiles table but has no sub-profile yet
+            setView('new-user-role-select');
+            return;
           }
+        } catch (meErr) {
+          console.warn("Auth me fetch notice:", meErr);
+        }
+
+        // Unauthenticated visitor -> check URL parameters
+        setView('landing');
+        const roleParam = currentParams.get('role');
+        const stepParam = currentParams.get('step');
+        if (roleParam === 'worker') {
+          setTargetRole('worker');
+          setView(stepParam === 'login' ? 'login' : 'language');
+        } else if (roleParam === 'employer') {
+          setTargetRole('employer');
+          setView(stepParam === 'login' ? 'login' : 'language');
         }
       } catch (err) {
         console.error("Session initialize error:", err);
@@ -265,8 +213,8 @@ export default function Home() {
 
   const handleStartEmployerFlow = () => {
     setTargetRole('employer');
-    setView('login'); // Skip language selector for employers
-    window.history.pushState({}, '', '?role=employer&step=login');
+    setView('language');
+    window.history.pushState({}, '', '?role=employer&step=language');
   };
 
   const handleBackToLanding = () => {
@@ -288,24 +236,33 @@ export default function Home() {
     }
 
     try {
-      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-      if (isPlaceholder) {
-        setView(targetRole === 'worker' ? 'worker-funnel' : 'employer-funnel');
-        setLoading(false);
-        return;
-      }
-
-      // 1. TOP PRIORITY: Check Super Admin & Admin roles directly from verified user object!
+      // 1. TOP PRIORITY: Direct role-based redirection to dashboards!
       if (userRole === 'super-admin') {
-        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400`;
-        router.push('/super-admin/dashboard');
+        if (typeof window !== 'undefined') {
+          document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400`;
+          window.location.href = '/super-admin/dashboard';
+        }
         return;
       }
       if (userRole === 'admin') {
-        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400`;
-        router.push('/admin/dashboard');
+        if (typeof window !== 'undefined') {
+          document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400`;
+          window.location.href = '/admin/dashboard';
+        }
+        return;
+      }
+      if (userRole === 'employer') {
+        if (typeof window !== 'undefined') {
+          document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
+          window.location.href = '/employer';
+        }
+        return;
+      }
+      if (userRole === 'worker') {
+        if (typeof window !== 'undefined') {
+          document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
+          window.location.href = '/worker';
+        }
         return;
       }
 
@@ -457,7 +414,8 @@ export default function Home() {
             <LanguageSelector 
               onNext={() => {
                 setView('login');
-                window.history.pushState({}, '', '?role=worker&step=login');
+                const currentRole = targetRole || 'worker';
+                window.history.pushState({}, '', `?role=${currentRole}&step=login`);
               }} 
               onBack={handleBackToLanding}
             />
@@ -465,12 +423,9 @@ export default function Home() {
           {view === 'login' && (
             <OtpLogin 
               onBack={() => {
-                if (targetRole === 'worker') {
-                  setView('language');
-                  window.history.pushState({}, '', '?role=worker&step=language');
-                } else {
-                  handleBackToLanding();
-                }
+                setView('language');
+                const currentRole = targetRole || 'worker';
+                window.history.pushState({}, '', `?role=${currentRole}&step=language`);
               }} 
               onSuccess={handleLoginSuccess} 
               role={targetRole}

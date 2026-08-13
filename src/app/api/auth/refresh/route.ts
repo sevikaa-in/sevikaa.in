@@ -127,6 +127,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (rotationResult.access_token) {
+      response.cookies.set('sevikaa_access_token', rotationResult.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 3600,
+        path: '/'
+      });
+    }
+
     return response;
   } catch (err: any) {
     console.error('[auth/refresh] Server error:', err?.message);
