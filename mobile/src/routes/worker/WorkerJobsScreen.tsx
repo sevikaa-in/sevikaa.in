@@ -48,33 +48,15 @@ export const WorkerJobsScreen: React.FC<{
   const fetchJobs = async () => {
     setLoading(true);
     let fetched: any[] = [];
-
-    // 1. Query Supabase jobs table
     try {
-      const { data: dbJobs } = await supabase
-        .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(40);
-
-      if (dbJobs && dbJobs.length > 0) {
-        fetched = dbJobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
+      const { apiClient } = await import('../../services/apiClient');
+      const data = await apiClient.get('/api/worker/jobs?limit=40');
+      if (data && Array.isArray(data.jobs) && data.jobs.length > 0) {
+        fetched = data.jobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
       }
-    } catch (err) {
-      console.warn('Supabase jobs fetch notice:', err);
+    } catch (e) {
+      console.warn("Failed to fetch worker jobs:", e);
     }
-
-    // 2. Fetch via authenticated Sevikaa API route
-    if (fetched.length === 0) {
-      try {
-        const { apiClient } = await import('../../services/apiClient');
-        const data = await apiClient.get('api/worker/jobs?limit=40');
-        if (data && Array.isArray(data.jobs) && data.jobs.length > 0) {
-          fetched = data.jobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
-        }
-      } catch (e) {}
-    }
-
     setJobs(fetched);
     setLoading(false);
   };

@@ -40,60 +40,24 @@ export const EmployerWorkersScreen: React.FC = () => {
   const fetchCandidates = async () => {
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id;
-
-      // 1. Query Real Applications submitted to this employer's jobs
-      const { data: dbApps } = await supabase
-        .from('job_applications')
-        .select('*, worker:profiles(*), job:jobs(*)')
-        .order('created_at', { ascending: false });
-
-      if (dbApps && dbApps.length > 0) {
-        setCandidates(dbApps.map((a: any) => ({
-          id: a.worker_id || a.id,
-          full_name: a.worker?.full_name || a.worker_name || 'Verified Helper Candidate',
-          category: a.job?.category || 'Cook',
-          skills: [a.job?.category || 'Cook', 'Housekeeping'],
-          experience_years: 3,
-          rating: 4.9,
-          total_reviews: 12,
-          expected_salary: a.job?.salary_offered || a.job?.salary || 15000,
-          preferred_society_name: a.job?.society_name || employerProfile?.society_name || 'DLF Westend Heights',
-          is_police_verified: true,
-          appliedForJob: a.job?.title || 'Household Job Requisition',
-          appliedTime: a.created_at ? `Applied ${new Date(a.created_at).toLocaleDateString('en-IN')}` : 'Recently Applied',
-          phone: a.worker?.phone || '+91 98765 43210',
-          bio: 'Experienced, punctual and background-verified domestic helper.'
-        })));
-        setLoading(false);
-        return;
-      }
-
-      // 2. Fallback: Fetch Live & Approved Verified Worker Profiles
-      const { data: dbWorkers } = await supabase
-        .from('worker_profiles')
-        .select('*')
-        .or('status.eq.live,status.eq.approved')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (dbWorkers && dbWorkers.length > 0) {
-        setCandidates(dbWorkers.map((w: any) => ({
+      const { apiClient } = await import('../../services/apiClient');
+      const data = await apiClient.get('/api/employer/workers');
+      if (data && Array.isArray(data.workers)) {
+        setCandidates(data.workers.map((w: any) => ({
           id: w.user_id || w.id,
           full_name: w.full_name || 'Verified Helper',
           category: Array.isArray(w.skills) && w.skills[0] ? w.skills[0] : (w.category || 'Cook'),
-          skills: Array.isArray(w.skills) ? w.skills : [w.category || 'Cook'],
-          experience_years: (w.experience_years !== undefined && w.experience_years !== null) ? w.experience_years : (w.experience !== undefined && w.experience !== null ? Number(w.experience) : 2),
-          total_reviews: w.total_reviews || 14,
-          rating: w.rating || 4.9,
+          skills: w.skills || ['Housekeeping'],
+          experience_years: w.experience_years || 2,
+          rating: w.rating || 4.8,
+          total_reviews: w.total_reviews || 8,
           expected_salary: w.expected_salary || 14000,
-          preferred_society_name: w.preferred_society_name || w.society || 'Adarsh Palm Retreat',
+          preferred_society_name: w.preferred_society_name || w.primary_gated_society || 'DLF Westend Heights',
           is_police_verified: w.is_police_verified ?? true,
-          appliedForJob: 'Verified Society Candidate',
+          appliedForJob: 'Verified Candidate',
           appliedTime: 'Active Candidate',
-          bio: w.bio || 'Experienced household cook & housekeeping candidate.',
-          phone: w.phone || '+91 98765 43210'
+          bio: w.bio || 'Experienced household worker candidate.',
+          phone: w.phone || ''
         })));
       } else {
         setCandidates([]);

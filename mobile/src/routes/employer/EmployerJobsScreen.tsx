@@ -41,47 +41,18 @@ export const EmployerJobsScreen: React.FC<{
   const fetchJobs = async () => {
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id || user?.id;
-
-      if (activeUserId) {
-        // Query ONLY jobs posted by this specific employer
-        const { data: dbJobs, error: fetchErr } = await supabase
-          .from('jobs')
-          .select('*')
-          .or(`employer_id.eq.${activeUserId},created_by.eq.${activeUserId},user_id.eq.${activeUserId}`)
-          .order('created_at', { ascending: false });
-
-        if (!fetchErr && dbJobs && dbJobs.length > 0) {
-          setJobs(dbJobs);
-
-          // Count inbound applications for these jobs
-          const jobIds = dbJobs.map(j => j.id);
-          if (jobIds.length > 0) {
-            const { count } = await supabase
-              .from('job_applications')
-              .select('*', { count: 'exact', head: true })
-              .in('job_id', jobIds);
-            setInboundAppsCount(count || 0);
-          } else {
-            setInboundAppsCount(0);
-          }
-
-          setLoading(false);
-          return;
-        }
-      }
-
       const { apiClient } = await import('../../services/apiClient');
-      const data = await apiClient.get('api/employer/jobs?limit=50');
+      const data = await apiClient.get('/api/employer/jobs?limit=50');
       if (data && Array.isArray(data.jobs)) {
         setJobs(data.jobs);
+        const totalApps = data.jobs.reduce((acc: number, j: any) => acc + (Number(j.applicant_count) || 0), 0);
+        setInboundAppsCount(totalApps);
       }
     } catch (e) {
-      console.warn("Employer jobs fetch notice:", e);
+      console.warn("Failed to fetch employer jobs:", e);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const liveJobs = jobs.filter(j => j.status === 'active' || j.status === 'approved' || j.status === 'live');

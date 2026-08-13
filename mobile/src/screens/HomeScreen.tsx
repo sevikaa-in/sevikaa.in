@@ -52,73 +52,49 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Session / Employer Profile
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id) {
-        const { data: empProf } = await supabase
-          .from('employer_profiles')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
+      const { apiClient } = await import('../services/apiClient');
 
-        if (empProf) {
+      // 1. Fetch Employer Profile
+      try {
+        const meData = await apiClient.get('/api/auth/me');
+        if (meData && meData.profile) {
           setEmployerProfile({
-            ...empProf,
-            company_name: empProf.company_name || empProf.name || empProf.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Employer Household'
+            ...meData.profile,
+            company_name: meData.profile.company_name || meData.profile.name || meData.profile.full_name || 'Employer Household'
           });
-        } else if (session.user?.user_metadata) {
-          setEmployerProfile((prev: any) => ({
-            ...prev,
-            company_name: session.user.user_metadata.full_name || session.user.user_metadata.name || 'Employer Household'
-          }));
         }
-      }
+      } catch (e) {}
 
-      // 2. Fetch Total Worker Count
-      const { count } = await supabase
-        .from('worker_profiles')
-        .select('*', { count: 'exact', head: true });
+      // 2. Fetch Candidates from Sevikaa API
+      try {
+        const workerData = await apiClient.get('/api/employer/workers');
+        if (workerData && Array.isArray(workerData.workers)) {
+          setTotalWorkersCount(workerData.workers.length);
+          setCandidates(workerData.workers.map((w: any) => ({
+            id: w.id || w.user_id,
+            full_name: w.full_name || 'Verified Helper',
+            category: Array.isArray(w.skills) && w.skills[0] ? w.skills[0] : (w.category || 'Cook'),
+            skills: Array.isArray(w.skills) ? w.skills : [w.category || 'Cook'],
+            experience_years: w.experience_years || 2,
+            total_reviews: w.total_reviews || 8,
+            rating: w.rating || 4.8,
+            expected_salary: w.expected_salary || 14000,
+            preferred_society_name: w.preferred_society_name || 'Gated Society',
+            is_police_verified: w.is_police_verified ?? true,
+            status: w.status || 'live'
+          })));
+        }
+      } catch (e) {}
 
-      if (count !== null) {
-        setTotalWorkersCount(count);
-      }
-
-      // 3. Fetch Candidates from Supabase (Live & Approved Workers Only)
-      const { data: dbWorkers } = await supabase
-        .from('worker_profiles')
-        .select('*')
-        .or('status.eq.live,status.eq.approved')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (dbWorkers && dbWorkers.length > 0) {
-        setCandidates(dbWorkers.map((w: any) => ({
-          id: w.id || w.user_id,
-          full_name: w.full_name || 'Verified Helper',
-          category: Array.isArray(w.skills) && w.skills[0] ? w.skills[0] : (w.category || 'Cook'),
-          skills: Array.isArray(w.skills) ? w.skills : [w.category || 'Cook'],
-          experience_years: (w.experience_years !== undefined && w.experience_years !== null) ? w.experience_years : (w.experience !== undefined && w.experience !== null ? Number(w.experience) : 0),
-          total_reviews: w.total_reviews || 14,
-          rating: w.rating || 4.9,
-          expected_salary: w.expected_salary || 14000,
-          preferred_society_name: w.preferred_society_name || w.society || employerProfile.society_name || 'Gated Society',
-          is_police_verified: w.is_police_verified ?? true,
-          status: w.status || 'live'
-        })));
-      }
-
-      // 4. Fetch Employer Jobs from Supabase
-      const { data: dbJobs } = await supabase
-        .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      if (dbJobs) {
-        setPostedJobs(dbJobs);
-      }
+      // 3. Fetch Employer Jobs from Sevikaa API
+      try {
+        const jobsData = await apiClient.get('/api/employer/jobs?limit=5');
+        if (jobsData && Array.isArray(jobsData.jobs)) {
+          setPostedJobs(jobsData.jobs);
+        }
+      } catch (e) {}
     } catch (err) {
-      console.warn("Supabase fetch notice:", err);
+      console.warn("API fetch notice:", err);
     } finally {
       setLoading(false);
     }

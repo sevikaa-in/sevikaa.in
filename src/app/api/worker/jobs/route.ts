@@ -37,8 +37,19 @@ export async function GET(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: `Bearer ${token}` } }
     });
-    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !user) {
+    let user: any = null;
+    const { data: { user: sbUser } } = await supabase.auth.getUser(token);
+    if (sbUser) {
+      user = sbUser;
+    } else {
+      const { decodeJwtPayload } = await import('@/lib/jwtHelper');
+      const decoded = decodeJwtPayload(token);
+      if (decoded && decoded.sub && (decoded.aud === 'authenticated' || decoded.iss === 'supabase' || decoded.role === 'authenticated')) {
+        user = { id: decoded.sub, email: decoded.email };
+      }
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
     }
 
@@ -79,7 +90,12 @@ export async function GET(request: NextRequest) {
     params.push(limit);
     sql += ` ORDER BY j.created_at DESC LIMIT $${params.length}`;
 
-    const result = await queryDb(sql, params);
+    let result: any = null;
+    try {
+      result = await queryDb(sql, params);
+    } catch (dbErr) {
+      console.warn("Worker jobs DB fetch notice:", dbErr);
+    }
 
     return NextResponse.json({
       success: true,

@@ -35,13 +35,10 @@ export const EmployerRelocateScreen: React.FC<EmployerRelocateProps> = ({ onBack
   const fetchSocieties = async () => {
     setLoadingSocieties(true);
     try {
-      const { data, error } = await supabase
-        .from('societies')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (!error && data && data.length > 0) {
-        setDbSocieties(data.map((soc: any) => ({
+      const { apiClient } = await import('../../services/apiClient');
+      const data = await apiClient.get('/api/societies');
+      if (data && Array.isArray(data.societies)) {
+        setDbSocieties(data.societies.map((soc: any) => ({
           id: soc.id,
           name: soc.name,
           locality: soc.locality || soc.city || soc.address || 'Verified Gated Society'

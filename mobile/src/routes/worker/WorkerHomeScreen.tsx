@@ -46,29 +46,14 @@ export const WorkerHomeScreen: React.FC<{
     setLoading(true);
     let fetched: any[] = [];
     try {
-      const { data: dbJobs } = await supabase
-        .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (dbJobs && dbJobs.length > 0) {
-        fetched = dbJobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
+      const { apiClient } = await import('../../services/apiClient');
+      const data = await apiClient.get('/api/worker/jobs?limit=20');
+      if (data && Array.isArray(data.jobs) && data.jobs.length > 0) {
+        fetched = data.jobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
       }
-    } catch (err) {
-      console.warn('Supabase jobs fetch notice:', err);
+    } catch (e) {
+      console.warn("Failed to fetch worker home jobs:", e);
     }
-
-    if (fetched.length === 0) {
-      try {
-        const { apiClient } = await import('../../services/apiClient');
-        const data = await apiClient.get('api/worker/jobs?limit=20');
-        if (data && Array.isArray(data.jobs) && data.jobs.length > 0) {
-          fetched = data.jobs.filter((j: any) => j.status !== 'closed' && j.status !== 'deleted');
-        }
-      } catch (e) {}
-    }
-
     setJobs(fetched);
     setLoading(false);
   };

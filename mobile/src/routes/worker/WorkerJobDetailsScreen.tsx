@@ -86,20 +86,10 @@ export const WorkerJobDetailsScreen: React.FC<{
   const fetchJobDetails = async (targetId: string) => {
     setLoading(true);
     try {
-      const { data: dbJob } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('id', targetId)
-        .maybeSingle();
-
-      if (dbJob) {
-        setJob(dbJob);
-      } else {
-        const { apiClient } = await import('../../services/apiClient');
-        const apiData = await apiClient.get(`api/worker/jobs?limit=50`);
-        const found = apiData?.jobs?.find((j: any) => j.id === targetId);
-        if (found) setJob(found);
-      }
+      const { apiClient } = await import('../../services/apiClient');
+      const apiData = await apiClient.get('/api/worker/jobs?limit=50');
+      const found = apiData?.jobs?.find((j: any) => j.id === targetId);
+      if (found) setJob(found);
     } catch (e) {
       console.warn("Job detail fetch notice:", e);
     } finally {
