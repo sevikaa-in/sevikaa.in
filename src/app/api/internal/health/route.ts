@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       environment: {
         supabaseUrl: supabaseUrlConfigured ? 'configured' : 'unconfigured',
         supabaseServiceKey: serviceRoleConfigured ? 'configured' : 'unconfigured',
-        razorpayWebhookSecret: razorpayConfigured ? 'configured' : 'unconfigured'
+        razorpayKeySecret: razorpayConfigured ? 'configured' : 'unconfigured'
       }
     }
   }, { status: isSystemHealthy ? 200 : 503 });

@@ -9,44 +9,47 @@ import { getCached, setCached, invalidateCache } from '@/lib/ttlCache';
  */
 
 const PRICING_CACHE_KEY = 'platform:pricing_config';
+let lastKnownGoodPricing: any = null;
 
 export async function GET() {
   try {
-    // 1. Check TTL cache to save database query egress
+    // 1. Check TTL cache
     const cachedPricing = getCached(PRICING_CACHE_KEY);
     if (cachedPricing) {
       return NextResponse.json({ success: true, pricing: cachedPricing, cached: true });
     }
 
-    const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') ||
-                          !process.env.NEXT_PUBLIC_SUPABASE_URL;
+    // 2. Fetch from Database
+    const { data, error } = await supabase
+      .from('platform_settings')
+      .select('settings')
+      .eq('id', 'pricing_config')
+      .single();
 
-    if (!isPlaceholder) {
-      const { data, error } = await supabase
-        .from('platform_settings')
-        .select('settings')
-        .eq('id', 'pricing_config')
-        .single();
-
-      if (!error && data?.settings) {
-        setCached(PRICING_CACHE_KEY, data.settings, 300); // 5 min TTL
-        return NextResponse.json({ success: true, pricing: data.settings });
-      }
+    if (!error && data?.settings) {
+      setCached(PRICING_CACHE_KEY, data.settings, 300); // 5 min TTL
+      lastKnownGoodPricing = data.settings;
+      return NextResponse.json({ success: true, pricing: data.settings });
     }
 
-    // Default Fallback Pricing Config
-    const defaultPricing = {
-      workerRegistration: '0',
-      freePlan: { price: '0', validityDays: '7 Days', jobPostsLimit: '1', contactUnlocksLimit: '0', name: 'Free Trial Pass' },
-      basicPlan: { price: '299', validityDays: '30 Days', jobPostsLimit: '3', contactUnlocksLimit: '10', name: 'Basic Household Pass' },
-      premiumPlan: { price: '699', validityDays: '60 Days', jobPostsLimit: '10', contactUnlocksLimit: '50', name: 'Standard Family Plan' },
-      proPlan: { price: '1499', validityDays: '90 Days', jobPostsLimit: 'Unlimited', contactUnlocksLimit: 'Unlimited', name: 'Pro Unlimited Household Pass' }
-    };
+    // 3. Fallback: If DB query fails but we have stale last-known-good pricing
+    if (lastKnownGoodPricing) {
+      return NextResponse.json({ success: true, pricing: lastKnownGoodPricing, cached: true, stale: true });
+    }
 
-    setCached(PRICING_CACHE_KEY, defaultPricing, 300);
-    return NextResponse.json({ success: true, pricing: defaultPricing });
+    // 4. Fail Closed: No valid DB data & no cache -> HTTP 503
+    return NextResponse.json(
+      { success: false, error: 'Pricing service temporarily unavailable.' },
+      { status: 503 }
+    );
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    if (lastKnownGoodPricing) {
+      return NextResponse.json({ success: true, pricing: lastKnownGoodPricing, cached: true, stale: true });
+    }
+    return NextResponse.json(
+      { success: false, error: 'Pricing service temporarily unavailable.' },
+      { status: 503 }
+    );
   }
 }
 
@@ -73,6 +76,7 @@ export async function POST(req: NextRequest) {
 
     // Invalidate TTL cache on update
     invalidateCache(PRICING_CACHE_KEY);
+    lastKnownGoodPricing = settings;
 
     return NextResponse.json({ success: true, message: 'Platform pricing updated live!' });
   } catch (err: any) {

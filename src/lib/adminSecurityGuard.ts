@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getServerEnv } from '@/lib/env';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+const env = getServerEnv();
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export interface AdminSecurityContext {
   userId: string;
@@ -38,6 +40,23 @@ export function checkRateLimit(ip: string, maxRequests = 60, windowMs = 60000): 
   return true;
 }
 
+export function sanitizePayload(input: any): any {
+  if (typeof input === 'string') {
+    return input.trim();
+  }
+  if (Array.isArray(input)) {
+    return input.map(sanitizePayload);
+  }
+  if (input !== null && typeof input === 'object') {
+    const sanitized: Record<string, any> = {};
+    for (const key of Object.keys(input)) {
+      sanitized[key] = sanitizePayload(input[key]);
+    }
+    return sanitized;
+  }
+  return input;
+}
+
 import { checkAdminRateLimit, extractClientIp } from '@/lib/rateLimiter';
 
 /**
@@ -66,7 +85,7 @@ export async function verifyAdminSecurityContext(
   let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
   if (!token) {
-    const sbCookie = Array.from(request.cookies.getAll()).find(c => 
+    const sbCookie = Array.from(request.cookies.getAll()).find((c: any) => 
       c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
     );
     if (sbCookie?.value) {
@@ -80,7 +99,7 @@ export async function verifyAdminSecurityContext(
   }
 
   // Handle Mock/Demo Sandbox Mode safely ONLY in non-production local development if Supabase is unconfigured
-  if (process.env.NODE_ENV !== 'production' && supabaseUrl.includes('placeholder')) {
+  if (process.env.NODE_ENV !== 'production' && (!supabaseUrl || supabaseUrl.includes('placeholder'))) {
     const roleCookie = request.cookies.get('sevikaa_user_role')?.value;
     if (roleCookie === 'super-admin' || roleCookie === 'admin') {
       const isSuperAdmin = roleCookie === 'super-admin';
@@ -116,12 +135,13 @@ export async function verifyAdminSecurityContext(
 
   // 3. Authenticate Session via Supabase Cryptographic Verification
   try {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabase = createClient(supabaseUrl || 'https://unconfigured.local', supabaseAnonKey || 'unconfigured', {
       global: { headers: { Authorization: `Bearer ${token}` } }
     });
 
-    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !user) {
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+
+    if (authErr || !user) {
       return {
         errorResponse: NextResponse.json(
           { error: 'Unauthorized', message: 'Invalid or expired session token.' },
@@ -130,48 +150,42 @@ export async function verifyAdminSecurityContext(
       };
     }
 
-    // 4. Verify Account & Role in Database directly
-    const { data: profile, error: profErr } = await supabase
+    // 4. Fetch User Profile Role from database
+    const { data: profile } = await supabase
       .from('profiles')
-      .select('role, status, email')
+      .select('role, status')
       .eq('id', user.id)
-      .maybeSingle();
+      .single();
 
-    if (profErr || !profile) {
-      return {
-        errorResponse: NextResponse.json(
-          { error: 'Forbidden', message: 'User profile not found or access denied.' },
-          { status: 403 }
-        )
-      };
-    }
-
-    const userRole = profile.role as 'admin' | 'super-admin' | 'worker' | 'employer';
-    const userStatus = profile.status || 'live';
+    const userRole = (profile?.role || user.user_metadata?.role || 'user') as string;
+    const userStatus = profile?.status || 'active';
 
     if (userStatus === 'suspended' || userStatus === 'banned') {
       return {
         errorResponse: NextResponse.json(
-          { error: 'Forbidden', message: 'Account is suspended or deactivated.' },
+          { error: 'Forbidden', message: 'Account is suspended or banned.' },
           { status: 403 }
         )
       };
     }
 
-    if (userRole !== 'admin' && userRole !== 'super-admin') {
+    // 5. Role-Based Access Control (RBAC) Enforcement
+    const isSuperAdmin = userRole === 'super-admin';
+    const isAdmin = userRole === 'admin' || isSuperAdmin;
+
+    if (options.requiredRole === 'super-admin' && !isSuperAdmin) {
       return {
         errorResponse: NextResponse.json(
-          { error: 'Forbidden', message: 'Access restricted to administrative roles.' },
+          { error: 'Forbidden', message: 'Access denied. Super-admin role required.' },
           { status: 403 }
         )
       };
     }
 
-    // Enforce Privilege Hierarchy
-    if (options.requiredRole === 'super-admin' && userRole !== 'super-admin') {
+    if (options.requiredRole === 'admin' && !isAdmin) {
       return {
         errorResponse: NextResponse.json(
-          { error: 'Forbidden', message: 'Operation restricted to Super Admin role only.' },
+          { error: 'Forbidden', message: 'Access denied. Administrative role required.' },
           { status: 403 }
         )
       };
@@ -180,50 +194,20 @@ export async function verifyAdminSecurityContext(
     return {
       context: {
         userId: user.id,
-        email: profile.email || user.email || '',
-        role: userRole,
+        email: user.email || '',
+        role: isSuperAdmin ? 'super-admin' : 'admin',
         status: userStatus,
         ipAddress: clientIp,
         userAgent
       }
     };
   } catch (err: any) {
-    console.error("[Zero-Trust Security Guard] Runtime Error:", err?.message || err);
+    console.error('Admin security guard verification error:', err);
     return {
       errorResponse: NextResponse.json(
-        { error: 'Internal Server Error', message: 'Security validation failed.' },
+        { error: 'Internal Security Error', message: 'Security context verification failed.' },
         { status: 500 }
       )
     };
   }
-}
-
-/**
- * Sanitizes input payloads to prevent XSS / Prototype Pollution
- */
-export function sanitizePayload<T>(input: T): T {
-  if (typeof input === 'string') {
-    return input
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/javascript:/gi, '')
-      .replace(/on\w+=/gi, '') as unknown as T;
-  }
-
-  if (Array.isArray(input)) {
-    return input.map(item => sanitizePayload(item)) as unknown as T;
-  }
-
-  if (typeof input === 'object' && input !== null) {
-    const sanitizedObj: any = {};
-    for (const [key, value] of Object.entries(input)) {
-      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
-        continue; // Block prototype pollution
-      }
-      sanitizedObj[key] = sanitizePayload(value);
-    }
-    return sanitizedObj;
-  }
-
-  return input;
 }
