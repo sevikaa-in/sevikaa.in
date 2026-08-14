@@ -241,14 +241,14 @@ export default function WorkerJobsPage() {
         society_name: socName || workerProfile?.society || 'DLF Westend Heights'
       };
     });
-  }, [rawJobs, societiesList, workerProfile?.society]);
+  }, [rawJobs, fallbackJobs, societiesList, workerProfile?.society]);
 
   // Multi-tier Filter Engine: Skill Scope + Location Hierarchy
   const filteredJobs = useMemo(() => {
     const workerSkillsList = (
-      Array.isArray(workerProfile.skills) 
+      Array.isArray(workerProfile.skills) && workerProfile.skills.length > 0
         ? workerProfile.skills 
-        : (Array.isArray(workerProfile.category) 
+        : (Array.isArray(workerProfile.category) && workerProfile.category.length > 0
             ? workerProfile.category 
             : [workerProfile.category || 'maid'])
     ).map((s: any) => String(s).toLowerCase());
@@ -263,7 +263,14 @@ export default function WorkerJobsPage() {
     return jobsToDisplay.filter((job: any) => {
       const jobCategory = String(job.category || job.title || '').toLowerCase();
       
-      const matchesSkill = skillFilterMode === 'all' || workerSkillsList.some((sk: string) => jobCategory.includes(sk) || sk.includes(jobCategory));
+      const matchesSkill = skillFilterMode === 'all' || workerSkillsList.some((sk: string) => {
+        const cleanSk = sk.toLowerCase();
+        if (jobCategory.includes(cleanSk) || cleanSk.includes(jobCategory)) return true;
+        if ((cleanSk.includes('maid') || cleanSk.includes('housekeeping')) && (jobCategory.includes('maid') || jobCategory.includes('housekeeping') || jobCategory.includes('clean'))) return true;
+        if ((cleanSk.includes('cook') || cleanSk.includes('chef')) && (jobCategory.includes('cook') || jobCategory.includes('chef') || jobCategory.includes('kitchen'))) return true;
+        if ((cleanSk.includes('nanny') || cleanSk.includes('childcare')) && (jobCategory.includes('nanny') || jobCategory.includes('child') || jobCategory.includes('baby'))) return true;
+        return false;
+      });
       
       const matchesCategory = categoryFilter === 'all' || String(job.category || '').toLowerCase() === categoryFilter.toLowerCase() || String(job.title || '').toLowerCase().includes(categoryFilter.toLowerCase());
       
@@ -291,7 +298,7 @@ export default function WorkerJobsPage() {
     });
   }, [jobsToDisplay, skillFilterMode, locationTier, categoryFilter, searchQuery, workerProfile]);
 
-  const finalDisplayJobs = filteredJobs.length > 0 ? filteredJobs : jobsToDisplay;
+  const finalDisplayJobs = filteredJobs.length > 0 ? filteredJobs : (jobsToDisplay.length > 0 ? jobsToDisplay : fallbackJobs);
 
   const handleApply = async (job: any) => {
     if (!isWorkerVerified) {

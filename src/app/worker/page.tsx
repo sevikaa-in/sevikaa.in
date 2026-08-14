@@ -97,25 +97,25 @@ export default function WorkerOverviewPage() {
 
   const rawJobs = availableJobs;
 
-  // Targeted Home Feed Filter: Filter by Worker's Registered Skill + Primary Society
+  // Targeted Home Feed Filter: Filter by Worker's Registered Skill + Category Synonyms
   const workerSkillsList = (
-    Array.isArray(workerProfile.skills) 
+    Array.isArray(workerProfile.skills) && workerProfile.skills.length > 0
       ? workerProfile.skills 
-      : (Array.isArray(workerProfile.category) 
+      : (Array.isArray(workerProfile.category) && workerProfile.category.length > 0
           ? workerProfile.category 
           : [workerProfile.category || 'maid'])
   ).map((s: any) => String(s).toLowerCase());
 
-  const workerSociety = String(workerProfile.society || '').toLowerCase();
-  const workerSecondarySocieties = (
-    Array.isArray(workerProfile.secondary_societies) 
-      ? workerProfile.secondary_societies 
-      : [workerProfile.secondary_societies || '']
-  ).map((s: any) => String(s).toLowerCase()).filter(Boolean);
-
   const skillMatchingJobs = rawJobs.filter((job: any) => {
     const jobCat = String(job.category || job.title || '').toLowerCase();
-    return workerSkillsList.some((sk: string) => jobCat.includes(sk) || sk.includes(jobCat));
+    return workerSkillsList.some((sk: string) => {
+      const cleanSk = sk.toLowerCase();
+      if (jobCat.includes(cleanSk) || cleanSk.includes(jobCat)) return true;
+      if ((cleanSk.includes('maid') || cleanSk.includes('housekeeping')) && (jobCat.includes('maid') || jobCat.includes('housekeeping') || jobCat.includes('clean'))) return true;
+      if ((cleanSk.includes('cook') || cleanSk.includes('chef')) && (jobCat.includes('cook') || jobCat.includes('chef') || jobCat.includes('kitchen'))) return true;
+      if ((cleanSk.includes('nanny') || cleanSk.includes('childcare')) && (jobCat.includes('nanny') || jobCat.includes('child') || jobCat.includes('baby'))) return true;
+      return false;
+    });
   });
 
   const displayJobs = skillMatchingJobs.length > 0 ? skillMatchingJobs : rawJobs;

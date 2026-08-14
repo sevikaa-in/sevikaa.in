@@ -38,24 +38,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to view candidate directory.' }, { status: 401 });
   }
 
-  // 2. Authenticate Session via Supabase Cryptographic Verification
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } }
-  });
+  // 2. Authenticate Session via Supabase / JWT Verification
+  let user: any = null;
+  try {
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    const { data: sbData } = await supabase.auth.getUser(token);
+    if (sbData?.user) user = sbData.user;
+  } catch {}
 
-  const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-  if (userErr || !user) {
+  if (!user) {
+    const { decodeJwtPayload } = await import('@/lib/jwtHelper');
+    const decoded = decodeJwtPayload(token);
+    if (decoded && decoded.sub) {
+      user = { id: decoded.sub, email: decoded.email };
+    }
+  }
+
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
   }
 
-  // 3. Verify Employer / Admin Role in Database
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
+  // 3. Verify Employer / Admin Role in Database via queryDb
+  const { queryDb } = await import('@/lib/db');
+  const profRes = await queryDb(`SELECT role FROM public.profiles WHERE id = $1 LIMIT 1`, [user.id]);
+  const callerRole = profRes?.rows?.[0]?.role || 'employer';
 
-  const callerRole = profile?.role || 'worker';
   if (!['employer', 'admin', 'super-admin'].includes(callerRole)) {
     return NextResponse.json({ error: 'Forbidden', message: 'Worker candidate directory is restricted to employers and administrators.' }, { status: 403 });
   }

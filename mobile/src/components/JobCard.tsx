@@ -23,9 +23,10 @@ export const JobCard: React.FC<MobileJobCardProps> = ({
   isApplying = false
 }) => {
   const { t } = useMobileLanguage();
-  const cleanSalary = job.salary_offered || job.salary 
-    ? Number(job.salary_offered || job.salary).toLocaleString('en-IN') 
-    : '15,000';
+  const salaryVal = job.salary_offered || job.salary_range_min || (typeof job.salary === 'number' ? job.salary : null);
+  const cleanSalary = salaryVal && !isNaN(Number(salaryVal))
+    ? Number(salaryVal).toLocaleString('en-IN') 
+    : (typeof job.salary === 'string' ? job.salary : '12,000');
 
   const employerInitial = (job.employer_name || job.society_name || 'H')[0].toUpperCase();
   const getTranslatedTitle = (j: any) => {

@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, ScrollView, TouchableOpacity, 
-  ActivityIndicator, TextInput, Alert, Modal, Switch, Image 
+  ActivityIndicator, TextInput, Alert, Modal, Switch, Image, Linking 
 } from 'react-native';
 import { 
   User, Building2, MapPin, Phone, Mail, Save, 
   LogOut, ShieldCheck, Clock, CheckCircle2, FileText, X, Sparkles, 
-  Camera, ArrowRight, Upload, Eye, Check, ShieldAlert, ChevronDown, ChevronUp, Bell, Trash2, FileSpreadsheet, Lock
+  Camera, ArrowRight, Upload, Eye, Check, ShieldAlert, ChevronDown, ChevronUp, Bell, Trash2, FileSpreadsheet, Lock, ChevronRight
 } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { useMobileLanguage } from '../../context/LanguageContext';
 import { useUserProfile } from '../../context/UserProfileContext';
+import { LegalComplianceCard } from '../../components/LegalComplianceCard';
+import { LegalHubScreen } from '../../screens/LegalHubScreen';
 
 export const EmployerAccountScreen: React.FC<{ 
   user?: any;
@@ -44,6 +46,7 @@ export const EmployerAccountScreen: React.FC<{
 
   // Accordion Danger Zone State
   const [dangerOpen, setDangerOpen] = useState(false);
+  const [showLegalModal, setShowLegalModal] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -483,6 +486,16 @@ export const EmployerAccountScreen: React.FC<{
         </View>
 
       </View>
+
+      {/* 📜 LEGAL & PRIVACY TERMS CENTER CARD */}
+      <LegalComplianceCard onPress={() => setShowLegalModal(true)} />
+
+      {/* DEDICATED LEGAL HUB SCREEN MODAL */}
+      {showLegalModal && (
+        <Modal visible animationType="slide" onRequestClose={() => setShowLegalModal(false)}>
+          <LegalHubScreen onBack={() => setShowLegalModal(false)} />
+        </Modal>
+      )}
 
       {/* 6. ACCOUNT MANAGEMENT & DANGER ZONE ACCORDION CARD */}
       <View style={styles.formCard}>

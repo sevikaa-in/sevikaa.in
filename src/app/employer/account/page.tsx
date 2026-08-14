@@ -7,13 +7,14 @@ import { useLanguage } from '@/context/LanguageContext';
 import { 
   User, ShieldAlert, ChevronDown, ChevronUp, Trash2, 
   Save, Phone, CreditCard, Home, MapPin, AlertTriangle, Mail, Building, ShieldCheck, Sparkles, Bell, Check, Zap, History, X,
-  Upload, Camera, FileText, Lock, CheckCircle2, IdCard, Eye, Search, RefreshCw, ArrowRight, Loader2
+  Upload, Camera, FileText, Lock, CheckCircle2, IdCard, Eye, Search, RefreshCw, ArrowRight, Loader2, ChevronRight
 } from 'lucide-react';
 import { ChangeMobileInlineSection } from '@/components/profile/ChangeMobileInlineSection';
 import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInlineSection';
 import { secureUpload } from '@/utils/secureUpload';
 import { usePrivateUrl } from '@/hooks/usePrivateUrl';
 import { supabase } from '@/lib/supabaseClient';
+import { LegalComplianceHubCard } from '@/components/legal/LegalComplianceHubCard';
 
 export default function EmployerAccountPage() {
   const { 
@@ -194,9 +195,18 @@ export default function EmployerAccountPage() {
       if (employerProfile.gstin) setGstin(employerProfile.gstin);
       const rawAlt = employerProfile.alt_phone || employerProfile.alternate_phone || '';
       if (rawAlt) setAltPhone(rawAlt.replace(/\D/g, '').slice(-10));
-      if (employerProfile.residency_proof_url) setResidencyProofUrl(employerProfile.residency_proof_url);
-      if (employerProfile.aadhaar_front_url) setAadhaarFrontUrl(employerProfile.aadhaar_front_url);
-      if (employerProfile.aadhaar_back_url) setAadhaarBackUrl(employerProfile.aadhaar_back_url);
+      if (employerProfile.residency_proof_url) {
+        setResidencyProofUrl(employerProfile.residency_proof_url);
+        setResidencyProofUploaded(true);
+      }
+      if (employerProfile.aadhaar_front_url) {
+        setAadhaarFrontUrl(employerProfile.aadhaar_front_url);
+        setAadhaarFrontUploaded(true);
+      }
+      if (employerProfile.aadhaar_back_url) {
+        setAadhaarBackUrl(employerProfile.aadhaar_back_url);
+        setAadhaarBackUploaded(true);
+      }
       if (employerProfile.avatar_url) setProfilePhoto(employerProfile.avatar_url);
     }
   }, [employerProfile]);
@@ -1270,6 +1280,9 @@ export default function EmployerAccountPage() {
           </div>
         </div>
       </div>
+
+      {/* 📜 LEGAL & PRIVACY TERMS CENTER */}
+      <LegalComplianceHubCard href="/employer/legal" />
 
       {/* DISCRETE DANGER ZONE CARD */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden transition-all">

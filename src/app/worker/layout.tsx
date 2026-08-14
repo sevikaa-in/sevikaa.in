@@ -113,74 +113,86 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
 
   const fetchSession = async () => {
     try {
-      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
-                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
 
-      if (isPlaceholder) {
-        setUser({ id: 'w_demo', email: 'worker@demo.com' });
-        setLoading(false);
-        return;
-      }
-
-      // Fetch real societies from database unconditionally via API
+      // Fetch societies — fallback to MOCK_SOCIETIES if DB unavailable
       let dbSocieties: any[] = [];
       try {
         const { webApiClient } = await import('@/lib/webApiClient');
         const socData = await webApiClient.get('/api/societies');
-        if (socData && socData.societies) {
+        if (socData && socData.societies && socData.societies.length > 0) {
           dbSocieties = socData.societies;
           setSocietiesList(dbSocieties);
         }
       } catch (socErr) {
-        console.warn("Societies API fetch warning:", socErr);
+        console.warn('Societies API fetch warning:', socErr);
       }
 
       if (dbSocieties.length === 0) {
-        const { data: clientSoc } = await supabase
-          .from('societies')
-          .select('*')
-          .order('name', { ascending: true });
+        try {
+          const { data: clientSoc } = await supabase
+            .from('societies')
+            .select('*')
+            .order('name', { ascending: true });
 
-        if (clientSoc && clientSoc.length > 0) {
-          dbSocieties = clientSoc;
-          setSocietiesList(dbSocieties);
+          if (clientSoc && clientSoc.length > 0) {
+            dbSocieties = clientSoc;
+            setSocietiesList(dbSocieties);
+          } else {
+            // DB unavailable locally — use placeholder list so UI doesn't break
+            setSocietiesList(MOCK_SOCIETIES);
+            dbSocieties = MOCK_SOCIETIES;
+          }
+        } catch {
+          setSocietiesList(MOCK_SOCIETIES);
+          dbSocieties = MOCK_SOCIETIES;
         }
       }
 
-      // Fetch live jobs with explicit columns & limit 50 (Fix Audit 6 Items 18 & 19)
+      // Fetch live jobs via webApiClient API endpoint with fallback to Supabase query
       let rawLiveJobs: any[] = [];
-      const { data: liveJobs } = await supabase
-        .from('jobs')
-        .select('id, title, category, salary, shift_hours, society_name, status, created_at')
-        .order('created_at', { ascending: false })
-        .limit(50);
+      try {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const jobsData = await webApiClient.get('/api/worker/jobs?limit=50');
+        if (jobsData && Array.isArray(jobsData.jobs) && jobsData.jobs.length > 0) {
+          rawLiveJobs = jobsData.jobs;
+        }
+      } catch (jobsApiErr) {
+        console.warn('Worker jobs API fetch notice:', jobsApiErr);
+      }
 
-      if (liveJobs && liveJobs.length > 0) {
-        rawLiveJobs = liveJobs;
+      if (rawLiveJobs.length === 0) {
+        try {
+          const { data: liveJobs } = await supabase
+            .from('jobs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50);
+          if (liveJobs && liveJobs.length > 0) rawLiveJobs = liveJobs;
+        } catch {
+          // Jobs unavailable
+        }
       }
 
       if (rawLiveJobs && rawLiveJobs.length > 0) {
         const mappedJobs = rawLiveJobs.map((j: any) => {
-          let resolvedSociety = j.society_name && j.society_name !== 'Residential Society' ? j.society_name : null;
-          if (!resolvedSociety && j.societies?.name) {
-            resolvedSociety = j.societies.name;
-          }
-          if (!resolvedSociety && j.society_id && dbSocieties) {
-            const found = dbSocieties.find((s: any) => s.id === j.society_id);
-            if (found) resolvedSociety = found.name;
-          }
-          if (!resolvedSociety && dbSocieties && dbSocieties.length > 0) {
-            resolvedSociety = dbSocieties[0].name;
-          }
+          const society = dbSocieties.find((s: any) => s.id === j.society_id);
+          const minSal = j.salary_range_min || j.salary_offered || 12000;
+          const maxSal = j.salary_range_max || minSal;
+          const salText = minSal === maxSal ? `₹${minSal.toLocaleString('en-IN')}/mo` : `₹${minSal.toLocaleString('en-IN')}–₹${maxSal.toLocaleString('en-IN')}/mo`;
+
           return {
             ...j,
-            society_name: resolvedSociety || 'DLF Westend Heights - Akshayanagar'
+            title: j.title || (j.category ? j.category.charAt(0).toUpperCase() + j.category.slice(1) : 'Domestic Helper Requisition'),
+            salary_offered: minSal,
+            salary: salText,
+            shift_hours: 'Full Day (8–12 Hours)',
+            society_name: j.society_name || society?.name || 'DLF Westend Heights - Akshayanagar'
           };
         });
         setAvailableJobs(mappedJobs);
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
       let activeUser: any = session?.user;
 
       if (!activeUser && typeof window !== 'undefined') {
@@ -248,7 +260,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             setDeletionRequested(true);
           }
 
-          const pSoc = wProf?.preferred_society_name || wProf?.society || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas[0]) || '';
+          const pSoc = wProf?.preferred_society_name || wProf?.society || wProf?.primary_gated_society || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas[0]) || '';
           const secSocList = wProf?.secondary_society_name 
             ? wProf.secondary_society_name.split(',').map((s: string) => s.trim()).filter(Boolean)
             : (Array.isArray(wProf?.secondary_societies) 
@@ -257,12 +269,18 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                     ? wProf.preferred_areas.slice(1) 
                     : []));
 
+          const rawSkills = Array.isArray(wProf?.skills) && wProf.skills.length > 0
+            ? wProf.skills 
+            : (Array.isArray(wProf?.category) && wProf.category.length > 0
+                ? wProf.category 
+                : (wProf?.skills ? [wProf.skills] : (wProf?.category ? [wProf.category] : ['maid'])));
+
           setWorkerProfile({
             id: wProf?.id || activeUser.id,
             user_id: wProf?.user_id || activeUser.id,
             name: wProf?.full_name || wProf?.name || profile?.full_name || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_worker_name') : null) || 'Worker',
-            category: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
-            skills: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
+            category: rawSkills,
+            skills: rawSkills,
             expectedSalary: String(wProf?.expected_salary || '15000'),
             experience: wProf?.experience_years ? `${wProf.experience_years} Years` : '0 Years',
             society: pSoc,
@@ -287,14 +305,17 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           });
 
           // Onboarding Route Guard for Workers
-          const hasName = !!(wProf?.full_name || wProf?.name || profile?.full_name);
-          const hasSociety = !!(pSoc || wProf?.primary_gated_society || wProf?.preferred_society_name || wProf?.society || wProf?.preferred_society_id || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas.length > 0));
-          const hasSkills = Array.isArray(wProf?.skills) ? wProf.skills.length > 0 : !!wProf?.skills;
-          const isWorkerComplete = hasName && (hasSociety || hasSkills);
-          const isExplicitIncomplete = profStatus === 'onboarding_pending' || profStatus === 'incomplete';
+          // IMPORTANT: Only redirect if wProf was actually loaded — not when DB is unavailable
+          if (wProf) {
+            const hasName = !!(wProf.full_name || wProf.name || profile?.full_name);
+            const hasSociety = !!(pSoc || wProf.primary_gated_society || wProf.preferred_society_name || wProf.society || wProf.preferred_society_id || (Array.isArray(wProf.preferred_areas) && wProf.preferred_areas.length > 0));
+            const hasSkills = Array.isArray(wProf.skills) ? wProf.skills.length > 0 : !!wProf.skills;
+            const isWorkerComplete = hasName && (hasSociety || hasSkills);
+            const isExplicitIncomplete = profStatus === 'onboarding_pending' || profStatus === 'incomplete';
 
-          if (!isApproved && (!isWorkerComplete || isExplicitIncomplete) && pathname !== '/worker/onboarding') {
-            router.push('/worker/onboarding');
+            if (!isApproved && (!isWorkerComplete || isExplicitIncomplete) && pathname !== '/worker/onboarding') {
+              router.push('/worker/onboarding');
+            }
           }
 
           setBadges([

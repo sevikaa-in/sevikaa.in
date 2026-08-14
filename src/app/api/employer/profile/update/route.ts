@@ -46,16 +46,21 @@ export async function POST(req: NextRequest) {
       companyName, company_name,
       societyName, society_name,
       towerBlock, tower_block,
-      address, city, state, pincode,
+      address, city, state, pincode, gstin,
+      alternate_phone, alt_phone,
+      verification_requirement, verification_pref,
       familyMembers, family_members,
       houseSize, house_size,
-      avatar_url, profile_picture_url
+      avatar_url, profile_picture_url,
+      residency_proof_url, aadhaar_front_url, aadhaar_back_url
     } = body;
 
     const resolvedCompany = companyName || company_name || 'Employer Household';
     const resolvedSociety = societyName || society_name || '';
     const resolvedTower = towerBlock || tower_block || '';
     const resolvedAvatar = avatar_url || profile_picture_url || null;
+    const resolvedAltPhone = alternate_phone || alt_phone || null;
+    const resolvedVerification = verification_requirement || verification_pref || null;
 
     // 2. Update public.profiles (base details)
     try {
@@ -88,28 +93,34 @@ export async function POST(req: NextRequest) {
                city = CASE WHEN $5::text IS NOT NULL AND $5::text != '' THEN $5::text ELSE city END,
                state = CASE WHEN $6::text IS NOT NULL AND $6::text != '' THEN $6::text ELSE state END,
                pincode = CASE WHEN $7::text IS NOT NULL AND $7::text != '' THEN $7::text ELSE pincode END,
-               family_members = CASE WHEN $8::text IS NOT NULL AND $8::text != '' THEN $8::text ELSE family_members END,
-               house_size = CASE WHEN $9::text IS NOT NULL AND $9::text != '' THEN $9::text ELSE house_size END,
-               avatar_url = CASE WHEN $10::text IS NOT NULL AND $10::text != '' THEN $10::text ELSE avatar_url END,
-               profile_picture_url = CASE WHEN $10::text IS NOT NULL AND $10::text != '' THEN $10::text ELSE profile_picture_url END,
+               gstin = CASE WHEN $8::text IS NOT NULL AND $8::text != '' THEN $8::text ELSE gstin END,
+               alternate_phone = CASE WHEN $9::text IS NOT NULL AND $9::text != '' THEN $9::text ELSE alternate_phone END,
+               verification_requirement = CASE WHEN $10::text IS NOT NULL AND $10::text != '' THEN $10::text ELSE verification_requirement END,
+               residency_proof_url = CASE WHEN $11::text IS NOT NULL AND $11::text != '' THEN $11::text ELSE residency_proof_url END,
+               aadhaar_front_url = CASE WHEN $12::text IS NOT NULL AND $12::text != '' THEN $12::text ELSE aadhaar_front_url END,
+               aadhaar_back_url = CASE WHEN $13::text IS NOT NULL AND $13::text != '' THEN $13::text ELSE aadhaar_back_url END,
+               avatar_url = CASE WHEN $14::text IS NOT NULL AND $14::text != '' THEN $14::text ELSE avatar_url END,
+               profile_picture_url = CASE WHEN $14::text IS NOT NULL AND $14::text != '' THEN $14::text ELSE profile_picture_url END,
                updated_at = NOW()
-           WHERE user_id::text = $11 OR id::text = $11`,
+           WHERE user_id::text = $15 OR id::text = $15`,
           [
             resolvedCompany, resolvedSociety, resolvedTower, address || null,
-            city || null, state || null, pincode || null, familyMembers || family_members || null,
-            houseSize || house_size || null, resolvedAvatar, userId
+            city || null, state || null, pincode || null, gstin || null,
+            resolvedAltPhone, resolvedVerification, residency_proof_url || null,
+            aadhaar_front_url || null, aadhaar_back_url || null, resolvedAvatar, userId
           ]
         );
       } else {
         await queryDb(
           `INSERT INTO public.employer_profiles
-             (id, user_id, company_name, society_name, tower_block, address, city, state, pincode, family_members, house_size, avatar_url, profile_picture_url, status, subscription_status, created_at)
+             (id, user_id, company_name, society_name, tower_block, address, city, state, pincode, gstin, alternate_phone, verification_requirement, residency_proof_url, aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url, status, subscription_status, created_at)
            VALUES
-             (gen_random_uuid(), CASE WHEN $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $1::uuid ELSE gen_random_uuid() END, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, 'active', 'free', NOW())`,
+             (gen_random_uuid(), CASE WHEN $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $1::uuid ELSE gen_random_uuid() END, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, 'active', 'free', NOW())`,
           [
             userId, resolvedCompany, resolvedSociety, resolvedTower, address || null,
-            city || null, state || null, pincode || null, familyMembers || family_members || null,
-            houseSize || house_size || null, resolvedAvatar
+            city || null, state || null, pincode || null, gstin || null,
+            resolvedAltPhone, resolvedVerification, residency_proof_url || null,
+            aadhaar_front_url || null, aadhaar_back_url || null, resolvedAvatar
           ]
         );
       }

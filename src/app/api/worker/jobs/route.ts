@@ -62,18 +62,28 @@ export async function GET(request: NextRequest) {
       SELECT 
         j.id, 
         j.employer_id, 
+        j.title,
         j.category, 
         j.description, 
         j.salary_range_min, 
         j.salary_range_max, 
         j.society_name, 
         j.society_id,
+        j.required_slots,
+        j.specific_tasks,
         j.status, 
         j.created_at,
-        ep.company_name AS employer_name
+        COALESCE(
+          CASE WHEN ep.name ~ '^[0-9]+$' THEN NULL ELSE NULLIF(TRIM(ep.name), '') END,
+          CASE WHEN ep.company_name ~ '^[0-9]+$' THEN NULL ELSE NULLIF(TRIM(ep.company_name), '') END,
+          NULLIF(TRIM(p.full_name), ''),
+          NULLIF(TRIM(INITCAP(REPLACE(SPLIT_PART(p.email, '@', 1), '.', ' '))), ''),
+          'Resident Employer'
+        ) AS employer_name
       FROM public.jobs j
       LEFT JOIN public.employer_profiles ep ON ep.user_id::text = j.employer_id::text OR ep.id::text = j.employer_id::text
-      WHERE j.status = 'active' OR j.status = 'open' OR j.status = 'live'
+      LEFT JOIN public.profiles p ON p.id::text = j.employer_id::text OR p.id::text = ep.user_id::text
+      WHERE (j.status IS NULL OR j.status IN ('active', 'open', 'live', 'approved', 'pending') OR j.status NOT IN ('closed', 'fulfilled', 'cancelled', 'deleted'))
     `;
 
     const params: any[] = [];

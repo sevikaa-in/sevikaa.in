@@ -74,7 +74,7 @@ export const webApiClient = {
       headers['Authorization'] = `Bearer ${inMemoryAccessToken}`;
     }
 
-    let res = await fetch(endpoint, { ...options, headers });
+    let res = await fetch(endpoint, { ...options, headers, credentials: 'include' });
 
     if (res.status === 401 && !options._retry) {
       try {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   StyleSheet, Text, View, ScrollView, TouchableOpacity, 
-  ActivityIndicator, TextInput, Alert, Modal, Image 
+  ActivityIndicator, TextInput, Alert, Modal, Image, Linking 
 } from 'react-native';
 import { 
   User, CheckCircle2, ShieldCheck, Clock, Save, Phone, 
@@ -14,6 +14,8 @@ import { supabase } from '../../lib/supabase';
 import { getApiUrl } from '../../config/api';
 import { useMobileLanguage } from '../../context/LanguageContext';
 import { useUserProfile } from '../../context/UserProfileContext';
+import { LegalComplianceCard } from '../../components/LegalComplianceCard';
+import { LegalHubScreen } from '../../screens/LegalHubScreen';
 
 const SKILL_CATEGORIES = [
   { id: 'cook', label: 'Cook / Chef', icon: '🍳' },
@@ -110,6 +112,7 @@ export const WorkerProfileScreen: React.FC<{
   // Accordion State for Danger Zone
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLegalModal, setShowLegalModal] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [activeInlinePreview, setActiveInlinePreview] = useState<'front' | 'back' | 'police' | 'video' | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -1311,6 +1314,16 @@ export const WorkerProfileScreen: React.FC<{
         )}
 
       </View>
+
+      {/* 📜 LEGAL & PRIVACY TERMS CENTER CARD */}
+      <LegalComplianceCard onPress={() => setShowLegalModal(true)} />
+
+      {/* DEDICATED LEGAL HUB SCREEN MODAL */}
+      {showLegalModal && (
+        <Modal visible animationType="slide" onRequestClose={() => setShowLegalModal(false)}>
+          <LegalHubScreen onBack={() => setShowLegalModal(false)} />
+        </Modal>
+      )}
 
       {/* 🗑️ 5. SECTION 4: DANGER ZONE & ACCOUNT OFFBOARDING */}
       <View style={styles.dangerAccordionCard}>

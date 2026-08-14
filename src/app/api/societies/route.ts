@@ -27,17 +27,14 @@ export async function GET() {
           s.id,
           s.name,
           s.city,
-          s.state,
-          s.pincode,
-          s.total_flats,
           s.latitude,
           s.longitude,
           s.created_at,
           COALESCE((
             SELECT COUNT(*)
             FROM public.jobs j
-            WHERE (j.status IS NULL OR j.status NOT IN ('closed', 'fulfilled', 'cancelled', 'deleted'))
-              AND (j.society_id::text = s.id::text OR (j.society_name IS NOT NULL AND (j.society_name ILIKE CONCAT('%', s.name, '%') OR s.name ILIKE CONCAT('%', j.society_name, '%'))))
+            WHERE j.status IN ('pending', 'approved')
+              AND j.society_id = s.id
           ), 0) AS active_jobs_count,
           COALESCE((
             SELECT COUNT(*)
@@ -54,9 +51,9 @@ export async function GET() {
           id: row.id,
           name: row.name,
           city: row.city || 'Bangalore',
-          state: row.state || 'Karnataka',
-          pincode: row.pincode || '',
-          total_flats: row.total_flats || null,
+          state: null,
+          pincode: null,
+          total_flats: null,
           latitude: row.latitude ? parseFloat(row.latitude) : null,
           longitude: row.longitude ? parseFloat(row.longitude) : null,
           // Real DB counts — never fabricated

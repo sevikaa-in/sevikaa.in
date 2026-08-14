@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useWorkerDashboard } from '../layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { 
@@ -13,6 +14,7 @@ import { ChangeEmailInlineSection } from '@/components/profile/ChangeEmailInline
 import { resolveMediaUrl } from '@/utils/resolveMediaUrl';
 import { secureUpload } from '@/utils/secureUpload';
 import { usePrivateUrl } from '@/hooks/usePrivateUrl';
+import { LegalComplianceHubCard } from '@/components/legal/LegalComplianceHubCard';
 
 const SKILL_CATEGORIES = [
   { id: 'cook', key: 'cook', label: 'Cook / Chef', defaultLabel: 'Cook / Chef', icon: '🍳' },
@@ -1370,6 +1372,9 @@ export default function WorkerProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* 📜 LEGAL & PRIVACY TERMS CENTER */}
+      <LegalComplianceHubCard href="/worker/legal" />
 
       {/* 🔴 DANGER ZONE: ACCOUNT DELETION */}
       <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-3">

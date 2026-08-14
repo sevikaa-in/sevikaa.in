@@ -142,33 +142,32 @@ export async function POST(req: NextRequest) {
                aadhaar_front_url = CASE WHEN $9::text IS NOT NULL AND $9::text != '' THEN $9::text ELSE aadhaar_front_url END,
                aadhaar_back_url = CASE WHEN $10::text IS NOT NULL AND $10::text != '' THEN $10::text ELSE aadhaar_back_url END,
                video_url = CASE WHEN $11::text IS NOT NULL AND $11::text != '' THEN $11::text ELSE video_url END,
-               police_verification_url = CASE WHEN $20::text IS NOT NULL AND $20::text != '' THEN $20::text ELSE police_verification_url END,
-               preferred_areas = CASE WHEN $12::text[] IS NOT NULL AND array_length($12::text[], 1) > 0 THEN $12::text[] ELSE preferred_areas END,
-               bio = CASE WHEN $14::text IS NOT NULL AND $14::text != '' THEN $14::text ELSE bio END,
-               preferred_shift = CASE WHEN $15::text IS NOT NULL AND $15::text != '' THEN $15::text ELSE preferred_shift END,
-               emergency_contact = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE emergency_contact END,
-               alternate_phone = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE alternate_phone END,
-               alt_phone = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE alt_phone END,
-               preferred_society_name = CASE WHEN $17::text IS NOT NULL AND $17::text != '' THEN $17::text ELSE preferred_society_name END,
-               secondary_society_name = CASE WHEN $18::text IS NOT NULL AND $18::text != '' THEN $18::text ELSE secondary_society_name END,
-               preferred_society_id = CASE WHEN $19::text IS NOT NULL AND $19::text != '' AND $19::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $19::uuid ELSE preferred_society_id END
-           WHERE user_id::text = $13 OR id::text = $13`,
+               police_verification_url = CASE WHEN $12::text IS NOT NULL AND $12::text != '' THEN $12::text ELSE police_verification_url END,
+               preferred_areas = CASE WHEN $13::text[] IS NOT NULL AND array_length($13::text[], 1) > 0 THEN $13::text[] ELSE preferred_areas END,
+               bio = CASE WHEN $15::text IS NOT NULL AND $15::text != '' THEN $15::text ELSE bio END,
+               preferred_shift = CASE WHEN $16::text IS NOT NULL AND $16::text != '' THEN $16::text ELSE preferred_shift END,
+               emergency_contact = CASE WHEN $17::text IS NOT NULL AND $17::text != '' THEN $17::text ELSE emergency_contact END,
+               alternate_phone = CASE WHEN $17::text IS NOT NULL AND $17::text != '' THEN $17::text ELSE alternate_phone END,
+               alt_phone = CASE WHEN $17::text IS NOT NULL AND $17::text != '' THEN $17::text ELSE alt_phone END,
+               preferred_society_name = CASE WHEN $18::text IS NOT NULL AND $18::text != '' THEN $18::text ELSE preferred_society_name END,
+               secondary_society_name = CASE WHEN $19::text IS NOT NULL AND $19::text != '' THEN $19::text ELSE secondary_society_name END,
+               preferred_society_id = CASE WHEN $20::text IS NOT NULL AND $20::text != '' AND $20::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $20::uuid ELSE preferred_society_id END
+           WHERE user_id::text = $14 OR id::text = $14`,
           [displayName, cleanGender, numAge, salary, expYears, 
            skillsArr.length ? skillsArr : null, langsArr.length ? langsArr : null, 
            profile_picture_url || null, aadhaar_front_url || null, aadhaar_back_url || null,
-           video_url || null, prefAreas, userId, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId,
-           police_verification_url || null]
+           video_url || null, police_verification_url || null, prefAreas, userId, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId]
         );
       } else {
         await queryDb(
           `INSERT INTO public.worker_profiles 
              (id, user_id, full_name, gender, age, expected_salary, experience_years, skills, languages_spoken, profile_picture_url, aadhaar_front_url, aadhaar_back_url, video_url, police_verification_url, preferred_areas, bio, preferred_shift, emergency_contact, alternate_phone, alt_phone, preferred_society_name, secondary_society_name, preferred_society_id, created_at)
            VALUES 
-             (gen_random_uuid(), CASE WHEN $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $1::uuid ELSE gen_random_uuid() END, $2::text, $3::text, $4::integer, $5::integer, $6::integer, $7::text[], $8::text[], $9::text, $10::text, $11::text, $12::text, $20::text, $13::text[], $14::text, $15::text, $16::text, $16::text, $16::text, $17::text, $18::text, CASE WHEN $19::text IS NOT NULL AND $19::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $19::uuid ELSE NULL END, NOW())`,
-          [userId, displayName, cleanGender, numAge, salary, expYears, skillsArr, langsArr, 
+             (gen_random_uuid(), CASE WHEN $14 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $14::uuid ELSE gen_random_uuid() END, $1::text, $2::text, $3::integer, $4::integer, $5::integer, $6::text[], $7::text[], $8::text, $9::text, $10::text, $11::text, $12::text, $13::text[], $15::text, $16::text, $17::text, $17::text, $17::text, $18::text, $19::text, CASE WHEN $20::text IS NOT NULL AND $20::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $20::uuid ELSE NULL END, NOW())`,
+          [displayName, cleanGender, numAge, salary, expYears, 
+           skillsArr.length ? skillsArr : null, langsArr.length ? langsArr : null, 
            profile_picture_url || null, aadhaar_front_url || null, aadhaar_back_url || null,
-           video_url || null, prefAreas, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId,
-           police_verification_url || null]
+           video_url || null, police_verification_url || null, prefAreas, userId, workerBio, workerShift, workerEmergency, pSoc, sSoc, pSocId]
         );
       }
     } catch (dbErr) {
