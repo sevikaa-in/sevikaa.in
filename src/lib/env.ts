@@ -37,6 +37,24 @@ function isPlaceholder(value?: string): boolean {
 
 export function validateServerEnv(): ServerEnv {
   const nodeEnv = (process.env.NODE_ENV || 'development') as 'development' | 'production' | 'test';
+
+  // If executing in a browser environment, return public variables safely without validating server secret keys
+  if (typeof window !== 'undefined') {
+    return {
+      NODE_ENV: nodeEnv,
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      SUPABASE_SERVICE_ROLE_KEY: '',
+      SUPABASE_JWT_SECRET: '',
+      DATABASE_URL: '',
+      UPSTASH_REDIS_REST_URL: '',
+      UPSTASH_REDIS_REST_TOKEN: '',
+      MONITORING_SECRET: '',
+      RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || '',
+      RAZORPAY_KEY_SECRET: ''
+    };
+  }
+
   const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build' || process.env.NEXT_BUILD === 'true';
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
