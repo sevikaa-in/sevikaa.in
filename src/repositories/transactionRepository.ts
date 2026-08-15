@@ -57,7 +57,7 @@ export class TransactionRepository {
            WHEN public.transactions.status = 'refunded' AND EXCLUDED.status IN ('captured', 'paid', 'failed') THEN public.transactions.status
            ELSE EXCLUDED.status
          END,
-         amount = EXCLUDED.amount,
+         razorpay_order_id = COALESCE(public.transactions.razorpay_order_id, EXCLUDED.razorpay_order_id),
          raw_payload = EXCLUDED.raw_payload;`,
       [
         data.razorpay_payment_id,

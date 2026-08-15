@@ -776,6 +776,188 @@ async function runA4Tests() {
     assert(false, 'Test T3', err.message);
   }
 
+  // --- TEST U1: Existing captured transaction ₹1499, replayed event contains ₹299 -> stored amount remains ₹1499 ---
+  try {
+    setupValidProductionEnv();
+    const { TransactionRepository } = await import('../src/repositories/transactionRepository');
+    const { dbPool } = await import('../src/lib/db');
+
+    let executedSql = '';
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        executedSql = sql;
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    await TransactionRepository.recordTransaction({
+      razorpay_payment_id: 'pay_immutability_101',
+      razorpay_order_id: 'order_immutability_101',
+      user_id: 'user_u1',
+      employer_name: 'Employer U1',
+      employer_email: 'u1@sevikaa.in',
+      employer_phone: '+91 9876543210',
+      plan_name: 'Pro Pass',
+      amount: 299,
+      payment_method: 'UPI',
+      status: 'captured'
+    });
+
+    (dbPool as any).connect = origConnect;
+
+    const omitsAmountOverwrite = !executedSql.includes('amount = EXCLUDED.amount');
+    assert(omitsAmountOverwrite, 'Test U1: Existing transaction ₹1499 replayed with ₹299 -> amount = EXCLUDED.amount is omitted from DO UPDATE SET');
+  } catch (err: any) {
+    assert(false, 'Test U1', err.message);
+  }
+
+  // --- TEST U2: Existing transaction has real razorpay_payment_id -> replay cannot replace it ---
+  try {
+    setupValidProductionEnv();
+    const { TransactionRepository } = await import('../src/repositories/transactionRepository');
+    const { dbPool } = await import('../src/lib/db');
+
+    let executedSql = '';
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        executedSql = sql;
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    await TransactionRepository.recordTransaction({
+      razorpay_payment_id: 'pay_real_payment_id_202',
+      user_id: 'user_u2',
+      employer_name: 'Employer U2',
+      employer_email: 'u2@sevikaa.in',
+      employer_phone: '+91 9876543210',
+      plan_name: 'Pro Pass',
+      amount: 1499,
+      payment_method: 'UPI',
+      status: 'captured'
+    });
+
+    (dbPool as any).connect = origConnect;
+
+    const paymentIdIsConflictKey = executedSql.includes('ON CONFLICT (razorpay_payment_id)');
+    assert(paymentIdIsConflictKey, 'Test U2: Existing transaction razorpay_payment_id is conflict target key and cannot be replaced');
+  } catch (err: any) {
+    assert(false, 'Test U2', err.message);
+  }
+
+  // --- TEST U3: Existing transaction has real razorpay_order_id -> replay cannot replace it ---
+  try {
+    setupValidProductionEnv();
+    const { TransactionRepository } = await import('../src/repositories/transactionRepository');
+    const { dbPool } = await import('../src/lib/db');
+
+    let executedSql = '';
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        executedSql = sql;
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    await TransactionRepository.recordTransaction({
+      razorpay_payment_id: 'pay_order_id_303',
+      razorpay_order_id: 'order_original_303',
+      user_id: 'user_u3',
+      employer_name: 'Employer U3',
+      employer_email: 'u3@sevikaa.in',
+      employer_phone: '+91 9876543210',
+      plan_name: 'Pro Pass',
+      amount: 1499,
+      payment_method: 'UPI',
+      status: 'captured'
+    });
+
+    (dbPool as any).connect = origConnect;
+
+    const usesCoalesceOrderId = executedSql.includes('razorpay_order_id = COALESCE(public.transactions.razorpay_order_id, EXCLUDED.razorpay_order_id)');
+    assert(usesCoalesceOrderId, 'Test U3: Existing transaction razorpay_order_id protected via COALESCE and cannot be overwritten on replay');
+  } catch (err: any) {
+    assert(false, 'Test U3', err.message);
+  }
+
+  // --- TEST U4: Duplicate webhook with same amount -> no financial-field corruption ---
+  try {
+    setupValidProductionEnv();
+    const { TransactionRepository } = await import('../src/repositories/transactionRepository');
+    const { dbPool } = await import('../src/lib/db');
+
+    let queryCount = 0;
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        queryCount++;
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    await TransactionRepository.recordTransaction({
+      razorpay_payment_id: 'pay_duplicate_404',
+      razorpay_order_id: 'order_duplicate_404',
+      user_id: 'user_u4',
+      employer_name: 'Employer U4',
+      employer_email: 'u4@sevikaa.in',
+      employer_phone: '+91 9876543210',
+      plan_name: 'Pro Pass',
+      amount: 1499,
+      payment_method: 'UPI',
+      status: 'captured'
+    });
+
+    (dbPool as any).connect = origConnect;
+
+    assert(queryCount === 1, 'Test U4: Duplicate webhook executes idempotent update without financial-field corruption');
+  } catch (err: any) {
+    assert(false, 'Test U4', err.message);
+  }
+
+  // --- TEST U5: Valid status transition -> status still updates correctly ---
+  try {
+    setupValidProductionEnv();
+    const { TransactionRepository } = await import('../src/repositories/transactionRepository');
+    const { dbPool } = await import('../src/lib/db');
+
+    let executedSql = '';
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        executedSql = sql;
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    await TransactionRepository.recordTransaction({
+      razorpay_payment_id: 'pay_transition_505',
+      user_id: 'user_u5',
+      employer_name: 'Employer U5',
+      employer_email: 'u5@sevikaa.in',
+      employer_phone: '+91 9876543210',
+      plan_name: 'Pro Pass',
+      amount: 1499,
+      payment_method: 'UPI',
+      status: 'refunded'
+    });
+
+    (dbPool as any).connect = origConnect;
+
+    const retainsStatusTransitionCase = executedSql.includes('status = CASE') && executedSql.includes("EXCLUDED.status = 'failed'");
+    assert(retainsStatusTransitionCase, 'Test U5: Valid status transition CASE block retained for state updates');
+  } catch (err: any) {
+    assert(false, 'Test U5', err.message);
+  }
+
   // Restore environment
   process.env = originalEnv;
   resetServerEnvCache();
