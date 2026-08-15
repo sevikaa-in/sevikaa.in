@@ -60,13 +60,12 @@ export class PaymentService {
         return { success: false, error: 'Missing payment ID', statusCode: 400 };
       }
 
-      // 2. Strict Order ID Validation (Zero Fallback Generation)
+      // 2. Order ID and Subscription Identifier Resolution
       const subscriptionEntity = payload?.payload?.subscription?.entity;
+      const subscriptionId: string | null = subscriptionEntity?.id || paymentEntity?.subscription_id || null;
       let orderId: string | null = paymentEntity.order_id || null;
 
-      if (event === 'subscription.charged') {
-        orderId = paymentEntity.order_id || subscriptionEntity?.id || paymentEntity.subscription_id || null;
-      } else {
+      if (event !== 'subscription.charged') {
         if (!orderId || typeof orderId !== 'string' || !orderId.trim()) {
           console.error(`[PaymentService] REJECTED: Missing order ID in webhook payload for event ${event}.`);
           return { success: false, error: 'Missing order ID', statusCode: 400 };

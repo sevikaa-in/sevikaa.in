@@ -604,6 +604,178 @@ async function runA4Tests() {
     assert(false, 'Test S4', err.message);
   }
 
+  // --- TEST T1: subscription.charged with subscription ID but no order ID -> transaction.razorpay_order_id is NULL ---
+  try {
+    setupValidProductionEnv();
+    const { dbPool } = await import('../src/lib/db');
+    const { supabaseAdmin } = await import('../src/lib/supabaseAdminClient');
+
+    let recordedOrderId: any = 'NOT_SET';
+    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    (supabaseAdmin as any).from = () => ({
+      update: () => ({ eq: async () => ({ error: null, data: [] }) }),
+      select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
+    });
+
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        if (sql.includes('INSERT INTO public.payment_events')) {
+          return { rows: [{ event_id: params[0], processed_at: null }] };
+        }
+        if (sql.includes('INSERT INTO public.transactions')) {
+          recordedOrderId = params[1]; // $2 corresponds to razorpay_order_id
+          return { rows: [] };
+        }
+        if (sql.includes('employer_profiles')) {
+          return { rows: [{ user_id: 'user_sub_test_1' }] };
+        }
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    await PaymentService.processRazorpayEvent({
+      event: 'subscription.charged',
+      payload: {
+        subscription: {
+          entity: {
+            id: 'sub_test_no_order_123',
+            plan_id: 'plan_pro'
+          }
+        },
+        payment: {
+          entity: {
+            id: 'pay_sub_test_no_order_123',
+            amount: 149900,
+            currency: 'INR',
+            email: 'employer_t1@sevikaa.in'
+          }
+        }
+      }
+    });
+
+    (dbPool as any).connect = origConnect;
+    (supabaseAdmin as any).from = origFrom;
+
+    assert(recordedOrderId === null, 'Test T1: subscription.charged with subscription ID but no order ID -> transaction.razorpay_order_id is NULL');
+  } catch (err: any) {
+    assert(false, 'Test T1', err.message);
+  }
+
+  // --- TEST T2: subscription.charged must not store sub_xxx as an order_xxx value ---
+  try {
+    setupValidProductionEnv();
+    const { dbPool } = await import('../src/lib/db');
+    const { supabaseAdmin } = await import('../src/lib/supabaseAdminClient');
+
+    let recordedOrderId: any = 'NOT_SET';
+    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    (supabaseAdmin as any).from = () => ({
+      update: () => ({ eq: async () => ({ error: null, data: [] }) }),
+      select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
+    });
+
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        if (sql.includes('INSERT INTO public.payment_events')) {
+          return { rows: [{ event_id: params[0], processed_at: null }] };
+        }
+        if (sql.includes('INSERT INTO public.transactions')) {
+          recordedOrderId = params[1];
+          return { rows: [] };
+        }
+        if (sql.includes('employer_profiles')) {
+          return { rows: [{ user_id: 'user_sub_test_2' }] };
+        }
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    await PaymentService.processRazorpayEvent({
+      event: 'subscription.charged',
+      payload: {
+        subscription: {
+          entity: {
+            id: 'sub_999888777',
+            plan_id: 'plan_starter'
+          }
+        },
+        payment: {
+          entity: {
+            id: 'pay_sub_test_222',
+            amount: 99900,
+            currency: 'INR',
+            email: 'employer_t2@sevikaa.in'
+          }
+        }
+      }
+    });
+
+    (dbPool as any).connect = origConnect;
+    (supabaseAdmin as any).from = origFrom;
+
+    assert(recordedOrderId !== 'sub_999888777' && recordedOrderId === null, 'Test T2: subscription.charged must not store sub_xxx as an order_xxx value');
+  } catch (err: any) {
+    assert(false, 'Test T2', err.message);
+  }
+
+  // --- TEST T3: payment.captured with real order_id -> real order_id is stored ---
+  try {
+    setupValidProductionEnv();
+    const { dbPool } = await import('../src/lib/db');
+    const { supabaseAdmin } = await import('../src/lib/supabaseAdminClient');
+
+    let recordedOrderId: any = null;
+    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    (supabaseAdmin as any).from = () => ({
+      update: () => ({ eq: async () => ({ error: null, data: [] }) }),
+      select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
+    });
+
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        if (sql.includes('INSERT INTO public.payment_events')) {
+          return { rows: [{ event_id: params[0], processed_at: null }] };
+        }
+        if (sql.includes('checkout_sessions')) {
+          return { rows: [{ user_id: 'user_real_order_777', plan_id: 'pro' }] };
+        }
+        if (sql.includes('INSERT INTO public.transactions')) {
+          recordedOrderId = params[1];
+          return { rows: [] };
+        }
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_real_order_777',
+            order_id: 'order_real_razorpay_777',
+            amount: 149900,
+            currency: 'INR',
+            email: 'employer_t3@sevikaa.in'
+          }
+        }
+      }
+    });
+
+    (dbPool as any).connect = origConnect;
+    (supabaseAdmin as any).from = origFrom;
+
+    assert(recordedOrderId === 'order_real_razorpay_777', 'Test T3: payment.captured with real order_id -> real order_id is stored');
+  } catch (err: any) {
+    assert(false, 'Test T3', err.message);
+  }
+
   // Restore environment
   process.env = originalEnv;
   resetServerEnvCache();
