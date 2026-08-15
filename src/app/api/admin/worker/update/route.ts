@@ -6,7 +6,7 @@ import { logAuditAction } from '@/lib/auditLogger';
 import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function POST(req: NextRequest) {
-  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  const { errorResponse, context } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
   if (errorResponse) return errorResponse;
 
   try {
@@ -86,6 +86,8 @@ export async function POST(req: NextRequest) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let resolvedUserId = userId;
 
+    const mappedStatus = (status === 'unapproved' || status === 'rejected') ? 'pending_review' : (status === 'pending_verification' ? 'pending_review' : status);
+
     // 1. Ensure profiles entry exists (schema managed via migrations — no runtime DDL)
     try {
 
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
                  ELSE public.profiles.status 
                END
            WHERE id::text = $4 OR id::text = (SELECT user_id::text FROM public.worker_profiles WHERE id::text = $4 LIMIT 1)`,
-          [phone || null, email || null, status || null, resolvedUserId]
+          [phone || null, email || null, mappedStatus || null, resolvedUserId]
         );
       } else {
         if (!uuidRegex.test(resolvedUserId)) {
@@ -119,7 +121,7 @@ export async function POST(req: NextRequest) {
              phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
              email = COALESCE(EXCLUDED.email, public.profiles.email),
              status = CASE WHEN EXCLUDED.status = 'pending_verification' THEN 'pending_review' ELSE COALESCE(EXCLUDED.status, public.profiles.status) END`,
-          [resolvedUserId, phone || null, email || null, status || null]
+          [resolvedUserId, phone || null, email || null, mappedStatus || null]
         );
       }
     } catch (pErr) {
@@ -258,10 +260,15 @@ export async function POST(req: NextRequest) {
           queryValues.push(workerBio);
         }
 
-        if (isTelePassed) {
-          updateFields.push(`is_tele_onboarded = true`);
-          updateFields.push(`is_interview_verified = true`);
-          updateFields.push(`tele_onboarded_at = NOW()`);
+        if (body.is_tele_onboarded !== undefined || body.tele_onboarded !== undefined || body.is_interview_verified !== undefined) {
+          const isTeleVal = body.is_tele_onboarded === true || body.tele_onboarded === true || body.is_interview_verified === true;
+          updateFields.push(`is_tele_onboarded = $${pIdx++}`);
+          queryValues.push(isTeleVal);
+          updateFields.push(`is_interview_verified = $${pIdx++}`);
+          queryValues.push(isTeleVal);
+          if (isTeleVal) {
+            updateFields.push(`tele_onboarded_at = NOW()`);
+          }
         }
 
         if (body.is_aadhaar_front_verified !== undefined && body.is_aadhaar_front_verified !== null) {
@@ -290,7 +297,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (body.status !== undefined && body.status !== null) {
-          const cleanSt = body.status === 'pending_verification' ? 'pending_review' : body.status;
+          const cleanSt = (body.status === 'unapproved' || body.status === 'rejected') ? 'pending_review' : (body.status === 'pending_verification' ? 'pending_review' : body.status);
           updateFields.push(`status = $${pIdx++}`);
           queryValues.push(cleanSt);
         }
@@ -411,15 +418,18 @@ export async function POST(req: NextRequest) {
         ? changeParts.join(" • ") 
         : "Worker profile details updated by admin moderator.";
 
+      const activeAdminEmail = context?.email || body.admin_email || body.admin_name || 'admin@sevikaa.in';
+      const activeAdminName = body.admin_name || (activeAdminEmail.includes('@') ? activeAdminEmail.split('@')[0] : 'Admin Moderator');
+
       logAuditAction({
         req,
         action: status ? `Worker Profile ${status.toUpperCase()}` : 'Worker Profile Updated',
         category: 'moderation',
         severity: status === 'live' || status === 'approved' ? 'info' : 'warning',
-        actor: body.admin_email || body.admin_name || 'admin@sevikaa.in',
-        admin_email: body.admin_email || 'admin@sevikaa.in',
-        admin_name: body.admin_name || 'Admin Moderator',
-        actorRole: 'Moderator',
+        actor: activeAdminEmail,
+        admin_email: activeAdminEmail,
+        admin_name: activeAdminName,
+        actorRole: context?.role === 'super-admin' ? 'Super Admin' : 'Moderator',
         target_name: displayName || 'Worker Candidate',
         target_id: resolvedUserId,
         changes_summary: summaryText,

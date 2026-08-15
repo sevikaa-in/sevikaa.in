@@ -7,11 +7,12 @@ import {
   PhoneCall, Users, ShieldCheck, Search, RefreshCw, MessageSquare, 
   ArrowRight, CheckCircle2, UserCheck, AlertTriangle, Building, MapPin, 
   FileText, ShieldAlert, Sparkles, X, Loader2, Save, Repeat, Home,
-  ChevronLeft, ChevronRight, Clock, Briefcase, Calendar
+  ChevronLeft, ChevronRight, Clock, Briefcase, Calendar, XCircle
 } from 'lucide-react';
 import { useAdminData, prefetchAdminData, invalidateAdminCache } from '@/hooks/useAdminData';
 import { formatWorkerShift, ALL_SHIFT_OPTIONS, normalizeShiftOption } from '@/utils/formatWorkerShift';
 import { resolveMediaUrl } from '@/utils/resolveMediaUrl';
+import { webApiClient } from '@/lib/webApiClient';
 
 const getAdminId = () => {
   if (typeof window === 'undefined') return 'admin_default';
@@ -63,11 +64,11 @@ export default function TeleOnboardingPage() {
   const [newCallOutcome, setNewCallOutcome] = useState('connected');
   const [addingNote, setAddingNote] = useState(false);
 
-  // Poll active locks every 4 seconds
+  // Poll active locks with smart frequency (8s when sheet is open, 25s when closed; paused when tab hidden)
   useEffect(() => {
     const pollLocks = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
-        const { webApiClient } = await import('@/lib/webApiClient');
         const data = await webApiClient.get('/api/admin/lead-lock');
         if (data && data.success && Array.isArray(data.locks)) {
           const map: Record<string, any> = {};
@@ -79,9 +80,9 @@ export default function TeleOnboardingPage() {
       }
     };
     pollLocks();
-    const interval = setInterval(pollLocks, 4000);
+    const interval = setInterval(pollLocks, isSheetOpen ? 8000 : 25000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isSheetOpen]);
 
   // PAGINATION & SWR CACHING STATES
   const [page, setPage] = useState(1);
@@ -223,7 +224,6 @@ export default function TeleOnboardingPage() {
 
     const acquireLock = async () => {
       try {
-        const { webApiClient } = await import('@/lib/webApiClient');
         await webApiClient.post('/api/admin/lead-lock', { lead_id: selectedLead.id, admin_id: adminId, admin_name: adminName });
       } catch (e) {
         console.warn("Acquire lock notice:", e);
@@ -233,7 +233,6 @@ export default function TeleOnboardingPage() {
     const fetchSharedNotes = async () => {
       setLoadingSharedNotes(true);
       try {
-        const { webApiClient } = await import('@/lib/webApiClient');
         const data = await webApiClient.get(`/api/admin/tele-notes?lead_id=${selectedLead.id}`);
         if (data && data.success) {
           setSharedNotes(data.notes || []);
@@ -252,9 +251,7 @@ export default function TeleOnboardingPage() {
 
     return () => {
       clearInterval(heartbeatTimer);
-      import('@/lib/webApiClient').then(({ webApiClient }) => {
-        webApiClient.delete(`/api/admin/lead-lock?lead_id=${selectedLead.id}&admin_id=${adminId}`).catch(() => {});
-      });
+      webApiClient.delete(`/api/admin/lead-lock?lead_id=${selectedLead.id}&admin_id=${adminId}`).catch(() => {});
     };
   }, [selectedLead, isSheetOpen]);
 
@@ -568,6 +565,67 @@ export default function TeleOnboardingPage() {
       refreshLeads();
     } catch (err: any) {
       showToast(err.message || 'Error saving lead', 'error');
+    } finally {
+      setSavingLead(false);
+    }
+  };
+
+  const handleUnapproveLead = async () => {
+    if (!selectedLead) return;
+    setSavingLead(true);
+    try {
+      if (activeTab === 'workers' || isWorkerLead(selectedLead)) {
+        const workerPayload: any = {
+          userId: selectedLead.id,
+          admin_email: typeof localStorage !== 'undefined' ? localStorage.getItem('sevikaa_user_email') || 'admin@sevikaa.in' : 'admin@sevikaa.in',
+          admin_name: getAdminName(),
+          is_tele_onboarded: false,
+          tele_onboarded: false,
+          is_interview_verified: false,
+          is_live: false,
+          live: false,
+          status: 'unapproved'
+        };
+
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const data = await webApiClient.post('/api/admin/worker/update', workerPayload);
+        if (!data || !data.success) throw new Error(data?.error || 'Failed to unapprove worker');
+
+        setSelectedLead((prev: any) => prev ? {
+          ...prev,
+          is_tele_onboarded: false,
+          tele_onboarded: false,
+          is_interview_verified: false,
+          is_live: false,
+          live: false,
+          status: 'unapproved'
+        } : null);
+
+        setWorkersList(prev => prev.map(w => w.id === selectedLead.id ? {
+          ...w,
+          is_tele_onboarded: false,
+          tele_onboarded: false,
+          is_interview_verified: false,
+          is_live: false,
+          live: false,
+          status: 'unapproved'
+        } : w));
+        showToast("✕ Lead Unapproved & Removed from Live Status", "info");
+      } else {
+        const data = await webApiClient.post('/api/admin/employer/update', {
+          id: selectedLead.id,
+          is_tele_onboarded: false,
+          status: 'unapproved'
+        });
+        if (!data || !data.success) throw new Error(data?.error || 'Failed to unapprove employer');
+        setEmployersList(prev => prev.map(e => e.id === selectedLead.id ? { ...e, is_tele_onboarded: false, status: 'unapproved' } : e));
+        showToast("✕ Employer Lead Unapproved", "info");
+      }
+      invalidateAdminCache('tele_onboarding');
+      setIsSheetOpen(false);
+      fetchPaginatedLeads(page);
+    } catch (err: any) {
+      showToast(err.message || 'Error unapproving lead', 'error');
     } finally {
       setSavingLead(false);
     }
@@ -1008,7 +1066,11 @@ export default function TeleOnboardingPage() {
                       }
                       return null;
                     })()}
-                    {(lead.is_tele_onboarded || lead.is_interview_verified || lead.status === 'admin_interview' || lead.status === 'approved' || lead.status === 'active' || lead.status === 'live' || lead.status === 'completed') ? (
+                    {lead.status === 'unapproved' || lead.status === 'rejected' ? (
+                      <span className="text-[9px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 inline-block">
+                        ✕ Unapproved Candidate
+                      </span>
+                    ) : (lead.is_tele_onboarded || lead.status === 'approved' || lead.status === 'live' || lead.status === 'active') && lead.is_interview_verified !== false ? (
                       <span className="text-[9px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 inline-block">
                         ✓ Tele-Onboarded &amp; Verified
                       </span>
@@ -2287,32 +2349,34 @@ export default function TeleOnboardingPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50/60 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-              <button
-                type="button"
-                onClick={() => setIsSheetOpen(false)}
-                className="w-full sm:w-auto py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                Close Modal
-              </button>
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 shrink-0 flex items-center justify-end gap-2.5">
+              <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  disabled={savingLead}
+                  onClick={handleUnapproveLead}
+                  className="py-2 px-3.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                >
+                  <XCircle size={14} />
+                  <span>Unapprove</span>
+                </button>
 
-              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   disabled={savingLead}
                   onClick={() => handleSaveLead(false)}
-                  className="w-full sm:w-auto py-2.5 px-4 bg-white text-[#1A73E8] border border-[#1A73E8] hover:bg-blue-50 rounded-xl text-xs font-black shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="py-2 px-3.5 bg-white text-[#1A73E8] border border-[#1A73E8] hover:bg-blue-50 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   <Save size={14} />
-                  <span>{savingLead ? 'Saving Draft...' : '💾 Save Draft Progress'}</span>
+                  <span>{savingLead ? 'Saving...' : 'Save Draft'}</span>
                 </button>
 
                 <button
                   type="button"
                   disabled={savingLead}
                   onClick={() => handleSaveLead(true)}
-                  className={`w-full sm:w-auto py-2.5 px-5 rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all ${
-                    (selectedLead.is_tele_onboarded || selectedLead.is_interview_verified || selectedLead.status === 'admin_interview' || selectedLead.status === 'approved' || selectedLead.status === 'active' || selectedLead.status === 'live')
+                  className={`py-2 px-4 rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all ${
+                    ((selectedLead.is_tele_onboarded || selectedLead.status === 'approved' || selectedLead.status === 'live') && selectedLead.status !== 'unapproved' && selectedLead.status !== 'rejected' && selectedLead.is_interview_verified !== false)
                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                       : 'bg-[#34A853] hover:bg-emerald-600 text-white'
                   }`}
@@ -2321,9 +2385,9 @@ export default function TeleOnboardingPage() {
                   <span>
                     {savingLead 
                       ? 'Updating...' 
-                      : (selectedLead.is_tele_onboarded || selectedLead.is_interview_verified || selectedLead.status === 'admin_interview' || selectedLead.status === 'approved' || selectedLead.status === 'active' || selectedLead.status === 'live')
-                        ? '✓ Verified & Onboarded (Save Changes)' 
-                        : '✓ Pass Tele-Onboarding & Mark Verified'
+                      : ((selectedLead.is_tele_onboarded || selectedLead.status === 'approved' || selectedLead.status === 'live') && selectedLead.status !== 'unapproved' && selectedLead.status !== 'rejected' && selectedLead.is_interview_verified !== false)
+                        ? 'Approved ✓' 
+                        : 'Approve'
                     }
                   </span>
                 </button>

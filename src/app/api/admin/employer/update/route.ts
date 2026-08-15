@@ -4,7 +4,7 @@ import { logAuditAction } from '@/lib/auditLogger';
 import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function POST(req: NextRequest) {
-  const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
+  const { errorResponse, context } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
   if (errorResponse) return errorResponse;
 
   try {
@@ -157,14 +157,18 @@ export async function POST(req: NextRequest) {
       const company = body.company_name || body.society_name || 'Employer Account';
       const summaryText = `Employer profile '${company}' updated. Status: ${status ? status.toUpperCase() : 'Updated'}. ${is_approved ? 'Marked Approved.' : ''}`;
 
+      const activeAdminEmail = context?.email || body.admin_email || body.admin_name || 'admin@sevikaa.in';
+      const activeAdminName = body.admin_name || (activeAdminEmail.includes('@') ? activeAdminEmail.split('@')[0] : 'Admin Moderator');
+
       logAuditAction({
+        req,
         action: status ? `Employer Profile ${status.toUpperCase()}` : 'Employer Profile Updated',
         category: 'moderation',
         severity: status === 'approved' || status === 'live' ? 'info' : 'warning',
-        actor: body.admin_email || body.admin_name || 'admin@sevikaa.in',
-        admin_email: body.admin_email || 'admin@sevikaa.in',
-        admin_name: body.admin_name || 'Admin Moderator',
-        actorRole: 'Moderator',
+        actor: activeAdminEmail,
+        admin_email: activeAdminEmail,
+        admin_name: activeAdminName,
+        actorRole: context?.role === 'super-admin' ? 'Super Admin' : 'Moderator',
         target_name: company,
         target_id: targetId,
         changes_summary: summaryText,

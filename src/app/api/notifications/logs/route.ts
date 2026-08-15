@@ -1,49 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
 import { formatIstTimestamp } from '@/lib/auditLogger';
-
-import { getServerEnv } from '@/lib/env';
-
-const env = getServerEnv();
-const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
 
 export async function GET(request: NextRequest) {
   try {
-    // Require admin authentication — notification logs contain PII (recipient phone/email)
-    const authHeader = request.headers.get('authorization');
-    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
-
-    if (!token) {
-      const sbCookie = Array.from(request.cookies.getAll()).find(c =>
-        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
-      );
-      if (sbCookie?.value) {
-        try {
-          const parsed = JSON.parse(sbCookie.value);
-          token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
-        } catch { token = sbCookie.value; }
-      }
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required.' }, { status: 401 });
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
-    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-    const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Forbidden', message: 'Admin privileges required to view notification logs.' }, { status: 403 });
-    }
+    const { errorResponse } = await verifyAdminSecurityContext(request, { requiredRole: 'admin' });
+    if (errorResponse) return errorResponse;
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);

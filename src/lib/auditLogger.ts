@@ -139,8 +139,33 @@ export async function logAuditAction(options: AuditLogOptions) {
 
     const rawDetectedIp = ipAddress || extractClientIp(req);
     const detectedIp = (rawDetectedIp && rawDetectedIp !== 'null') ? rawDetectedIp : 'unknown';
-    const finalAdminEmail = admin_email || (actor && actor.includes('@') ? actor : 'admin@sevikaa.in');
-    const finalAdminName = admin_name || (actor && !actor.includes('@') ? actor : 'Admin Moderator');
+
+    let detectedAdminEmail = admin_email || (actor && actor.includes('@') ? actor : null);
+    if (!detectedAdminEmail && req) {
+      try {
+        const emailCookie = req.cookies?.get ? req.cookies.get('sevikaa_user_email')?.value : null;
+        const userCookie = req.cookies?.get ? req.cookies.get('sevikaa_user')?.value : null;
+        if (emailCookie && emailCookie.includes('@')) {
+          detectedAdminEmail = emailCookie;
+        } else if (userCookie) {
+          const parsed = JSON.parse(decodeURIComponent(userCookie));
+          if (parsed?.email && parsed.email.includes('@')) {
+            detectedAdminEmail = parsed.email;
+          }
+        }
+      } catch {}
+    }
+    if (!detectedAdminEmail && req) {
+      try {
+        const roleCookie = req.cookies?.get ? req.cookies.get('sevikaa_user_role')?.value : null;
+        if (roleCookie === 'super-admin') {
+          detectedAdminEmail = 'yugayatra@sevikaa.in';
+        }
+      } catch {}
+    }
+
+    const finalAdminEmail = detectedAdminEmail || 'admin@sevikaa.in';
+    const finalAdminName = admin_name || (actor && !actor.includes('@') ? actor : (finalAdminEmail.includes('@') ? finalAdminEmail.split('@')[0] : 'Admin Moderator'));
     const finalTargetName = sanitizeAuditText(target_name || resource || 'System Resource');
     const finalTargetId = (target_id || userId) ? String(target_id || userId) : null;
 
