@@ -7,6 +7,7 @@ export class ConfigurationError extends Error {
 
 export interface ServerEnv {
   NODE_ENV: 'development' | 'production' | 'test';
+  NEXT_PHASE?: string;
   NEXT_PUBLIC_SUPABASE_URL: string;
   NEXT_PUBLIC_SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -94,6 +95,7 @@ export function validateServerEnv(): ServerEnv {
 
   return {
     NODE_ENV: nodeEnv,
+    NEXT_PHASE: process.env.NEXT_PHASE,
     NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
     SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey,

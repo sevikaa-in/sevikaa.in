@@ -6,7 +6,7 @@ const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL || '';
 const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 const isServiceKeyValid = serviceKey && !serviceKey.includes('placeholder') && serviceKey.length > 50;
-const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
+const isBuildPhase = env.NEXT_PHASE === 'phase-production-build' || process.env.NEXT_PHASE === 'phase-production-build';
 
 if (env.NODE_ENV === 'production' && !isServiceKeyValid && !isBuildPhase) {
   throw new Error('[supabaseAdmin] CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing or invalid in production environment.');
