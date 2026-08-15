@@ -58,7 +58,7 @@ export class TransactionRepository {
            ELSE EXCLUDED.status
          END,
          razorpay_order_id = COALESCE(public.transactions.razorpay_order_id, EXCLUDED.razorpay_order_id),
-         raw_payload = EXCLUDED.raw_payload;`,
+         raw_payload = COALESCE(public.transactions.raw_payload, EXCLUDED.raw_payload);`,
       [
         data.razorpay_payment_id,
         data.razorpay_order_id || null,

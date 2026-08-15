@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         employerName: t.employer_name || t.employer_email || null,
         employerPhone: t.employer_phone || null,
         planName: t.plan_name || null,
-        amount: t.amount !== null && t.amount !== undefined ? parseFloat(t.amount) : 0,
+        amount: t.amount !== null && t.amount !== undefined ? parseFloat(t.amount) : null,
         paymentMethod: t.payment_method || null,
         status: t.status || null,
         invoiceNumber: t.invoice_number || null,
