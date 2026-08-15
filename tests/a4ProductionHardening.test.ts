@@ -395,36 +395,71 @@ async function runA4Tests() {
     }
 
     if (isRealDbAvailable) {
-      const testEventId = `payment.captured:pay_live_pg_concurrency_${Date.now()}`;
+      const fixedPaymentId = 'pay_pg_concurrency_test_999';
+      const fixedOrderId = 'order_pg_concurrency_test_999';
+      const fixedEventId = `payment.captured:${fixedPaymentId}`;
+
+      // 1. Cleanup any pre-existing test records
+      await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [fixedEventId]).catch(() => {});
+      await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [fixedPaymentId]).catch(() => {});
+      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [fixedOrderId]).catch(() => {});
+
+      // Seed a test checkout session so order lookup succeeds
+      await queryDb(
+        `INSERT INTO public.checkout_sessions (token_hash, user_id, plan_id, expected_amount, razorpay_order_id, expires_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 hour', NOW())
+         ON CONFLICT (razorpay_order_id) DO NOTHING`,
+        [`hash_${fixedOrderId}`, 'user_pg_concurrency_123', 'pro', 1499, fixedOrderId]
+      ).catch(() => {});
+
       const payload = {
         event: 'payment.captured',
         payload: {
           payment: {
             entity: {
-              id: `pay_live_pg_concurrency_${Date.now()}`,
-              order_id: `order_live_pg_concurrency_${Date.now()}`,
+              id: fixedPaymentId,
+              order_id: fixedOrderId,
               amount: 149900,
               currency: 'INR',
-              email: 'employer_live_pg@sevikaa.in'
+              email: 'employer_pg_concurrency@sevikaa.in'
             }
           }
         }
       };
 
-      // Two concurrent processing attempts against live PostgreSQL payment_events table
-      const [attemptA, attemptB] = await Promise.all([
-        PaymentService.processRazorpayEvent(payload),
-        PaymentService.processRazorpayEvent(payload)
-      ]);
+      try {
+        // 2. Fire two concurrent processing attempts using the EXACT SAME payment ID & event ID
+        const [attemptA, attemptB] = await Promise.all([
+          PaymentService.processRazorpayEvent(payload),
+          PaymentService.processRazorpayEvent(payload)
+        ]);
 
-      // Exactly one attempt succeeds or processes cleanly, and UNIQUE constraint prevents double claim
-      const oneSucceeded = attemptA.success || attemptB.success;
-      assert(oneSucceeded, 'Test O_DB [Postgres Real Integration Test]: Live PostgreSQL UNIQUE event claim enforced concurrency cleanly');
+        // 3. Query authoritative database tables to verify concurrency outcomes
+        const eventsRes = await queryDb(`SELECT event_id, processed_at FROM public.payment_events WHERE payment_id = $1`, [fixedPaymentId]);
+        const txRes = await queryDb(`SELECT id, razorpay_payment_id, razorpay_order_id, amount, status FROM public.transactions WHERE razorpay_payment_id = $1`, [fixedPaymentId]);
 
-      // Cleanup live test event
-      await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [testEventId]).catch(() => {});
+        // Assertion 1: Exactly 1 row created in public.payment_events
+        assert(eventsRes?.rows?.length === 1, `Test O_DB Assertion 1: Exactly 1 payment_events claim row created (got ${eventsRes?.rows?.length})`);
+
+        // Assertion 2: Exactly 1 financial transaction created in public.transactions
+        assert(txRes?.rows?.length === 1, `Test O_DB Assertion 2: Exactly 1 financial transaction created (got ${txRes?.rows?.length})`);
+
+        // Assertion 3: Final processing state completed
+        assert(eventsRes.rows[0].processed_at !== null, 'Test O_DB Assertion 3: Winner process successfully completed payment event claim');
+
+        // Assertion 4: Outcome verification — one attempt acquired claim while concurrent attempt was blocked/handled cleanly
+        const validConcurrencyOutcomes = (attemptA.success && (attemptB.statusCode === 500 || attemptB.message === 'Already processed')) ||
+                                         (attemptB.success && (attemptA.statusCode === 500 || attemptA.message === 'Already processed'));
+        assert(validConcurrencyOutcomes, 'Test O_DB Assertion 4: One request acquired claim while concurrent request was blocked by UNIQUE constraint');
+
+      } finally {
+        // Cleanup test data
+        await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [fixedEventId]).catch(() => {});
+        await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [fixedPaymentId]).catch(() => {});
+        await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [fixedOrderId]).catch(() => {});
+      }
     } else {
-      console.log('ℹ [SKIP] Test O_DB [Postgres Real Integration Test]: Live PostgreSQL database is offline/unreachable in this local unit test runner.');
+      console.log('ℹ [SKIP] Test O_DB [Postgres Real Integration Test]: Live PostgreSQL database is offline/unreachable in local test runner.');
     }
   } catch (err: any) {
     assert(false, 'Test O_DB [Postgres Real Integration Test]', err.message);
