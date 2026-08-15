@@ -51,7 +51,6 @@ export const resolveMediaUrl = (bucketName: string, path: string | null | undefi
     return undefined;
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const cleanPath = trimmed
     .replace(new RegExp(`^${bucketName}\\/`), '')
     .replace(/^(employer-documents|verification-documents|worker-documents|worker-selfies|worker-videos)\//, '');

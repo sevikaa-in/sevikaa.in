@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PaymentService } from '@/services/paymentService';
+import { getServerEnv } from '@/lib/env';
 
 export async function POST(request: NextRequest) {
   try {
-    const razorpaySecret = process.env.RAZORPAY_KEY_SECRET || '';
+    const env = getServerEnv();
+    const razorpaySecret = env.RAZORPAY_KEY_SECRET;
     const rawBody = await request.text();
     const signature = request.headers.get('x-razorpay-signature') || '';
 

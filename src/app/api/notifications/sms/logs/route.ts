@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../../lib/supabaseAdminClient';
+import { getServerEnv } from '@/lib/env';
 
 // Helper function to check admin/super-admin role via Supabase Session Token
 async function isAdmin(request: NextRequest): Promise<boolean> {
@@ -7,8 +8,9 @@ async function isAdmin(request: NextRequest): Promise<boolean> {
   if (!authHeader) return false;
   
   const token = authHeader.replace('Bearer ', '');
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const env = getServerEnv();
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
   const { createClient } = require('@supabase/supabase-js');
   const tempClient = createClient(supabaseUrl, supabaseAnonKey, {

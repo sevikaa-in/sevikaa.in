@@ -11,36 +11,25 @@ interface InvoicesScreenProps {
 export const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchInvoices = async () => {
     setLoading(true);
+    setErrorMsg(null);
     try {
       const { apiClient } = await import('../services/apiClient');
-      const data = await apiClient.get('api/super-admin/transactions?page=1&limit=10');
-      if (data && Array.isArray(data.transactions)) {
+      const data = await apiClient.get('api/employer/invoices');
+      if (data && Array.isArray(data.invoices)) {
+        setInvoices(data.invoices);
+      } else if (data && Array.isArray(data.transactions)) {
         setInvoices(data.transactions);
+      } else {
+        setInvoices([]);
       }
-    } catch (e) {
-      setInvoices([
-        {
-          id: 'pay_RZP1009814',
-          invoiceNumber: 'SV/26-27/0004',
-          timestamp: '06 Aug 2026',
-          employerName: 'sharma.employer',
-          planName: 'Pro Household Unlimited Employer Pass',
-          amount: 1499.00,
-          status: 'Paid'
-        },
-        {
-          id: 'pay_RZP1009812',
-          invoiceNumber: 'SV/26-27/0003',
-          timestamp: '06 Aug 2026',
-          employerName: 'Verma Residency',
-          planName: 'Job Posting Requisition',
-          amount: 199.00,
-          status: 'Paid'
-        }
-      ]);
+    } catch (e: any) {
+      console.warn('[InvoicesScreen] Failed to fetch invoices:', e?.message);
+      setErrorMsg('Unable to load tax invoices from server.');
+      setInvoices([]);
     } finally {
       setLoading(false);
     }
@@ -51,10 +40,11 @@ export const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ onBack }) => {
   }, []);
 
   const handleOpenTaxInvoice = (inv: any) => {
-    const invId = inv.invoiceNumber ? inv.invoiceNumber.replace(/\//g, '-') : inv.id;
+    const invId = inv.invoiceNumber ? inv.invoiceNumber.replace(/\//g, '-') : (inv.razorpay_payment_id || inv.id);
+    if (!invId) return;
     const url = getApiUrl(`invoice/${invId}`);
     Linking.openURL(url);
-    Alert.alert("Opening Tax Invoice 🧾", `Opening single A4 page Tax Invoice ${inv.invoiceNumber || inv.id}...`);
+    Alert.alert("Opening Tax Invoice 🧾", `Opening single A4 page Tax Invoice ${inv.invoiceNumber || invId}...`);
   };
 
   return (
@@ -62,28 +52,27 @@ export const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ onBack }) => {
       <Text style={styles.title}>Membership &amp; GST Tax Invoices</Text>
       <Text style={styles.subtitle}>Issuer: YugaYatra Retail (OPC) Pvt.Ltd (GSTIN: 29AABCY8389C1ZT)</Text>
 
-      {/* ACTIVE SUBSCRIPTION BADGE CARD */}
-      <View style={styles.activePassCard}>
-        <View style={styles.activePassRow}>
-          <View>
-            <Text style={styles.activePassBadge}>🟢 ACTIVE MEMBERSHIP PASS</Text>
-            <Text style={styles.activePassTitle}>Pro Household Unlimited Pass</Text>
-            <Text style={styles.activePassSub}>Valid till: 06 Oct 2026 (60 Days Unlimited Contact Access)</Text>
-          </View>
-        </View>
-      </View>
-
       <Text style={styles.sectionHeader}>Payment Ledger &amp; Tax Invoice History</Text>
 
       {loading ? (
         <ActivityIndicator size="large" color="#1A73E8" style={{ marginTop: 30 }} />
+      ) : errorMsg ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>Notice</Text>
+          <Text style={styles.emptyText}>{errorMsg}</Text>
+        </View>
+      ) : invoices.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>No Invoices Found</Text>
+          <Text style={styles.emptyText}>When you purchase a hiring pass or job posting requisition, official GST tax invoices will appear here.</Text>
+        </View>
       ) : (
         invoices.map((inv) => (
-          <View key={inv.id} style={styles.card}>
+          <View key={inv.id || inv.razorpay_payment_id} style={styles.card}>
             <View style={styles.row}>
               <View>
-                <Text style={styles.invNumber}>{inv.invoiceNumber || 'SV/26-27/0004'}</Text>
-                <Text style={styles.planName}>{inv.planName || 'Household Staffing Requisition'}</Text>
+                <Text style={styles.invNumber}>{inv.invoiceNumber || inv.invoice_number || 'Tax Invoice'}</Text>
+                <Text style={styles.planName}>{inv.planName || inv.plan_name || 'Household Staffing Requisition'}</Text>
               </View>
               <View style={styles.paidBadge}>
                 <Text style={styles.paidBadgeText}>✓ PAID 🟢</Text>
@@ -95,17 +84,17 @@ export const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ onBack }) => {
             <View style={styles.row}>
               <View>
                 <Text style={styles.metaLabel}>PAYMENT DATE</Text>
-                <Text style={styles.metaVal}>{inv.timestamp || '06 Aug 2026'}</Text>
+                <Text style={styles.metaVal}>{inv.timestamp || inv.created_at || 'N/A'}</Text>
               </View>
 
               <View>
                 <Text style={styles.metaLabel}>GATEWAY REF ID</Text>
-                <Text style={styles.metaVal}>{inv.id}</Text>
+                <Text style={styles.metaVal}>{inv.razorpay_payment_id || inv.id || 'N/A'}</Text>
               </View>
 
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.metaLabel}>TOTAL PAID (18% GST)</Text>
-                <Text style={styles.amountText}>₹{Number(inv.amount || 199).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text style={styles.amountText}>₹{Number(inv.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
               </View>
             </View>
 
@@ -124,40 +113,23 @@ export const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ onBack }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { padding: 16 },
+  content: { padding: 16, paddingBottom: 40 },
   title: { fontSize: 18, fontWeight: '900', color: '#0F172A' },
-  subtitle: { fontSize: 11, fontWeight: '600', color: '#64748B', marginBottom: 14, marginTop: 2 },
-  activePassCard: { backgroundColor: '#1B5E20', borderRadius: 18, padding: 16, marginBottom: 16 },
-  activePassRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  activePassBadge: { color: '#A5D6A7', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
-  activePassTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '900', marginTop: 4 },
-  activePassSub: { color: '#E8F5E9', fontSize: 11, fontWeight: '600', marginTop: 4 },
-  sectionHeader: { fontSize: 14, fontWeight: '800', color: '#0F172A', marginBottom: 12 },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
+  subtitle: { fontSize: 11, fontWeight: '600', color: '#64748B', marginTop: 2, marginBottom: 16 },
+  sectionHeader: { fontSize: 13, fontWeight: '800', color: '#334155', marginVertical: 12, letterSpacing: 0.3 },
+  emptyContainer: { padding: 24, backgroundColor: '#FFFFFF', borderRadius: 12, alignItems: 'center', marginTop: 16, borderWidth: 1, borderColor: '#E2E8F0' },
+  emptyTitle: { fontSize: 14, fontWeight: '800', color: '#334155', marginBottom: 6 },
+  emptyText: { fontSize: 12, fontWeight: '500', color: '#64748B', textAlign: 'center', lineHeight: 18 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  invNumber: { fontSize: 14, fontWeight: '900', color: '#1B5E20', fontFamily: 'monospace' },
-  planName: { fontSize: 13, fontWeight: '700', color: '#0F172A', marginTop: 2 },
-  paidBadge: { backgroundColor: '#1B5E20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  paidBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
-  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
-  metaLabel: { fontSize: 9, fontWeight: '800', color: '#64748B', letterSpacing: 0.5 },
-  metaVal: { fontSize: 11, fontWeight: '700', color: '#334155', marginTop: 2 },
-  amountText: { fontSize: 15, fontWeight: '900', color: '#1B5E20', marginTop: 2 },
-  downloadBtn: {
-    backgroundColor: '#F1F8E9',
-    borderWidth: 1,
-    borderColor: '#C8E6C9',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 14,
-  },
-  downloadBtnText: { color: '#1B5E20', fontWeight: '800', fontSize: 12 },
+  invNumber: { fontSize: 13, fontWeight: '900', color: '#0F172A' },
+  planName: { fontSize: 11, fontWeight: '700', color: '#1A73E8', marginTop: 2 },
+  paidBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  paidBadgeText: { fontSize: 10, fontWeight: '900', color: '#166534' },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 10 },
+  metaLabel: { fontSize: 9, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.5 },
+  metaVal: { fontSize: 10.5, fontWeight: '700', color: '#334155', marginTop: 2 },
+  amountText: { fontSize: 12, fontWeight: '900', color: '#0F172A', marginTop: 2 },
+  downloadBtn: { marginTop: 12, backgroundColor: '#F1F5F9', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  downloadBtnText: { fontSize: 11, fontWeight: '800', color: '#1A73E8' },
 });

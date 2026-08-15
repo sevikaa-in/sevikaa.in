@@ -10,13 +10,25 @@ interface RateLimitStore {
 const rateLimitStore: RateLimitStore = {};
 
 export function extractClientIp(req: NextRequest): string {
+  // 1. Next.js / Vercel platform-managed IP property
+  const reqIp = (req as any).ip;
+  if (reqIp && reqIp !== '::1' && reqIp !== '127.0.0.1') {
+    return reqIp;
+  }
+
+  // 2. Vercel Edge Network stripped/authenticated header
+  const realIp = req.headers.get('x-real-ip');
+  if (realIp && realIp.trim() !== '::1' && realIp.trim() !== '127.0.0.1') {
+    return realIp.trim();
+  }
+
+  // 3. Fallback: Leftmost IP from X-Forwarded-For
   const forwarded = req.headers.get('x-forwarded-for');
   if (forwarded) {
     const firstIp = forwarded.split(',')[0].trim();
     if (firstIp && firstIp !== '::1' && firstIp !== '127.0.0.1') return firstIp;
   }
-  const realIp = req.headers.get('x-real-ip');
-  if (realIp && realIp !== '::1' && realIp !== '127.0.0.1') return realIp.trim();
+
   return '127.0.0.1';
 }
 

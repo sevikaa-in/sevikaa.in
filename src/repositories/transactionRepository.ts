@@ -16,6 +16,28 @@ export interface TransactionRecord {
 }
 
 export class TransactionRepository {
+  /**
+   * Validates whether a state transition from currentStatus to newStatus is allowed.
+   * Regressions such as captured -> failed, refunded -> captured, refunded -> failed are BLOCKED.
+   * Valid transitions such as failed -> captured, captured -> refunded, captured -> captured are ALLOWED.
+   */
+  static isValidStateTransition(currentStatus: string, newStatus: string): boolean {
+    const cur = (currentStatus || '').toLowerCase();
+    const next = (newStatus || '').toLowerCase();
+
+    // 1. captured/paid -> failed is NOT allowed
+    if ((cur === 'captured' || cur === 'paid') && next === 'failed') {
+      return false;
+    }
+
+    // 2. refunded -> captured/paid/failed is NOT allowed
+    if (cur === 'refunded' && (next === 'captured' || next === 'paid' || next === 'failed')) {
+      return false;
+    }
+
+    return true;
+  }
+
   static async findTransactionByPaymentId(paymentId: string): Promise<TransactionRecord | null> {
     const res = await queryDb(
       `SELECT * FROM public.transactions WHERE razorpay_payment_id = $1 OR id::text = $1 LIMIT 1`,
@@ -30,7 +52,11 @@ export class TransactionRepository {
          (razorpay_payment_id, razorpay_order_id, user_id, employer_name, employer_email, employer_phone, plan_name, amount, payment_method, status, raw_payload, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
        ON CONFLICT (razorpay_payment_id) DO UPDATE SET 
-         status = EXCLUDED.status, 
+         status = CASE
+           WHEN public.transactions.status IN ('captured', 'paid') AND EXCLUDED.status = 'failed' THEN public.transactions.status
+           WHEN public.transactions.status = 'refunded' AND EXCLUDED.status IN ('captured', 'paid', 'failed') THEN public.transactions.status
+           ELSE EXCLUDED.status
+         END,
          amount = EXCLUDED.amount,
          raw_payload = EXCLUDED.raw_payload;`,
       [

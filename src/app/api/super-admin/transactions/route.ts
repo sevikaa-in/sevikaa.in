@@ -45,23 +45,21 @@ export async function GET(request: NextRequest) {
       [limit, offset]
     );
 
-    const transactions = (res?.rows || []).map((t, idx) => {
-      const seqNum = total - (offset + idx);
-      const defaultInv = `SV/26-27/${String(Math.max(1, seqNum)).padStart(4, '0')}`;
+    const transactions = (res?.rows || []).map((t) => {
       const paymentId = t.razorpay_payment_id || t.id;
-      const orderId = t.razorpay_order_id || t.order_id || `order_${idx}`;
+      const orderId = t.razorpay_order_id || t.order_id || null;
 
       return {
         id: paymentId,
         orderId,
-        employerName: t.employer_name || t.employer_email?.split('@')?.[0] || 'Employer Requisition',
-        employerPhone: t.employer_phone || t.employer_email || 'N/A',
-        planName: t.plan_name || 'Premium Pass',
-        amount: parseFloat(t.amount || 0),
-        paymentMethod: t.payment_method || 'UPI / Razorpay',
-        status: t.status || 'captured',
-        invoiceNumber: t.invoice_number || defaultInv,
-        timestamp: formatIstTimestamp(t.created_at)
+        employerName: t.employer_name || t.employer_email || null,
+        employerPhone: t.employer_phone || null,
+        planName: t.plan_name || null,
+        amount: t.amount !== null && t.amount !== undefined ? parseFloat(t.amount) : 0,
+        paymentMethod: t.payment_method || null,
+        status: t.status || null,
+        invoiceNumber: t.invoice_number || null,
+        timestamp: t.created_at ? formatIstTimestamp(t.created_at) : null
       };
     });
 

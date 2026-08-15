@@ -57,33 +57,43 @@ export class PaymentService {
       const orderId = paymentEntity.order_id || `order_${Date.now()}`;
       let status = event === 'payment.failed' ? 'failed' : (event === 'payment.refunded' ? 'refunded' : (paymentEntity.status || 'captured'));
 
-      // Idempotency state machine check
+      // Atomic Idempotency Claim: Attempt atomic database row claim
       const eventId = `${event}:${paymentId}`;
       const payloadHash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 
       try {
-        const existingEvent = await queryDb(
-          `SELECT processed_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
-          [eventId]
+        const claimRes = await queryDb(
+          `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, received_at)
+           VALUES ('razorpay', $1, $2, $3, $4, NOW())
+           ON CONFLICT (event_id) DO NOTHING
+           RETURNING event_id, processed_at`,
+          [eventId, paymentId, event, payloadHash]
         );
 
-        if (existingEvent?.rows?.length) {
-          const row = existingEvent.rows[0];
-          if (row.processed_at) {
-            console.log(`[PaymentService] Idempotent skip: event ${eventId} already completed at ${row.processed_at}.`);
-            return { success: true, message: 'Already processed' };
-          }
-          console.log(`[PaymentService] Retrying incomplete event ${eventId}...`);
-        } else {
-          await queryDb(
-            `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, received_at)
-             VALUES ('razorpay', $1, $2, $3, $4, NOW())
-             ON CONFLICT (event_id) DO NOTHING`,
-            [eventId, paymentId, event, payloadHash]
+        if (!claimRes?.rows?.length) {
+          // Conflict occurred: another execution inserted event_id first
+          const existing = await queryDb(
+            `SELECT processed_at, received_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
+            [eventId]
           );
+
+          if (existing?.rows?.length) {
+            const row = existing.rows[0];
+            if (row.processed_at) {
+              console.log(`[PaymentService] Idempotent skip: event ${eventId} already completed at ${row.processed_at}.`);
+              return { success: true, message: 'Already processed' };
+            }
+
+            const ageMs = Date.now() - new Date(row.received_at).getTime();
+            if (ageMs < 30000) {
+              console.log(`[PaymentService] Idempotent skip: event ${eventId} is currently being processed by a concurrent thread.`);
+              return { success: true, message: 'Concurrent request in progress' };
+            }
+            console.log(`[PaymentService] Retrying stale incomplete event ${eventId}...`);
+          }
         }
       } catch (idempotentErr: any) {
-        console.error('[PaymentService] CRITICAL: payment_events idempotency check failed:', idempotentErr?.message);
+        console.error('[PaymentService] CRITICAL: payment_events idempotency claim failed:', idempotentErr?.message);
         return { success: false, error: 'Idempotency verification failed. Deferred for retry.', statusCode: 500 };
       }
 
@@ -92,10 +102,12 @@ export class PaymentService {
       const amount = (paymentEntity.amount || 0) / 100;
       const method = (paymentEntity.method || 'upi').toUpperCase();
 
-      let userId: string;
+      let userId: string = '';
       let planName = 'Premium Subscription Pass';
+      const subscriptionEntity = payload?.payload?.subscription?.entity;
 
-      // Authoritative lookup — cross-reference Razorpay order_id in checkout_sessions
+      // Authoritative lookup — cross-reference Razorpay order_id in checkout_sessions or fallback for subscription.charged
+      let matchedSession: any = null;
       if (orderId && orderId.startsWith('order_')) {
         const sessionRes = await queryDb(
           `SELECT user_id, plan_id, expected_amount
@@ -106,34 +118,65 @@ export class PaymentService {
         ).catch(() => null);
 
         if (sessionRes?.rows?.length) {
-          const session = sessionRes.rows[0];
-          userId = session.user_id;
-          planName = session.plan_id ? `${session.plan_id} plan` : planName;
-
-          // Verify paid amount matches expected amount
-          const expectedAmountPaise = (session.expected_amount || 0) * 100;
-          const paidAmountPaise = paymentEntity.amount || 0;
-          if (expectedAmountPaise > 0 && paidAmountPaise !== expectedAmountPaise) {
-            console.error(`[PaymentService] AMOUNT MISMATCH: expected ${expectedAmountPaise} paise, got ${paidAmountPaise} paise for order ${orderId}`);
-            await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch(() => {});
-            return { success: false, error: 'Payment amount mismatch', statusCode: 400 };
-          }
-        } else {
-          console.error(`[PaymentService] UNMAPPED PAYMENT REJECTED: No checkout_session found for order_id ${orderId}.`);
-          await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch(() => {});
-          return { success: false, error: 'Unmapped payment order. Sent to manual reconciliation queue.', statusCode: 400 };
+          matchedSession = sessionRes.rows[0];
         }
-      } else {
-        console.error(`[PaymentService] UNMAPPED PAYMENT REJECTED: Missing valid order_id for payment ${paymentId}.`);
-        await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch(() => {});
-        return { success: false, error: 'Payment order ID required.', statusCode: 400 };
       }
 
-      // Check existing transaction for terminal state protection
+      if (matchedSession) {
+        userId = matchedSession.user_id;
+        planName = matchedSession.plan_id ? `${matchedSession.plan_id} plan` : planName;
+
+        // Verify paid amount matches expected amount
+        const expectedAmountPaise = (matchedSession.expected_amount || 0) * 100;
+        const paidAmountPaise = paymentEntity.amount || 0;
+        if (expectedAmountPaise > 0 && paidAmountPaise !== expectedAmountPaise) {
+          console.error(`[PaymentService] AMOUNT MISMATCH: expected ${expectedAmountPaise} paise, got ${paidAmountPaise} paise for order ${orderId}`);
+          await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
+            console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
+          });
+          return { success: false, error: 'Payment amount mismatch', statusCode: 400 };
+        }
+      } else if (event === 'subscription.charged' || (subscriptionEntity && subscriptionEntity.id)) {
+        // Fallback for subscription.charged events where checkout_sessions row is missing/unmapped
+        const subNotesUserId = subscriptionEntity?.notes?.user_id || paymentEntity?.notes?.user_id;
+        if (subNotesUserId) {
+          userId = subNotesUserId;
+        } else if (billingEmail && billingEmail !== 'employer@sevikaa.in') {
+          const profileRes = await queryDb(
+            `SELECT user_id FROM public.employer_profiles WHERE email = $1 LIMIT 1`,
+            [billingEmail]
+          ).catch(() => null);
+
+          if (profileRes?.rows?.length) {
+            userId = profileRes.rows[0].user_id;
+          } else {
+            console.error(`[PaymentService] UNMAPPED SUBSCRIPTION REJECTED: Could not resolve user for email ${billingEmail}`);
+            await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
+              console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
+            });
+            return { success: false, error: 'Unmapped subscription payment. User not found.', statusCode: 400 };
+          }
+        } else {
+          console.error(`[PaymentService] UNMAPPED SUBSCRIPTION REJECTED: Missing user reference for subscription event ${paymentId}.`);
+          await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
+            console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
+          });
+          return { success: false, error: 'Subscription user reference required.', statusCode: 400 };
+        }
+        planName = subscriptionEntity?.plan_id ? `Subscription Plan (${subscriptionEntity.plan_id})` : planName;
+      } else {
+        console.error(`[PaymentService] UNMAPPED PAYMENT REJECTED: No checkout_session found for order_id ${orderId}.`);
+        await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
+          console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
+        });
+        return { success: false, error: 'Unmapped payment order. Sent to manual reconciliation queue.', statusCode: 400 };
+      }
+
+      // Check existing transaction for state transition protection
       const existingTx = await TransactionRepository.findTransactionByPaymentId(paymentId);
-      if (existingTx && (existingTx.status === 'captured' || existingTx.status === 'refunded') && status === 'failed') {
-        console.warn(`[PaymentService] Rejecting status regression: Transaction ${paymentId} is already ${existingTx.status}`);
-        status = existingTx.status; // Retain terminal status
+      if (existingTx && !TransactionRepository.isValidStateTransition(existingTx.status, status)) {
+        console.warn(`[PaymentService] Rejecting status regression: Transaction ${paymentId} is already ${existingTx.status}, requested ${status}`);
+        status = existingTx.status; // Retain current status
       }
 
       // Record transaction with correct razorpay_payment_id & razorpay_order_id columns
@@ -161,26 +204,17 @@ export class PaymentService {
           console.error('[PaymentService] CRITICAL: Subscription activation update failed for user:', userId, subErr);
           throw new Error(`Failed to activate subscription for user ${userId}: ${subErr.message}`);
         }
+      }
 
-        // Mark event as fully processed ONLY after subscription update succeeds
-        try {
-          await queryDb(
-            `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
-            [eventId]
-          );
-        } catch (procErr: any) {
-          console.error('[PaymentService] CRITICAL: Failed to update processed_at timestamp:', procErr?.message);
-          throw new Error(`Event processing completion record failed for ${eventId}: ${procErr?.message}`);
-        }
-      } else {
-        try {
-          await queryDb(
-            `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
-            [eventId]
-          );
-        } catch (procErr: any) {
-          console.error('[PaymentService] CRITICAL: Failed to update processed_at timestamp for failed event:', procErr?.message);
-        }
+      // Mark event as fully processed after transaction & subscription updates succeed
+      try {
+        await queryDb(
+          `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
+          [eventId]
+        );
+      } catch (procErr: any) {
+        console.error('[PaymentService] CRITICAL: Failed to update processed_at timestamp:', procErr?.message);
+        throw new Error(`Event processing completion record failed for ${eventId}: ${procErr?.message}`);
       }
 
       logAuditAction({

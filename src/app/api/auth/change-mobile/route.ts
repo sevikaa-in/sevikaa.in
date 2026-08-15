@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 import { queryDb } from '@/lib/db';
 import { sendSMSWithTemplates } from '@/lib/smsService';
+import { getServerEnv } from '@/lib/env';
 import crypto from 'crypto';
 
 // NOTE: memoryStore is a transitional in-process cache for the multi-step mobile-change OTP flow.
@@ -22,8 +23,9 @@ async function getUserFromRequest(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const token = authHeader ? authHeader.replace('Bearer ', '').trim() : null;
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const env = getServerEnv();
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (token && token !== 'null' && token !== 'undefined') {
     try {

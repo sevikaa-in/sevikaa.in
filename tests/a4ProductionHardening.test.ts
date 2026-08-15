@@ -292,6 +292,216 @@ async function runA4Tests() {
     assert(false, 'Test N', err.message);
   }
 
+  // --- TEST O: Concurrent duplicate webhook delivery idempotency claim ---
+  try {
+    setupValidProductionEnv();
+    const { dbPool } = await import('../src/lib/db');
+    const { supabaseAdmin } = await import('../src/lib/supabaseAdminClient');
+    const existingEvents = new Set<string>();
+
+    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    (supabaseAdmin as any).from = () => ({
+      update: () => ({ eq: async () => ({ error: null, data: [] }) }),
+      select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
+    });
+
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        if (sql.includes('INSERT INTO public.payment_events')) {
+          const eventId = params[0];
+          if (existingEvents.has(eventId)) {
+            return { rows: [] }; // Conflict: 0 rows returned
+          }
+          existingEvents.add(eventId);
+          return { rows: [{ event_id: eventId, processed_at: null }] }; // Winner: 1 row returned
+        }
+        if (sql.includes('SELECT processed_at, received_at FROM public.payment_events')) {
+          return { rows: [{ processed_at: new Date().toISOString(), received_at: new Date().toISOString() }] };
+        }
+        if (sql.includes('checkout_sessions')) {
+          return { rows: [{ user_id: 'mock_user_123', plan_id: 'pro' }] };
+        }
+        if (sql.includes('pricing_plans')) {
+          return { rows: [{ canonical_plan_id: 'pro' }] };
+        }
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    const eventPayload = {
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_concurrent_test_999',
+            order_id: 'order_concurrent_test_999',
+            amount: 149900,
+            currency: 'INR',
+            email: 'employer_test@sevikaa.in',
+            contact: '+91 9876543210',
+            status: 'captured'
+          }
+        }
+      }
+    };
+
+    const [res1, res2] = await Promise.all([
+      PaymentService.processRazorpayEvent(eventPayload),
+      PaymentService.processRazorpayEvent(eventPayload)
+    ]);
+
+    (dbPool as any).connect = origConnect;
+    (supabaseAdmin as any).from = origFrom;
+
+    const atomicSuccess = (res1.success && res2.success) &&
+      ((res1.message === 'Already processed' || res1.message === 'Concurrent request in progress') ||
+       (res2.message === 'Already processed' || res2.message === 'Concurrent request in progress'));
+    assert(atomicSuccess, 'Test O: Concurrent duplicate webhook calls are atomically deduplicated without errors');
+  } catch (err: any) {
+    assert(false, 'Test O', err.message);
+  }
+
+  // --- TEST P: Financial Transaction State Transition Protection ---
+  try {
+    const capturedToFailedAllowed = TransactionRepository.isValidStateTransition('captured', 'failed');
+    const refundedToCapturedAllowed = TransactionRepository.isValidStateTransition('refunded', 'captured');
+    const refundedToFailedAllowed = TransactionRepository.isValidStateTransition('refunded', 'failed');
+    const duplicateCapturedAllowed = TransactionRepository.isValidStateTransition('captured', 'captured');
+    const failedToCapturedAllowed = TransactionRepository.isValidStateTransition('failed', 'captured');
+
+    const testPPass = !capturedToFailedAllowed &&
+                      !refundedToCapturedAllowed &&
+                      !refundedToFailedAllowed &&
+                      duplicateCapturedAllowed &&
+                      failedToCapturedAllowed;
+
+    assert(testPPass, 'Test P: Transaction state transition protection enforces valid financial state machine');
+  } catch (err: any) {
+    assert(false, 'Test P', err.message);
+  }
+
+  // --- TEST Q: Payment Event processed_at Database Failure Handling ---
+  try {
+    setupValidProductionEnv();
+    const { dbPool } = await import('../src/lib/db');
+    const { supabaseAdmin } = await import('../src/lib/supabaseAdminClient');
+
+    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    (supabaseAdmin as any).from = () => ({
+      update: () => ({ eq: async () => ({ error: null, data: [] }) }),
+      select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
+    });
+
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        if (sql.includes('INSERT INTO public.payment_events')) {
+          return { rows: [{ event_id: params[0], processed_at: null }] };
+        }
+        if (sql.includes('checkout_sessions')) {
+          return { rows: [{ user_id: 'mock_user_123', plan_id: 'pro' }] };
+        }
+        if (sql.includes('UPDATE public.payment_events SET processed_at')) {
+          throw new Error('Simulated DB failure on updating processed_at');
+        }
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    let threwAsExpected = false;
+    try {
+      await PaymentService.processRazorpayEvent({
+        event: 'payment.captured',
+        payload: {
+          payment: {
+            entity: {
+              id: 'pay_processed_at_fail_test',
+              order_id: 'order_processed_at_fail_test',
+              amount: 149900,
+              currency: 'INR',
+              email: 'employer_test@sevikaa.in',
+              contact: '+91 9876543210',
+              status: 'captured'
+            }
+          }
+        }
+      });
+    } catch (err: any) {
+      if (err.message?.includes('Event processing completion record failed')) {
+        threwAsExpected = true;
+      }
+    } finally {
+      (dbPool as any).connect = origConnect;
+      (supabaseAdmin as any).from = origFrom;
+    }
+
+    assert(threwAsExpected, 'Test Q: processed_at DB update failure throws observable error without swallowing');
+  } catch (err: any) {
+    assert(false, 'Test Q', err.message);
+  }
+
+  // --- TEST R: subscription.charged Webhook Event Handling ---
+  try {
+    setupValidProductionEnv();
+    const { dbPool } = await import('../src/lib/db');
+    const { supabaseAdmin } = await import('../src/lib/supabaseAdminClient');
+
+    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    (supabaseAdmin as any).from = () => ({
+      update: () => ({ eq: async () => ({ error: null, data: [] }) }),
+      select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
+    });
+
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        if (sql.includes('INSERT INTO public.payment_events')) {
+          return { rows: [{ event_id: params[0], processed_at: null }] };
+        }
+        if (sql.includes('employer_profiles')) {
+          return { rows: [{ user_id: 'resolved_sub_user_456' }] };
+        }
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    let res: any = null;
+    try {
+      res = await PaymentService.processRazorpayEvent({
+        event: 'subscription.charged',
+        payload: {
+          subscription: {
+            entity: {
+              id: 'sub_test_charge_123',
+              plan_id: 'plan_pro_monthly'
+            }
+          },
+          payment: {
+            entity: {
+              id: 'pay_sub_charge_123',
+              amount: 149900,
+              currency: 'INR',
+              email: 'employer_sub_charge@sevikaa.in',
+              contact: '+91 9876543210',
+              status: 'captured'
+            }
+          }
+        }
+      });
+    } finally {
+      (dbPool as any).connect = origConnect;
+      (supabaseAdmin as any).from = origFrom;
+    }
+
+    assert(res && res.success === true, 'Test R: subscription.charged resolves user via email/notes fallback and updates subscription');
+  } catch (err: any) {
+    assert(false, 'Test R', err.message);
+  }
+
   // Restore environment
   process.env = originalEnv;
   resetServerEnvCache();

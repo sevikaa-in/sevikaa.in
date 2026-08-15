@@ -140,13 +140,13 @@ export async function POST(req: NextRequest) {
         currency: 'INR',
         planId: canonicalPlanId,
         planName,
-        keyId: env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '',
+        keyId: env.RAZORPAY_KEY_ID,
         isFree: true,
       });
     }
 
     // 3. Verify Razorpay credentials
-    const razorpayKeyId = env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const razorpayKeyId = env.RAZORPAY_KEY_ID;
     const razorpaySecret = env.RAZORPAY_KEY_SECRET;
     if (!razorpayKeyId || !razorpaySecret) {
       console.error('[create-order] Razorpay credentials missing');
