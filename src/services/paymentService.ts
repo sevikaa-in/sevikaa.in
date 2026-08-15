@@ -53,8 +53,26 @@ export class PaymentService {
         return { success: false, error: 'Invalid currency. Expected INR.', statusCode: 400 };
       }
 
-      const paymentId = paymentEntity.id || `pay_${Date.now()}`;
-      const orderId = paymentEntity.order_id || `order_${Date.now()}`;
+      // 1. Strict Payment ID Validation (Zero Fallback Generation)
+      const paymentId = paymentEntity.id;
+      if (!paymentId || typeof paymentId !== 'string' || !paymentId.trim()) {
+        console.error('[PaymentService] REJECTED: Missing payment ID in webhook payload.');
+        return { success: false, error: 'Missing payment ID', statusCode: 400 };
+      }
+
+      // 2. Strict Order ID Validation (Zero Fallback Generation)
+      const subscriptionEntity = payload?.payload?.subscription?.entity;
+      let orderId: string | null = paymentEntity.order_id || null;
+
+      if (event === 'subscription.charged') {
+        orderId = paymentEntity.order_id || subscriptionEntity?.id || paymentEntity.subscription_id || null;
+      } else {
+        if (!orderId || typeof orderId !== 'string' || !orderId.trim()) {
+          console.error(`[PaymentService] REJECTED: Missing order ID in webhook payload for event ${event}.`);
+          return { success: false, error: 'Missing order ID', statusCode: 400 };
+        }
+      }
+
       let status = event === 'payment.failed' ? 'failed' : (event === 'payment.refunded' ? 'refunded' : (paymentEntity.status || 'captured'));
 
       // Atomic Idempotency Claim: Attempt atomic database row claim
@@ -106,11 +124,10 @@ export class PaymentService {
 
       let userId: string = '';
       let planName = 'Premium Subscription Pass';
-      const subscriptionEntity = payload?.payload?.subscription?.entity;
 
       // Authoritative lookup — cross-reference Razorpay order_id in checkout_sessions or fallback for subscription.charged
       let matchedSession: any = null;
-      if (orderId && orderId.startsWith('order_')) {
+      if (orderId) {
         const sessionRes = await queryDb(
           `SELECT user_id, plan_id, expected_amount
            FROM public.checkout_sessions
@@ -185,7 +202,7 @@ export class PaymentService {
         // Record transaction with correct razorpay_payment_id & razorpay_order_id columns
         await TransactionRepository.recordTransaction({
           razorpay_payment_id: paymentId,
-          razorpay_order_id: orderId,
+          razorpay_order_id: orderId || undefined,
           user_id: userId,
           employer_name: billingEmail.split('@')[0],
           employer_email: billingEmail,

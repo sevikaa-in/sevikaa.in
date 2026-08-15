@@ -520,6 +520,90 @@ async function runA4Tests() {
     assert(false, 'Test R', err.message);
   }
 
+  // --- TEST S1: Missing Payment ID Rejected ---
+  try {
+    setupValidProductionEnv();
+    const res1 = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            order_id: 'order_valid_123',
+            amount: 149900,
+            currency: 'INR'
+          }
+        }
+      }
+    });
+    assert(res1.success === false && res1.statusCode === 400 && res1.error === 'Missing payment ID', 'Test S1: Missing payment ID -> rejected with HTTP 400');
+  } catch (err: any) {
+    assert(false, 'Test S1', err.message);
+  }
+
+  // --- TEST S2: Missing Order ID for Payment Event Rejected ---
+  try {
+    setupValidProductionEnv();
+    const res2 = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_valid_123',
+            amount: 149900,
+            currency: 'INR'
+          }
+        }
+      }
+    });
+    assert(res2.success === false && res2.statusCode === 400 && res2.error === 'Missing order ID', 'Test S2: Missing order ID for payment event -> rejected with HTTP 400');
+  } catch (err: any) {
+    assert(false, 'Test S2', err.message);
+  }
+
+  // --- TEST S3: No Fabricated pay_ Timestamp ID ---
+  try {
+    setupValidProductionEnv();
+    let dbTouched = false;
+    const { dbPool } = await import('../src/lib/db');
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => {
+      dbTouched = true;
+      return { query: async () => ({ rows: [] }), release: () => {} };
+    };
+
+    const res3 = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: { payment: { entity: { order_id: 'order_test_no_fab' } } }
+    });
+    (dbPool as any).connect = origConnect;
+
+    assert(res3.success === false && !dbTouched, 'Test S3: No fabricated pay_ timestamp ID created, event rejected before DB execution');
+  } catch (err: any) {
+    assert(false, 'Test S3', err.message);
+  }
+
+  // --- TEST S4: No Fabricated order_ Timestamp ID ---
+  try {
+    setupValidProductionEnv();
+    let dbTouched = false;
+    const { dbPool } = await import('../src/lib/db');
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => {
+      dbTouched = true;
+      return { query: async () => ({ rows: [] }), release: () => {} };
+    };
+
+    const res4 = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: { payment: { entity: { id: 'pay_test_no_fab' } } }
+    });
+    (dbPool as any).connect = origConnect;
+
+    assert(res4.success === false && !dbTouched, 'Test S4: No fabricated order_ timestamp ID created, event rejected before DB execution');
+  } catch (err: any) {
+    assert(false, 'Test S4', err.message);
+  }
+
   // Restore environment
   process.env = originalEnv;
   resetServerEnvCache();
