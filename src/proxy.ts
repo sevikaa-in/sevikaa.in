@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getServerEnv } from '@/lib/env';
 
-const env = getServerEnv();
-const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 /**
  * Edge-runtime compatible JWT payload decoder.
@@ -108,7 +106,7 @@ export async function proxy(request: NextRequest) {
     }
 
     // Fallback: Supabase GoTrue verification (for Supabase-issued tokens)
-    if (!verifiedRole && !supabaseUrl.includes('placeholder')) {
+    if (!verifiedRole && supabaseUrl && !supabaseUrl.includes('placeholder')) {
       try {
         const supabase = createClient(supabaseUrl, supabaseAnonKey, {
           global: { headers: { Authorization: `Bearer ${token}` } }
