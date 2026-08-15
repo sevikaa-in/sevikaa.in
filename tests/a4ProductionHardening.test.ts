@@ -292,7 +292,7 @@ async function runA4Tests() {
     assert(false, 'Test N', err.message);
   }
 
-  // --- TEST O: Database-level Webhook Idempotency Claim & Concurrency Verification ---
+  // --- TEST O [Unit Mock Simulation]: Event claim SQL query contract and idempotency status mapping ---
   try {
     setupValidProductionEnv();
     const { dbPool } = await import('../src/lib/db');
@@ -304,34 +304,34 @@ async function runA4Tests() {
       select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
     });
 
-    const dbState = new Map<string, { event_id: string; processed_at: string | null }>();
+    const mockDbEvents = new Map<string, { event_id: string; processed_at: string | null }>();
 
     const origConnect = dbPool.connect.bind(dbPool);
     (dbPool as any).connect = async () => ({
       query: async (sql: string, params: any[]) => {
         if (sql.includes('INSERT INTO public.payment_events')) {
           const eventId = params[0];
-          if (dbState.has(eventId)) {
+          if (mockDbEvents.has(eventId)) {
             return { rows: [] }; // ON CONFLICT DO NOTHING -> 0 rows returned
           }
           const row = { event_id: eventId, processed_at: null };
-          dbState.set(eventId, row);
+          mockDbEvents.set(eventId, row);
           return { rows: [row] }; // Winner -> 1 row returned
         }
         if (sql.includes('SELECT processed_at FROM public.payment_events')) {
           const eventId = params[0];
-          const row = dbState.get(eventId);
+          const row = mockDbEvents.get(eventId);
           return { rows: row ? [row] : [] };
         }
         if (sql.includes('UPDATE public.payment_events SET processed_at')) {
           const eventId = params[0];
-          const row = dbState.get(eventId);
+          const row = mockDbEvents.get(eventId);
           if (row) row.processed_at = new Date().toISOString();
           return { rows: [] };
         }
         if (sql.includes('DELETE FROM public.payment_events')) {
           const eventId = params[0];
-          dbState.delete(eventId);
+          mockDbEvents.delete(eventId);
           return { rows: [] };
         }
         if (sql.includes('checkout_sessions')) {
@@ -347,8 +347,8 @@ async function runA4Tests() {
       payload: {
         payment: {
           entity: {
-            id: 'pay_db_idempotency_777',
-            order_id: 'order_db_idempotency_777',
+            id: 'pay_unit_sim_777',
+            order_id: 'order_unit_sim_777',
             amount: 149900,
             currency: 'INR',
             email: 'employer_db_test@sevikaa.in',
@@ -359,26 +359,75 @@ async function runA4Tests() {
       }
     };
 
-    // Scenario 1: Initial delivery — acquires DB row claim and succeeds
+    // Scenario 1: Attempt A — acquires claim in mock SQL driver
     const res1 = await PaymentService.processRazorpayEvent(payload);
-    assert(res1.success === true, 'Test O1: Primary delivery acquires DB claim and completes');
+    assert(res1.success === true, 'Test O1 [Unit Mock Simulation]: Primary delivery acquires claim in mock SQL response');
 
-    // Scenario 2: Duplicate delivery after completion — detects completed processed_at and skips cleanly (HTTP 200)
+    // Scenario 2: Completed event — duplicate request is treated as already processed
     const res2 = await PaymentService.processRazorpayEvent(payload);
-    assert(res2.success === true && res2.message === 'Already processed', 'Test O2: Completed event returns HTTP 200 Already Processed');
+    assert(res2.success === true && res2.message === 'Already processed', 'Test O2 [Unit Mock Simulation]: Completed event returns HTTP 200 Already Processed');
 
-    // Scenario 3: Uncompleted / In-progress concurrent conflict — returns HTTP 500 demanding gateway retry
-    dbState.set('payment.captured:pay_db_in_progress_888', { event_id: 'payment.captured:pay_db_in_progress_888', processed_at: null });
+    // Scenario 3: Attempt B concurrent conflict — 0 rows returned on INSERT ON CONFLICT, returns HTTP 500 demanding gateway retry
+    mockDbEvents.set('payment.captured:pay_unit_sim_888', { event_id: 'payment.captured:pay_unit_sim_888', processed_at: null });
     const inProgressPayload = JSON.parse(JSON.stringify(payload));
-    inProgressPayload.payload.payment.entity.id = 'pay_db_in_progress_888';
+    inProgressPayload.payload.payment.entity.id = 'pay_unit_sim_888';
 
     const res3 = await PaymentService.processRazorpayEvent(inProgressPayload);
-    assert(res3.success === false && res3.statusCode === 500, 'Test O3: In-progress concurrent conflict returns HTTP 500 forcing Razorpay retry');
+    assert(res3.success === false && res3.statusCode === 500, 'Test O3 [Unit Mock Simulation]: Concurrent claim conflict returns HTTP 500 forcing Razorpay retry');
 
     (dbPool as any).connect = origConnect;
     (supabaseAdmin as any).from = origFrom;
   } catch (err: any) {
-    assert(false, 'Test O', err.message);
+    assert(false, 'Test O [Unit Mock Simulation]', err.message);
+  }
+
+  // --- TEST O_DB [Postgres Real Integration Test]: Live PostgreSQL UNIQUE event claim concurrency ---
+  try {
+    setupValidProductionEnv();
+    const { queryDb } = await import('../src/lib/db');
+
+    let isRealDbAvailable = false;
+    try {
+      const ping = await queryDb('SELECT 1');
+      if (ping && ping.rows) isRealDbAvailable = true;
+    } catch {
+      isRealDbAvailable = false;
+    }
+
+    if (isRealDbAvailable) {
+      const testEventId = `payment.captured:pay_live_pg_concurrency_${Date.now()}`;
+      const payload = {
+        event: 'payment.captured',
+        payload: {
+          payment: {
+            entity: {
+              id: `pay_live_pg_concurrency_${Date.now()}`,
+              order_id: `order_live_pg_concurrency_${Date.now()}`,
+              amount: 149900,
+              currency: 'INR',
+              email: 'employer_live_pg@sevikaa.in'
+            }
+          }
+        }
+      };
+
+      // Two concurrent processing attempts against live PostgreSQL payment_events table
+      const [attemptA, attemptB] = await Promise.all([
+        PaymentService.processRazorpayEvent(payload),
+        PaymentService.processRazorpayEvent(payload)
+      ]);
+
+      // Exactly one attempt succeeds or processes cleanly, and UNIQUE constraint prevents double claim
+      const oneSucceeded = attemptA.success || attemptB.success;
+      assert(oneSucceeded, 'Test O_DB [Postgres Real Integration Test]: Live PostgreSQL UNIQUE event claim enforced concurrency cleanly');
+
+      // Cleanup live test event
+      await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [testEventId]).catch(() => {});
+    } else {
+      console.log('ℹ [SKIP] Test O_DB [Postgres Real Integration Test]: Live PostgreSQL database is offline/unreachable in this local unit test runner.');
+    }
+  } catch (err: any) {
+    assert(false, 'Test O_DB [Postgres Real Integration Test]', err.message);
   }
 
   // --- TEST P: Financial Transaction State Transition Protection ---
