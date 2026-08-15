@@ -73,7 +73,7 @@ export class PaymentService {
         if (!claimRes?.rows?.length) {
           // Conflict occurred: another execution inserted event_id first
           const existing = await queryDb(
-            `SELECT processed_at, received_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
+            `SELECT processed_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
             [eventId]
           );
 
@@ -84,12 +84,14 @@ export class PaymentService {
               return { success: true, message: 'Already processed' };
             }
 
-            const ageMs = Date.now() - new Date(row.received_at).getTime();
-            if (ageMs < 30000) {
-              console.log(`[PaymentService] Idempotent skip: event ${eventId} is currently being processed by a concurrent thread.`);
-              return { success: true, message: 'Concurrent request in progress' };
-            }
-            console.log(`[PaymentService] Retrying stale incomplete event ${eventId}...`);
+            // DO NOT RETURN SUCCESS FOR IN-PROGRESS CONCURRENT THREADS!
+            // Return HTTP 500 so Razorpay retries if the active worker fails before completion.
+            console.log(`[PaymentService] Event ${eventId} processing in progress or pending completion by concurrent thread.`);
+            return {
+              success: false,
+              error: 'Event processing in progress or pending completion.',
+              statusCode: 500
+            };
           }
         }
       } catch (idempotentErr: any) {
@@ -179,42 +181,43 @@ export class PaymentService {
         status = existingTx.status; // Retain current status
       }
 
-      // Record transaction with correct razorpay_payment_id & razorpay_order_id columns
-      await TransactionRepository.recordTransaction({
-        razorpay_payment_id: paymentId,
-        razorpay_order_id: orderId,
-        user_id: userId,
-        employer_name: billingEmail.split('@')[0],
-        employer_email: billingEmail,
-        employer_phone: billingPhone,
-        plan_name: planName,
-        amount,
-        payment_method: method,
-        status,
-        raw_payload: JSON.stringify(payload)
-      });
-
-      if (status === 'captured' && userId !== 'anonymous') {
-        const { error: subErr } = await supabaseAdmin
-          .from('employer_profiles')
-          .update({ subscription_status: 'premium' })
-          .eq('user_id', userId);
-
-        if (subErr) {
-          console.error('[PaymentService] CRITICAL: Subscription activation update failed for user:', userId, subErr);
-          throw new Error(`Failed to activate subscription for user ${userId}: ${subErr.message}`);
-        }
-      }
-
-      // Mark event as fully processed after transaction & subscription updates succeed
       try {
+        // Record transaction with correct razorpay_payment_id & razorpay_order_id columns
+        await TransactionRepository.recordTransaction({
+          razorpay_payment_id: paymentId,
+          razorpay_order_id: orderId,
+          user_id: userId,
+          employer_name: billingEmail.split('@')[0],
+          employer_email: billingEmail,
+          employer_phone: billingPhone,
+          plan_name: planName,
+          amount,
+          payment_method: method,
+          status,
+          raw_payload: JSON.stringify(payload)
+        });
+
+        if (status === 'captured' && userId !== 'anonymous') {
+          const { error: subErr } = await supabaseAdmin
+            .from('employer_profiles')
+            .update({ subscription_status: 'premium' })
+            .eq('user_id', userId);
+
+          if (subErr) {
+            console.error('[PaymentService] CRITICAL: Subscription activation update failed for user:', userId, subErr);
+            throw new Error(`Failed to activate subscription for user ${userId}: ${subErr.message}`);
+          }
+        }
+
+        // Mark event as fully processed after transaction & subscription updates succeed
         await queryDb(
           `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
           [eventId]
         );
       } catch (procErr: any) {
-        console.error('[PaymentService] CRITICAL: Failed to update processed_at timestamp:', procErr?.message);
-        throw new Error(`Event processing completion record failed for ${eventId}: ${procErr?.message}`);
+        console.error('[PaymentService] CRITICAL: Financial processing or completion record failed:', procErr?.message);
+        await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1 AND processed_at IS NULL`, [eventId]).catch(() => {});
+        throw procErr;
       }
 
       logAuditAction({

@@ -292,12 +292,11 @@ async function runA4Tests() {
     assert(false, 'Test N', err.message);
   }
 
-  // --- TEST O: Concurrent duplicate webhook delivery idempotency claim ---
+  // --- TEST O: Database-level Webhook Idempotency Claim & Concurrency Verification ---
   try {
     setupValidProductionEnv();
     const { dbPool } = await import('../src/lib/db');
     const { supabaseAdmin } = await import('../src/lib/supabaseAdminClient');
-    const existingEvents = new Set<string>();
 
     const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
     (supabaseAdmin as any).from = () => ({
@@ -305,41 +304,54 @@ async function runA4Tests() {
       select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
     });
 
+    const dbState = new Map<string, { event_id: string; processed_at: string | null }>();
+
     const origConnect = dbPool.connect.bind(dbPool);
     (dbPool as any).connect = async () => ({
       query: async (sql: string, params: any[]) => {
         if (sql.includes('INSERT INTO public.payment_events')) {
           const eventId = params[0];
-          if (existingEvents.has(eventId)) {
-            return { rows: [] }; // Conflict: 0 rows returned
+          if (dbState.has(eventId)) {
+            return { rows: [] }; // ON CONFLICT DO NOTHING -> 0 rows returned
           }
-          existingEvents.add(eventId);
-          return { rows: [{ event_id: eventId, processed_at: null }] }; // Winner: 1 row returned
+          const row = { event_id: eventId, processed_at: null };
+          dbState.set(eventId, row);
+          return { rows: [row] }; // Winner -> 1 row returned
         }
-        if (sql.includes('SELECT processed_at, received_at FROM public.payment_events')) {
-          return { rows: [{ processed_at: new Date().toISOString(), received_at: new Date().toISOString() }] };
+        if (sql.includes('SELECT processed_at FROM public.payment_events')) {
+          const eventId = params[0];
+          const row = dbState.get(eventId);
+          return { rows: row ? [row] : [] };
+        }
+        if (sql.includes('UPDATE public.payment_events SET processed_at')) {
+          const eventId = params[0];
+          const row = dbState.get(eventId);
+          if (row) row.processed_at = new Date().toISOString();
+          return { rows: [] };
+        }
+        if (sql.includes('DELETE FROM public.payment_events')) {
+          const eventId = params[0];
+          dbState.delete(eventId);
+          return { rows: [] };
         }
         if (sql.includes('checkout_sessions')) {
-          return { rows: [{ user_id: 'mock_user_123', plan_id: 'pro' }] };
-        }
-        if (sql.includes('pricing_plans')) {
-          return { rows: [{ canonical_plan_id: 'pro' }] };
+          return { rows: [{ user_id: 'db_test_user_123', plan_id: 'pro' }] };
         }
         return { rows: [] };
       },
       release: () => {}
     });
 
-    const eventPayload = {
+    const payload = {
       event: 'payment.captured',
       payload: {
         payment: {
           entity: {
-            id: 'pay_concurrent_test_999',
-            order_id: 'order_concurrent_test_999',
+            id: 'pay_db_idempotency_777',
+            order_id: 'order_db_idempotency_777',
             amount: 149900,
             currency: 'INR',
-            email: 'employer_test@sevikaa.in',
+            email: 'employer_db_test@sevikaa.in',
             contact: '+91 9876543210',
             status: 'captured'
           }
@@ -347,18 +359,24 @@ async function runA4Tests() {
       }
     };
 
-    const [res1, res2] = await Promise.all([
-      PaymentService.processRazorpayEvent(eventPayload),
-      PaymentService.processRazorpayEvent(eventPayload)
-    ]);
+    // Scenario 1: Initial delivery — acquires DB row claim and succeeds
+    const res1 = await PaymentService.processRazorpayEvent(payload);
+    assert(res1.success === true, 'Test O1: Primary delivery acquires DB claim and completes');
+
+    // Scenario 2: Duplicate delivery after completion — detects completed processed_at and skips cleanly (HTTP 200)
+    const res2 = await PaymentService.processRazorpayEvent(payload);
+    assert(res2.success === true && res2.message === 'Already processed', 'Test O2: Completed event returns HTTP 200 Already Processed');
+
+    // Scenario 3: Uncompleted / In-progress concurrent conflict — returns HTTP 500 demanding gateway retry
+    dbState.set('payment.captured:pay_db_in_progress_888', { event_id: 'payment.captured:pay_db_in_progress_888', processed_at: null });
+    const inProgressPayload = JSON.parse(JSON.stringify(payload));
+    inProgressPayload.payload.payment.entity.id = 'pay_db_in_progress_888';
+
+    const res3 = await PaymentService.processRazorpayEvent(inProgressPayload);
+    assert(res3.success === false && res3.statusCode === 500, 'Test O3: In-progress concurrent conflict returns HTTP 500 forcing Razorpay retry');
 
     (dbPool as any).connect = origConnect;
     (supabaseAdmin as any).from = origFrom;
-
-    const atomicSuccess = (res1.success && res2.success) &&
-      ((res1.message === 'Already processed' || res1.message === 'Concurrent request in progress') ||
-       (res2.message === 'Already processed' || res2.message === 'Concurrent request in progress'));
-    assert(atomicSuccess, 'Test O: Concurrent duplicate webhook calls are atomically deduplicated without errors');
   } catch (err: any) {
     assert(false, 'Test O', err.message);
   }
@@ -430,7 +448,7 @@ async function runA4Tests() {
         }
       });
     } catch (err: any) {
-      if (err.message?.includes('Event processing completion record failed')) {
+      if (err.message?.includes('Simulated DB failure') || err.message?.includes('processed_at') || err.message?.includes('completion record failed')) {
         threwAsExpected = true;
       }
     } finally {
