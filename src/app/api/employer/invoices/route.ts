@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+import { getServerEnv } from '@/lib/env';
+
+const env = getServerEnv();
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,24 +42,32 @@ export async function GET(request: NextRequest) {
     // Invoice owner is always derived from the verified token — no ?userId= override
     const employerId = user.id;
 
-    const result = await queryDb(
-      `SELECT 
-        id, 
-        order_id, 
-        user_id, 
-        employer_name, 
-        employer_email, 
-        employer_phone, 
-        plan_name, 
-        amount, 
-        payment_method, 
-        status, 
-        created_at 
-       FROM public.transactions
-       WHERE user_id::text = $1
-       ORDER BY created_at DESC LIMIT 50`,
-      [employerId]
-    ).catch(() => ({ rows: [] }));
+    let result: any;
+    try {
+      result = await queryDb(
+        `SELECT 
+          id, 
+          razorpay_payment_id,
+          razorpay_order_id,
+          order_id, 
+          user_id, 
+          employer_name, 
+          employer_email, 
+          employer_phone, 
+          plan_name, 
+          amount, 
+          payment_method, 
+          status, 
+          created_at 
+         FROM public.transactions
+         WHERE user_id::text = $1
+         ORDER BY created_at DESC LIMIT 50`,
+        [employerId]
+      );
+    } catch (dbErr: any) {
+      console.error("Employer invoices DB query error:", dbErr);
+      return NextResponse.json({ error: 'Service Unavailable', message: 'Invoices database is currently unavailable.' }, { status: 503 });
+    }
 
     return NextResponse.json({
       success: true,

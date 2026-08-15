@@ -10,8 +10,11 @@ import {
   getPaymentReceiptEmailHtml
 } from '@/lib/emailTemplates';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+import { getServerEnv } from '@/lib/env';
+
+const env = getServerEnv();
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const ALLOWED_TYPES = new Set([
   'job-posted', 'account-deletion', 'candidate-application',

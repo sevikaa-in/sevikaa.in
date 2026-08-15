@@ -3,8 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
 import { formatIstTimestamp } from '@/lib/auditLogger';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+import { getServerEnv } from '@/lib/env';
+
+const env = getServerEnv();
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export async function GET(request: NextRequest) {
   try {

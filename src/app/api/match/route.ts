@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { checkRateLimitCritical, extractClientIp } from '@/lib/rateLimiter';
+import { getServerEnv } from '@/lib/env';
 
 export async function GET(request: NextRequest) {
   // Rate limit match endpoint (CRITICAL: fail-closed, no in-memory fallback)
@@ -12,8 +13,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Too many requests. Please wait before searching again.' }, { status: 429 });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+  const env = getServerEnv();
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   const { searchParams } = new URL(request.url);
   const societyId = searchParams.get('societyId');

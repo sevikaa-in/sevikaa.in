@@ -24,7 +24,12 @@ export const executeRazorpayCheckout = async ({
   onFailure
 }: RazorpayCheckoutOptions) => {
   try {
-    const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_live_THFAEo6vHOiefz';
+    const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    if (!razorpayKey) {
+      console.error('[RazorpayCheckout] NEXT_PUBLIC_RAZORPAY_KEY_ID is missing. Cannot initiate checkout.');
+      onFailure('Payment gateway client key is not configured.');
+      return;
+    }
 
     // 1. Ensure Razorpay Checkout SDK script is loaded
     if (typeof window !== 'undefined' && !(window as any).Razorpay) {

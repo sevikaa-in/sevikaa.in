@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
   const secretHeader = request.headers.get('x-monitoring-secret') || '';
 
-  // Item 29: Fail closed — if MONITORING_SECRET is not configured, deny all access
+  // Fail closed — if MONITORING_SECRET is not configured, deny all access
   if (!monitoringSecret) {
     return NextResponse.json({ error: 'Service Unavailable', message: 'Internal health monitoring is not configured.' }, { status: 503 });
   }
@@ -27,6 +27,23 @@ export async function GET(request: NextRequest) {
     dbStatus = `unhealthy: ${err?.message || 'Database connection error'}`;
   }
 
+  let redisStatus = 'unconfigured';
+  let redisLatencyMs = 0;
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (redisUrl && redisToken && !redisUrl.includes('placeholder')) {
+    try {
+      const rStart = Date.now();
+      const rRes = await fetch(`${redisUrl}/ping`, {
+        headers: { Authorization: `Bearer ${redisToken}` }
+      });
+      redisLatencyMs = Date.now() - rStart;
+      redisStatus = rRes.ok ? 'healthy' : `unhealthy: status ${rRes.status}`;
+    } catch (rErr: any) {
+      redisStatus = `unhealthy: ${rErr?.message || 'Redis ping failed'}`;
+    }
+  }
+
   const supabaseUrlConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder'));
   const razorpayConfigured = !!(process.env.RAZORPAY_KEY_SECRET && !process.env.RAZORPAY_KEY_SECRET.includes('placeholder'));
   const serviceRoleConfigured = !!(process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.length > 50);
@@ -42,6 +59,10 @@ export async function GET(request: NextRequest) {
       database: {
         status: dbStatus,
         latencyMs: dbLatencyMs
+      },
+      redis: {
+        status: redisStatus,
+        latencyMs: redisLatencyMs
       },
       environment: {
         supabaseUrl: supabaseUrlConfigured ? 'configured' : 'unconfigured',

@@ -13,7 +13,6 @@ export interface RazorpayWebhookResult {
 
 export class PaymentService {
   static verifyRazorpaySignature(rawBody: string, signature: string, secret: string): boolean {
-    // P0 #17: Remove placeholder bypass — fail closed if secret is missing
     if (!secret) {
       console.error('[PaymentService] RAZORPAY_KEY_SECRET is not configured. Rejecting webhook.');
       return false;
@@ -26,7 +25,6 @@ export class PaymentService {
       .update(rawBody)
       .digest('hex');
 
-    // Constant-time comparison prevents timing attacks
     const expectedBuf = Buffer.from(expectedSignature, 'hex');
     const actualBuf = Buffer.from(signature.padEnd(expectedSignature.length, '0').slice(0, expectedSignature.length), 'hex');
     try {
@@ -42,17 +40,24 @@ export class PaymentService {
       return { success: false, error: 'Invalid event payload', statusCode: 400 };
     }
 
-    if (event === 'payment.captured' || event === 'subscription.charged' || event === 'payment.failed') {
+    if (event === 'payment.captured' || event === 'subscription.charged' || event === 'payment.failed' || event === 'payment.refunded') {
       const paymentEntity = payload?.payload?.payment?.entity;
       if (!paymentEntity) {
         return { success: false, error: 'Missing payment entity', statusCode: 400 };
       }
 
+      // Currency Integrity Check
+      const currency = (paymentEntity.currency || 'INR').toUpperCase();
+      if (currency !== 'INR') {
+        console.error(`[PaymentService] CURRENCY MISMATCH: Expected INR, got ${currency}`);
+        return { success: false, error: 'Invalid currency. Expected INR.', statusCode: 400 };
+      }
+
       const paymentId = paymentEntity.id || `pay_${Date.now()}`;
       const orderId = paymentEntity.order_id || `order_${Date.now()}`;
-      const status = event === 'payment.failed' ? 'failed' : (paymentEntity.status || 'captured');
+      let status = event === 'payment.failed' ? 'failed' : (event === 'payment.refunded' ? 'refunded' : (paymentEntity.status || 'captured'));
 
-      // P0 #5: Idempotency state machine check
+      // Idempotency state machine check
       const eventId = `${event}:${paymentId}`;
       const payloadHash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 
@@ -90,7 +95,7 @@ export class PaymentService {
       let userId: string;
       let planName = 'Premium Subscription Pass';
 
-      // Fix #15: Authoritative lookup — cross-reference Razorpay order_id in checkout_sessions
+      // Authoritative lookup — cross-reference Razorpay order_id in checkout_sessions
       if (orderId && orderId.startsWith('order_')) {
         const sessionRes = await queryDb(
           `SELECT user_id, plan_id, expected_amount
@@ -110,29 +115,31 @@ export class PaymentService {
           const paidAmountPaise = paymentEntity.amount || 0;
           if (expectedAmountPaise > 0 && paidAmountPaise !== expectedAmountPaise) {
             console.error(`[PaymentService] AMOUNT MISMATCH: expected ${expectedAmountPaise} paise, got ${paidAmountPaise} paise for order ${orderId}`);
-            await queryDb(
-              `DELETE FROM public.payment_events WHERE event_id = $1`,
-              [eventId]
-            ).catch(() => {});
+            await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch(() => {});
             return { success: false, error: 'Payment amount mismatch', statusCode: 400 };
           }
         } else {
-          // Fix #15: Order not found in checkout_sessions — REJECT unmapped payments
           console.error(`[PaymentService] UNMAPPED PAYMENT REJECTED: No checkout_session found for order_id ${orderId}.`);
           await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch(() => {});
           return { success: false, error: 'Unmapped payment order. Sent to manual reconciliation queue.', statusCode: 400 };
         }
       } else {
-        // Fix #15: Missing valid order_id — REJECT payment
         console.error(`[PaymentService] UNMAPPED PAYMENT REJECTED: Missing valid order_id for payment ${paymentId}.`);
         await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch(() => {});
         return { success: false, error: 'Payment order ID required.', statusCode: 400 };
       }
 
-      // Record transaction
+      // Check existing transaction for terminal state protection
+      const existingTx = await TransactionRepository.findTransactionByPaymentId(paymentId);
+      if (existingTx && (existingTx.status === 'captured' || existingTx.status === 'refunded') && status === 'failed') {
+        console.warn(`[PaymentService] Rejecting status regression: Transaction ${paymentId} is already ${existingTx.status}`);
+        status = existingTx.status; // Retain terminal status
+      }
+
+      // Record transaction with correct razorpay_payment_id & razorpay_order_id columns
       await TransactionRepository.recordTransaction({
-        id: paymentId,
-        order_id: orderId,
+        razorpay_payment_id: paymentId,
+        razorpay_order_id: orderId,
         user_id: userId,
         employer_name: billingEmail.split('@')[0],
         employer_email: billingEmail,
@@ -156,16 +163,24 @@ export class PaymentService {
         }
 
         // Mark event as fully processed ONLY after subscription update succeeds
-        await queryDb(
-          `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
-          [eventId]
-        ).catch(() => {});
+        try {
+          await queryDb(
+            `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
+            [eventId]
+          );
+        } catch (procErr: any) {
+          console.error('[PaymentService] CRITICAL: Failed to update processed_at timestamp:', procErr?.message);
+          throw new Error(`Event processing completion record failed for ${eventId}: ${procErr?.message}`);
+        }
       } else {
-        // Mark failed payment event as processed to prevent infinite webhook retries
-        await queryDb(
-          `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
-          [eventId]
-        ).catch(() => {});
+        try {
+          await queryDb(
+            `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
+            [eventId]
+          );
+        } catch (procErr: any) {
+          console.error('[PaymentService] CRITICAL: Failed to update processed_at timestamp for failed event:', procErr?.message);
+        }
       }
 
       logAuditAction({

@@ -13,26 +13,34 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10), 1), 100);
     const offset = (page - 1) * limit;
 
-    // Item 30: transactions table created in migration 20260810000004 — no runtime DDL
+    // Get Total Count from DB (Fail closed with HTTP 503 if DB is unavailable)
+    let countRes: any;
+    try {
+      countRes = await queryDb(`SELECT COUNT(*) FROM public.transactions;`);
+    } catch (dbErr: any) {
+      console.error("GET /api/super-admin/transactions DB query error:", dbErr);
+      return NextResponse.json({ error: 'Service Unavailable', message: 'Transactions database is currently unavailable.' }, { status: 503 });
+    }
 
-    // Get Total Count
-    const countRes = await queryDb(`SELECT COUNT(*) FROM public.transactions;`).catch(() => null);
-    const total = parseInt(countRes?.rows?.[0]?.count || '0', 10);
+    if (!countRes || !countRes.rows) {
+      return NextResponse.json({ error: 'Service Unavailable', message: 'Transactions database query failed.' }, { status: 503 });
+    }
+
+    const total = parseInt(countRes.rows[0]?.count || '0', 10);
     const totalPages = Math.ceil(total / limit) || 1;
 
-    // Seed default authentic transactions if DB is empty
     if (total === 0) {
-      await queryDb(`
-        INSERT INTO public.transactions (id, order_id, user_id, employer_name, employer_email, employer_phone, plan_name, amount, payment_method, status, invoice_number, created_at)
-        VALUES 
-          ('pay_RZP1009812', 'order_SVK701', 'emp_user_01', 'Sharma Family Requisition', 'sharma@sevikaa.in', '+91 9876543210', 'Premium Quarterly Employer Pass', 1499, 'UPI / Razorpay', 'captured', 'SV/26-27/0001', NOW() - INTERVAL '2 hours'),
-          ('pay_RZP1009813', 'order_SVK702', 'emp_user_02', 'Gupta Household', 'gupta@sevikaa.in', '+91 9876543211', 'Basic Monthly Access Pass', 299, 'Netbanking', 'captured', 'SV/26-27/0002', NOW() - INTERVAL '5 hours'),
-          ('pay_RZP1009814', 'order_SVK703', 'emp_user_03', 'Verma Residency', 'verma@sevikaa.in', '+91 9876543212', 'Job Posting Requisition', 199, 'Card / Razorpay', 'captured', 'SV/26-27/0003', NOW() - INTERVAL '1 day');
-      `).catch(() => {});
+      return NextResponse.json({
+        success: true,
+        total: 0,
+        page,
+        totalPages: 1,
+        transactions: []
+      });
     }
 
     const res = await queryDb(
-      `SELECT id, order_id, user_id, employer_name, employer_email, employer_phone, plan_name, amount, payment_method, status, invoice_number, created_at 
+      `SELECT id, razorpay_payment_id, razorpay_order_id, order_id, user_id, employer_name, employer_email, employer_phone, plan_name, amount, payment_method, status, invoice_number, created_at 
        FROM public.transactions ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
@@ -40,9 +48,12 @@ export async function GET(request: NextRequest) {
     const transactions = (res?.rows || []).map((t, idx) => {
       const seqNum = total - (offset + idx);
       const defaultInv = `SV/26-27/${String(Math.max(1, seqNum)).padStart(4, '0')}`;
+      const paymentId = t.razorpay_payment_id || t.id;
+      const orderId = t.razorpay_order_id || t.order_id || `order_${idx}`;
+
       return {
-        id: t.id || `pay_RZP${idx + 100}`,
-        orderId: t.order_id || `order_${idx}`,
+        id: paymentId,
+        orderId,
         employerName: t.employer_name || t.employer_email?.split('@')?.[0] || 'Employer Requisition',
         employerPhone: t.employer_phone || t.employer_email || 'N/A',
         planName: t.plan_name || 'Premium Pass',
@@ -56,9 +67,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      total: total || transactions.length,
+      total,
       page,
-      totalPages: totalPages || 1,
+      totalPages,
       transactions
     });
   } catch (err: any) {

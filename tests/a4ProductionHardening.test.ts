@@ -1,12 +1,16 @@
 import { validateServerEnv, ConfigurationError, resetServerEnvCache } from '../src/lib/env';
 import { GET as getPricing } from '../src/app/api/pricing/route';
 import { GET as getSocietiesWorkers } from '../src/app/api/societies/workers/route';
+import { POST as createOrder } from '../src/app/api/payments/create-order/route';
+import { PaymentService } from '../src/services/paymentService';
+import { TransactionRepository } from '../src/repositories/transactionRepository';
+import { invalidateCache } from '../src/lib/ttlCache';
 import { NextRequest } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
 async function runA4Tests() {
-  console.log('--- RUNNING A4 PRODUCTION HARDENING TEST SUITE ---');
+  console.log('--- RUNNING A4 PRODUCTION HARDENING & P0 PAYMENT INTEGRITY TEST SUITE ---');
   let passedCount = 0;
   let failedCount = 0;
 
@@ -120,6 +124,8 @@ async function runA4Tests() {
   // --- TEST F: pricing DB unavailable + no cache -> HTTP 503 ---
   try {
     setupValidProductionEnv();
+    invalidateCache('platform:pricing_config');
+    process.env.DATABASE_URL = 'postgres://invalid:invalid@localhost:54321/invalid_db';
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://invalid-non-existent-db.supabase.co';
     resetServerEnvCache();
     const res = await getPricing();
@@ -154,27 +160,59 @@ async function runA4Tests() {
     assert(false, 'Test H', err.message);
   }
 
-  // --- TEST I: Server code audit — no server code uses placeholder Supabase credentials as fallback ---
+  // --- TEST I: Recursive server source tree audit for forbidden placeholder Supabase fallbacks ---
   try {
-    const serverFiles = [
-      'src/lib/supabaseClient.ts',
-      'src/lib/supabaseAdminClient.ts',
-      'src/lib/adminSecurityGuard.ts',
-      'src/proxy.ts',
-      'src/utils/resolveMediaUrl.ts'
+    function getAllFiles(dirPath: string, arrayOfFiles: string[] = []): string[] {
+      const files = fs.readdirSync(dirPath);
+      files.forEach((file) => {
+        const fullPath = path.join(dirPath, file);
+        if (fs.statSync(fullPath).isDirectory()) {
+          getAllFiles(fullPath, arrayOfFiles);
+        } else if (file.endsWith('.ts') || file.endsWith('.tsx')) {
+          arrayOfFiles.push(fullPath);
+        }
+      });
+      return arrayOfFiles;
+    }
+
+    const serverDirectories = [
+      path.join(process.cwd(), 'src', 'app', 'api'),
+      path.join(process.cwd(), 'src', 'lib'),
+      path.join(process.cwd(), 'src', 'utils')
     ];
-    let foundFallback = false;
-    for (const relPath of serverFiles) {
-      const fullPath = path.join(process.cwd(), relPath);
-      if (fs.existsSync(fullPath)) {
-        const content = fs.readFileSync(fullPath, 'utf8');
-        if (content.includes("|| 'https://placeholder.supabase.co'") || content.includes('|| "https://placeholder.supabase.co"')) {
-          foundFallback = true;
-          console.error(`Found fallback in ${relPath}`);
+
+    const proxyFile = path.join(process.cwd(), 'src', 'proxy.ts');
+    let allServerFiles: string[] = [];
+    if (fs.existsSync(proxyFile)) allServerFiles.push(proxyFile);
+
+    for (const dir of serverDirectories) {
+      if (fs.existsSync(dir)) {
+        getAllFiles(dir, allServerFiles);
+      }
+    }
+
+    const forbiddenPatterns = [
+      "|| 'https://placeholder.supabase.co'",
+      '|| "https://placeholder.supabase.co"',
+      "|| 'placeholder'",
+      '|| "placeholder"'
+    ];
+
+    let violations: string[] = [];
+
+    for (const filePath of allServerFiles) {
+      if (filePath.endsWith('env.ts')) continue;
+
+      const content = fs.readFileSync(filePath, 'utf8');
+      for (const pattern of forbiddenPatterns) {
+        if (content.includes(pattern)) {
+          const relPath = path.relative(process.cwd(), filePath);
+          violations.push(`${relPath} (matches '${pattern}')`);
         }
       }
     }
-    assert(!foundFallback, 'Test I: no server code uses placeholder Supabase credentials as fallback');
+
+    assert(violations.length === 0, 'Test I: Recursive server source scan has no forbidden placeholder fallbacks', violations.join(', '));
   } catch (err: any) {
     assert(false, 'Test I', err.message);
   }
@@ -187,6 +225,71 @@ async function runA4Tests() {
     assert(hasSecureStore, `Test J: Mobile package declares expo-secure-store (${mobilePkg.dependencies?.['expo-secure-store']})`);
   } catch (err: any) {
     assert(false, 'Test J', err.message);
+  }
+
+  // --- TEST K: Payment order creation does NOT use hardcoded pricing when pricing DB & cache are unavailable ---
+  try {
+    setupValidProductionEnv();
+    invalidateCache('platform:pricing_config');
+    process.env.DATABASE_URL = 'postgres://invalid:invalid@localhost:54321/invalid_db';
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://invalid-db.supabase.co';
+    resetServerEnvCache();
+
+    const req = new NextRequest('http://localhost:3000/api/payments/create-order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer mock_valid_bearer_token'
+      },
+      body: JSON.stringify({ planId: 'basic' })
+    });
+
+    const res = await createOrder(req);
+    const body = await res.json().catch(() => ({}));
+
+    const failsClosed = res.status === 503 || (res.status !== 200 && body.amount !== 29900);
+    assert(failsClosed, `Test K: Payment order creation fails closed when pricing DB/cache unavailable (Got HTTP ${res.status})`);
+  } catch (err: any) {
+    assert(false, 'Test K', err.message);
+  }
+
+  // --- TEST L: Webhook Currency Mismatch Rejection ---
+  try {
+    setupValidProductionEnv();
+    const result = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_test_usd_123',
+            order_id: 'order_test_123',
+            amount: 50000,
+            currency: 'USD'
+          }
+        }
+      }
+    });
+
+    assert(result.success === false && result.statusCode === 400, 'Test L: Webhook rejects non-INR currency payments');
+  } catch (err: any) {
+    assert(false, 'Test L', err.message);
+  }
+
+  // --- TEST M: TransactionRepository schema mapping helper ---
+  try {
+    assert(typeof TransactionRepository.findTransactionByPaymentId === 'function', 'Test M: TransactionRepository provides findTransactionByPaymentId schema mapping helper');
+  } catch (err: any) {
+    assert(false, 'Test M', err.message);
+  }
+
+  // --- TEST N: No hardcoded live Razorpay key fallback in source code ---
+  try {
+    const razorpayUtilPath = path.join(process.cwd(), 'src', 'utils', 'razorpay.ts');
+    const content = fs.readFileSync(razorpayUtilPath, 'utf8');
+    const hasLiveFallback = content.includes('rzp_live_');
+    assert(!hasLiveFallback, 'Test N: Client Razorpay checkout contains no hardcoded rzp_live_ fallback key');
+  } catch (err: any) {
+    assert(false, 'Test N', err.message);
   }
 
   // Restore environment
