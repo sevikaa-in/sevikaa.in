@@ -34,7 +34,7 @@ export class PaymentService {
     }
   }
 
-  static async processRazorpayEvent(payload: any): Promise<RazorpayWebhookResult> {
+  static async processRazorpayEvent(payload: any, options?: { webhookEventId?: string | null }): Promise<RazorpayWebhookResult> {
     const event = payload?.event;
     if (!event) {
       return { success: false, error: 'Invalid event payload', statusCode: 400 };
@@ -99,7 +99,10 @@ export class PaymentService {
       let status = event === 'payment.failed' ? 'failed' : (event === 'payment.refunded' ? 'refunded' : (paymentEntity.status || 'captured'));
 
       // Atomic Idempotency Claim: Attempt atomic database row claim
-      const eventId = `${event}:${paymentId}`;
+      const headerEventId = options?.webhookEventId || payload?.event_id;
+      const refundId = payload?.payload?.refund?.entity?.id;
+      const entityKey = (event === 'payment.refunded' && refundId) ? refundId : paymentId;
+      const eventId = headerEventId || `${event}:${entityKey}`;
       const payloadHash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 
       try {

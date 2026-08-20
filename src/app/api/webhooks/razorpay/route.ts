@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
     const razorpaySecret = env.RAZORPAY_KEY_SECRET;
     const rawBody = await request.text();
     const signature = request.headers.get('x-razorpay-signature') || '';
+    const webhookEventId = request.headers.get('x-razorpay-event-id') || null;
 
     // 1. Verify Webhook Signature via PaymentService
     const isValid = PaymentService.verifyRazorpaySignature(rawBody, signature, razorpaySecret);
@@ -16,10 +17,10 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = JSON.parse(rawBody);
-    console.log(`[Razorpay Webhook] Received Event: ${payload.event}`);
+    console.log(`[Razorpay Webhook] Received Event: ${payload.event}${webhookEventId ? ` (ID: ${webhookEventId})` : ''}`);
 
     // 2. Process Event via PaymentService
-    const result = await PaymentService.processRazorpayEvent(payload);
+    const result = await PaymentService.processRazorpayEvent(payload, { webhookEventId });
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: result.statusCode || 400 });
     }
