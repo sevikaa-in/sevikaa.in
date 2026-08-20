@@ -194,31 +194,16 @@ export class PaymentService {
         userId = matchedSession.user_id;
         planName = matchedSession.plan_id ? `${matchedSession.plan_id} plan` : planName;
       } else if (event === 'subscription.charged' || (subscriptionEntity && subscriptionEntity.id)) {
-        // Fallback for subscription.charged events where checkout_sessions row is missing/unmapped
+        // Authoritative resolution for subscription.charged events where checkout_sessions row is unmapped
         const subNotesUserId = subscriptionEntity?.notes?.user_id || paymentEntity?.notes?.user_id;
-        if (subNotesUserId) {
-          userId = subNotesUserId;
-        } else if (billingEmail && billingEmail !== 'employer@sevikaa.in') {
-          const profileRes = await queryDb(
-            `SELECT user_id FROM public.employer_profiles WHERE email = $1 LIMIT 1`,
-            [billingEmail]
-          ).catch(() => null);
-
-          if (profileRes?.rows?.length) {
-            userId = profileRes.rows[0].user_id;
-          } else {
-            console.error(`[PaymentService] UNMAPPED SUBSCRIPTION REJECTED: Could not resolve user for email ${billingEmail}`);
-            await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
-              console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
-            });
-            return { success: false, error: 'Unmapped subscription payment. User not found.', statusCode: 400 };
-          }
+        if (subNotesUserId && typeof subNotesUserId === 'string' && subNotesUserId.trim()) {
+          userId = subNotesUserId.trim();
         } else {
-          console.error(`[PaymentService] UNMAPPED SUBSCRIPTION REJECTED: Missing user reference for subscription event ${paymentId}.`);
+          console.error(`[PaymentService] UNMAPPED SUBSCRIPTION REJECTED: Missing authoritative user_id metadata in subscription notes for payment ${paymentId}.`);
           await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
             console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
           });
-          return { success: false, error: 'Subscription user reference required.', statusCode: 400 };
+          return { success: false, error: 'Unmapped subscription payment. Authoritative user reference missing in notes.', statusCode: 400 };
         }
         planName = subscriptionEntity?.plan_id ? `Subscription Plan (${subscriptionEntity.plan_id})` : planName;
       } else {

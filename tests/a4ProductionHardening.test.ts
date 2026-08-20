@@ -579,7 +579,8 @@ async function runA4Tests() {
           subscription: {
             entity: {
               id: 'sub_test_charge_123',
-              plan_id: 'plan_pro_monthly'
+              plan_id: 'plan_pro_monthly',
+              notes: { user_id: 'resolved_sub_user_456' }
             }
           },
           payment: {
@@ -725,7 +726,8 @@ async function runA4Tests() {
         subscription: {
           entity: {
             id: 'sub_test_no_order_123',
-            plan_id: 'plan_pro'
+            plan_id: 'plan_pro',
+            notes: { user_id: 'user_sub_test_1' }
           }
         },
         payment: {
@@ -784,7 +786,8 @@ async function runA4Tests() {
         subscription: {
           entity: {
             id: 'sub_999888777',
-            plan_id: 'plan_starter'
+            plan_id: 'plan_starter',
+            notes: { user_id: 'user_sub_test_2' }
           }
         },
         payment: {
