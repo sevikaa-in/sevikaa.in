@@ -473,37 +473,45 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
       badges, applications, availableJobs, societiesList, saveLoading, deletionRequested,
       showToast, handleSaveProfile, handleRequestAccountDeletion, handleLogout
     }}>
-      <div className="bg-slate-100 min-h-screen flex justify-center items-start font-sans antialiased">
+      <div className="bg-slate-50 min-h-screen flex flex-col font-sans antialiased">
         <ToastContainer toasts={toasts} onDismiss={removeToast} />
         
-        {/* Mobile Viewport Container - Clean Flat Interface */}
-        <div className="w-full max-w-md bg-slate-50 min-h-screen border-x border-slate-200/80 shadow-xl flex flex-col relative">
+        {/* Responsive Viewport Wrapper */}
+        <div className="w-full min-h-screen flex flex-col relative">
 
-          {/* Clean Mobile App Header */}
+          {/* Clean Responsive Header */}
           <header className="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-xs">
-            <div className="px-4 py-3 flex items-center justify-between">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
               {isOnboarding ? (
                 <>
-                  <div className="flex items-center gap-2">
-                    <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
-                    <span className="font-semibold text-xs text-slate-800">Sevikaa</span>
+                  <div className="flex items-center gap-2.5">
+                    <img src="/logo.png" alt="Sevikaa Logo" className="h-7 sm:h-8 w-auto object-contain" />
+                    <span className="font-semibold text-xs sm:text-sm text-slate-800 tracking-tight">Sevikaa</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-[#34A853] border border-emerald-200">
                       {t('workerSetup') || 'Worker Setup'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <GlobalLanguageSelector />
                     <button
                       onClick={() => setShowMobileMenu(!showMobileMenu)}
-                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      className="md:hidden p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
                       aria-label="Toggle Navigation Menu"
                     >
                       {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                    >
+                      <LogOut size={14} />
+                      <span>Log Out</span>
                     </button>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     {(() => {
                       const isDashboardHome = pathname === '/worker' || pathname === '/worker/dashboard';
                       const logoHref = isDashboardHome ? '/?browse=true' : '/worker';
@@ -511,33 +519,58 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                       return (
                         <Link href={logoHref} className="flex items-center gap-2 group cursor-pointer" title={logoTitle}>
                           {!isDashboardHome && (
-                            <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
+                            <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors md:hidden" />
                           )}
-                          <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain transition-transform group-hover:scale-105" />
-                          <span className="font-semibold text-xs text-slate-800">{t('headerWorker')}</span>
+                          <img src="/logo.png" alt="Sevikaa Logo" className="h-7 sm:h-8 w-auto object-contain transition-transform group-hover:scale-105" />
+                          <span className="font-semibold text-xs sm:text-sm text-slate-800 tracking-tight">{t('headerWorker') || 'Worker Candidate'}</span>
                         </Link>
                       );
                     })()}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {/* Desktop Navigation */}
+                  <nav className="hidden md:flex items-center gap-1 lg:gap-2">
+                    {navItems.map((item) => {
+                      const isActive = (item.id === 'overview' && pathname === '/worker') || (item.id !== 'overview' && pathname === item.href);
+                      return (
+                        <Link
+                          key={item.id}
+                          href={item.href}
+                          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                            isActive
+                              ? 'bg-blue-50 text-[#1A73E8] border border-blue-200/80 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                          }`}
+                        >
+                          {React.cloneElement(item.icon, { size: 16 })}
+                          <span>{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </nav>
+
+                  <div className="flex items-center gap-2 sm:gap-3">
                     {/* Verification Pill */}
                     {workerProfile.status === 'live' || workerProfile.status === 'approved' ? (
-                      <div className="bg-emerald-50 text-[#34A853] border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
-                        <CheckCircle2 size={10} />
-                        <span>{t('aadhaarVerifiedBadge')}</span>
+                      <div className="bg-emerald-50 text-[#34A853] border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] sm:text-[11px] font-semibold flex items-center gap-1">
+                        <CheckCircle2 size={11} />
+                        <span>{t('aadhaarVerifiedBadge') || 'Verified'}</span>
                       </div>
                     ) : (
-                      <div className="bg-amber-50 text-amber-700 border border-amber-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
-                        <Lock size={10} />
-                        <span>{t('pendingAdminAudit')}</span>
+                      <div className="bg-amber-50 text-amber-700 border border-amber-200/50 py-1 px-2.5 rounded-xl text-[10px] sm:text-[11px] font-semibold flex items-center gap-1">
+                        <Lock size={11} />
+                        <span>{t('pendingAdminAudit') || 'Pending Audit'}</span>
                       </div>
                     )}
+
+                    <div className="hidden lg:block">
+                      <GlobalLanguageSelector />
+                    </div>
 
                     {/* Notifications Bell Button */}
                     <Link
                       href="/worker/notifications"
-                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
+                      className="p-1.5 sm:p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
                       title="Notifications & Alerts"
                     >
                       <Bell size={18} />
@@ -547,10 +580,20 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                     {/* Hamburger Mobile Menu Toggle Button */}
                     <button
                       onClick={() => setShowMobileMenu(!showMobileMenu)}
-                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      className="md:hidden p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
                       aria-label="Toggle Navigation Menu"
                     >
                       {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+                    </button>
+
+                    {/* Desktop Logout Button */}
+                    <button
+                      onClick={handleLogout}
+                      className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                      title="Log Out Session"
+                    >
+                      <LogOut size={15} />
+                      <span className="hidden lg:inline">Log Out</span>
                     </button>
                   </div>
                 </>
@@ -673,13 +716,13 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           )}
 
           {/* Main Scrollable Screen Area */}
-          <main className={`flex-1 p-4 space-y-4 ${isOnboarding ? 'pb-6' : 'pb-20'}`}>
+          <main className={`flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 ${isOnboarding ? 'pb-8' : 'pb-24 md:pb-12'}`}>
             {children}
           </main>
 
-          {/* Sticky Mobile Bottom Navigation Bar (Hidden during onboarding) */}
+          {/* Sticky Mobile Bottom Navigation Bar (Hidden on md: and above) */}
           {!isOnboarding && (
-            <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2.5 px-2 flex justify-around items-center z-50 shadow-xl shrink-0">
+            <nav className="md:hidden sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2.5 px-2 flex justify-around items-center z-50 shadow-xl shrink-0">
               {navItems.map((item) => {
                 const isActive = (item.id === 'overview' && pathname === '/worker') || (item.id !== 'overview' && pathname === item.href);
                 return (

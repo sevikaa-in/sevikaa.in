@@ -72,6 +72,30 @@ export class PaymentService {
         }
       }
 
+      // 3. Strict Payment Amount Validation (Zero Defaulting Prevention)
+      const rawAmount = paymentEntity.amount;
+      if (
+        rawAmount === null ||
+        rawAmount === undefined ||
+        typeof rawAmount !== 'number' ||
+        !Number.isFinite(rawAmount) ||
+        !Number.isInteger(rawAmount) ||
+        rawAmount <= 0
+      ) {
+        console.error(`[PaymentService] REJECTED: Invalid or missing payment amount: ${rawAmount}`);
+        return {
+          success: false,
+          error:
+            rawAmount === null || rawAmount === undefined
+              ? 'Missing payment amount'
+              : !Number.isInteger(rawAmount)
+              ? 'Invalid payment amount. Amount in paise must be an integer.'
+              : 'Invalid payment amount',
+          statusCode: 400
+        };
+      }
+      const amount = rawAmount / 100;
+
       let status = event === 'payment.failed' ? 'failed' : (event === 'payment.refunded' ? 'refunded' : (paymentEntity.status || 'captured'));
 
       // Atomic Idempotency Claim: Attempt atomic database row claim
@@ -118,7 +142,6 @@ export class PaymentService {
 
       const billingEmail = paymentEntity.email || 'employer@sevikaa.in';
       const billingPhone = paymentEntity.contact || 'N/A';
-      const amount = (paymentEntity.amount || 0) / 100;
       const method = (paymentEntity.method || 'upi').toUpperCase();
 
       let userId: string = '';
@@ -141,19 +164,32 @@ export class PaymentService {
       }
 
       if (matchedSession) {
-        userId = matchedSession.user_id;
-        planName = matchedSession.plan_id ? `${matchedSession.plan_id} plan` : planName;
+        const rawExpectedAmount = matchedSession.expected_amount;
+        if (
+          rawExpectedAmount === null ||
+          rawExpectedAmount === undefined ||
+          typeof rawExpectedAmount !== 'number' ||
+          !Number.isFinite(rawExpectedAmount) ||
+          rawExpectedAmount <= 0
+        ) {
+          console.error(`[PaymentService] REJECTED: Missing or invalid expected_amount in checkout session for order ${orderId}`);
+          await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
+            console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
+          });
+          return { success: false, error: 'Invalid or missing expected amount in checkout session', statusCode: 400 };
+        }
 
-        // Verify paid amount matches expected amount
-        const expectedAmountPaise = (matchedSession.expected_amount || 0) * 100;
-        const paidAmountPaise = paymentEntity.amount || 0;
-        if (expectedAmountPaise > 0 && paidAmountPaise !== expectedAmountPaise) {
-          console.error(`[PaymentService] AMOUNT MISMATCH: expected ${expectedAmountPaise} paise, got ${paidAmountPaise} paise for order ${orderId}`);
+        const expectedAmountPaise = Math.round(rawExpectedAmount * 100);
+        if (rawAmount !== expectedAmountPaise) {
+          console.error(`[PaymentService] AMOUNT MISMATCH: expected ${expectedAmountPaise} paise, got ${rawAmount} paise for order ${orderId}`);
           await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
             console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
           });
           return { success: false, error: 'Payment amount mismatch', statusCode: 400 };
         }
+
+        userId = matchedSession.user_id;
+        planName = matchedSession.plan_id ? `${matchedSession.plan_id} plan` : planName;
       } else if (event === 'subscription.charged' || (subscriptionEntity && subscriptionEntity.id)) {
         // Fallback for subscription.charged events where checkout_sessions row is missing/unmapped
         const subNotesUserId = subscriptionEntity?.notes?.user_id || paymentEntity?.notes?.user_id;

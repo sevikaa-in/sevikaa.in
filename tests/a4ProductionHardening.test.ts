@@ -335,7 +335,7 @@ async function runA4Tests() {
           return { rows: [] };
         }
         if (sql.includes('checkout_sessions')) {
-          return { rows: [{ user_id: 'db_test_user_123', plan_id: 'pro' }] };
+          return { rows: [{ user_id: 'db_test_user_123', plan_id: 'pro', expected_amount: 1499 }] };
         }
         return { rows: [] };
       },
@@ -503,7 +503,7 @@ async function runA4Tests() {
           return { rows: [{ event_id: params[0], processed_at: null }] };
         }
         if (sql.includes('checkout_sessions')) {
-          return { rows: [{ user_id: 'mock_user_123', plan_id: 'pro' }] };
+          return { rows: [{ user_id: 'mock_user_123', plan_id: 'pro', expected_amount: 1499 }] };
         }
         if (sql.includes('UPDATE public.payment_events SET processed_at')) {
           throw new Error('Simulated DB failure on updating processed_at');
@@ -826,7 +826,7 @@ async function runA4Tests() {
           return { rows: [{ event_id: params[0], processed_at: null }] };
         }
         if (sql.includes('checkout_sessions')) {
-          return { rows: [{ user_id: 'user_real_order_777', plan_id: 'pro' }] };
+          return { rows: [{ user_id: 'user_real_order_777', plan_id: 'pro', expected_amount: 1499 }] };
         }
         if (sql.includes('INSERT INTO public.transactions')) {
           recordedOrderId = params[1];
@@ -1255,6 +1255,201 @@ async function runA4Tests() {
     assert(body.success === true && body.transactions?.[0]?.amount === null, `Test W1: DB amount = NULL -> API returns amount as null instead of 0 (got ${body.transactions?.[0]?.amount})`);
   } catch (err: any) {
     assert(false, 'Test W1', err.message);
+  }
+
+  // --- TEST X1: Missing payment amount -> rejected ---
+  try {
+    setupValidProductionEnv();
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_x1_no_amount',
+            order_id: 'order_x1_no_amount',
+            currency: 'INR'
+          }
+        }
+      }
+    });
+    assert(res.success === false && res.statusCode === 400 && res.error === 'Missing payment amount', 'Test X1: Missing payment amount -> rejected with HTTP 400');
+  } catch (err: any) {
+    assert(false, 'Test X1', err.message);
+  }
+
+  // --- TEST X2: Zero amount -> rejected ---
+  try {
+    setupValidProductionEnv();
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_x2_zero',
+            order_id: 'order_x2_zero',
+            amount: 0,
+            currency: 'INR'
+          }
+        }
+      }
+    });
+    assert(res.success === false && res.statusCode === 400 && res.error === 'Invalid payment amount', 'Test X2: Zero payment amount -> rejected with HTTP 400');
+  } catch (err: any) {
+    assert(false, 'Test X2', err.message);
+  }
+
+  // --- TEST X3: Negative amount -> rejected ---
+  try {
+    setupValidProductionEnv();
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_x3_neg',
+            order_id: 'order_x3_neg',
+            amount: -149900,
+            currency: 'INR'
+          }
+        }
+      }
+    });
+    assert(res.success === false && res.statusCode === 400 && res.error === 'Invalid payment amount', 'Test X3: Negative payment amount -> rejected with HTTP 400');
+  } catch (err: any) {
+    assert(false, 'Test X3', err.message);
+  }
+
+  // --- TEST X4: Non-finite / non-integer amount -> rejected ---
+  try {
+    setupValidProductionEnv();
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_x4_non_int',
+            order_id: 'order_x4_non_int',
+            amount: 149900.5,
+            currency: 'INR'
+          }
+        }
+      }
+    });
+    assert(res.success === false && res.statusCode === 400 && (res.error || '').includes('must be an integer'), 'Test X4: Non-integer payment amount in paise -> rejected with HTTP 400');
+  } catch (err: any) {
+    assert(false, 'Test X4', err.message);
+  }
+
+  // --- TEST X5: Missing expected_amount in session -> rejected ---
+  try {
+    setupValidProductionEnv();
+    const { dbPool } = await import('../src/lib/db');
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string) => {
+        if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_x5' }] };
+        if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'u_x5', expected_amount: null }] };
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_x5_null_exp',
+            order_id: 'order_x5_null_exp',
+            amount: 149900,
+            currency: 'INR'
+          }
+        }
+      }
+    });
+    (dbPool as any).connect = origConnect;
+
+    assert(res.success === false && res.statusCode === 400 && res.error === 'Invalid or missing expected amount in checkout session', 'Test X5: Missing expected_amount in checkout session -> rejected with HTTP 400');
+  } catch (err: any) {
+    assert(false, 'Test X5', err.message);
+  }
+
+  // --- TEST X6: Valid amount -> continues ---
+  try {
+    setupValidProductionEnv();
+    const { dbPool } = await import('../src/lib/db');
+    const { supabaseAdmin } = await import('../src/lib/supabaseAdminClient');
+
+    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    (supabaseAdmin as any).from = () => ({
+      update: () => ({ eq: async () => ({ error: null, data: [] }) }),
+      select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
+    });
+
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string) => {
+        if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_x6' }] };
+        if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'u_x6', expected_amount: 1499 }] };
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_x6_valid',
+            order_id: 'order_x6_valid',
+            amount: 149900,
+            currency: 'INR',
+            email: 'employer_x6@sevikaa.in'
+          }
+        }
+      }
+    });
+    (dbPool as any).connect = origConnect;
+    (supabaseAdmin as any).from = origFrom;
+
+    assert(res.success === true, 'Test X6: Valid amount matching expected_amount -> completes successfully with HTTP 200');
+  } catch (err: any) {
+    assert(false, 'Test X6', err.message);
+  }
+
+  // --- TEST X7: Mismatched amount -> rejected ---
+  try {
+    setupValidProductionEnv();
+    const { dbPool } = await import('../src/lib/db');
+    const origConnect = dbPool.connect.bind(dbPool);
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string) => {
+        if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_x7' }] };
+        if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'u_x7', expected_amount: 1499 }] };
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_x7_mismatch',
+            order_id: 'order_x7_mismatch',
+            amount: 29900, // 299 paid vs 1499 expected
+            currency: 'INR'
+          }
+        }
+      }
+    });
+    (dbPool as any).connect = origConnect;
+
+    assert(res.success === false && res.statusCode === 400 && res.error === 'Payment amount mismatch', 'Test X7: Mismatched payment amount -> rejected with HTTP 400');
+  } catch (err: any) {
+    assert(false, 'Test X7', err.message);
   }
 
   // Restore environment
