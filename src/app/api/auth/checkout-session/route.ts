@@ -47,7 +47,14 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { planId = 'pro_pass_1499' } = body;
+    const rawPlanInput = body.planId ?? body.plan_id;
+    if (!rawPlanInput || typeof rawPlanInput !== 'string' || !rawPlanInput.trim()) {
+      return NextResponse.json(
+        { error: 'Missing planId', message: 'A valid non-empty planId is required to create a checkout session.' },
+        { status: 400 }
+      );
+    }
+    const planId = rawPlanInput.trim();
     const userId = user.id; // IDOR fix: derive strictly from authenticated user
 
     // Generate secure 32-byte hex token — store only the SHA-256 hash in DB
