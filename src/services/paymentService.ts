@@ -273,6 +273,81 @@ export class PaymentService {
       }).catch(() => {});
     }
 
+    if (event === 'subscription.cancelled' || event === 'subscription.halted' || event === 'subscription.paused') {
+      const subscriptionEntity = payload?.payload?.subscription?.entity;
+      if (!subscriptionEntity) {
+        return { success: false, error: 'Missing subscription entity', statusCode: 400 };
+      }
+
+      const subscriptionId = subscriptionEntity.id;
+      if (!subscriptionId || typeof subscriptionId !== 'string' || !subscriptionId.trim()) {
+        return { success: false, error: 'Missing subscription ID', statusCode: 400 };
+      }
+
+      const subNotesUserId = subscriptionEntity?.notes?.user_id;
+      if (!subNotesUserId || typeof subNotesUserId !== 'string' || !subNotesUserId.trim()) {
+        console.error(`[PaymentService] UNMAPPED SUBSCRIPTION CANCELLATION REJECTED: Missing user_id metadata notes in subscription ${subscriptionId}`);
+        return { success: false, error: 'Unmapped subscription cancellation. Missing user reference in notes.', statusCode: 400 };
+      }
+
+      const userId = subNotesUserId.trim();
+      const headerEventId = options?.webhookEventId || payload?.event_id;
+      const eventId = headerEventId || `${event}:${subscriptionId}`;
+      const payloadHash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+
+      try {
+        const claimRes = await queryDb(
+          `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, received_at)
+           VALUES ('razorpay', $1, $2, $3, $4, NOW())
+           ON CONFLICT (event_id) DO NOTHING
+           RETURNING event_id, processed_at`,
+          [eventId, subscriptionId, event, payloadHash]
+        );
+
+        if (!claimRes?.rows?.length) {
+          const existing = await queryDb(
+            `SELECT processed_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
+            [eventId]
+          );
+
+          if (existing?.rows?.length && existing.rows[0].processed_at) {
+            return { success: true, message: 'Already processed' };
+          }
+        }
+
+        const { error: subErr } = await supabaseAdmin
+          .from('employer_profiles')
+          .update({ subscription_status: 'free' })
+          .eq('user_id', userId);
+
+        if (subErr) {
+          console.error('[PaymentService] CRITICAL: Subscription cancellation update failed for user:', userId, subErr);
+          throw new Error(`Failed to cancel subscription for user ${userId}: ${subErr.message}`);
+        }
+
+        await queryDb(
+          `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
+          [eventId]
+        );
+
+        logAuditAction({
+          action: `Razorpay Subscription ${event.toUpperCase()}`,
+          category: 'payment_webhook',
+          severity: 'warning',
+          actor: userId,
+          actorRole: 'Employer',
+          target_name: `Subscription ${subscriptionId}`,
+          target_id: subscriptionId,
+          changes_summary: `Subscription ${subscriptionId} status updated to FREE for user ${userId} due to ${event} event.`,
+          raw_payload: payload
+        }).catch(() => {});
+      } catch (procErr: any) {
+        console.error('[PaymentService] CRITICAL: Subscription cancellation processing failed:', procErr?.message);
+        await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1 AND processed_at IS NULL`, [eventId]).catch(() => {});
+        throw procErr;
+      }
+    }
+
     return { success: true };
   }
 }
