@@ -5,12 +5,12 @@ export interface TransactionRecord {
   razorpay_payment_id: string;
   razorpay_order_id?: string;
   user_id: string;
-  employer_name: string;
-  employer_email: string;
-  employer_phone: string;
+  employer_name?: string | null;
+  employer_email?: string | null;
+  employer_phone?: string | null;
   plan_name: string;
   amount: number;
-  payment_method: string;
+  payment_method?: string | null;
   status: string;
   raw_payload?: string;
 }

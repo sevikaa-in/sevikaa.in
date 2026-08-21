@@ -53,7 +53,11 @@ export async function POST(req: NextRequest) {
 
     // 2. Validate planId from DB pricing or cache (Fail Closed if pricing unavailable)
     const body = await req.json().catch(() => ({}));
-    const rawPlanId = (body.planId || body.plan_id || 'standard').toString().toLowerCase();
+    const rawPlanInput = body.planId ?? body.plan_id;
+    if (!rawPlanInput || typeof rawPlanInput !== 'string' || !rawPlanInput.trim()) {
+      return NextResponse.json({ error: 'Invalid plan. Valid plans: free, basic, standard, premium, pro' }, { status: 400 });
+    }
+    const rawPlanId = rawPlanInput.trim().toLowerCase();
     const VALID_PLANS = new Set(['free', 'basic', 'standard', 'premium', 'pro']);
 
     if (!VALID_PLANS.has(rawPlanId)) {

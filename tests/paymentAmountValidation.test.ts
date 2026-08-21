@@ -313,6 +313,207 @@ async function runPaymentAmountValidationTests() {
     assert(false, 'Test 7: Mismatched amount', err.message);
   }
 
+  // ----------------------------------------------------
+  // TEST 8: missing currency -> rejected
+  // ----------------------------------------------------
+  try {
+    resetFlags();
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_test8_nocurr',
+            order_id: 'order_test8_nocurr',
+            amount: 69900
+            // currency missing
+          }
+        }
+      }
+    });
+
+    const isRejected = res.success === false && res.statusCode === 400 && res.error === 'Missing currency in payment payload.';
+    const noSideEffects = !transactionRecorded && !subscriptionUpdated;
+
+    assert(
+      isRejected && noSideEffects,
+      'Test 8: Missing currency -> rejected with HTTP 400 (NO transaction, NO subscription activation)'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 8: Missing currency', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 9: non-INR currency -> rejected
+  // ----------------------------------------------------
+  try {
+    resetFlags();
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_test9_usd',
+            order_id: 'order_test9_usd',
+            amount: 69900,
+            currency: 'USD'
+          }
+        }
+      }
+    });
+
+    const isRejected = res.success === false && res.statusCode === 400 && res.error === 'Invalid currency. Expected INR.';
+    const noSideEffects = !transactionRecorded && !subscriptionUpdated;
+
+    assert(
+      isRejected && noSideEffects,
+      'Test 9: Non-INR currency -> rejected with HTTP 400 (NO transaction, NO subscription activation)'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 9: Non-INR currency', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 10: missing payment method does NOT become UPI
+  // ----------------------------------------------------
+  try {
+    resetFlags();
+    let capturedData: any = null;
+    TransactionRepository.recordTransaction = async (data: any) => {
+      transactionRecorded = true;
+      capturedData = data;
+      return true;
+    };
+
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string) => {
+        if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_test10' }] };
+        if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'user_test10', expected_amount: 699 }] };
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_test10_nomethod',
+            order_id: 'order_test10_nomethod',
+            amount: 69900,
+            currency: 'INR'
+            // method missing
+          }
+        }
+      }
+    });
+
+    const isSuccess = res.success === true;
+    const methodIsNull = capturedData && capturedData.payment_method === null;
+
+    assert(
+      isSuccess && methodIsNull,
+      'Test 10: Missing payment method does NOT become UPI (recorded as null)'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 10: Missing payment method', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 11: missing billing email does NOT become employer@sevikaa.in
+  // ----------------------------------------------------
+  try {
+    resetFlags();
+    let capturedData: any = null;
+    TransactionRepository.recordTransaction = async (data: any) => {
+      transactionRecorded = true;
+      capturedData = data;
+      return true;
+    };
+
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string) => {
+        if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_test11' }] };
+        if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'user_test11', expected_amount: 699 }] };
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_test11_noemail',
+            order_id: 'order_test11_noemail',
+            amount: 69900,
+            currency: 'INR'
+            // email missing
+          }
+        }
+      }
+    });
+
+    const isSuccess = res.success === true;
+    const emailIsNull = capturedData && capturedData.employer_email === null && capturedData.employer_name === null;
+
+    assert(
+      isSuccess && emailIsNull,
+      'Test 11: Missing billing email does NOT become employer@sevikaa.in (recorded as null)'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 11: Missing billing email', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 12: missing billing phone does NOT become N/A
+  // ----------------------------------------------------
+  try {
+    resetFlags();
+    let capturedData: any = null;
+    TransactionRepository.recordTransaction = async (data: any) => {
+      transactionRecorded = true;
+      capturedData = data;
+      return true;
+    };
+
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string) => {
+        if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_test12' }] };
+        if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'user_test12', expected_amount: 699 }] };
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_test12_nophone',
+            order_id: 'order_test12_nophone',
+            amount: 69900,
+            currency: 'INR'
+            // contact missing
+          }
+        }
+      }
+    });
+
+    const isSuccess = res.success === true;
+    const phoneIsNull = capturedData && capturedData.employer_phone === null;
+
+    assert(
+      isSuccess && phoneIsNull,
+      'Test 12: Missing billing phone does NOT become N/A (recorded as null)'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 12: Missing billing phone', err.message);
+  }
+
   // Restore mocks
   TransactionRepository.recordTransaction = origRecordTransaction;
   (supabaseAdmin as any).from = origFrom;

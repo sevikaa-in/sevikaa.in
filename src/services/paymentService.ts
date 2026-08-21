@@ -47,7 +47,12 @@ export class PaymentService {
       }
 
       // Currency Integrity Check
-      const currency = (paymentEntity.currency || 'INR').toUpperCase();
+      const rawCurrency = paymentEntity.currency;
+      if (!rawCurrency || typeof rawCurrency !== 'string' || !rawCurrency.trim()) {
+        console.error('[PaymentService] REJECTED: Missing currency in payment payload.');
+        return { success: false, error: 'Missing currency in payment payload.', statusCode: 400 };
+      }
+      const currency = rawCurrency.trim().toUpperCase();
       if (currency !== 'INR') {
         console.error(`[PaymentService] CURRENCY MISMATCH: Expected INR, got ${currency}`);
         return { success: false, error: 'Invalid currency. Expected INR.', statusCode: 400 };
@@ -143,9 +148,9 @@ export class PaymentService {
         return { success: false, error: 'Idempotency verification failed. Deferred for retry.', statusCode: 500 };
       }
 
-      const billingEmail = paymentEntity.email || 'employer@sevikaa.in';
-      const billingPhone = paymentEntity.contact || 'N/A';
-      const method = (paymentEntity.method || 'upi').toUpperCase();
+      const billingEmail = paymentEntity.email && typeof paymentEntity.email === 'string' && paymentEntity.email.trim() ? paymentEntity.email.trim() : null;
+      const billingPhone = paymentEntity.contact && typeof paymentEntity.contact === 'string' && paymentEntity.contact.trim() ? paymentEntity.contact.trim() : null;
+      const method = paymentEntity.method && typeof paymentEntity.method === 'string' && paymentEntity.method.trim() ? paymentEntity.method.trim().toUpperCase() : null;
 
       let userId: string = '';
       let planName = 'Premium Subscription Pass';
@@ -227,7 +232,7 @@ export class PaymentService {
           razorpay_payment_id: paymentId,
           razorpay_order_id: orderId || undefined,
           user_id: userId,
-          employer_name: billingEmail.split('@')[0],
+          employer_name: billingEmail ? billingEmail.split('@')[0] : null,
           employer_email: billingEmail,
           employer_phone: billingPhone,
           plan_name: planName,
@@ -268,7 +273,7 @@ export class PaymentService {
         actorRole: 'Employer',
         target_name: `Transaction ${paymentId}`,
         target_id: paymentId,
-        changes_summary: `${status.toUpperCase()} payment of ₹${amount.toFixed(2)} (${planName}) via ${method}. Payment ID: ${paymentId}`,
+        changes_summary: `${status.toUpperCase()} payment of ₹${amount.toFixed(2)} (${planName})${method ? ` via ${method}` : ''}. Payment ID: ${paymentId}`,
         raw_payload: payload
       }).catch(() => {});
     }

@@ -680,7 +680,7 @@ async function runA4Tests() {
 
     const res4 = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
-      payload: { payment: { entity: { id: 'pay_test_no_fab' } } }
+      payload: { payment: { entity: { id: 'pay_test_no_fab', currency: 'INR' } } }
     });
     (dbPool as any).connect = origConnect;
 
