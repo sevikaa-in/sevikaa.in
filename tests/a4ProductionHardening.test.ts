@@ -318,7 +318,7 @@ async function runA4Tests() {
           mockDbEvents.set(eventId, row);
           return { rows: [row] }; // Winner -> 1 row returned
         }
-        if (sql.includes('SELECT processed_at FROM public.payment_events')) {
+        if (sql.includes('FROM public.payment_events') && sql.includes('SELECT')) {
           const eventId = params[0];
           const row = mockDbEvents.get(eventId);
           return { rows: row ? [row] : [] };

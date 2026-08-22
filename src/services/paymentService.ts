@@ -122,7 +122,7 @@ export class PaymentService {
         if (!claimRes?.rows?.length) {
           // Conflict occurred: another execution inserted event_id first
           const existing = await queryDb(
-            `SELECT processed_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
+            `SELECT event_id, processed_at, received_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
             [eventId]
           );
 
@@ -133,14 +133,38 @@ export class PaymentService {
               return { success: true, message: 'Already processed' };
             }
 
-            // DO NOT RETURN SUCCESS FOR IN-PROGRESS CONCURRENT THREADS!
-            // Return HTTP 500 so Razorpay retries if the active worker fails before completion.
-            console.log(`[PaymentService] Event ${eventId} processing in progress or pending completion by concurrent thread.`);
-            return {
-              success: false,
-              error: 'Event processing in progress or pending completion.',
-              statusCode: 500
-            };
+            // Check active processing window (60s lock)
+            const receivedAtMs = row.received_at ? new Date(row.received_at).getTime() : 0;
+            const isStale = (Date.now() - receivedAtMs) > 60000;
+
+            if (!isStale) {
+              console.log(`[PaymentService] Event ${eventId} processing in progress or pending completion by concurrent thread.`);
+              return {
+                success: false,
+                error: 'Event processing in progress or pending completion.',
+                statusCode: 500
+              };
+            }
+
+            // Stale uncompleted claim / failed previous attempt -> atomic re-claim update
+            const reclaimRes = await queryDb(
+              `UPDATE public.payment_events
+               SET received_at = NOW(), payload_hash = $2
+               WHERE event_id = $1 AND processed_at IS NULL AND received_at = $3
+               RETURNING event_id`,
+              [eventId, payloadHash, row.received_at]
+            );
+
+            if (!reclaimRes?.rows?.length) {
+              console.log(`[PaymentService] Event ${eventId} re-claim race condition with concurrent thread.`);
+              return {
+                success: false,
+                error: 'Event processing in progress or pending completion.',
+                statusCode: 500
+              };
+            }
+
+            console.log(`[PaymentService] Successfully re-claimed retryable failed event ${eventId} for processing retry.`);
           }
         }
       } catch (idempotentErr: any) {
@@ -261,7 +285,7 @@ export class PaymentService {
         );
       } catch (procErr: any) {
         console.error('[PaymentService] CRITICAL: Financial processing or completion record failed:', procErr?.message);
-        await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1 AND processed_at IS NULL`, [eventId]).catch(() => {});
+        // Event remains persisted in public.payment_events with processed_at = NULL for safe retry / reconciliation
         throw procErr;
       }
 
@@ -311,12 +335,47 @@ export class PaymentService {
 
         if (!claimRes?.rows?.length) {
           const existing = await queryDb(
-            `SELECT processed_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
+            `SELECT event_id, processed_at, received_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
             [eventId]
           );
 
-          if (existing?.rows?.length && existing.rows[0].processed_at) {
-            return { success: true, message: 'Already processed' };
+          if (existing?.rows?.length) {
+            const row = existing.rows[0];
+            if (row.processed_at) {
+              console.log(`[PaymentService] Idempotent skip: subscription cancellation event ${eventId} already completed at ${row.processed_at}.`);
+              return { success: true, message: 'Already processed' };
+            }
+
+            // Check active processing window (60s lock)
+            const receivedAtMs = row.received_at ? new Date(row.received_at).getTime() : 0;
+            const isStale = (Date.now() - receivedAtMs) > 60000;
+
+            if (!isStale) {
+              console.log(`[PaymentService] Subscription cancellation event ${eventId} processing in progress by concurrent thread.`);
+              return {
+                success: false,
+                error: 'Event processing in progress or pending completion.',
+                statusCode: 500
+              };
+            }
+
+            // Stale uncompleted claim -> atomic re-claim update
+            const reclaimRes = await queryDb(
+              `UPDATE public.payment_events
+               SET received_at = NOW(), payload_hash = $2
+               WHERE event_id = $1 AND processed_at IS NULL AND received_at = $3
+               RETURNING event_id`,
+              [eventId, payloadHash, row.received_at]
+            );
+
+            if (!reclaimRes?.rows?.length) {
+              console.log(`[PaymentService] Subscription cancellation event ${eventId} re-claim race condition with concurrent thread.`);
+              return {
+                success: false,
+                error: 'Event processing in progress or pending completion.',
+                statusCode: 500
+              };
+            }
           }
         }
 
@@ -348,7 +407,7 @@ export class PaymentService {
         }).catch(() => {});
       } catch (procErr: any) {
         console.error('[PaymentService] CRITICAL: Subscription cancellation processing failed:', procErr?.message);
-        await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1 AND processed_at IS NULL`, [eventId]).catch(() => {});
+        // Event remains persisted in public.payment_events with processed_at = NULL for safe retry / reconciliation
         throw procErr;
       }
     }
