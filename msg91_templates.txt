@@ -38,17 +38,6 @@ Backend Variable Key:
 - ##number##  =>  'otp' (e.g. "654321")
 
 
-2b. SEVKAA_FORGOT_PASSWORD_OTP_V2 (NEW 3-LINE TEMPLATE FOR DLT)
---------------------------------------------------------------------------------
-MSG91 Template Text (COPY & PASTE EXACTLY):
-Your Sevikaa password reset code is ##number##.
-Valid for 10 minutes.
-Do not share this code with anyone.
-
-Backend Variable Key:
-- ##number##  =>  'otp' (e.g. "654321")
-
-
 3. SEVKAA_INTERVIEW_SCHEDULED
 --------------------------------------------------------------------------------
 MSG91 Template Text (COPY & PASTE EXACTLY):
@@ -130,7 +119,7 @@ Backend Variable Keys:
 - ##alphanumeric##  =>  'transaction_id' (e.g. "PAY_901248")
 
 
-11. SEVKAA_NEW_APPLICATION
+11. SEVKAA_NEW_APPLICATION (MSG91 Flow ID: 6a89add47c8edcd6a701d043 | DLT ID: 1277178534159568222 - APPROVED ✅)
 --------------------------------------------------------------------------------
 MSG91 Template Text (COPY & PASTE EXACTLY):
 A new worker has applied for ##alphanumeric## on Sevikaa. Login to review.
@@ -139,7 +128,7 @@ Backend Variable Key:
 - ##alphanumeric##  =>  'job_title' (e.g. "Housemaid")
 
 
-12. SEVKAA_JOB_APPLIED
+12. SEVKAA_JOB_APPLIED (MSG91 Flow ID: 6a89b0f241c1ef3df6088b92 | DLT ID: 1277178549097940785 - APPROVED ✅)
 --------------------------------------------------------------------------------
 MSG91 Template Text (COPY & PASTE EXACTLY):
 Your Sevikaa job application for ##alphanumeric## has been submitted successfully.
@@ -151,25 +140,27 @@ Backend Variable Key:
 13. SEVKAA_DOCUMENT_UPLOAD_LINK
 --------------------------------------------------------------------------------
 MSG91 Template Text (COPY & PASTE EXACTLY):
-Namaste! Upload selfie and Aadhaar card for Sevikaa verification: ##url##
+Sevikaa: Upload selfie and Aadhaar card for account verification: ##url##
 
 Character Count Breakdown (160-char Single SMS Limit):
-- Static Text: 55 characters
+- Static Text: 67 characters
 - URL (##url##): 44 characters (https://www.sevikaa.in/verify-upload?t=a8f2k9x1)
-- Total Length: 99 characters (WELL WITHIN 160 CHARS LIMIT ✅)
+- Total Length: ~111 characters (WELL WITHIN 160 CHARS LIMIT ✅)
 
 Backend Variable Key:
 - ##url##  =>  'url' / 'upload_url' (e.g. "https://www.sevikaa.in/verify-upload?t=a8f2k9x1")
+
+
 14. SEVKAA_DELETE_ACCOUNT_OTP
 --------------------------------------------------------------------------------
 MSG91 Template Text (COPY & PASTE EXACTLY):
-Your OTP to request account deletion on Sevikaa is ##number##. Valid for 10 minutes. Do not share with anyone.
+Sevikaa: Your OTP to request account deletion is ##number##. Valid for 10 minutes. Do not share with anyone.
 
 Backend Variable Key:
 - ##number##  =>  'otp' (e.g. "987654")
 
 
-15. SEVKAA_ASSISTED_APPLICATION
+15. SEVKAA_ASSISTED_APPLICATION (MSG91 Flow ID: 6a89ace729c8569c53020002 | DLT ID: 1277178549354275868 - APPROVED ✅)
 --------------------------------------------------------------------------------
 MSG91 Template Text (COPY & PASTE EXACTLY):
 Sevikaa: Verified candidate ##alphanumeric1## applied for your ##alphanumeric2## post. Tap link to review profile: ##url##

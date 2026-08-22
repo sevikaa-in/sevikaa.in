@@ -383,7 +383,7 @@ export async function sendSMSWithTemplates(params: {
       REGISTER_OTP: 'Welcome to Sevikaa.\nYour registration verification code is {{otp}}.\nValid for 10 minutes.',
       FORGOT_PASSWORD_OTP: 'Your Sevikaa password reset code is {{otp}}.\nValid for 10 minutes.',
       CHANGE_MOBILE_OTP: 'Verify your new mobile number on Sevikaa using OTP {{otp}}. Valid for 10 minutes. Team Sevikaa.',
-      DELETE_ACCOUNT_OTP: 'Your OTP to request account deletion on Sevikaa is {{otp}}. Valid for 10 minutes. Do not share with anyone.',
+      DELETE_ACCOUNT_OTP: 'Sevikaa: Your OTP to request account deletion is {{otp}}.\nValid for 10 minutes.\nDo not share with anyone.',
     };
 
     const templateMessage = FALLBACK_TEMPLATES[templateKey] || 'Your Sevikaa verification code is {{otp}}.\nValid for 10 minutes.';
@@ -470,12 +470,13 @@ export async function sendSMSWithTemplates(params: {
         REGISTER_OTP: 'Welcome to Sevikaa.\nYour registration verification code is {{otp}}.\nValid for 10 minutes.',
         FORGOT_PASSWORD_OTP: 'Your Sevikaa password reset code is {{otp}}.\nValid for 10 minutes.',
         CHANGE_MOBILE_OTP: 'Verify your new mobile number on Sevikaa using OTP {{otp}}. Valid for 10 minutes. Team Sevikaa.',
-        DELETE_ACCOUNT_OTP: 'Your OTP to request account deletion on Sevikaa is {{otp}}. Valid for 10 minutes. Do not share with anyone.',
-        JOB_APPLIED: 'Your Sevikaa job application for {{job_title}} has been submitted successfully.',
+        DELETE_ACCOUNT_OTP: 'Sevikaa: Your OTP to request account deletion is {{otp}}. Valid for 10 minutes. Do not share with anyone.',
+        DOCUMENT_UPLOAD_LINK: 'Sevikaa: Upload selfie and Aadhaar card for account verification: {{url}}',
+        JOB_APPLIED: 'Sevikaa Alert: Your job application for {{job_title}} has been submitted successfully.',
         JOB_ACCEPTED: 'Congratulations! Your application for {{job_title}} has been accepted by {{company}} on Sevikaa.',
         INTERVIEW_SCHEDULED: 'Interview scheduled on {{date}} at {{time}}.\nCheck Sevikaa for complete details.',
         WORKER_VERIFIED: 'Congratulations!\nYour Sevikaa profile has been verified successfully.',
-        NEW_APPLICATION: 'A new worker has applied for {{job_title}} on Sevikaa. Login to review.',
+        NEW_APPLICATION: 'Sevikaa: A new worker has applied for {{job_title}}. Login to review.',
         SEVKAA_ASSISTED_APPLICATION: 'Sevikaa: Verified candidate {{candidate_name}} applied for your {{job_title}} post. Tap link to review profile: {{url}}',
         ASSISTED_APPLICATION: 'Sevikaa: Verified candidate {{candidate_name}} applied for your {{job_title}} post. Tap link to review profile: {{url}}',
         SUBSCRIPTION_ACTIVATED: 'Your Sevikaa subscription {{plan_name}} is now active.\nThank you.',

@@ -11,6 +11,21 @@ export interface RazorpayWebhookResult {
   statusCode?: number;
 }
 
+function extractEventTimestamp(payload: any): number {
+  if (typeof payload?.created_at === 'number' && Number.isFinite(payload.created_at) && payload.created_at > 0) {
+    return Math.floor(payload.created_at);
+  }
+  const paymentCreatedAt = payload?.payload?.payment?.entity?.created_at;
+  if (typeof paymentCreatedAt === 'number' && Number.isFinite(paymentCreatedAt) && paymentCreatedAt > 0) {
+    return Math.floor(paymentCreatedAt);
+  }
+  const subCreatedAt = payload?.payload?.subscription?.entity?.created_at;
+  if (typeof subCreatedAt === 'number' && Number.isFinite(subCreatedAt) && subCreatedAt > 0) {
+    return Math.floor(subCreatedAt);
+  }
+  return 0;
+}
+
 export class PaymentService {
   static verifyRazorpaySignature(rawBody: string, signature: string, secret: string): boolean {
     if (!secret) {
@@ -267,14 +282,47 @@ export class PaymentService {
         });
 
         if (status === 'captured' && userId !== 'anonymous') {
-          const { error: subErr } = await supabaseAdmin
-            .from('employer_profiles')
-            .update({ subscription_status: 'premium' })
-            .eq('user_id', userId);
+          const eventTime = extractEventTimestamp(payload);
+          const subRes = await queryDb(
+            `UPDATE public.employer_profiles
+             SET subscription_status = 'premium',
+                 subscription_event_timestamp = $2
+             WHERE user_id = $1
+               AND (subscription_event_timestamp IS NULL OR subscription_event_timestamp <= $2)
+             RETURNING user_id`,
+            [userId, eventTime]
+          ).catch(() => null);
 
-          if (subErr) {
-            console.error('[PaymentService] CRITICAL: Subscription activation update failed for user:', userId, subErr);
-            throw new Error(`Failed to activate subscription for user ${userId}: ${subErr.message}`);
+          if (!subRes?.rows?.length) {
+            const checkProfile = await queryDb(
+              `SELECT subscription_status, subscription_event_timestamp FROM public.employer_profiles WHERE user_id = $1 LIMIT 1`,
+              [userId]
+            ).catch(() => null);
+
+            if (checkProfile?.rows?.length) {
+              const currentTs = Number(checkProfile.rows[0].subscription_event_timestamp || 0);
+              if (eventTime < currentTs) {
+                console.log(`[PaymentService] IGNORED stale payment.captured event for user ${userId}. Event time (${eventTime}) < DB time (${currentTs}).`);
+              } else {
+                const { error: subErr } = await supabaseAdmin
+                  .from('employer_profiles')
+                  .update({ subscription_status: 'premium', subscription_event_timestamp: eventTime })
+                  .eq('user_id', userId);
+                if (subErr) {
+                  console.error('[PaymentService] CRITICAL: Subscription activation update failed for user:', userId, subErr);
+                  throw new Error(`Failed to activate subscription for user ${userId}: ${subErr.message}`);
+                }
+              }
+            } else {
+              const { error: subErr } = await supabaseAdmin
+                .from('employer_profiles')
+                .update({ subscription_status: 'premium', subscription_event_timestamp: eventTime })
+                .eq('user_id', userId);
+              if (subErr) {
+                console.error('[PaymentService] CRITICAL: Subscription activation update failed for user:', userId, subErr);
+                throw new Error(`Failed to activate subscription for user ${userId}: ${subErr.message}`);
+              }
+            }
           }
         }
 
@@ -379,14 +427,47 @@ export class PaymentService {
           }
         }
 
-        const { error: subErr } = await supabaseAdmin
-          .from('employer_profiles')
-          .update({ subscription_status: 'free' })
-          .eq('user_id', userId);
+        const eventTime = extractEventTimestamp(payload);
+        const subRes = await queryDb(
+          `UPDATE public.employer_profiles
+           SET subscription_status = 'free',
+               subscription_event_timestamp = $2
+           WHERE user_id = $1
+             AND (subscription_event_timestamp IS NULL OR subscription_event_timestamp <= $2)
+           RETURNING user_id`,
+          [userId, eventTime]
+        ).catch(() => null);
 
-        if (subErr) {
-          console.error('[PaymentService] CRITICAL: Subscription cancellation update failed for user:', userId, subErr);
-          throw new Error(`Failed to cancel subscription for user ${userId}: ${subErr.message}`);
+        if (!subRes?.rows?.length) {
+          const checkProfile = await queryDb(
+            `SELECT subscription_status, subscription_event_timestamp FROM public.employer_profiles WHERE user_id = $1 LIMIT 1`,
+            [userId]
+          ).catch(() => null);
+
+          if (checkProfile?.rows?.length) {
+            const currentTs = Number(checkProfile.rows[0].subscription_event_timestamp || 0);
+            if (eventTime < currentTs) {
+              console.log(`[PaymentService] IGNORED stale subscription cancellation event for user ${userId}. Event time (${eventTime}) < DB time (${currentTs}).`);
+            } else {
+              const { error: subErr } = await supabaseAdmin
+                .from('employer_profiles')
+                .update({ subscription_status: 'free', subscription_event_timestamp: eventTime })
+                .eq('user_id', userId);
+              if (subErr) {
+                console.error('[PaymentService] CRITICAL: Subscription cancellation update failed for user:', userId, subErr);
+                throw new Error(`Failed to cancel subscription for user ${userId}: ${subErr.message}`);
+              }
+            }
+          } else {
+            const { error: subErr } = await supabaseAdmin
+              .from('employer_profiles')
+              .update({ subscription_status: 'free', subscription_event_timestamp: eventTime })
+              .eq('user_id', userId);
+            if (subErr) {
+              console.error('[PaymentService] CRITICAL: Subscription cancellation update failed for user:', userId, subErr);
+              throw new Error(`Failed to cancel subscription for user ${userId}: ${subErr.message}`);
+            }
+          }
         }
 
         await queryDb(

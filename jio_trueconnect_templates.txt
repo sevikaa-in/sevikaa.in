@@ -5,8 +5,8 @@ Header (Sender ID): SEVKAA
 Entity Type: Principal Entity (PE)
 Placeholders Format: Jio TrueConnect standard ({#number#}, {#alphanumeric#}, {#var#})
 
-Last Updated: 29-07-2026
-Approved: 10  |  Rejected / Pending Resubmit: 2
+Last Updated: 22-08-2026
+Approved: 13  |  Rejected / Resubmit Required: 2
 
 ================================================================================
 SECTION A: APPROVED DLT TEMPLATES (GLOBAL STATUS: ACTIVE ✅)
@@ -33,18 +33,6 @@ Valid for 10 minutes.
 
 Template Message (Single-line Variant — Try this if 2-line fails MSG91 matching):
 Your Sevikaa password reset code is {#number#}. Valid for 10 minutes.
-
-Sample Backend variables:
-- {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
-
-
-[🆕 NEW RECOMMENDED RESUBMISSION] 2b. SEVKAA_FORGOT_PASSWORD_OTP_V2
---------------------------------------------------------------------------------
-DLT Status: Ready for Jio DLT Registration 🔄
-Template Message (Standard 3-Line Format — Same as Login OTP):
-Your Sevikaa password reset code is {#number#}.
-Valid for 10 minutes.
-Do not share this code with anyone.
 
 Sample Backend variables:
 - {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "123456")
@@ -139,117 +127,89 @@ Sample Backend variables:
 - {#alphanumeric#} (Transaction ID) =>  Expected key in code: 'transaction_id' (e.g. "PAY_901248")
 
 
-================================================================================
-SECTION B: REJECTED TEMPLATES & REVISED READY-TO-RESUBMIT TEMPLATES ❌
-================================================================================
-Note: DLT Operators (Jio/Fast2SMS) reject templates that:
-  1. Do not explicitly contain the Brand Name matching the registered entity string.
-  2. Have a placeholder variable ({#var#}) as the very LAST word of the message.
-
-ROOT CAUSE IDENTIFIED:
-The "Edit" button on Jio TrueConnect shows a READ-ONLY Template Content field.
-This means editing a rejected template does NOT change the actual template text —
-only the sample values change. The old rejected text was never replaced.
-
-⚠️  ACTION REQUIRED: You must DELETE both rejected templates and CREATE them
-    as brand new templates with the corrected text below.
-
-STEPS:
-  1. Go to Content Templates on Jio TrueConnect
-  2. Find the rejected template → click DELETE (not Edit)
-  3. Click "Add New Template"
-  4. Fill in: Header = SEVKAA, Template Name = (same name), Content = (text below)
-  5. Submit for approval
-
-
-[❌ REJECTED x2 -> 🔄 DELETE & RECREATE] 1. SEVKAA_NEW_APPLICATION
+[✅ APPROVED] 11. SEVKAA_NEW_APPLICATION
 --------------------------------------------------------------------------------
-Rejection History:
-  - Attempt 1 (28-07-2026): "Template should have Entity / Trade / Brand Name"
-    Text: "You have a new worker application for {#alphanumeric#}. Check Sevikaa."
-  - Attempt 2 (29-07-2026): "Template should have Entity / Trade / Brand Name"
-    Text: (Edit button was Read-only — text was never actually changed)
-
-NEW TEMPLATE MESSAGE (Delete old → Create new with this text):
+DLT Template ID: 1277178534159568222
+DLT Status: Active (APPROVED ✅ - Approved 30-07-2026)
+Template Message:
 A new worker has applied for {#alphanumeric#} on Sevikaa. Login to review.
-
-Sample Content (fill in the placeholder field on the portal):
-- {#alphanumeric#} = Housemaid
 
 Sample Backend variables:
 - {#alphanumeric#} (Job Title)  =>  Expected key in code: 'job_title' (e.g. "Housemaid")
 
 
-[❌ REJECTED -> 🔄 RE-SUBMIT WITH BRAND PREFIX AT START] 2. SEVKAA_JOB_APPLIED
+[✅ APPROVED] 12. SEVKAA_JOB_APPLIED
 --------------------------------------------------------------------------------
-DLT Category: Service Implicit
-DLT Header: SEVKAA
-
-Rejection Reason Fix:
-Place the Brand Name "Sevikaa:" or "Sevikaa Alert:" at the VERY START of the message text.
-
-EXACT TEMPLATE MESSAGE TO COPY & PASTE IN JIO DLT PORTAL:
-Sevikaa: Your job application for {#alphanumeric#} has been submitted successfully.
-
-Alternative Option:
+DLT Template ID: 1277178549097940785
+DLT Status: Active (APPROVED ✅ - Approved 01-08-2026)
+Template Message:
 Sevikaa Alert: Your job application for {#alphanumeric#} has been submitted successfully.
-
-Sample Content (fill in the placeholder field on Jio DLT portal):
-- {#alphanumeric#} = Full Time Cook
 
 Sample Backend variables:
 - {#alphanumeric#} (Job Title)  =>  Expected key in code: 'job_title' (e.g. "Full Time Cook")
 
 
-[🆕 READY FOR JIO DLT REGISTRATION] 3. SEVKAA_DOCUMENT_UPLOAD_LINK
+[✅ APPROVED] 13. SEVKAA_ASSISTED_APPLICATION
 --------------------------------------------------------------------------------
-DLT Status: Ready for Jio DLT Registration 🔄
+DLT Template ID: 1277178549354275868
+DLT Status: Active (APPROVED ✅ - Approved 01-08-2026)
 Template Message:
-Namaste! Upload selfie and Aadhaar card for Sevikaa verification: {#url#}
+Sevikaa: Verified candidate {#alphanumeric#} applied for your {#alphanumeric#} post. Tap link to review profile: {#url#}
+
+Sample Backend variables:
+- First {#alphanumeric#} (Worker Name)   =>  'worker_name' (e.g. "Pooja Sharma")
+- Second {#alphanumeric#} (Category)     =>  'category' (e.g. "Cook")
+- {#url#} (Applicants URL)              =>  'url' (e.g. "https://www.sevikaa.in/employer/workers")
+
+
+================================================================================
+SECTION B: REJECTED TEMPLATES & RESUBMIT ACTION REQUIRED ❌
+================================================================================
+Note: DLT Operators (Jio/Fast2SMS) reject templates that:
+  1. Do not explicitly contain the Brand Name matching the registered entity string as a prefix at the START.
+  2. Have a placeholder variable ({#var#}) as the very LAST word of the message.
+
+⚠️  ACTION REQUIRED: Delete old rejected templates on Jio portal and re-register
+    with the exact brand-prefixed text below.
+
+
+[❌ REJECTED (01-08-2026) -> 🔄 DELETE & RECREATE WITH BRAND PREFIX] 1. SEVKAA_DOCUMENT_UPLOAD_LINK
+--------------------------------------------------------------------------------
+DLT Rejection Reason: "Template should have Entity / Trade / Brand Name"
+(Root Cause: Message started with "Namaste!" and brand name was placed in the middle)
+
+⚠️ ACTION REQUIRED: Delete old rejected template on Jio portal and register a new one with the exact text below.
+
+NEW TEMPLATE MESSAGE (COPY & PASTE IN JIO DLT PORTAL):
+Sevikaa: Upload selfie and Aadhaar card for account verification: {#url#}
 
 Character Count Breakdown (160-char Single SMS Limit):
-- Static Message Text: 55 characters
+- Static Message Text: 67 characters
 - Dynamic Upload URL ({#url#}): ~44 characters (e.g. https://www.sevikaa.in/verify-upload?t=a8f2k9x1)
-- Total SMS Length: 99 characters (WELL WITHIN 160 CHARACTERS LIMIT ✅)
+- Total SMS Length: ~111 characters (WELL WITHIN 160 CHARACTERS LIMIT ✅)
 
 Sample Content (fill in the placeholder field on the portal):
 - {#url#} = https://www.sevikaa.in/verify-upload?t=a8f2k9x1
 
 Sample Backend variables:
 - {#url#} (Upload URL)  =>  Expected key in code: 'url' / 'upload_url' (e.g. "https://www.sevikaa.in/verify-upload?t=a8f2k9x1")
-[🆕 READY FOR JIO DLT REGISTRATION] 4. SEVKAA_DELETE_ACCOUNT_OTP
+
+
+[❌ REJECTED (01-08-2026) -> 🔄 DELETE & RECREATE WITH BRAND PREFIX] 2. SEVKAA_DELETE_ACCOUNT_OTP
 --------------------------------------------------------------------------------
-DLT Status: Ready for Jio DLT Registration 🔄
-Template Message:
-Your OTP to request account deletion on Sevikaa is {#number#}. Valid for 10 minutes. Do not share with anyone.
+DLT Rejection Reason: "Template should have Entity / Trade / Brand Name"
+(Root Cause: Message started with "Your OTP to request..." and brand name was buried in the middle)
+
+⚠️ ACTION REQUIRED: Delete old rejected template on Jio portal and register a new one with the exact text below.
+
+NEW TEMPLATE MESSAGE (COPY & PASTE IN JIO DLT PORTAL):
+Sevikaa: Your OTP to request account deletion is {#number#}. Valid for 10 minutes. Do not share with anyone.
+
+Character Count Breakdown (160-char Single SMS Limit):
+- Static Message Text: 95 characters
+- Dynamic OTP ({#number#}): 6 digits
+- Total SMS Length: ~101 characters (WELL WITHIN 160 CHARACTERS LIMIT ✅)
 
 Sample Backend variables:
 - {#number#} (OTP Code)  =>  Expected key in code: 'otp' (e.g. "987654")
-
-
-[🆕 READY FOR JIO DLT REGISTRATION] 5. SEVKAA_ASSISTED_APPLICATION
---------------------------------------------------------------------------------
-DLT Status: Ready for Jio DLT Registration 🔄
-DLT Category: Service Implicit
-DLT Header: SEVKAA
-
-Template Message:
-Sevikaa: Verified candidate {#alphanumeric#} applied for your {#alphanumeric#} post. Tap link to review profile: {#url#}
-
-Character Count Breakdown (160-char Single SMS Limit):
-- Static Text: 76 characters
-- Worker Name ({#alphanumeric#}): ~12 characters (e.g. Pooja Sharma)
-- Category ({#alphanumeric#}): ~5 characters (e.g. Cook)
-- Applicants URL ({#url#}): ~42 characters (https://www.sevikaa.in/employer/workers)
-- Total SMS Length: ~135 characters (SAVED 25 CHARACTERS & WELL WITHIN SINGLE SMS LIMIT ✅)
-
-Sample Content (fill in the placeholder field on Jio DLT portal):
-- First {#alphanumeric#} = Pooja Sharma
-- Second {#alphanumeric#} = Cook
-- {#url#} = https://www.sevikaa.in/employer/workers
-
-Sample Backend variables:
-- First {#alphanumeric#} (Worker Name)   =>  'worker_name' (e.g. "Pooja Sharma")
-- Second {#alphanumeric#} (Category)     =>  'category' (e.g. "Cook")
-- {#url#} (Applicants URL)              =>  'url' (e.g. "https://www.sevikaa.in/employer/workers")
 ================================================================================
