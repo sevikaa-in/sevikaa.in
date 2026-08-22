@@ -53,10 +53,10 @@ async function runOutOfOrderSubscriptionTests() {
           return { rows: [{ event_id: eventId, processed_at: null }] };
         }
 
-        if (sql.includes('SELECT event_id, processed_at, received_at FROM public.payment_events')) {
+        if (sql.includes('FROM public.payment_events') && sql.includes('SELECT')) {
           const eventId = params[0];
           const exists = mockEvents.has(eventId);
-          return { rows: exists ? [{ event_id: eventId, processed_at: new Date(), received_at: new Date() }] : [] };
+          return { rows: exists ? [{ event_id: eventId, status: 'COMPLETED', processed_at: new Date(), received_at: new Date() }] : [] };
         }
 
         if (sql.includes('checkout_sessions')) {

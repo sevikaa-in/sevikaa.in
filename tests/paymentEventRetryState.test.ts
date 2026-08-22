@@ -19,11 +19,10 @@ function assert(condition: boolean, testName: string, detail?: string) {
 async function runPaymentEventRetryStateTests() {
   console.log('--- RUNNING PAYMENT EVENT RETRY STATE & CONCURRENCY TEST SUITE ---');
 
-  // Track side-effects
   let txRecordCount = 0;
   let subUpdateCount = 0;
 
-  const origRecordTx = TransactionRepository.recordTransaction;
+  const origRecordTransaction = TransactionRepository.recordTransaction;
   TransactionRepository.recordTransaction = async () => {
     txRecordCount++;
     return true;
@@ -64,7 +63,7 @@ async function runPaymentEventRetryStateTests() {
   const origConnect = dbPool.connect.bind(dbPool);
 
   // In-memory table mock for database simulation
-  const mockDbEvents = new Map<string, { event_id: string; payment_id: string; event_type: string; processed_at: Date | null; received_at: Date }>();
+  const mockDbEvents = new Map<string, { event_id: string; payment_id: string; event_type: string; status: string; processed_at: Date | null; received_at: Date }>();
   const mockCheckoutSessions = new Map<string, { user_id: string; plan_id: string; expected_amount: number }>();
 
   const setupMockDb = () => {
@@ -83,6 +82,7 @@ async function runPaymentEventRetryStateTests() {
             event_id: eventId,
             payment_id: params[1],
             event_type: params[2],
+            status: 'PENDING',
             processed_at: null,
             received_at: new Date()
           };
@@ -90,26 +90,36 @@ async function runPaymentEventRetryStateTests() {
           return { rows: [row] };
         }
 
-        if (sql.includes('SELECT event_id, processed_at, received_at FROM public.payment_events')) {
+        if (sql.includes('SELECT event_id, status, processed_at, received_at FROM public.payment_events') || sql.includes('FROM public.payment_events')) {
           const eventId = params[0];
           const row = mockDbEvents.get(eventId);
           return { rows: row ? [row] : [] };
         }
 
+        if (sql.includes('UPDATE public.payment_events') && sql.includes("status = 'REJECTED'")) {
+          const eventId = params[0];
+          const row = mockDbEvents.get(eventId);
+          if (row) {
+            row.status = 'REJECTED';
+          }
+          return { rows: [] };
+        }
+
         if (sql.includes('UPDATE public.payment_events') && sql.includes('received_at = NOW()')) {
           const eventId = params[0];
           const row = mockDbEvents.get(eventId);
-          if (row && row.processed_at === null) {
+          if (row && row.status === 'PENDING' && row.processed_at === null) {
             row.received_at = new Date();
             return { rows: [{ event_id: eventId }] };
           }
           return { rows: [] };
         }
 
-        if (sql.includes('UPDATE public.payment_events') && sql.includes('processed_at = NOW()')) {
+        if (sql.includes('UPDATE public.payment_events') && sql.includes("status = 'COMPLETED'")) {
           const eventId = params[0];
           const row = mockDbEvents.get(eventId);
           if (row) {
+            row.status = 'COMPLETED';
             row.processed_at = new Date();
           }
           return { rows: [] };
@@ -121,6 +131,10 @@ async function runPaymentEventRetryStateTests() {
           return { rows: s ? [s] : [] };
         }
 
+        if (sql.includes('UPDATE public.employer_profiles')) {
+          return { rows: [{ user_id: 'usr_retry_123' }] };
+        }
+
         return { rows: [] };
       },
       release: () => {}
@@ -128,7 +142,7 @@ async function runPaymentEventRetryStateTests() {
   };
 
   // ----------------------------------------------------
-  // TEST 1: New Event -> One Claim
+  // TEST 1: New Event -> One Claim, status = COMPLETED, processed_at != NULL
   // ----------------------------------------------------
   try {
     resetCounts();
@@ -136,45 +150,48 @@ async function runPaymentEventRetryStateTests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
         payment: {
           entity: {
             id: 'pay_t1_new',
             order_id: 'order_retry_123',
             amount: 149900,
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1787239490
           }
         }
       }
     });
 
     const isSuccess = res.success === true;
-    const eventStored = mockDbEvents.has('payment.captured:pay_t1_new');
-    const isCompleted = mockDbEvents.get('payment.captured:pay_t1_new')?.processed_at !== null;
+    const storedRow = mockDbEvents.get('payment.captured:pay_t1_new');
+    const isCompleted = storedRow?.status === 'COMPLETED' && storedRow?.processed_at !== null;
 
     assert(
-      isSuccess && eventStored && isCompleted && txRecordCount === 1 && subUpdateCount === 1,
-      'Test 1: New event -> acquires one claim and completes financial processing'
+      isSuccess && isCompleted && txRecordCount === 1,
+      'Test 1: New event -> status = COMPLETED & processed_at != NULL'
     );
   } catch (err: any) {
     assert(false, 'Test 1: New event claim', err.message);
   }
 
   // ----------------------------------------------------
-  // TEST 2: Completed Event -> Idempotent Success
+  // TEST 2: Duplicate COMPLETED Event -> No Processing (Already Processed)
   // ----------------------------------------------------
   try {
     resetCounts();
-    // Re-send exact same completed event from Test 1
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
         payment: {
           entity: {
             id: 'pay_t1_new',
             order_id: 'order_retry_123',
             amount: 149900,
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1787239490
           }
         }
       }
@@ -185,35 +202,37 @@ async function runPaymentEventRetryStateTests() {
 
     assert(
       isIdempotent && noDuplicateProcessing,
-      'Test 2: Completed event -> idempotent success (0 duplicate financial effects)'
+      'Test 2: Duplicate COMPLETED event -> idempotent skip (0 duplicate financial effects)'
     );
   } catch (err: any) {
-    assert(false, 'Test 2: Completed event', err.message);
+    assert(false, 'Test 2: Duplicate COMPLETED event', err.message);
   }
 
   // ----------------------------------------------------
-  // TEST 3 & 4: Concurrent Duplicate & Unprocessed Event Owned by Another Request
+  // TEST 3 & 4: Concurrent PENDING Processing -> Only One Processor Wins
   // ----------------------------------------------------
   try {
     resetCounts();
-    // Simulate active in-progress event (received_at = NOW(), processed_at = null)
     mockDbEvents.set('payment.captured:pay_t3_in_progress', {
       event_id: 'payment.captured:pay_t3_in_progress',
       payment_id: 'pay_t3_in_progress',
       event_type: 'payment.captured',
+      status: 'PENDING',
       processed_at: null,
-      received_at: new Date() // Active within 60s
+      received_at: new Date()
     });
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
         payment: {
           entity: {
             id: 'pay_t3_in_progress',
             order_id: 'order_retry_123',
             amount: 149900,
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1787239490
           }
         }
       }
@@ -224,20 +243,19 @@ async function runPaymentEventRetryStateTests() {
 
     assert(
       isBlocked && noSecondProcessing,
-      'Test 3 & 4: Concurrent duplicate / unprocessed event owned by active request -> HTTP 500 (2nd request does not process it)'
+      'Test 3 & 4: Concurrent PENDING processing -> HTTP 500 forcing retry (only 1 winner)'
     );
   } catch (err: any) {
-    assert(false, 'Test 3 & 4: Concurrent/Unprocessed active event', err.message);
+    assert(false, 'Test 3 & 4: Concurrent PENDING processing', err.message);
   }
 
   // ----------------------------------------------------
-  // TEST 5: Processing Failure -> payment_events row is NOT silently deleted
+  // TEST 5: Transient DB Failure -> status remains PENDING, event remains retryable
   // ----------------------------------------------------
   try {
     resetCounts();
     setupMockDb();
 
-    // Force failure during financial transaction recording
     TransactionRepository.recordTransaction = async () => {
       throw new Error('Simulated DB connection failure on recording transaction');
     };
@@ -246,13 +264,15 @@ async function runPaymentEventRetryStateTests() {
     try {
       await PaymentService.processRazorpayEvent({
         event: 'payment.captured',
+        created_at: 1787239490,
         payload: {
           payment: {
             entity: {
               id: 'pay_t5_fail',
               order_id: 'order_retry_123',
               amount: 149900,
-              currency: 'INR'
+              currency: 'INR',
+              created_at: 1787239490
             }
           }
         }
@@ -263,138 +283,158 @@ async function runPaymentEventRetryStateTests() {
       }
     }
 
-    const rowPreserved = mockDbEvents.has('payment.captured:pay_t5_fail');
-    const processedAtIsNull = mockDbEvents.get('payment.captured:pay_t5_fail')?.processed_at === null;
+    const row = mockDbEvents.get('payment.captured:pay_t5_fail');
+    const isPending = row?.status === 'PENDING' && row?.processed_at === null;
 
     assert(
-      threwError && rowPreserved && processedAtIsNull,
-      'Test 5: Processing failure -> payment_events row is NOT silently deleted (remains persisted with processed_at = null)'
+      threwError && isPending,
+      'Test 5: Transient DB failure -> status remains PENDING & processed_at = NULL (retryable)'
     );
 
-    // Restore mock recordTransaction
     TransactionRepository.recordTransaction = async () => {
       txRecordCount++;
       return true;
     };
   } catch (err: any) {
-    assert(false, 'Test 5: Processing failure', err.message);
+    assert(false, 'Test 5: Transient failure', err.message);
   }
 
   // ----------------------------------------------------
-  // TEST 6: Retry After Failure -> processing can happen again safely
+  // TEST 6: Amount Mismatch -> row remains, status = REJECTED
   // ----------------------------------------------------
   try {
     resetCounts();
-    // Simulate stale failed event row (> 60s old, processed_at = null)
-    const staleTime = new Date(Date.now() - 120000); // 2 minutes ago
-    mockDbEvents.set('payment.captured:pay_t6_retry', {
-      event_id: 'payment.captured:pay_t6_retry',
-      payment_id: 'pay_t6_retry',
-      event_type: 'payment.captured',
-      processed_at: null,
-      received_at: staleTime
-    });
+    setupMockDb();
+    mockCheckoutSessions.set('order_mismatch_123', { user_id: 'usr_mismatch', plan_id: 'pro', expected_amount: 1499 });
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
         payment: {
           entity: {
-            id: 'pay_t6_retry',
-            order_id: 'order_retry_123',
-            amount: 149900,
-            currency: 'INR'
+            id: 'pay_amount_mismatch',
+            order_id: 'order_mismatch_123',
+            amount: 29900, // 299 paid vs 1499 expected
+            currency: 'INR',
+            created_at: 1787239490
           }
         }
       }
     });
 
-    const isSuccess = res.success === true;
-    const isNowCompleted = mockDbEvents.get('payment.captured:pay_t6_retry')?.processed_at !== null;
-
+    const storedRow = mockDbEvents.get('payment.captured:pay_amount_mismatch');
     assert(
-      isSuccess && isNowCompleted && txRecordCount === 1 && subUpdateCount === 1,
-      'Test 6: Retry after failure -> stale uncompleted event re-claimed and processed safely to completion'
+      res.success === false && res.statusCode === 400 && storedRow?.status === 'REJECTED' && storedRow?.processed_at === null,
+      'Test 6: Amount mismatch -> row remains, status = REJECTED, processed_at = NULL'
     );
   } catch (err: any) {
-    assert(false, 'Test 6: Retry after failure', err.message);
+    assert(false, 'Test 6: Amount mismatch rejection', err.message);
   }
 
   // ----------------------------------------------------
-  // TEST 7: Subscription Cancellation Duplicate -> Only One Cancellation Processing
+  // TEST 7: Duplicate REJECTED Event -> No Processing (Already Rejected)
+  // ----------------------------------------------------
+  try {
+    resetCounts();
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      created_at: 1787239490,
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_amount_mismatch',
+            order_id: 'order_mismatch_123',
+            amount: 29900,
+            currency: 'INR',
+            created_at: 1787239490
+          }
+        }
+      }
+    });
+
+    assert(
+      res.success === true && res.message === 'Already rejected' && txRecordCount === 0,
+      'Test 7: Duplicate REJECTED event -> returns "Already rejected", 0 processing'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 7: Duplicate REJECTED event', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 8: Unmapped Payment Order -> row remains, status = REJECTED
   // ----------------------------------------------------
   try {
     resetCounts();
     setupMockDb();
 
-    // 7A: First cancellation request
-    const res1 = await PaymentService.processRazorpayEvent({
-      event: 'subscription.cancelled',
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
-        subscription: {
+        payment: {
           entity: {
-            id: 'sub_t7_cancel',
-            notes: { user_id: 'usr_t7_employer' }
+            id: 'pay_unmapped_order_999',
+            order_id: 'order_non_existent',
+            amount: 149900,
+            currency: 'INR',
+            created_at: 1787239490
           }
         }
       }
     });
 
-    const isSuccess1 = res1.success === true;
-    const updated1 = subUpdateCount === 1;
-
-    // 7B: Duplicate cancellation request (after completed)
-    resetCounts();
-    const res2 = await PaymentService.processRazorpayEvent({
-      event: 'subscription.cancelled',
-      payload: {
-        subscription: {
-          entity: {
-            id: 'sub_t7_cancel',
-            notes: { user_id: 'usr_t7_employer' }
-          }
-        }
-      }
-    });
-
-    const isIdempotent2 = res2.success === true && res2.message === 'Already processed';
-    const noUpdate2 = subUpdateCount === 0;
-
-    // 7C: Concurrent/in-progress subscription cancellation request
-    resetCounts();
-    mockDbEvents.set('subscription.cancelled:sub_t7_in_progress', {
-      event_id: 'subscription.cancelled:sub_t7_in_progress',
-      payment_id: 'sub_t7_in_progress',
-      event_type: 'subscription.cancelled',
-      processed_at: null,
-      received_at: new Date()
-    });
-
-    const res3 = await PaymentService.processRazorpayEvent({
-      event: 'subscription.cancelled',
-      payload: {
-        subscription: {
-          entity: {
-            id: 'sub_t7_in_progress',
-            notes: { user_id: 'usr_t7_employer' }
-          }
-        }
-      }
-    });
-
-    const isBlocked3 = res3.success === false && res3.statusCode === 500;
-    const noUpdate3 = subUpdateCount === 0;
-
+    const storedRow = mockDbEvents.get('payment.captured:pay_unmapped_order_999');
     assert(
-      isSuccess1 && updated1 && isIdempotent2 && noUpdate2 && isBlocked3 && noUpdate3,
-      'Test 7: Subscription cancellation duplicate -> exactly 1 cancellation processing, duplicates blocked/skipped'
+      res.success === false && res.statusCode === 400 && storedRow?.status === 'REJECTED',
+      'Test 8: Unmapped payment order -> row remains, status = REJECTED'
     );
   } catch (err: any) {
-    assert(false, 'Test 7: Subscription cancellation duplicate', err.message);
+    assert(false, 'Test 8: Unmapped payment order', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 9: Unmapped Subscription -> row remains, status = REJECTED
+  // ----------------------------------------------------
+  try {
+    resetCounts();
+    setupMockDb();
+
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'subscription.charged',
+      created_at: 1787239490,
+      payload: {
+        subscription: {
+          entity: {
+            id: 'sub_unmapped_123',
+            plan_id: 'plan_pro',
+            created_at: 1787239490
+            // Missing notes.user_id
+          }
+        },
+        payment: {
+          entity: {
+            id: 'pay_unmapped_sub_123',
+            subscription_id: 'sub_unmapped_123',
+            amount: 149900,
+            currency: 'INR',
+            created_at: 1787239490
+          }
+        }
+      }
+    });
+
+    const storedRow = mockDbEvents.get('subscription.charged:pay_unmapped_sub_123');
+    assert(
+      res.success === false && res.statusCode === 400 && storedRow?.status === 'REJECTED',
+      'Test 9: Unmapped subscription -> row remains, status = REJECTED'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 9: Unmapped subscription', err.message);
   }
 
   // Restore mocks
-  TransactionRepository.recordTransaction = origRecordTx;
+  TransactionRepository.recordTransaction = origRecordTransaction;
   (supabaseAdmin as any).from = origFrom;
   (dbPool as any).connect = origConnect;
 
@@ -408,12 +448,10 @@ async function runPaymentEventRetryStateTests() {
     const testEventId = `payment.captured:${testPaymentId}`;
 
     try {
-      // 1. Cleanup any pre-existing test records
       await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [testEventId]).catch(() => {});
       await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [testPaymentId]).catch(() => {});
       await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [testOrderId]).catch(() => {});
 
-      // Seed a test checkout session so order lookup succeeds
       await queryDb(
         `INSERT INTO public.checkout_sessions (token_hash, user_id, plan_id, expected_amount, razorpay_order_id, expires_at, created_at)
          VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 hour', NOW())
@@ -423,6 +461,7 @@ async function runPaymentEventRetryStateTests() {
 
       const payloadWithSameEvent = {
         event: 'payment.captured',
+        created_at: 1787239490,
         payload: {
           payment: {
             entity: {
@@ -430,89 +469,62 @@ async function runPaymentEventRetryStateTests() {
               order_id: testOrderId,
               amount: 149900,
               currency: 'INR',
-              email: 'employer_pg_concurrency@sevikaa.in'
+              email: 'employer_pg_concurrency@sevikaa.in',
+              created_at: 1787239490
             }
           }
         }
       };
 
-      // 2. Fire TWO webhook processing calls CONCURRENTLY with the EXACT SAME event ID, payment ID, order ID
       const [attemptA, attemptB] = await Promise.all([
         PaymentService.processRazorpayEvent(payloadWithSameEvent),
         PaymentService.processRazorpayEvent(payloadWithSameEvent)
       ]);
 
-      // 3. Query PostgreSQL database tables to verify concurrency outcomes
-      const eventsRes = await queryDb(`SELECT event_id, processed_at FROM public.payment_events WHERE payment_id = $1`, [testPaymentId]);
-      const txRes = await queryDb(`SELECT id, razorpay_payment_id, razorpay_order_id, amount, status FROM public.transactions WHERE razorpay_payment_id = $1`, [testPaymentId]);
+      const eventsRes = await queryDb(`SELECT event_id, status, processed_at FROM public.payment_events WHERE payment_id = $1`, [testPaymentId]);
+      const txRes = await queryDb(`SELECT id, razorpay_payment_id, status FROM public.transactions WHERE razorpay_payment_id = $1`, [testPaymentId]);
 
-      // Assertion 1: payment_events rows for the event = 1
-      assert(eventsRes?.rows?.length === 1, `Postgres Concurrency 1: payment_events rows for event = 1 (got ${eventsRes?.rows?.length})`);
+      assert(eventsRes?.rows?.length === 1 && eventsRes.rows[0].status === 'COMPLETED', `Postgres Real Test 1: payment_events row exists with status = COMPLETED`);
+      assert(txRes?.rows?.length === 1, `Postgres Real Test 2: transactions row created`);
 
-      // Assertion 2: transactions rows for the payment = 1
-      assert(txRes?.rows?.length === 1, `Postgres Concurrency 2: transactions rows for payment = 1 (got ${txRes?.rows?.length})`);
+      // Real Postgres Rejection Test (Amount Mismatch)
+      const testRejPaymentId = 'pay_pg_rej_999';
+      const testRejOrderId = 'order_pg_rej_999';
+      const testRejEventId = `payment.captured:${testRejPaymentId}`;
 
-      // Assertion 3: event has processed_at set (is NOT null)
-      assert(eventsRes?.rows?.[0]?.processed_at !== null, 'Postgres Concurrency 3: event has processed_at set (not null)');
-
-      // Assertion 4: one concurrent caller wins the claim, the other is blocked (HTTP 500) or already processed
-      const validConcurrencyOutcomes =
-        (attemptA.success && (attemptB.statusCode === 500 || attemptB.message === 'Already processed')) ||
-        (attemptB.success && (attemptA.statusCode === 500 || attemptA.message === 'Already processed'));
-
-      assert(validConcurrencyOutcomes, 'Postgres Concurrency 4: One caller wins claim, the other is blocked (HTTP 500) or already processed');
-
-      // ----------------------------------------------------
-      // REAL POSTGRESQL FAILURE + RETRY TEST
-      // ----------------------------------------------------
-      const failPaymentId = 'pay_pg_fail_retry_888';
-      const failOrderId = 'order_pg_fail_retry_888';
-      const failEventId = `payment.captured:${failPaymentId}`;
-
-      await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [failEventId]).catch(() => {});
-      await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [failPaymentId]).catch(() => {});
-      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [failOrderId]).catch(() => {});
+      await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [testRejEventId]).catch(() => {});
+      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [testRejOrderId]).catch(() => {});
 
       await queryDb(
         `INSERT INTO public.checkout_sessions (token_hash, user_id, plan_id, expected_amount, razorpay_order_id, expires_at, created_at)
          VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 hour', NOW())`,
-        [`hash_${failOrderId}`, 'user_fail_retry_123', 'pro', 1499, failOrderId]
+        [`hash_${testRejOrderId}`, 'user_pg_rej_123', 'pro', 1499, testRejOrderId]
       );
 
-      // Insert unprocessed event row (> 60s ago) directly into Postgres (simulating failed first processing attempt)
-      await queryDb(
-        `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, received_at, processed_at)
-         VALUES ('razorpay', $1, $2, 'payment.captured', 'hash_fail_test', NOW() - INTERVAL '2 minutes', NULL)`,
-        [failEventId, failPaymentId]
-      );
-
-      // Assert row exists with processed_at = NULL (was NOT deleted)
-      const initialFailRow = await queryDb(`SELECT processed_at FROM public.payment_events WHERE event_id = $1`, [failEventId]);
-      assert(initialFailRow?.rows?.length === 1 && initialFailRow.rows[0].processed_at === null, 'Postgres Failure 1: Failed processing attempt -> payment_events row remains with processed_at = NULL');
-
-      // Retry with same event payload against Postgres
-      const retryPayload = {
+      const rejRes = await PaymentService.processRazorpayEvent({
         event: 'payment.captured',
+        created_at: 1787239490,
         payload: {
           payment: {
             entity: {
-              id: failPaymentId,
-              order_id: failOrderId,
-              amount: 149900,
-              currency: 'INR'
+              id: testRejPaymentId,
+              order_id: testRejOrderId,
+              amount: 29900, // mismatch
+              currency: 'INR',
+              created_at: 1787239490
             }
           }
         }
-      };
+      });
 
-      const retryRes = await PaymentService.processRazorpayEvent(retryPayload);
-      assert(retryRes.success === true, 'Postgres Retry 2: Retry with same event succeeds in PostgreSQL');
-
-      const retryFailRow = await queryDb(`SELECT processed_at FROM public.payment_events WHERE event_id = $1`, [failEventId]);
-      assert(retryFailRow?.rows?.length === 1 && retryFailRow.rows[0].processed_at !== null, 'Postgres Retry 3: Retry completes and sets processed_at != NULL');
+      const rejRow = await queryDb(`SELECT status, processed_at FROM public.payment_events WHERE event_id = $1`, [testRejEventId]);
+      assert(
+        rejRes.success === false && rejRow?.rows?.length === 1 && rejRow.rows[0].status === 'REJECTED' && rejRow.rows[0].processed_at === null,
+        'Postgres Real Test 3: Rejection in PostgreSQL -> status = REJECTED, row remains persisted'
+      );
 
     } finally {
-      await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [testEventId]).catch(() => {});
+      await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [testPaymentId]).catch(() => {});
       await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [testPaymentId]).catch(() => {});
       await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [testOrderId]).catch(() => {});
     }

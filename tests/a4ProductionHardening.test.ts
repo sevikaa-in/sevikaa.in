@@ -304,7 +304,7 @@ async function runA4Tests() {
       select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) })
     });
 
-    const mockDbEvents = new Map<string, { event_id: string; processed_at: string | null }>();
+    const mockDbEvents = new Map<string, { event_id: string; status?: string; processed_at: string | null }>();
 
     const origConnect = dbPool.connect.bind(dbPool);
     (dbPool as any).connect = async () => ({
@@ -314,19 +314,30 @@ async function runA4Tests() {
           if (mockDbEvents.has(eventId)) {
             return { rows: [] }; // ON CONFLICT DO NOTHING -> 0 rows returned
           }
-          const row = { event_id: eventId, processed_at: null };
+          const row = { event_id: eventId, status: 'PENDING', processed_at: null };
           mockDbEvents.set(eventId, row);
           return { rows: [row] }; // Winner -> 1 row returned
         }
         if (sql.includes('FROM public.payment_events') && sql.includes('SELECT')) {
           const eventId = params[0];
           const row = mockDbEvents.get(eventId);
-          return { rows: row ? [row] : [] };
+          return { rows: row ? [{ ...row, received_at: new Date() }] : [] };
         }
-        if (sql.includes('UPDATE public.payment_events SET processed_at')) {
+        if (sql.includes('UPDATE public.payment_events') && sql.includes('processed_at')) {
           const eventId = params[0];
           const row = mockDbEvents.get(eventId);
-          if (row) row.processed_at = new Date().toISOString();
+          if (row) {
+            row.status = 'COMPLETED';
+            row.processed_at = new Date().toISOString();
+          }
+          return { rows: [] };
+        }
+        if (sql.includes('UPDATE public.payment_events') && sql.includes("status = 'REJECTED'")) {
+          const eventId = params[0];
+          const row = mockDbEvents.get(eventId);
+          if (row) {
+            row.status = 'REJECTED';
+          }
           return { rows: [] };
         }
         if (sql.includes('DELETE FROM public.payment_events')) {
@@ -513,7 +524,7 @@ async function runA4Tests() {
         if (sql.includes('UPDATE public.employer_profiles')) {
           return { rows: [{ user_id: 'mock_user_123' }] };
         }
-        if (sql.includes('UPDATE public.payment_events SET processed_at')) {
+        if (sql.includes('UPDATE public.payment_events') && sql.includes('processed_at')) {
           throw new Error('Simulated DB failure on updating processed_at');
         }
         return { rows: [] };

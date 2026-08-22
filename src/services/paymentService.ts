@@ -137,25 +137,30 @@ export class PaymentService {
 
       try {
         const claimRes = await queryDb(
-          `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, received_at)
-           VALUES ('razorpay', $1, $2, $3, $4, NOW())
+          `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, status, received_at)
+           VALUES ('razorpay', $1, $2, $3, $4, 'PENDING', NOW())
            ON CONFLICT (event_id) DO NOTHING
-           RETURNING event_id, processed_at`,
+           RETURNING event_id, status, processed_at`,
           [eventId, paymentId, event, payloadHash]
         );
 
         if (!claimRes?.rows?.length) {
           // Conflict occurred: another execution inserted event_id first
           const existing = await queryDb(
-            `SELECT event_id, processed_at, received_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
+            `SELECT event_id, status, processed_at, received_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
             [eventId]
           );
 
           if (existing?.rows?.length) {
             const row = existing.rows[0];
-            if (row.processed_at) {
+            if (row.status === 'COMPLETED' || row.processed_at) {
               console.log(`[PaymentService] Idempotent skip: event ${eventId} already completed at ${row.processed_at}.`);
               return { success: true, message: 'Already processed' };
+            }
+
+            if (row.status === 'REJECTED') {
+              console.log(`[PaymentService] Idempotent skip: event ${eventId} was permanently rejected.`);
+              return { success: true, message: 'Already rejected' };
             }
 
             // Check active processing window (60s lock)
@@ -175,7 +180,7 @@ export class PaymentService {
             const reclaimRes = await queryDb(
               `UPDATE public.payment_events
                SET received_at = NOW(), payload_hash = $2
-               WHERE event_id = $1 AND processed_at IS NULL AND received_at = $3
+               WHERE event_id = $1 AND status = 'PENDING' AND processed_at IS NULL AND received_at = $3
                RETURNING event_id`,
               [eventId, payloadHash, row.received_at]
             );
@@ -230,8 +235,8 @@ export class PaymentService {
           rawExpectedAmount <= 0
         ) {
           console.error(`[PaymentService] REJECTED: Missing or invalid expected_amount in checkout session for order ${orderId}`);
-          await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
-            console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
+          await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]).catch((err) => {
+            console.error(`[PaymentService] Failed to mark event ${eventId} as REJECTED:`, err?.message);
           });
           return { success: false, error: 'Invalid or missing expected amount in checkout session', statusCode: 400 };
         }
@@ -239,8 +244,8 @@ export class PaymentService {
         const expectedAmountPaise = Math.round(rawExpectedAmount * 100);
         if (rawAmount !== expectedAmountPaise) {
           console.error(`[PaymentService] AMOUNT MISMATCH: expected ${expectedAmountPaise} paise, got ${rawAmount} paise for order ${orderId}`);
-          await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
-            console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
+          await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]).catch((err) => {
+            console.error(`[PaymentService] Failed to mark event ${eventId} as REJECTED:`, err?.message);
           });
           return { success: false, error: 'Payment amount mismatch', statusCode: 400 };
         }
@@ -254,16 +259,16 @@ export class PaymentService {
           userId = subNotesUserId.trim();
         } else {
           console.error(`[PaymentService] UNMAPPED SUBSCRIPTION REJECTED: Missing authoritative user_id metadata in subscription notes for payment ${paymentId}.`);
-          await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
-            console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
+          await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]).catch((err) => {
+            console.error(`[PaymentService] Failed to mark event ${eventId} as REJECTED:`, err?.message);
           });
           return { success: false, error: 'Unmapped subscription payment. Authoritative user reference missing in notes.', statusCode: 400 };
         }
         planName = subscriptionEntity?.plan_id ? `Subscription Plan (${subscriptionEntity.plan_id})` : planName;
       } else {
         console.error(`[PaymentService] UNMAPPED PAYMENT REJECTED: No checkout_session found for order_id ${orderId}.`);
-        await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [eventId]).catch((err) => {
-          console.error(`[PaymentService] Failed to cleanup event claim ${eventId}:`, err?.message);
+        await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]).catch((err) => {
+          console.error(`[PaymentService] Failed to mark event ${eventId} as REJECTED:`, err?.message);
         });
         return { success: false, error: 'Unmapped payment order. Sent to manual reconciliation queue.', statusCode: 400 };
       }
@@ -325,7 +330,7 @@ export class PaymentService {
 
         // Mark event as fully processed after transaction & subscription updates succeed
         await queryDb(
-          `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
+          `UPDATE public.payment_events SET status = 'COMPLETED', processed_at = NOW() WHERE event_id = $1`,
           [eventId]
         );
       } catch (procErr: any) {
@@ -377,24 +382,29 @@ export class PaymentService {
 
       try {
         const claimRes = await queryDb(
-          `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, received_at)
-           VALUES ('razorpay', $1, $2, $3, $4, NOW())
+          `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, status, received_at)
+           VALUES ('razorpay', $1, $2, $3, $4, 'PENDING', NOW())
            ON CONFLICT (event_id) DO NOTHING
-           RETURNING event_id, processed_at`,
+           RETURNING event_id, status, processed_at`,
           [eventId, subscriptionId, event, payloadHash]
         );
 
         if (!claimRes?.rows?.length) {
           const existing = await queryDb(
-            `SELECT event_id, processed_at, received_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
+            `SELECT event_id, status, processed_at, received_at FROM public.payment_events WHERE event_id = $1 LIMIT 1`,
             [eventId]
           );
 
           if (existing?.rows?.length) {
             const row = existing.rows[0];
-            if (row.processed_at) {
+            if (row.status === 'COMPLETED' || row.processed_at) {
               console.log(`[PaymentService] Idempotent skip: subscription cancellation event ${eventId} already completed at ${row.processed_at}.`);
               return { success: true, message: 'Already processed' };
+            }
+
+            if (row.status === 'REJECTED') {
+              console.log(`[PaymentService] Idempotent skip: subscription cancellation event ${eventId} was permanently rejected.`);
+              return { success: true, message: 'Already rejected' };
             }
 
             // Check active processing window (60s lock)
@@ -414,7 +424,7 @@ export class PaymentService {
             const reclaimRes = await queryDb(
               `UPDATE public.payment_events
                SET received_at = NOW(), payload_hash = $2
-               WHERE event_id = $1 AND processed_at IS NULL AND received_at = $3
+               WHERE event_id = $1 AND status = 'PENDING' AND processed_at IS NULL AND received_at = $3
                RETURNING event_id`,
               [eventId, payloadHash, row.received_at]
             );
@@ -461,7 +471,7 @@ export class PaymentService {
         }
 
         await queryDb(
-          `UPDATE public.payment_events SET processed_at = NOW() WHERE event_id = $1`,
+          `UPDATE public.payment_events SET status = 'COMPLETED', processed_at = NOW() WHERE event_id = $1`,
           [eventId]
         );
 
