@@ -331,7 +331,7 @@ async function runOutOfOrderSubscriptionTests() {
     const res = await PaymentService.processRazorpayEvent(payloadInvalidTs);
     assert(
       res.success === false && res.statusCode === 400 && (res.error || '').includes('timestamp') && mockTransactions.length === 0,
-      'Test 7: payment.captured with invalid created_at -> rejected, ZERO transactions recorded'
+      'Test 7: Invalid event timestamp in payload -> rejected with HTTP 400'
     );
   } catch (err: any) {
     assert(false, 'Test 7: Invalid timestamp rejection', err.message);
@@ -398,36 +398,40 @@ async function runOutOfOrderSubscriptionTests() {
   // ----------------------------------------------------
   if (isRealDbAvailable) {
     console.log('--- RUNNING REAL POSTGRESQL DATABASE OUT-OF-ORDER CONCURRENCY INTEGRATION SUITE ---');
-    const pgUserId = 'usr_pg_ooo_999';
-    const pgOrderId = 'order_pg_ooo_999';
-    const pgPayId1 = 'pay_pg_ooo_999_old';
-    const pgSubId2 = 'sub_pg_ooo_999_new';
-    const pgEventId1 = `payment.captured:${pgPayId1}`;
-    const pgEventId2 = `subscription.cancelled:${pgSubId2}`;
+
+    // -------------------------------------------------------------------
+    // PART A: SEQUENTIAL STALE-EVENT REJECTION TEST IN POSTGRESQL
+    // -------------------------------------------------------------------
+    const pgUserIdSeq = 'usr_pg_ooo_seq_999';
+    const pgOrderIdSeq = 'order_pg_ooo_seq_999';
+    const pgPayIdSeq = 'pay_pg_ooo_seq_old';
+    const pgSubIdSeq = 'sub_pg_ooo_seq_new';
+    const pgEventIdSeq1 = `payment.captured:${pgPayIdSeq}`;
+    const pgEventIdSeq2 = `subscription.cancelled:${pgSubIdSeq}`;
 
     try {
-      await queryDb(`DELETE FROM public.payment_events WHERE event_id IN ($1, $2)`, [pgEventId1, pgEventId2]).catch(() => {});
-      await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [pgPayId1]).catch(() => {});
-      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [pgOrderId]).catch(() => {});
-      await queryDb(`DELETE FROM public.employer_profiles WHERE user_id = $1`, [pgUserId]).catch(() => {});
+      await queryDb(`DELETE FROM public.payment_events WHERE event_id IN ($1, $2)`, [pgEventIdSeq1, pgEventIdSeq2]).catch(() => {});
+      await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [pgPayIdSeq]).catch(() => {});
+      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [pgOrderIdSeq]).catch(() => {});
+      await queryDb(`DELETE FROM public.employer_profiles WHERE user_id = $1`, [pgUserIdSeq]).catch(() => {});
 
       await queryDb(
         `INSERT INTO public.profiles (id, role, phone) VALUES ($1, 'employer', '+919999988888') ON CONFLICT DO NOTHING`,
-        [pgUserId]
+        [pgUserIdSeq]
       ).catch(() => {});
 
       await queryDb(
         `INSERT INTO public.employer_profiles (user_id, name, subscription_status, subscription_event_timestamp)
          VALUES ($1, 'Pg OOO Test Employer', 'free', 0)
          ON CONFLICT (user_id) DO UPDATE SET subscription_status = 'free', subscription_event_timestamp = 0`,
-        [pgUserId]
+        [pgUserIdSeq]
       );
 
       await queryDb(
         `INSERT INTO public.checkout_sessions (token_hash, user_id, plan_id, expected_amount, razorpay_order_id, expires_at, created_at)
          VALUES ($1, $2, 'pro', 1499, $3, NOW() + INTERVAL '1 hour', NOW())
          ON CONFLICT (razorpay_order_id) DO NOTHING`,
-        [`hash_${pgOrderId}`, pgUserId, pgOrderId]
+        [`hash_${pgOrderIdSeq}`, pgUserIdSeq, pgOrderIdSeq]
       );
 
       // 1. Process newer cancellation first at T=2000000000
@@ -435,41 +439,117 @@ async function runOutOfOrderSubscriptionTests() {
         event: 'subscription.cancelled',
         created_at: 2000000000,
         payload: {
-          subscription: { entity: { id: pgSubId2, notes: { user_id: pgUserId }, created_at: 2000000000 } }
+          subscription: { entity: { id: pgSubIdSeq, notes: { user_id: pgUserIdSeq }, created_at: 2000000000 } }
         }
       });
-      assert(resCancel.success === true, 'Postgres OOO Test 1: Newer subscription.cancelled (T2) executes in PostgreSQL');
+      assert(resCancel.success === true, 'Postgres OOO Test A1: Newer subscription.cancelled (T2) executes in PostgreSQL');
 
       // 2. Process delayed older payment.captured at T=1000000000
       const resOldCapture = await PaymentService.processRazorpayEvent({
         event: 'payment.captured',
         created_at: 1000000000,
         payload: {
-          payment: { entity: { id: pgPayId1, order_id: pgOrderId, amount: 149900, currency: 'INR', created_at: 1000000000 } }
+          payment: { entity: { id: pgPayIdSeq, order_id: pgOrderIdSeq, amount: 149900, currency: 'INR', created_at: 1000000000 } }
         }
       });
-      assert(resOldCapture.success === true, 'Postgres OOO Test 2: Delayed payment.captured (T1) handled cleanly');
+      assert(resOldCapture.success === true, 'Postgres OOO Test A2: Delayed payment.captured (T1) handled cleanly');
 
       // 3. Query PostgreSQL employer_profiles to verify subscription_status was NOT overwritten
       const dbProfileRes = await queryDb(
         `SELECT subscription_status, subscription_event_timestamp FROM public.employer_profiles WHERE user_id = $1`,
-        [pgUserId]
+        [pgUserIdSeq]
       );
 
       assert(
         dbProfileRes?.rows?.length === 1 &&
         dbProfileRes.rows[0].subscription_status === 'free' &&
         Number(dbProfileRes.rows[0].subscription_event_timestamp) === 2000000000,
-        'Postgres OOO Test 3: PostgreSQL database atomically rejected stale T1 update! Status remains free (T2 timestamp retained).'
+        'Postgres OOO Test A3: PostgreSQL database atomically rejected stale T1 update! Status remains free (T2 timestamp retained).'
       );
     } finally {
-      await queryDb(`DELETE FROM public.payment_events WHERE event_id IN ($1, $2)`, [pgEventId1, pgEventId2]).catch(() => {});
-      await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [pgPayId1]).catch(() => {});
-      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [pgOrderId]).catch(() => {});
-      await queryDb(`DELETE FROM public.employer_profiles WHERE user_id = $1`, [pgUserId]).catch(() => {});
+      await queryDb(`DELETE FROM public.payment_events WHERE event_id IN ($1, $2)`, [pgEventIdSeq1, pgEventIdSeq2]).catch(() => {});
+      await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [pgPayIdSeq]).catch(() => {});
+      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [pgOrderIdSeq]).catch(() => {});
+      await queryDb(`DELETE FROM public.employer_profiles WHERE user_id = $1`, [pgUserIdSeq]).catch(() => {});
+    }
+
+    // -------------------------------------------------------------------
+    // PART B: TRUE CONCURRENT OUT-OF-ORDER WEBHOOK TEST IN POSTGRESQL
+    // -------------------------------------------------------------------
+    const pgUserIdConc = 'usr_pg_conc_888';
+    const pgOrderIdConc = 'order_pg_conc_888';
+    const pgPayIdOlder = 'pay_pg_conc_100_old';
+    const pgSubIdNewer = 'sub_pg_conc_200_new';
+    const pgEventIdOlder = `payment.captured:${pgPayIdOlder}`;
+    const pgEventIdNewer = `subscription.cancelled:${pgSubIdNewer}`;
+
+    try {
+      await queryDb(`DELETE FROM public.payment_events WHERE event_id IN ($1, $2)`, [pgEventIdOlder, pgEventIdNewer]).catch(() => {});
+      await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [pgPayIdOlder]).catch(() => {});
+      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [pgOrderIdConc]).catch(() => {});
+      await queryDb(`DELETE FROM public.employer_profiles WHERE user_id = $1`, [pgUserIdConc]).catch(() => {});
+
+      await queryDb(
+        `INSERT INTO public.profiles (id, role, phone) VALUES ($1, 'employer', '+919999977777') ON CONFLICT DO NOTHING`,
+        [pgUserIdConc]
+      ).catch(() => {});
+
+      await queryDb(
+        `INSERT INTO public.employer_profiles (user_id, name, subscription_status, subscription_event_timestamp)
+         VALUES ($1, 'Pg Concurrent Test Employer', 'free', 0)
+         ON CONFLICT (user_id) DO UPDATE SET subscription_status = 'free', subscription_event_timestamp = 0`,
+        [pgUserIdConc]
+      );
+
+      await queryDb(
+        `INSERT INTO public.checkout_sessions (token_hash, user_id, plan_id, expected_amount, razorpay_order_id, expires_at, created_at)
+         VALUES ($1, $2, 'pro', 1499, $3, NOW() + INTERVAL '1 hour', NOW())
+         ON CONFLICT (razorpay_order_id) DO NOTHING`,
+        [`hash_${pgOrderIdConc}`, pgUserIdConc, pgOrderIdConc]
+      );
+
+      const olderEventPayload = {
+        event: 'payment.captured',
+        created_at: 100,
+        payload: {
+          payment: { entity: { id: pgPayIdOlder, order_id: pgOrderIdConc, amount: 149900, currency: 'INR', created_at: 100 } }
+        }
+      };
+
+      const newerEventPayload = {
+        event: 'subscription.cancelled',
+        created_at: 200,
+        payload: {
+          subscription: { entity: { id: pgSubIdNewer, notes: { user_id: pgUserIdConc }, created_at: 200 } }
+        }
+      };
+
+      // Execute both webhooks truly concurrently targeting the exact same user_id in PostgreSQL
+      await Promise.all([
+        PaymentService.processRazorpayEvent(olderEventPayload),
+        PaymentService.processRazorpayEvent(newerEventPayload)
+      ]);
+
+      // Query PostgreSQL employer_profiles to verify final state produced by newer event (T=200)
+      const concProfileRes = await queryDb(
+        `SELECT subscription_status, subscription_event_timestamp FROM public.employer_profiles WHERE user_id = $1`,
+        [pgUserIdConc]
+      );
+
+      assert(
+        concProfileRes?.rows?.length === 1 &&
+        concProfileRes.rows[0].subscription_status === 'free' &&
+        Number(concProfileRes.rows[0].subscription_event_timestamp) === 200,
+        'Postgres OOO Test B: True Promise.all PostgreSQL concurrency test verified! Final status is free and timestamp is 200 (newer event wins).'
+      );
+    } finally {
+      await queryDb(`DELETE FROM public.payment_events WHERE event_id IN ($1, $2)`, [pgEventIdOlder, pgEventIdNewer]).catch(() => {});
+      await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [pgPayIdOlder]).catch(() => {});
+      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [pgOrderIdConc]).catch(() => {});
+      await queryDb(`DELETE FROM public.employer_profiles WHERE user_id = $1`, [pgUserIdConc]).catch(() => {});
     }
   } else {
-    console.log('ℹ [SKIP] Real PostgreSQL Database Integration Test: Database offline in test environment.');
+    console.log('SKIPPED — PostgreSQL unavailable');
   }
 
   console.log('--------------------------------------------------');
