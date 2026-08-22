@@ -283,6 +283,101 @@ async function runOutOfOrderSubscriptionTests() {
     assert(false, 'Test 5: Duplicate event timestamp', err.message);
   }
 
+  // ----------------------------------------------------
+  // TEST 6: Missing Event Timestamp -> Rejected with HTTP 400
+  // ----------------------------------------------------
+  try {
+    resetMockState();
+    const userId = 'usr_ooo_6';
+    mockCheckoutSessions.set('order_ooo_6', { user_id: userId, plan_id: 'pro', expected_amount: 1499 });
+
+    const payloadMissingTs = {
+      event: 'payment.captured',
+      payload: {
+        payment: { entity: { id: 'pay_ooo_6_missing_ts', order_id: 'order_ooo_6', amount: 149900, currency: 'INR' } }
+      }
+    };
+
+    const res = await PaymentService.processRazorpayEvent(payloadMissingTs);
+    assert(
+      res.success === false && res.statusCode === 400 && (res.error || '').includes('timestamp'),
+      'Test 6: Missing event timestamp in payload -> rejected with HTTP 400'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 6: Missing timestamp rejection', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 7: Invalid Event Timestamp -> Rejected with HTTP 400
+  // ----------------------------------------------------
+  try {
+    resetMockState();
+    const userId = 'usr_ooo_7';
+    mockCheckoutSessions.set('order_ooo_7', { user_id: userId, plan_id: 'pro', expected_amount: 1499 });
+
+    const payloadInvalidTs = {
+      event: 'payment.captured',
+      created_at: -100,
+      payload: {
+        payment: { entity: { id: 'pay_ooo_7_invalid_ts', order_id: 'order_ooo_7', amount: 149900, currency: 'INR', created_at: -100 } }
+      }
+    };
+
+    const res = await PaymentService.processRazorpayEvent(payloadInvalidTs);
+    assert(
+      res.success === false && res.statusCode === 400 && (res.error || '').includes('timestamp'),
+      'Test 7: Invalid event timestamp in payload -> rejected with HTTP 400'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 7: Invalid timestamp rejection', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 8: Zero Rows Database Update -> DOES NOT trigger an unconditional Supabase update
+  // ----------------------------------------------------
+  try {
+    resetMockState();
+    const userId = 'usr_ooo_8';
+    mockCheckoutSessions.set('order_ooo_8', { user_id: userId, plan_id: 'pro', expected_amount: 1499 });
+
+    // Seed state at T=200
+    mockProfiles.set(userId, { subscription_status: 'free', subscription_event_timestamp: 200 });
+
+    let supabaseUpdateCalled = false;
+    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    (supabaseAdmin as any).from = (table: string) => {
+      if (table === 'employer_profiles') {
+        return {
+          update: () => {
+            supabaseUpdateCalled = true;
+            return { eq: async () => ({ error: null, data: [] }) };
+          }
+        };
+      }
+      return origFrom(table);
+    };
+
+    // Stale payload at T=100
+    const stalePayload = {
+      event: 'payment.captured',
+      created_at: 100,
+      payload: {
+        payment: { entity: { id: 'pay_ooo_8_stale', order_id: 'order_ooo_8', amount: 149900, currency: 'INR', created_at: 100 } }
+      }
+    };
+
+    await PaymentService.processRazorpayEvent(stalePayload);
+
+    assert(
+      supabaseUpdateCalled === false && mockProfiles.get(userId)?.subscription_status === 'free',
+      'Test 8: Database update affecting zero rows DOES NOT trigger an unconditional Supabase update'
+    );
+
+    (supabaseAdmin as any).from = origFrom;
+  } catch (err: any) {
+    assert(false, 'Test 8: No unconditional fallback update', err.message);
+  }
+
   // Restore DB pool connect
   TransactionRepository.recordTransaction = origRecordTx;
   (dbPool as any).connect = origConnect;

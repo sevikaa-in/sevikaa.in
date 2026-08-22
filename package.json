@@ -9,7 +9,8 @@
     "lint": "eslint",
     "migrate": "node scripts/migrate.js",
     "test:security": "npx tsx scripts/test-security.ts",
-    "test:a4": "npx tsx tests/a4ProductionHardening.test.ts"
+    "test:a4": "npx tsx tests/a4ProductionHardening.test.ts",
+    "test:subscription-order": "npx tsx tests/outOfOrderSubscriptionWebhooks.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1092.0",

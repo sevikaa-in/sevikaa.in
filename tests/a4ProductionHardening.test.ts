@@ -334,6 +334,9 @@ async function runA4Tests() {
           mockDbEvents.delete(eventId);
           return { rows: [] };
         }
+        if (sql.includes('UPDATE public.employer_profiles')) {
+          return { rows: [{ user_id: params[0] || 'db_test_user_123' }] };
+        }
         if (sql.includes('checkout_sessions')) {
           return { rows: [{ user_id: 'db_test_user_123', plan_id: 'pro', expected_amount: 1499 }] };
         }
@@ -344,6 +347,7 @@ async function runA4Tests() {
 
     const payload = {
       event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
         payment: {
           entity: {
@@ -353,7 +357,8 @@ async function runA4Tests() {
             currency: 'INR',
             email: 'employer_db_test@sevikaa.in',
             contact: '+91 9876543210',
-            status: 'captured'
+            status: 'captured',
+            created_at: 1787239490
           }
         }
       }
@@ -505,6 +510,9 @@ async function runA4Tests() {
         if (sql.includes('checkout_sessions')) {
           return { rows: [{ user_id: 'mock_user_123', plan_id: 'pro', expected_amount: 1499 }] };
         }
+        if (sql.includes('UPDATE public.employer_profiles')) {
+          return { rows: [{ user_id: 'mock_user_123' }] };
+        }
         if (sql.includes('UPDATE public.payment_events SET processed_at')) {
           throw new Error('Simulated DB failure on updating processed_at');
         }
@@ -517,6 +525,7 @@ async function runA4Tests() {
     try {
       await PaymentService.processRazorpayEvent({
         event: 'payment.captured',
+        created_at: 1787239490,
         payload: {
           payment: {
             entity: {
@@ -526,7 +535,8 @@ async function runA4Tests() {
               currency: 'INR',
               email: 'employer_test@sevikaa.in',
               contact: '+91 9876543210',
-              status: 'captured'
+              status: 'captured',
+              created_at: 1787239490
             }
           }
         }
@@ -575,12 +585,14 @@ async function runA4Tests() {
     try {
       res = await PaymentService.processRazorpayEvent({
         event: 'subscription.charged',
+        created_at: 1787239490,
         payload: {
           subscription: {
             entity: {
               id: 'sub_test_charge_123',
               plan_id: 'plan_pro_monthly',
-              notes: { user_id: 'resolved_sub_user_456' }
+              notes: { user_id: 'resolved_sub_user_456' },
+              created_at: 1787239490
             }
           },
           payment: {
@@ -590,7 +602,8 @@ async function runA4Tests() {
               currency: 'INR',
               email: 'employer_sub_charge@sevikaa.in',
               contact: '+91 9876543210',
-              status: 'captured'
+              status: 'captured',
+              created_at: 1787239490
             }
           }
         }
@@ -1393,6 +1406,7 @@ async function runA4Tests() {
     (dbPool as any).connect = async () => ({
       query: async (sql: string) => {
         if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_x6' }] };
+        if (sql.includes('UPDATE public.employer_profiles')) return { rows: [{ user_id: 'u_x6' }] };
         if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'u_x6', expected_amount: 1499 }] };
         return { rows: [] };
       },
@@ -1401,6 +1415,7 @@ async function runA4Tests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
         payment: {
           entity: {
@@ -1408,7 +1423,8 @@ async function runA4Tests() {
             order_id: 'order_x6_valid',
             amount: 149900,
             currency: 'INR',
-            email: 'employer_x6@sevikaa.in'
+            email: 'employer_x6@sevikaa.in',
+            created_at: 1787239490
           }
         }
       }

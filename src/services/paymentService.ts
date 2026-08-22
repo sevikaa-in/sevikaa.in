@@ -11,7 +11,7 @@ export interface RazorpayWebhookResult {
   statusCode?: number;
 }
 
-function extractEventTimestamp(payload: any): number {
+function extractEventTimestamp(payload: any): number | null {
   if (typeof payload?.created_at === 'number' && Number.isFinite(payload.created_at) && payload.created_at > 0) {
     return Math.floor(payload.created_at);
   }
@@ -23,7 +23,7 @@ function extractEventTimestamp(payload: any): number {
   if (typeof subCreatedAt === 'number' && Number.isFinite(subCreatedAt) && subCreatedAt > 0) {
     return Math.floor(subCreatedAt);
   }
-  return 0;
+  return null;
 }
 
 export class PaymentService {
@@ -281,8 +281,17 @@ export class PaymentService {
           raw_payload: JSON.stringify(payload)
         });
 
+        let eventTime: number = 0;
+        if (status === 'captured') {
+          const extractedTime = extractEventTimestamp(payload);
+          if (extractedTime === null) {
+            console.error(`[PaymentService] REJECTED: Missing or invalid event timestamp in webhook payload for event ${event}.`);
+            return { success: false, error: 'Missing or invalid event timestamp in webhook payload.', statusCode: 400 };
+          }
+          eventTime = extractedTime;
+        }
+
         if (status === 'captured' && userId !== 'anonymous') {
-          const eventTime = extractEventTimestamp(payload);
           const subRes = await queryDb(
             `UPDATE public.employer_profiles
              SET subscription_status = 'premium',
@@ -291,37 +300,25 @@ export class PaymentService {
                AND (subscription_event_timestamp IS NULL OR subscription_event_timestamp <= $2)
              RETURNING user_id`,
             [userId, eventTime]
-          ).catch(() => null);
+          );
 
           if (!subRes?.rows?.length) {
             const checkProfile = await queryDb(
               `SELECT subscription_status, subscription_event_timestamp FROM public.employer_profiles WHERE user_id = $1 LIMIT 1`,
               [userId]
-            ).catch(() => null);
+            );
 
-            if (checkProfile?.rows?.length) {
-              const currentTs = Number(checkProfile.rows[0].subscription_event_timestamp || 0);
-              if (eventTime < currentTs) {
-                console.log(`[PaymentService] IGNORED stale payment.captured event for user ${userId}. Event time (${eventTime}) < DB time (${currentTs}).`);
-              } else {
-                const { error: subErr } = await supabaseAdmin
-                  .from('employer_profiles')
-                  .update({ subscription_status: 'premium', subscription_event_timestamp: eventTime })
-                  .eq('user_id', userId);
-                if (subErr) {
-                  console.error('[PaymentService] CRITICAL: Subscription activation update failed for user:', userId, subErr);
-                  throw new Error(`Failed to activate subscription for user ${userId}: ${subErr.message}`);
-                }
-              }
+            if (!checkProfile?.rows?.length) {
+              console.error(`[PaymentService] CRITICAL: Subscription activation failed for user ${userId}: Profile row does not exist in employer_profiles.`);
+              throw new Error(`Failed to activate subscription for user ${userId}: Profile row does not exist.`);
+            }
+
+            const currentTs = Number(checkProfile.rows[0].subscription_event_timestamp || 0);
+            if (eventTime <= currentTs) {
+              console.log(`[PaymentService] IGNORED stale payment.captured event for user ${userId}. Event time (${eventTime}) <= DB time (${currentTs}).`);
             } else {
-              const { error: subErr } = await supabaseAdmin
-                .from('employer_profiles')
-                .update({ subscription_status: 'premium', subscription_event_timestamp: eventTime })
-                .eq('user_id', userId);
-              if (subErr) {
-                console.error('[PaymentService] CRITICAL: Subscription activation update failed for user:', userId, subErr);
-                throw new Error(`Failed to activate subscription for user ${userId}: ${subErr.message}`);
-              }
+              console.error(`[PaymentService] CRITICAL: Subscription activation update affected 0 rows for user ${userId} despite eventTime (${eventTime}) > current DB time (${currentTs}).`);
+              throw new Error(`Failed to activate subscription for user ${userId}: Database update query failed.`);
             }
           }
         }
@@ -428,6 +425,11 @@ export class PaymentService {
         }
 
         const eventTime = extractEventTimestamp(payload);
+        if (eventTime === null) {
+          console.error(`[PaymentService] REJECTED: Missing or invalid event timestamp in webhook payload for event ${event}.`);
+          return { success: false, error: 'Missing or invalid event timestamp in webhook payload.', statusCode: 400 };
+        }
+
         const subRes = await queryDb(
           `UPDATE public.employer_profiles
            SET subscription_status = 'free',
@@ -436,37 +438,25 @@ export class PaymentService {
              AND (subscription_event_timestamp IS NULL OR subscription_event_timestamp <= $2)
            RETURNING user_id`,
           [userId, eventTime]
-        ).catch(() => null);
+        );
 
         if (!subRes?.rows?.length) {
           const checkProfile = await queryDb(
             `SELECT subscription_status, subscription_event_timestamp FROM public.employer_profiles WHERE user_id = $1 LIMIT 1`,
             [userId]
-          ).catch(() => null);
+          );
 
-          if (checkProfile?.rows?.length) {
-            const currentTs = Number(checkProfile.rows[0].subscription_event_timestamp || 0);
-            if (eventTime < currentTs) {
-              console.log(`[PaymentService] IGNORED stale subscription cancellation event for user ${userId}. Event time (${eventTime}) < DB time (${currentTs}).`);
-            } else {
-              const { error: subErr } = await supabaseAdmin
-                .from('employer_profiles')
-                .update({ subscription_status: 'free', subscription_event_timestamp: eventTime })
-                .eq('user_id', userId);
-              if (subErr) {
-                console.error('[PaymentService] CRITICAL: Subscription cancellation update failed for user:', userId, subErr);
-                throw new Error(`Failed to cancel subscription for user ${userId}: ${subErr.message}`);
-              }
-            }
+          if (!checkProfile?.rows?.length) {
+            console.error(`[PaymentService] CRITICAL: Subscription cancellation failed for user ${userId}: Profile row does not exist in employer_profiles.`);
+            throw new Error(`Failed to cancel subscription for user ${userId}: Profile row does not exist.`);
+          }
+
+          const currentTs = Number(checkProfile.rows[0].subscription_event_timestamp || 0);
+          if (eventTime <= currentTs) {
+            console.log(`[PaymentService] IGNORED stale subscription cancellation event for user ${userId}. Event time (${eventTime}) <= DB time (${currentTs}).`);
           } else {
-            const { error: subErr } = await supabaseAdmin
-              .from('employer_profiles')
-              .update({ subscription_status: 'free', subscription_event_timestamp: eventTime })
-              .eq('user_id', userId);
-            if (subErr) {
-              console.error('[PaymentService] CRITICAL: Subscription cancellation update failed for user:', userId, subErr);
-              throw new Error(`Failed to cancel subscription for user ${userId}: ${subErr.message}`);
-            }
+            console.error(`[PaymentService] CRITICAL: Subscription cancellation update affected 0 rows for user ${userId} despite eventTime (${eventTime}) > current DB time (${currentTs}).`);
+            throw new Error(`Failed to cancel subscription for user ${userId}: Database update query failed.`);
           }
         }
 
