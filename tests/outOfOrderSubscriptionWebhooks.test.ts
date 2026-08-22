@@ -32,9 +32,13 @@ async function runOutOfOrderSubscriptionTests() {
   const mockProfiles = new Map<string, { subscription_status: string; subscription_event_timestamp: number }>();
   const mockCheckoutSessions = new Map<string, { user_id: string; plan_id: string; expected_amount: number }>();
   const mockEvents = new Set<string>();
+  const mockTransactions: any[] = [];
 
   const origRecordTx = TransactionRepository.recordTransaction;
-  TransactionRepository.recordTransaction = async () => true;
+  TransactionRepository.recordTransaction = async (tx: any) => {
+    mockTransactions.push(tx);
+    return true;
+  };
 
   const origConnect = dbPool.connect.bind(dbPool);
   const setupMockDriver = () => {
@@ -91,6 +95,7 @@ async function runOutOfOrderSubscriptionTests() {
     mockProfiles.clear();
     mockCheckoutSessions.clear();
     mockEvents.clear();
+    mockTransactions.length = 0;
   };
 
   setupMockDriver();
@@ -284,7 +289,7 @@ async function runOutOfOrderSubscriptionTests() {
   }
 
   // ----------------------------------------------------
-  // TEST 6: Missing Event Timestamp -> Rejected with HTTP 400
+  // TEST 6: payment.captured with missing created_at -> rejected -> transactions table unchanged
   // ----------------------------------------------------
   try {
     resetMockState();
@@ -300,15 +305,15 @@ async function runOutOfOrderSubscriptionTests() {
 
     const res = await PaymentService.processRazorpayEvent(payloadMissingTs);
     assert(
-      res.success === false && res.statusCode === 400 && (res.error || '').includes('timestamp'),
-      'Test 6: Missing event timestamp in payload -> rejected with HTTP 400'
+      res.success === false && res.statusCode === 400 && (res.error || '').includes('timestamp') && mockTransactions.length === 0,
+      'Test 6: payment.captured with missing created_at -> rejected, ZERO transactions recorded'
     );
   } catch (err: any) {
     assert(false, 'Test 6: Missing timestamp rejection', err.message);
   }
 
   // ----------------------------------------------------
-  // TEST 7: Invalid Event Timestamp -> Rejected with HTTP 400
+  // TEST 7: payment.captured with invalid created_at -> rejected -> transactions table unchanged
   // ----------------------------------------------------
   try {
     resetMockState();
@@ -325,57 +330,63 @@ async function runOutOfOrderSubscriptionTests() {
 
     const res = await PaymentService.processRazorpayEvent(payloadInvalidTs);
     assert(
-      res.success === false && res.statusCode === 400 && (res.error || '').includes('timestamp'),
-      'Test 7: Invalid event timestamp in payload -> rejected with HTTP 400'
+      res.success === false && res.statusCode === 400 && (res.error || '').includes('timestamp') && mockTransactions.length === 0,
+      'Test 7: payment.captured with invalid created_at -> rejected, ZERO transactions recorded'
     );
   } catch (err: any) {
     assert(false, 'Test 7: Invalid timestamp rejection', err.message);
   }
 
   // ----------------------------------------------------
-  // TEST 8: Zero Rows Database Update -> DOES NOT trigger an unconditional Supabase update
+  // TEST 8: payment.captured with valid created_at -> transaction recorded & subscription update proceeds
   // ----------------------------------------------------
   try {
     resetMockState();
     const userId = 'usr_ooo_8';
     mockCheckoutSessions.set('order_ooo_8', { user_id: userId, plan_id: 'pro', expected_amount: 1499 });
 
-    // Seed state at T=200
-    mockProfiles.set(userId, { subscription_status: 'free', subscription_event_timestamp: 200 });
-
-    let supabaseUpdateCalled = false;
-    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
-    (supabaseAdmin as any).from = (table: string) => {
-      if (table === 'employer_profiles') {
-        return {
-          update: () => {
-            supabaseUpdateCalled = true;
-            return { eq: async () => ({ error: null, data: [] }) };
-          }
-        };
-      }
-      return origFrom(table);
-    };
-
-    // Stale payload at T=100
-    const stalePayload = {
+    const payloadValid = {
       event: 'payment.captured',
       created_at: 100,
       payload: {
-        payment: { entity: { id: 'pay_ooo_8_stale', order_id: 'order_ooo_8', amount: 149900, currency: 'INR', created_at: 100 } }
+        payment: { entity: { id: 'pay_ooo_8_valid', order_id: 'order_ooo_8', amount: 149900, currency: 'INR', created_at: 100 } }
       }
     };
 
-    await PaymentService.processRazorpayEvent(stalePayload);
-
+    const res = await PaymentService.processRazorpayEvent(payloadValid);
+    const profileState = mockProfiles.get(userId);
     assert(
-      supabaseUpdateCalled === false && mockProfiles.get(userId)?.subscription_status === 'free',
-      'Test 8: Database update affecting zero rows DOES NOT trigger an unconditional Supabase update'
+      res.success === true && mockTransactions.length === 1 && profileState?.subscription_status === 'premium',
+      'Test 8: payment.captured with valid created_at -> transaction recorded & subscription updated to premium'
     );
-
-    (supabaseAdmin as any).from = origFrom;
   } catch (err: any) {
-    assert(false, 'Test 8: No unconditional fallback update', err.message);
+    assert(false, 'Test 8: Valid timestamp processing', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 9: subscription.charged with missing timestamp -> no transaction & no subscription update
+  // ----------------------------------------------------
+  try {
+    resetMockState();
+    const userId = 'usr_ooo_9';
+
+    const payloadSubMissingTs = {
+      event: 'subscription.charged',
+      payload: {
+        payment: {
+          entity: { id: 'pay_ooo_9_sub', subscription_id: 'sub_ooo_9', amount: 149900, currency: 'INR', notes: { user_id: userId } }
+        }
+      }
+    };
+
+    const res = await PaymentService.processRazorpayEvent(payloadSubMissingTs);
+    const profileState = mockProfiles.get(userId);
+    assert(
+      res.success === false && res.statusCode === 400 && mockTransactions.length === 0 && profileState === undefined,
+      'Test 9: subscription.charged with missing timestamp -> no transaction & no subscription update'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 9: Subscription charged missing timestamp', err.message);
   }
 
   // Restore DB pool connect

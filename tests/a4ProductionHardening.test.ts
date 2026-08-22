@@ -735,12 +735,14 @@ async function runA4Tests() {
 
     await PaymentService.processRazorpayEvent({
       event: 'subscription.charged',
+      created_at: 1787239490,
       payload: {
         subscription: {
           entity: {
             id: 'sub_test_no_order_123',
             plan_id: 'plan_pro',
-            notes: { user_id: 'user_sub_test_1' }
+            notes: { user_id: 'user_sub_test_1' },
+            created_at: 1787239490
           }
         },
         payment: {
@@ -748,7 +750,8 @@ async function runA4Tests() {
             id: 'pay_sub_test_no_order_123',
             amount: 149900,
             currency: 'INR',
-            email: 'employer_t1@sevikaa.in'
+            email: 'employer_t1@sevikaa.in',
+            created_at: 1787239490
           }
         }
       }
@@ -795,12 +798,14 @@ async function runA4Tests() {
 
     await PaymentService.processRazorpayEvent({
       event: 'subscription.charged',
+      created_at: 1787239490,
       payload: {
         subscription: {
           entity: {
             id: 'sub_999888777',
             plan_id: 'plan_starter',
-            notes: { user_id: 'user_sub_test_2' }
+            notes: { user_id: 'user_sub_test_2' },
+            created_at: 1787239490
           }
         },
         payment: {
@@ -808,7 +813,8 @@ async function runA4Tests() {
             id: 'pay_sub_test_222',
             amount: 99900,
             currency: 'INR',
-            email: 'employer_t2@sevikaa.in'
+            email: 'employer_t2@sevikaa.in',
+            created_at: 1787239490
           }
         }
       }
@@ -844,6 +850,9 @@ async function runA4Tests() {
         if (sql.includes('checkout_sessions')) {
           return { rows: [{ user_id: 'user_real_order_777', plan_id: 'pro', expected_amount: 1499 }] };
         }
+        if (sql.includes('UPDATE public.employer_profiles')) {
+          return { rows: [{ user_id: 'user_real_order_777' }] };
+        }
         if (sql.includes('INSERT INTO public.transactions')) {
           recordedOrderId = params[1];
           return { rows: [] };
@@ -855,6 +864,7 @@ async function runA4Tests() {
 
     await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
         payment: {
           entity: {
@@ -862,7 +872,8 @@ async function runA4Tests() {
             order_id: 'order_real_razorpay_777',
             amount: 149900,
             currency: 'INR',
-            email: 'employer_t3@sevikaa.in'
+            email: 'employer_t3@sevikaa.in',
+            created_at: 1787239490
           }
         }
       }
@@ -1372,13 +1383,15 @@ async function runA4Tests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
         payment: {
           entity: {
             id: 'pay_x5_null_exp',
             order_id: 'order_x5_null_exp',
             amount: 149900,
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1787239490
           }
         }
       }
@@ -1453,13 +1466,15 @@ async function runA4Tests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1787239490,
       payload: {
         payment: {
           entity: {
             id: 'pay_x7_mismatch',
             order_id: 'order_x7_mismatch',
             amount: 29900, // 299 paid vs 1499 expected
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1787239490
           }
         }
       }

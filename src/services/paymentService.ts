@@ -118,6 +118,16 @@ export class PaymentService {
 
       let status = event === 'payment.failed' ? 'failed' : (event === 'payment.refunded' ? 'refunded' : (paymentEntity.status || 'captured'));
 
+      // 4. Strict Event Timestamp Validation for Subscription State Ordering
+      let eventTime: number | null = null;
+      if (status === 'captured') {
+        eventTime = extractEventTimestamp(payload);
+        if (eventTime === null) {
+          console.error(`[PaymentService] REJECTED: Missing or invalid event timestamp in webhook payload for event ${event}.`);
+          return { success: false, error: 'Missing or invalid event timestamp in webhook payload.', statusCode: 400 };
+        }
+      }
+
       // Atomic Idempotency Claim: Attempt atomic database row claim
       const headerEventId = options?.webhookEventId || payload?.event_id;
       const refundId = payload?.payload?.refund?.entity?.id;
@@ -281,17 +291,7 @@ export class PaymentService {
           raw_payload: JSON.stringify(payload)
         });
 
-        let eventTime: number = 0;
-        if (status === 'captured') {
-          const extractedTime = extractEventTimestamp(payload);
-          if (extractedTime === null) {
-            console.error(`[PaymentService] REJECTED: Missing or invalid event timestamp in webhook payload for event ${event}.`);
-            return { success: false, error: 'Missing or invalid event timestamp in webhook payload.', statusCode: 400 };
-          }
-          eventTime = extractedTime;
-        }
-
-        if (status === 'captured' && userId !== 'anonymous') {
+        if (status === 'captured' && userId !== 'anonymous' && eventTime !== null) {
           const subRes = await queryDb(
             `UPDATE public.employer_profiles
              SET subscription_status = 'premium',
@@ -365,6 +365,12 @@ export class PaymentService {
       }
 
       const userId = subNotesUserId.trim();
+      const eventTime = extractEventTimestamp(payload);
+      if (eventTime === null) {
+        console.error(`[PaymentService] REJECTED: Missing or invalid event timestamp in webhook payload for event ${event}.`);
+        return { success: false, error: 'Missing or invalid event timestamp in webhook payload.', statusCode: 400 };
+      }
+
       const headerEventId = options?.webhookEventId || payload?.event_id;
       const eventId = headerEventId || `${event}:${subscriptionId}`;
       const payloadHash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
@@ -422,12 +428,6 @@ export class PaymentService {
               };
             }
           }
-        }
-
-        const eventTime = extractEventTimestamp(payload);
-        if (eventTime === null) {
-          console.error(`[PaymentService] REJECTED: Missing or invalid event timestamp in webhook payload for event ${event}.`);
-          return { success: false, error: 'Missing or invalid event timestamp in webhook payload.', statusCode: 400 };
         }
 
         const subRes = await queryDb(
