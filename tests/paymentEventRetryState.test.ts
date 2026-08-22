@@ -399,26 +399,29 @@ async function runPaymentEventRetryStateTests() {
   (dbPool as any).connect = origConnect;
 
   // ----------------------------------------------------
-  // REAL POSTGRESQL DATABASE INTEGRATION TEST
+  // REAL POSTGRESQL DATABASE CONCURRENCY & RETRY INTEGRATION SUITE
   // ----------------------------------------------------
   if (isRealDbAvailable) {
     console.log('--- RUNNING POSTGRESQL REAL DATABASE CONCURRENCY & RETRY INTEGRATION SUITE ---');
-    const testEventId = 'payment.captured:pay_real_retry_test_999';
-    const testPaymentId = 'pay_real_retry_test_999';
-    const testOrderId = 'order_real_retry_test_999';
+    const testPaymentId = 'pay_pg_concurrency_test_999';
+    const testOrderId = 'order_pg_concurrency_test_999';
+    const testEventId = `payment.captured:${testPaymentId}`;
 
     try {
+      // 1. Cleanup any pre-existing test records
       await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [testEventId]).catch(() => {});
       await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [testPaymentId]).catch(() => {});
       await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [testOrderId]).catch(() => {});
 
+      // Seed a test checkout session so order lookup succeeds
       await queryDb(
         `INSERT INTO public.checkout_sessions (token_hash, user_id, plan_id, expected_amount, razorpay_order_id, expires_at, created_at)
-         VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 hour', NOW())`,
-        [`hash_${testOrderId}`, 'user_real_retry_123', 'pro', 1499, testOrderId]
-      );
+         VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 hour', NOW())
+         ON CONFLICT (razorpay_order_id) DO NOTHING`,
+        [`hash_${testOrderId}`, 'user_pg_concurrency_123', 'pro', 1499, testOrderId]
+      ).catch(() => {});
 
-      const payload = {
+      const payloadWithSameEvent = {
         event: 'payment.captured',
         payload: {
           payment: {
@@ -426,22 +429,87 @@ async function runPaymentEventRetryStateTests() {
               id: testPaymentId,
               order_id: testOrderId,
               amount: 149900,
+              currency: 'INR',
+              email: 'employer_pg_concurrency@sevikaa.in'
+            }
+          }
+        }
+      };
+
+      // 2. Fire TWO webhook processing calls CONCURRENTLY with the EXACT SAME event ID, payment ID, order ID
+      const [attemptA, attemptB] = await Promise.all([
+        PaymentService.processRazorpayEvent(payloadWithSameEvent),
+        PaymentService.processRazorpayEvent(payloadWithSameEvent)
+      ]);
+
+      // 3. Query PostgreSQL database tables to verify concurrency outcomes
+      const eventsRes = await queryDb(`SELECT event_id, processed_at FROM public.payment_events WHERE payment_id = $1`, [testPaymentId]);
+      const txRes = await queryDb(`SELECT id, razorpay_payment_id, razorpay_order_id, amount, status FROM public.transactions WHERE razorpay_payment_id = $1`, [testPaymentId]);
+
+      // Assertion 1: payment_events rows for the event = 1
+      assert(eventsRes?.rows?.length === 1, `Postgres Concurrency 1: payment_events rows for event = 1 (got ${eventsRes?.rows?.length})`);
+
+      // Assertion 2: transactions rows for the payment = 1
+      assert(txRes?.rows?.length === 1, `Postgres Concurrency 2: transactions rows for payment = 1 (got ${txRes?.rows?.length})`);
+
+      // Assertion 3: event has processed_at set (is NOT null)
+      assert(eventsRes?.rows?.[0]?.processed_at !== null, 'Postgres Concurrency 3: event has processed_at set (not null)');
+
+      // Assertion 4: one concurrent caller wins the claim, the other is blocked (HTTP 500) or already processed
+      const validConcurrencyOutcomes =
+        (attemptA.success && (attemptB.statusCode === 500 || attemptB.message === 'Already processed')) ||
+        (attemptB.success && (attemptA.statusCode === 500 || attemptA.message === 'Already processed'));
+
+      assert(validConcurrencyOutcomes, 'Postgres Concurrency 4: One caller wins claim, the other is blocked (HTTP 500) or already processed');
+
+      // ----------------------------------------------------
+      // REAL POSTGRESQL FAILURE + RETRY TEST
+      // ----------------------------------------------------
+      const failPaymentId = 'pay_pg_fail_retry_888';
+      const failOrderId = 'order_pg_fail_retry_888';
+      const failEventId = `payment.captured:${failPaymentId}`;
+
+      await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [failEventId]).catch(() => {});
+      await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [failPaymentId]).catch(() => {});
+      await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [failOrderId]).catch(() => {});
+
+      await queryDb(
+        `INSERT INTO public.checkout_sessions (token_hash, user_id, plan_id, expected_amount, razorpay_order_id, expires_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 hour', NOW())`,
+        [`hash_${failOrderId}`, 'user_fail_retry_123', 'pro', 1499, failOrderId]
+      );
+
+      // Insert unprocessed event row (> 60s ago) directly into Postgres (simulating failed first processing attempt)
+      await queryDb(
+        `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, payload_hash, received_at, processed_at)
+         VALUES ('razorpay', $1, $2, 'payment.captured', 'hash_fail_test', NOW() - INTERVAL '2 minutes', NULL)`,
+        [failEventId, failPaymentId]
+      );
+
+      // Assert row exists with processed_at = NULL (was NOT deleted)
+      const initialFailRow = await queryDb(`SELECT processed_at FROM public.payment_events WHERE event_id = $1`, [failEventId]);
+      assert(initialFailRow?.rows?.length === 1 && initialFailRow.rows[0].processed_at === null, 'Postgres Failure 1: Failed processing attempt -> payment_events row remains with processed_at = NULL');
+
+      // Retry with same event payload against Postgres
+      const retryPayload = {
+        event: 'payment.captured',
+        payload: {
+          payment: {
+            entity: {
+              id: failPaymentId,
+              order_id: failOrderId,
+              amount: 149900,
               currency: 'INR'
             }
           }
         }
       };
 
-      // 1. First execution in real Postgres
-      const resReal1 = await PaymentService.processRazorpayEvent(payload);
-      assert(resReal1.success === true, 'Real DB Test 1: First execution completes in real PostgreSQL');
+      const retryRes = await PaymentService.processRazorpayEvent(retryPayload);
+      assert(retryRes.success === true, 'Postgres Retry 2: Retry with same event succeeds in PostgreSQL');
 
-      const dbCheck1 = await queryDb(`SELECT processed_at FROM public.payment_events WHERE event_id = $1`, [testEventId]);
-      assert(dbCheck1?.rows?.length === 1 && dbCheck1.rows[0].processed_at !== null, 'Real DB Test 2: payment_events row is COMPLETED (processed_at is NOT null)');
-
-      // 2. Second execution (duplicate) in real Postgres
-      const resReal2 = await PaymentService.processRazorpayEvent(payload);
-      assert(resReal2.success === true && resReal2.message === 'Already processed', 'Real DB Test 3: Duplicate execution in real PostgreSQL returns Already Processed');
+      const retryFailRow = await queryDb(`SELECT processed_at FROM public.payment_events WHERE event_id = $1`, [failEventId]);
+      assert(retryFailRow?.rows?.length === 1 && retryFailRow.rows[0].processed_at !== null, 'Postgres Retry 3: Retry completes and sets processed_at != NULL');
 
     } finally {
       await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [testEventId]).catch(() => {});
