@@ -235,18 +235,24 @@ export class PaymentService {
           rawExpectedAmount <= 0
         ) {
           console.error(`[PaymentService] REJECTED: Missing or invalid expected_amount in checkout session for order ${orderId}`);
-          await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]).catch((err) => {
-            console.error(`[PaymentService] Failed to mark event ${eventId} as REJECTED:`, err?.message);
-          });
+          try {
+            await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]);
+          } catch (rejDbErr: any) {
+            console.error(`[PaymentService] CRITICAL: Failed to persist REJECTED status for event ${eventId}:`, rejDbErr?.message);
+            return { success: false, error: 'Database service unavailable while persisting event rejection.', statusCode: 500 };
+          }
           return { success: false, error: 'Invalid or missing expected amount in checkout session', statusCode: 400 };
         }
 
         const expectedAmountPaise = Math.round(rawExpectedAmount * 100);
         if (rawAmount !== expectedAmountPaise) {
           console.error(`[PaymentService] AMOUNT MISMATCH: expected ${expectedAmountPaise} paise, got ${rawAmount} paise for order ${orderId}`);
-          await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]).catch((err) => {
-            console.error(`[PaymentService] Failed to mark event ${eventId} as REJECTED:`, err?.message);
-          });
+          try {
+            await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]);
+          } catch (rejDbErr: any) {
+            console.error(`[PaymentService] CRITICAL: Failed to persist REJECTED status for event ${eventId}:`, rejDbErr?.message);
+            return { success: false, error: 'Database service unavailable while persisting event rejection.', statusCode: 500 };
+          }
           return { success: false, error: 'Payment amount mismatch', statusCode: 400 };
         }
 
@@ -259,17 +265,23 @@ export class PaymentService {
           userId = subNotesUserId.trim();
         } else {
           console.error(`[PaymentService] UNMAPPED SUBSCRIPTION REJECTED: Missing authoritative user_id metadata in subscription notes for payment ${paymentId}.`);
-          await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]).catch((err) => {
-            console.error(`[PaymentService] Failed to mark event ${eventId} as REJECTED:`, err?.message);
-          });
+          try {
+            await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]);
+          } catch (rejDbErr: any) {
+            console.error(`[PaymentService] CRITICAL: Failed to persist REJECTED status for event ${eventId}:`, rejDbErr?.message);
+            return { success: false, error: 'Database service unavailable while persisting event rejection.', statusCode: 500 };
+          }
           return { success: false, error: 'Unmapped subscription payment. Authoritative user reference missing in notes.', statusCode: 400 };
         }
         planName = subscriptionEntity?.plan_id ? `Subscription Plan (${subscriptionEntity.plan_id})` : planName;
       } else {
         console.error(`[PaymentService] UNMAPPED PAYMENT REJECTED: No checkout_session found for order_id ${orderId}.`);
-        await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]).catch((err) => {
-          console.error(`[PaymentService] Failed to mark event ${eventId} as REJECTED:`, err?.message);
-        });
+        try {
+          await queryDb(`UPDATE public.payment_events SET status = 'REJECTED' WHERE event_id = $1`, [eventId]);
+        } catch (rejDbErr: any) {
+          console.error(`[PaymentService] CRITICAL: Failed to persist REJECTED status for event ${eventId}:`, rejDbErr?.message);
+          return { success: false, error: 'Database service unavailable while persisting event rejection.', statusCode: 500 };
+        }
         return { success: false, error: 'Unmapped payment order. Sent to manual reconciliation queue.', statusCode: 400 };
       }
 

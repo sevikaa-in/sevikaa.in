@@ -409,7 +409,6 @@ async function runPaymentEventRetryStateTests() {
             id: 'sub_unmapped_123',
             plan_id: 'plan_pro',
             created_at: 1787239490
-            // Missing notes.user_id
           }
         },
         payment: {
@@ -431,6 +430,58 @@ async function runPaymentEventRetryStateTests() {
     );
   } catch (err: any) {
     assert(false, 'Test 9: Unmapped subscription', err.message);
+  }
+
+  // ----------------------------------------------------
+  // TEST 10: DB Failure during REJECTED update -> returns HTTP 500 (retryable, NOT reported as permanent 400)
+  // ----------------------------------------------------
+  try {
+    resetCounts();
+    setupMockDb();
+    mockCheckoutSessions.set('order_db_fail_rej', { user_id: 'usr_db_fail_rej', plan_id: 'pro', expected_amount: 1499 });
+
+    // Override connect to throw DB error when UPDATE status = 'REJECTED' runs
+    (dbPool as any).connect = async () => ({
+      query: async (sql: string, params: any[]) => {
+        if (sql.includes('INSERT INTO public.payment_events')) {
+          const eventId = params[0];
+          const row = { event_id: eventId, payment_id: params[1], event_type: params[2], status: 'PENDING', processed_at: null, received_at: new Date() };
+          mockDbEvents.set(eventId, row);
+          return { rows: [row] };
+        }
+        if (sql.includes('checkout_sessions')) {
+          return { rows: [{ user_id: 'usr_db_fail_rej', plan_id: 'pro', expected_amount: 1499 }] };
+        }
+        if (sql.includes("status = 'REJECTED'")) {
+          throw new Error('Simulated DB failure during REJECTED status write');
+        }
+        return { rows: [] };
+      },
+      release: () => {}
+    });
+
+    const res = await PaymentService.processRazorpayEvent({
+      event: 'payment.captured',
+      created_at: 1787239490,
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_db_fail_rej',
+            order_id: 'order_db_fail_rej',
+            amount: 29900, // amount mismatch
+            currency: 'INR',
+            created_at: 1787239490
+          }
+        }
+      }
+    });
+
+    assert(
+      res.success === false && res.statusCode === 500 && (res.error || '').includes('Database service unavailable'),
+      'Test 10: Failure to persist REJECTED is NOT reported as permanent rejection -> returns HTTP 500 (retryable)'
+    );
+  } catch (err: any) {
+    assert(false, 'Test 10: DB failure during REJECTED update', err.message);
   }
 
   // Restore mocks
@@ -523,13 +574,26 @@ async function runPaymentEventRetryStateTests() {
         'Postgres Real Test 3: Rejection in PostgreSQL -> status = REJECTED, row remains persisted'
       );
 
+      // Real Postgres CHECK Constraint Test
+      let checkConstraintTriggered = false;
+      try {
+        await queryDb(
+          `INSERT INTO public.payment_events (provider, event_id, payment_id, event_type, status) VALUES ('razorpay', 'invalid_status_test', 'pay_inv', 'payment.captured', 'INVALID_STATUS')`
+        );
+      } catch (err: any) {
+        if ((err.message || '').includes('chk_payment_events_status') || (err.code || '') === '23514') {
+          checkConstraintTriggered = true;
+        }
+      }
+      assert(checkConstraintTriggered, 'Postgres Real Test 4: Invalid status value (INVALID_STATUS) rejected by PostgreSQL CHECK constraint chk_payment_events_status');
+
     } finally {
       await queryDb(`DELETE FROM public.payment_events WHERE event_id = $1`, [testPaymentId]).catch(() => {});
       await queryDb(`DELETE FROM public.transactions WHERE razorpay_payment_id = $1`, [testPaymentId]).catch(() => {});
       await queryDb(`DELETE FROM public.checkout_sessions WHERE razorpay_order_id = $1`, [testOrderId]).catch(() => {});
     }
   } else {
-    console.log('ℹ [SKIP] Real PostgreSQL Database Integration Test: Database offline in test environment.');
+    console.log('SKIPPED — PostgreSQL unavailable');
   }
 
   console.log('--------------------------------------------------');
