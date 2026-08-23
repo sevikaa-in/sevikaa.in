@@ -9,13 +9,26 @@ interface EmployerCheckoutProps {
   onBack?: () => void;
   selectedPlanId?: string;
   onPaymentSuccess?: () => void;
+  employerName?: string;
+  phone?: string;
+  email?: string;
+  societyName?: string;
+  address?: string;
+  userId?: string;
 }
 
 export const EmployerCheckoutScreen: React.FC<EmployerCheckoutProps> = ({ 
-  onBack, selectedPlanId = 'standard', onPaymentSuccess 
+  onBack, selectedPlanId = 'standard', onPaymentSuccess,
+  employerName, phone, email, societyName, address, userId
 }) => {
   const { t } = useMobileLanguage();
   const [loading, setLoading] = useState(false);
+
+  const displayEmployerName = employerName || 'Employer Account';
+  const displayPhone = phone || '—';
+  const displayEmail = email || '—';
+  const displaySociety = societyName || '—';
+  const displayAddress = address || '—';
 
   const PLAN_DATA: Record<string, any> = {
     free: {
@@ -77,13 +90,13 @@ export const EmployerCheckoutScreen: React.FC<EmployerCheckoutProps> = ({
   const handleOpenWebCheckout = () => {
     setLoading(true);
 
-    const userPhone = encodeURIComponent('+91 98765 43210');
-    const userName = encodeURIComponent('Verma Household');
-    const userEmail = encodeURIComponent('employer@sevikaa.in');
-    const userId = encodeURIComponent('emp_user_9921');
+    const encPhone = encodeURIComponent(displayPhone !== '—' ? displayPhone : '');
+    const encName = encodeURIComponent(displayEmployerName !== 'Employer Account' ? displayEmployerName : '');
+    const encEmail = encodeURIComponent(displayEmail !== '—' ? displayEmail : '');
+    const encUserId = encodeURIComponent(userId || '');
 
     const webCheckoutUrl = getApiUrl(
-      `employer/checkout?plan=${plan.id}&userId=${userId}&phone=${userPhone}&name=${userName}&email=${userEmail}`
+      `employer/checkout?plan=${plan.id}&userId=${encUserId}&phone=${encPhone}&name=${encName}&email=${encEmail}`
     );
     
     Alert.alert(
@@ -164,19 +177,19 @@ export const EmployerCheckoutScreen: React.FC<EmployerCheckoutProps> = ({
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>EMPLOYER NAME</Text>
-              <Text style={styles.infoValue}>Verma Household</Text>
+              <Text style={styles.infoValue}>{displayEmployerName}</Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>MOBILE CONTACT</Text>
-              <Text style={styles.infoValue}>+91 98765 43210</Text>
+              <Text style={styles.infoValue}>{displayPhone}</Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>GATED SOCIETY</Text>
-              <Text style={styles.infoValue}>DLF Westend Heights</Text>
+              <Text style={styles.infoValue}>{displaySociety}</Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>FLAT ADDRESS</Text>
-              <Text style={styles.infoValue}>Tower B - Flat 402</Text>
+              <Text style={styles.infoValue}>{displayAddress}</Text>
             </View>
           </View>
         </View>

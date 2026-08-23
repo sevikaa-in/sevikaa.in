@@ -157,12 +157,12 @@ export default function Home() {
 
             if (dbRole === 'super-admin') {
               if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=2592000; SameSite=Lax`;
-              router.push('/super-admin/dashboard');
+              router.push('/super-admin');
               return;
             }
             if (dbRole === 'admin') {
               if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=2592000; SameSite=Lax`;
-              router.push('/admin/dashboard');
+              router.push('/admin');
               return;
             }
             if (dbRole === 'employer' || meData.employerProfile) {
@@ -256,12 +256,12 @@ export default function Home() {
       // 2. Direct role-based redirection for existing users with completed profile
       if (userRole === 'super-admin') {
         if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400; SameSite=Lax`;
-        window.location.href = '/super-admin/dashboard';
+        window.location.href = '/super-admin';
         return;
       }
       if (userRole === 'admin') {
         if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400; SameSite=Lax`;
-        window.location.href = '/admin/dashboard';
+        window.location.href = '/admin';
         return;
       }
 
@@ -274,12 +274,12 @@ export default function Home() {
 
           if (dbRole === 'super-admin') {
             if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400; SameSite=Lax`;
-            router.push('/super-admin/dashboard');
+            router.push('/super-admin');
             return;
           }
           if (dbRole === 'admin') {
             if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400; SameSite=Lax`;
-            router.push('/admin/dashboard');
+            router.push('/admin');
             return;
           }
 

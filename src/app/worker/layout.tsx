@@ -243,8 +243,8 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
 
         if (profile?.role && profile.role !== 'worker') {
           if (profile.role === 'employer') router.push('/employer');
-          else if (profile.role === 'super-admin') router.push('/super-admin/dashboard');
-          else if (profile.role === 'admin') router.push('/admin/dashboard');
+          else if (profile.role === 'super-admin') router.push('/super-admin');
+          else if (profile.role === 'admin') router.push('/admin');
           return;
         }
 
@@ -593,7 +593,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                       title="Log Out Session"
                     >
                       <LogOut size={15} />
-                      <span className="hidden lg:inline">Log Out</span>
+                      <span className="hidden lg:inline">{t('logOut') || 'Log Out'}</span>
                     </button>
                   </div>
                 </>

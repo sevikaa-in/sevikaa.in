@@ -122,11 +122,16 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
     setSelfiePreview(URL.createObjectURL(file));
   };
 
+  const handleUploadPhoto = () => {
+    stopCameraStream();
+    setCameraError('');
+    fileInputRef.current?.click();
+  };
+
   const startCamera = async () => {
     setCameraError('');
     if (typeof window === 'undefined' || !navigator?.mediaDevices?.getUserMedia) {
-      setCameraError('Webcam view unavailable. Opening device camera...');
-      nativeCameraInputRef.current?.click();
+      setCameraError('Browser camera blocked. Tap below to use device camera or upload photo.');
       return;
     }
 
@@ -140,7 +145,6 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
     } catch (err: any) {
       console.warn("Camera permission notice:", err);
       setCameraError('Browser camera blocked. Tap below to use device camera or upload photo.');
-      nativeCameraInputRef.current?.click();
     }
   };
 
@@ -450,7 +454,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
                   </button>
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={handleUploadPhoto}
                     className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-2xl font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-gray-200"
                   >
                     <Upload size={16} />

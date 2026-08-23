@@ -17,9 +17,9 @@ import { usePrivateUrl } from '@/hooks/usePrivateUrl';
 import { LegalComplianceHubCard } from '@/components/legal/LegalComplianceHubCard';
 
 const SKILL_CATEGORIES = [
-  { id: 'cook', key: 'cook', label: 'Cook / Chef', defaultLabel: 'Cook / Chef', icon: '🍳' },
-  { id: 'maid', key: 'maid', label: 'Housekeeping / Maid', defaultLabel: 'Housekeeping / Maid', icon: '🧹' },
-  { id: 'nanny', key: 'nanny', label: 'Childcare / Nanny', defaultLabel: 'Childcare / Nanny', icon: '👶' }
+  { id: 'cook', key: 'categoryCook', defaultLabel: 'Cook / Chef', icon: '🍳' },
+  { id: 'maid', key: 'categoryMaid', defaultLabel: 'Housekeeping / Maid', icon: '🧹' },
+  { id: 'nanny', key: 'categoryNanny', defaultLabel: 'Childcare / Nanny', icon: '👶' }
 ];
 
 const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Hinglish', 'Kannada', 'Tamil', 'Telugu', 'Assamese', 'Nepali', 'Bengali', 'Marathi', 'Malayalam', 'Odia', 'Gujarati', 'Punjabi'];
@@ -36,23 +36,23 @@ const SHIFT_SLOT_OPTIONS = [
 ];
 
 const EXPERIENCE_OPTIONS = [
-  { value: '0', label: 'Fresher (0 Years)' },
-  { value: '1', label: '1 Year Experience' },
-  { value: '2', label: '2 Years Experience' },
-  { value: '3', label: '3 Years Experience' },
-  { value: '4', label: '4 Years Experience' },
-  { value: '5', label: '5 Years Experience' },
-  { value: '6', label: '6 Years Experience' },
-  { value: '7', label: '7 Years Experience' },
-  { value: '8', label: '8 Years Experience' },
-  { value: '9', label: '9 Years Experience' },
-  { value: '10', label: '10+ Years Experience (Senior Expert)' },
+  { value: '0', key: 'fresher0Years', label: 'Fresher (0 Years)' },
+  { value: '1', key: 'exp1Year', label: '1 Year Experience' },
+  { value: '2', key: 'exp2Years', label: '2 Years Experience' },
+  { value: '3', key: 'exp3Years', label: '3 Years Experience' },
+  { value: '4', key: 'exp4Years', label: '4 Years Experience' },
+  { value: '5', key: 'exp5Years', label: '5 Years Experience' },
+  { value: '6', key: 'exp6Years', label: '6 Years Experience' },
+  { value: '7', key: 'exp7Years', label: '7 Years Experience' },
+  { value: '8', key: 'exp8Years', label: '8 Years Experience' },
+  { value: '9', key: 'exp9Years', label: '9 Years Experience' },
+  { value: '10', key: 'exp10PlusYears', label: '10+ Years Experience (Senior Expert)' },
 ];
 
 const GENDER_OPTIONS = [
-  { value: 'female', label: 'Female' },
-  { value: 'male', label: 'Male' },
-  { value: 'other', label: 'Other' }
+  { value: 'female', key: 'female', label: 'Female' },
+  { value: 'male', key: 'male', label: 'Male' },
+  { value: 'other', key: 'other', label: 'Other' }
 ];
 
 export default function WorkerProfilePage() {
@@ -531,7 +531,7 @@ export default function WorkerProfilePage() {
               : 'bg-blue-50 text-[#1A73E8] border-blue-200'
           }`}>
             <ShieldCheck size={14} />
-            <span>{workerProfile.status === 'changes_requested' ? '⚠️ Revision Requested' : workerProfile.status === 'live' ? '🟢 Verified Worker' : '⏳ Pending Audit'}</span>
+            <span>{workerProfile.status === 'changes_requested' ? (t('revisionRequested') || '⚠️ Revision Requested') : workerProfile.status === 'live' ? (t('verifiedWorker') || '🟢 Verified Worker') : (t('pendingAudit') || '⏳ Pending Audit')}</span>
           </span>
         </div>
       </div>
@@ -544,8 +544,8 @@ export default function WorkerProfilePage() {
               <ShieldAlert size={22} />
             </div>
             <div>
-              <h3 className="text-sm font-black text-amber-950">⚠️ Admin Audit Feedback & Required Profile Updates</h3>
-              <p className="text-[11px] text-amber-800 font-semibold mt-0.5">Please review the specific directions below and update your profile accordingly before resubmitting.</p>
+              <h3 className="text-sm font-black text-amber-950">{t('adminAuditFeedbackTitle') || "⚠️ Admin Audit Feedback & Required Profile Updates"}</h3>
+              <p className="text-[11px] text-amber-800 font-semibold mt-0.5">{t('adminAuditFeedbackSub') || "Please review the specific directions below and update your profile accordingly before resubmitting."}</p>
             </div>
           </div>
 
@@ -611,7 +611,7 @@ export default function WorkerProfilePage() {
           {/* Candidate Name, Dedicated Society Location Row, and Salary/Readiness Badges */}
           <div className="space-y-2 min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{name || 'Domestic Worker'}</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{name || t('domesticWorker') || 'Domestic Worker'}</h3>
             </div>
 
             {/* Dedicated Row for Society Location */}
@@ -630,18 +630,18 @@ export default function WorkerProfilePage() {
                   : 'bg-blue-100 text-[#1A73E8] border border-blue-300'
               }`}>
                 <Sparkles size={12} />
-                <span>{completionPercent}% Profile Ready</span>
+                <span>{completionPercent}% {t('profileReady') || 'Profile Ready'}</span>
               </span>
 
               <span className="px-2.5 py-1 rounded-full text-[11px] font-black uppercase bg-emerald-100 text-[#34A853] border border-emerald-300 flex items-center gap-1 shadow-2xs whitespace-nowrap">
                 <IndianRupee size={11} />
-                ₹{expectedSalary || '15000'}/mo
+                ₹{expectedSalary || '15000'}/{t('perMonthAbbr') || 'mo'}
               </span>
 
               {ratingData && (
                 <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs whitespace-nowrap">
                   <Star size={11} className="fill-amber-500 text-amber-500" />
-                  {ratingData.avg} ({ratingData.count} {ratingData.count === 1 ? 'review' : 'reviews'})
+                  {ratingData.avg} ({ratingData.count} {ratingData.count === 1 ? (t('review') || 'review') : (t('reviews') || 'reviews')})
                 </span>
               )}
             </div>
@@ -653,12 +653,12 @@ export default function WorkerProfilePage() {
           <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
             <div className="flex items-center gap-2.5 shrink-0">
               <Phone size={15} className="text-[#34A853] shrink-0" />
-              <span className="text-slate-500 font-bold">Mobile:</span>
+              <span className="text-slate-500 font-bold">{t('mobileLabel') || 'Mobile:'}</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-sm font-black text-slate-900 break-all">+91 {phone}</span>
               {emergencyContact && (
-                <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">Alt: +91 {emergencyContact}</span>
+                <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">{t('altPrefix') || 'Alt:'} +91 {emergencyContact}</span>
               )}
             </div>
           </div>
@@ -666,17 +666,17 @@ export default function WorkerProfilePage() {
           <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
             <div className="flex items-center gap-2.5 shrink-0">
               <Briefcase size={15} className="text-amber-600 shrink-0" />
-              <span className="text-slate-500 font-bold">Experience:</span>
+              <span className="text-slate-500 font-bold">{t('experienceLabel') || 'Experience:'}</span>
             </div>
-            <span className="text-sm font-black text-slate-900 break-words sm:text-right">{experience || '3+ Years Exp'}</span>
+            <span className="text-sm font-black text-slate-900 break-words sm:text-right">{EXPERIENCE_OPTIONS.find(o => o.value === String(experience).replace(/\D/g, '')) ? t(EXPERIENCE_OPTIONS.find(o => o.value === String(experience).replace(/\D/g, ''))!.key) : experience || (t('fresher0Years') || '0 Years')}</span>
           </div>
 
           <div className="bg-white p-3 px-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 text-xs font-black text-slate-800">
             <div className="flex items-center gap-2.5 shrink-0">
               <Clock size={15} className="text-[#1A73E8] shrink-0" />
-              <span className="text-slate-500 font-bold">Shift Slot:</span>
+              <span className="text-slate-500 font-bold">{t('shiftSlotLabel') || 'Shift Slot:'}</span>
             </div>
-            <span className="text-sm font-black text-slate-900 break-words sm:text-right">{preferredShift}</span>
+            <span className="text-sm font-black text-slate-900 break-words sm:text-right">{SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift) ? t(SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift)!.key) : preferredShift}</span>
           </div>
         </div>
 
@@ -684,7 +684,7 @@ export default function WorkerProfilePage() {
         <div className="space-y-3 relative z-10 pt-4 border-t border-slate-200/80">
           <div className="flex justify-between items-center text-xs font-black text-slate-700">
             <span>{t('profileCompletenessTitle') || "Profile Readiness"}</span>
-            <span>{completedCount} of {completionSteps.length} steps completed</span>
+            <span>{completedCount} {t('ofText') || 'of'} {completionSteps.length} {t('stepsCompletedSuffix') || 'steps completed'}</span>
           </div>
           <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
             <div 
@@ -724,8 +724,8 @@ export default function WorkerProfilePage() {
               <User size={18} />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900">Personal &amp; Salary Details</h3>
-              <p className="text-[10.5px] text-slate-400 font-semibold">Your basic profile &amp; salary expectations</p>
+              <h3 className="text-sm font-black text-slate-900">{t('personalSalaryDetailsTitle') || 'Personal & Salary Details'}</h3>
+              <p className="text-[10.5px] text-slate-400 font-semibold">{t('personalSalaryDetailsSub') || 'Your basic profile & salary expectations'}</p>
             </div>
           </div>
 
@@ -778,13 +778,13 @@ export default function WorkerProfilePage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="relative">
-                <label className="block text-xs font-black text-slate-700 mb-1">Gender</label>
+                <label className="block text-xs font-black text-slate-700 mb-1">{t('gender') || 'Gender'}</label>
                 <button
                   type="button"
                   onClick={() => setIsGenderDropdownOpen(!isGenderDropdownOpen)}
                   className="w-full p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 flex items-center justify-between transition-all cursor-pointer capitalize"
                 >
-                  <span>{gender || 'Female'}</span>
+                  <span>{GENDER_OPTIONS.find(g => g.value === gender) ? t(GENDER_OPTIONS.find(g => g.value === gender)!.key) : gender || (t('female') || 'Female')}</span>
                   <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isGenderDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -802,7 +802,7 @@ export default function WorkerProfilePage() {
                           gender === g.value ? 'bg-blue-50 text-[#1A73E8]' : 'text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        <span>{g.label}</span>
+                        <span>{t(g.key) || g.label}</span>
                         {gender === g.value && <Check size={14} className="text-[#1A73E8]" />}
                       </button>
                     ))}
@@ -811,7 +811,7 @@ export default function WorkerProfilePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-black text-slate-700 mb-1">Age (Years)</label>
+                <label className="block text-xs font-black text-slate-700 mb-1">{t('ageLabel') || 'Age (Years)'}</label>
                 <input 
                   type="number" 
                   value={age}
@@ -824,7 +824,7 @@ export default function WorkerProfilePage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-black text-slate-700 mb-1">Expected Salary (₹/month)</label>
+                <label className="block text-xs font-black text-slate-700 mb-1">{t('salaryTitle') || 'Expected Salary (₹/month)'}</label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-3 text-xs font-black text-slate-400">₹</span>
                   <input 
@@ -838,14 +838,14 @@ export default function WorkerProfilePage() {
               </div>
 
               <div className="relative">
-                <label className="block text-xs font-black text-slate-700 mb-1">Total Experience</label>
+                <label className="block text-xs font-black text-slate-700 mb-1">{t('experienceLevelLabel') || 'Total Experience'}</label>
                 <button
                   type="button"
                   onClick={() => setIsExpDropdownOpen(!isExpDropdownOpen)}
                   className="w-full p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 flex items-center justify-between transition-all cursor-pointer"
                 >
                   <span>
-                    {EXPERIENCE_OPTIONS.find(o => o.value === String(experience).replace(/\D/g, ''))?.label || (experience ? `${experience} Years Experience` : 'Fresher (0 Years)')}
+                    {EXPERIENCE_OPTIONS.find(o => o.value === String(experience).replace(/\D/g, '')) ? t(EXPERIENCE_OPTIONS.find(o => o.value === String(experience).replace(/\D/g, ''))!.key) : (experience ? `${experience} ${t('yearsSuffix') || 'Years'}` : (t('fresher0Years') || 'Fresher (0 Years)'))}
                   </span>
                   <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isExpDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -868,7 +868,7 @@ export default function WorkerProfilePage() {
                               : 'text-slate-700 hover:bg-slate-50'
                           }`}
                         >
-                          <span>{opt.label}</span>
+                          <span>{t(opt.key) || opt.label}</span>
                           {isSelected && <Check size={14} className="text-[#1A73E8]" />}
                         </button>
                       );
@@ -879,14 +879,14 @@ export default function WorkerProfilePage() {
             </div>
 
             <div className="relative">
-              <label className="block text-xs font-black text-slate-700 mb-1">Preferred Shift Slot</label>
+              <label className="block text-xs font-black text-slate-700 mb-1">{t('preferredShiftLabel') || 'Preferred Shift Slot'}</label>
               <button
                 type="button"
                 onClick={() => setIsShiftDropdownOpen(!isShiftDropdownOpen)}
                 className="w-full p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-bold text-slate-800 flex items-center justify-between transition-all cursor-pointer"
               >
                 <span className="flex items-center gap-2 truncate">
-                  {SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift)?.icon || '🕒'} {preferredShift}
+                  {SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift)?.icon || '🕒'} {SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift) ? t(SHIFT_SLOT_OPTIONS.find(s => s.label === preferredShift)!.key) : preferredShift}
                 </span>
                 <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 shrink-0 ${isShiftDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -912,8 +912,8 @@ export default function WorkerProfilePage() {
                         <div className="flex items-center gap-2 truncate">
                           <span className="text-base shrink-0">{slot.icon}</span>
                           <div className="truncate">
-                            <span className="block leading-tight">{slot.label}</span>
-                            <span className="text-[10px] text-slate-400 font-normal block">{slot.sub}</span>
+                            <span className="block leading-tight">{t(slot.key) || slot.label}</span>
+                            <span className="text-[10px] text-slate-400 font-normal block">{t(slot.subKey) || slot.sub}</span>
                           </div>
                         </div>
                         {isSelected && <Check size={14} className="text-[#1A73E8] shrink-0 ml-1" />}
@@ -925,12 +925,12 @@ export default function WorkerProfilePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-black text-slate-700 mb-1">About Me / Bio</label>
+              <label className="block text-xs font-black text-slate-700 mb-1">{t('bioLabel') || 'About Me / Bio'}</label>
               <textarea 
                 rows={3}
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                placeholder="Write a brief introduction about your experience, punctuality, and work ethic..."
+                placeholder={t('bioPlaceholder') || "Write a brief introduction about your experience, punctuality, and work ethic..."}
                 className="w-full p-3 bg-slate-50 focus:bg-white border border-slate-200 focus:border-[#1A73E8] rounded-2xl text-xs font-medium text-slate-800 focus:outline-none transition-colors"
               />
             </div>
@@ -944,7 +944,7 @@ export default function WorkerProfilePage() {
                 className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <Save size={14} />
-                <span>{saveLoading ? 'Saving Profile...' : 'Save Profile Details'}</span>
+                <span>{saveLoading ? (t('savingProgress') || 'Saving Profile...') : (t('saveProfileDetailsBtn') || 'Save Profile Details')}</span>
               </button>
             </div>
           </div>
@@ -958,14 +958,14 @@ export default function WorkerProfilePage() {
                 <Briefcase size={18} />
               </div>
               <div>
-                <h3 className="text-sm font-black text-slate-900">Skills &amp; Languages Spoken</h3>
-                <p className="text-[10.5px] text-slate-400 font-semibold">Select your core services &amp; languages</p>
+                <h3 className="text-sm font-black text-slate-900">{t('skillsLanguagesSpokenTitle') || 'Skills & Languages Spoken'}</h3>
+                <p className="text-[10.5px] text-slate-400 font-semibold">{t('skillsLanguagesSpokenSub') || 'Select your core services & languages'}</p>
               </div>
             </div>
 
             {/* Skills Multi-Select Flex Wrap */}
             <div className="space-y-2">
-              <label className="block text-xs font-black text-slate-700">Work Services (Select All That Apply)</label>
+              <label className="block text-xs font-black text-slate-700">{t('workServicesLabel') || 'Work Services (Select All That Apply)'}</label>
               <div className="flex flex-wrap gap-2.5">
                 {SKILL_CATEGORIES.map(skill => {
                   const isSelected = selectedSkills.includes(skill.id);
@@ -981,7 +981,7 @@ export default function WorkerProfilePage() {
                       }`}
                     >
                       <span className="text-base shrink-0">{skill.icon}</span>
-                      <span className="text-xs">{skill.defaultLabel}</span>
+                      <span className="text-xs">{t(skill.key) || skill.defaultLabel}</span>
                       {isSelected && <CheckCircle2 size={14} className="text-[#1A73E8] ml-1 shrink-0" />}
                     </button>
                   );
@@ -992,7 +992,7 @@ export default function WorkerProfilePage() {
             {/* Languages Multi-Select */}
             <div className="space-y-2 pt-3 border-t border-slate-100">
               <label className="block text-xs font-black text-slate-700 flex items-center gap-1">
-                <Languages size={14} className="text-[#1A73E8]" /> Spoken Languages
+                <Languages size={14} className="text-[#1A73E8]" /> {t('spokenLanguagesLabel') || 'Spoken Languages'}
               </label>
               <div className="flex flex-wrap gap-2">
                 {LANGUAGE_OPTIONS.map(lang => {
@@ -1024,7 +1024,7 @@ export default function WorkerProfilePage() {
                 className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <Save size={14} />
-                <span>{saveLoading ? 'Saving...' : 'Save Skills & Languages'}</span>
+                <span>{saveLoading ? (t('savingProgress') || 'Saving...') : (t('saveSkillsLanguagesBtn') || 'Save Skills & Languages')}</span>
               </button>
             </div>
           </div>
@@ -1040,8 +1040,8 @@ export default function WorkerProfilePage() {
               <ShieldAlert size={18} />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900">Aadhaar Card &amp; Video Intro Verification</h3>
-              <p className="text-[10.5px] text-slate-400 font-semibold">Government ID proof &amp; 60-second video introduction</p>
+              <h3 className="text-sm font-black text-slate-900">{t('verificationDocsTitle') || 'Aadhaar Card & Video Intro Verification'}</h3>
+              <p className="text-[10.5px] text-slate-400 font-semibold">{t('verificationDocsSub') || 'Government ID proof & 60-second video introduction'}</p>
             </div>
           </div>
 
@@ -1050,7 +1050,7 @@ export default function WorkerProfilePage() {
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
               : 'bg-amber-50 text-amber-800 border-amber-200'
           }`}>
-            {isAadhaarDone ? '✓ Verified Identity' : '⏳ Action Required'}
+            {isAadhaarDone ? (t('verifiedIdentity') || '✓ Verified Identity') : (t('actionRequired') || '⏳ Action Required')}
           </span>
         </div>
 
@@ -1064,7 +1064,7 @@ export default function WorkerProfilePage() {
                 <FileText size={16} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-black text-slate-900">Aadhaar — Front</p>
+                <p className="text-xs font-black text-slate-900">{t('aadhaarFront') || 'Aadhaar — Front'}</p>
                 <p className="text-[10px] text-slate-400 font-semibold truncate">Name, photo &amp; DOB &bull; JPG &bull; PNG &bull; PDF &bull; Max 5MB</p>
               </div>
               {(aadhaarFrontUploaded || workerProfile.aadhaar_front_url) ? (
@@ -1075,13 +1075,13 @@ export default function WorkerProfilePage() {
                     className="py-1.5 px-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
                   >
                     <Eye size={12} className="text-emerald-700" />
-                    <span>{activeInlinePreview === 'front' ? 'Hide Preview' : 'View'}</span>
+                    <span>{activeInlinePreview === 'front' ? (t('hidePreview') || 'Hide Preview') : (t('view') || 'View')}</span>
                   </button>
                   <label className="cursor-pointer">
                     <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
                     <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
                       <Upload size={11} />
-                      <span>Change</span>
+                      <span>{t('change') || 'Change'}</span>
                     </div>
                   </label>
                   <button 
@@ -1102,7 +1102,7 @@ export default function WorkerProfilePage() {
                 <label className="cursor-pointer shrink-0">
                   <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarFrontChange} />
                   <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                    <Upload size={11} /><span>Upload Front</span>
+                    <Upload size={11} /><span>{t('upload') || 'Upload'}</span>
                   </div>
                 </label>
               )}
@@ -1141,7 +1141,7 @@ export default function WorkerProfilePage() {
                 <FileText size={16} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-black text-slate-900">Aadhaar — Back</p>
+                <p className="text-xs font-black text-slate-900">{t('aadhaarBack') || 'Aadhaar — Back'}</p>
                 <p className="text-[10px] text-slate-400 font-semibold truncate">Aadhaar number &amp; address &bull; JPG &bull; PNG &bull; PDF &bull; Max 5MB</p>
               </div>
               {(aadhaarBackUploaded || workerProfile.aadhaar_back_url) ? (
@@ -1152,13 +1152,13 @@ export default function WorkerProfilePage() {
                     className="py-1.5 px-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
                   >
                     <Eye size={12} className="text-emerald-700" />
-                    <span>{activeInlinePreview === 'back' ? 'Hide Preview' : 'View'}</span>
+                    <span>{activeInlinePreview === 'back' ? (t('hidePreview') || 'Hide Preview') : (t('view') || 'View')}</span>
                   </button>
                   <label className="cursor-pointer">
                     <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
                     <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
                       <Upload size={11} />
-                      <span>Change</span>
+                      <span>{t('change') || 'Change'}</span>
                     </div>
                   </label>
                   <button 
@@ -1179,7 +1179,7 @@ export default function WorkerProfilePage() {
                 <label className="cursor-pointer shrink-0">
                   <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handleAadhaarBackChange} />
                   <div className="py-2 px-3.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-[10.5px] font-black flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap">
-                    <Upload size={11} /><span>Upload Back</span>
+                    <Upload size={11} /><span>{t('upload') || 'Upload'}</span>
                   </div>
                 </label>
               )}
@@ -1220,7 +1220,7 @@ export default function WorkerProfilePage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-xs font-black text-slate-900">Police Verification Certificate</p>
+                    <p className="text-xs font-black text-slate-900">{t('policeCertLabel') || 'Police Verification Certificate'}</p>
                     <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-800 rounded-full shrink-0">Optional</span>
                   </div>
                   <p className="text-[10px] text-slate-400 font-semibold truncate">Clearance Certificate / N.O.C &bull; JPG &bull; PNG &bull; PDF &bull; Max 10MB</p>
@@ -1235,13 +1235,13 @@ export default function WorkerProfilePage() {
                     className="py-1.5 px-3 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
                   >
                     <Eye size={12} className="text-amber-800" />
-                    <span>{activeInlinePreview === 'police' ? 'Hide Preview' : 'View'}</span>
+                    <span>{activeInlinePreview === 'police' ? (t('hidePreview') || 'Hide Preview') : (t('view') || 'View')}</span>
                   </button>
                   <label className="cursor-pointer">
                     <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={handlePoliceDocChange} />
                     <div className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer">
                       <Upload size={11} />
-                      <span>Change</span>
+                      <span>{t('change') || 'Change'}</span>
                     </div>
                   </label>
                   <button 

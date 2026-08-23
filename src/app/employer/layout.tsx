@@ -132,8 +132,8 @@ export default function EmployerDashboardLayout({ children }: { children: React.
 
         if (profileData?.role && profileData.role !== 'employer') {
           if (profileData.role === 'worker') router.push('/worker');
-          else if (profileData.role === 'super-admin') router.push('/super-admin/dashboard');
-          else if (profileData.role === 'admin') router.push('/admin/dashboard');
+          else if (profileData.role === 'super-admin') router.push('/super-admin');
+          else if (profileData.role === 'admin') router.push('/admin');
           return;
         }
 

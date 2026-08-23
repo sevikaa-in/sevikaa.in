@@ -125,7 +125,7 @@ export function PublicNavbar() {
     }
     return {
       label: 'Employer Dashboard',
-      href: '/employer/dashboard',
+      href: '/employer',
       colorClass: 'bg-[#1A73E8] hover:bg-blue-600 text-white shadow-blue-500/20',
       icon: <LayoutDashboard size={15} />
     };

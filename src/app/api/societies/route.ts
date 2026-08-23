@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Verify token and resolve identity
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = createClient(supabaseUrl || 'https://unconfigured.local', supabaseAnonKey || 'unconfigured', {
     global: { headers: { Authorization: `Bearer ${token}` } }
   });
   const { data: { user }, error: userErr } = await supabase.auth.getUser(token);

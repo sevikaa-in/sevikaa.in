@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, ShieldCheck, Lock, AlertCircle, CheckCircle2, RefreshCw, ArrowRight, X } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface ChangeMobileInlineSectionProps {
   currentPhone: string;
@@ -11,6 +12,7 @@ interface ChangeMobileInlineSectionProps {
 }
 
 export function ChangeMobileInlineSection({ currentPhone, onSuccess, label }: ChangeMobileInlineSectionProps) {
+  const { t } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   // Sequential Auto-Trigger Flow:
   // 'input_new_phone': User enters New Mobile number up front
@@ -193,7 +195,7 @@ export function ChangeMobileInlineSection({ currentPhone, onSuccess, label }: Ch
     return (
       <div className="space-y-1">
         <label className="text-slate-500 text-[10px] uppercase block font-bold">
-          {label || "Primary 10-Digit Mobile"}
+          {label || t('primaryMobileLabel') || "Primary 10-Digit Mobile"}
         </label>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -203,7 +205,7 @@ export function ChangeMobileInlineSection({ currentPhone, onSuccess, label }: Ch
               readOnly
               disabled
               value={currentPhone} 
-              placeholder="No phone number linked"
+              placeholder={t('noPhoneLinked') || "No phone number linked"}
               className="w-full p-2.5 pl-12 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold font-mono cursor-not-allowed select-none"
             />
           </div>
@@ -213,7 +215,7 @@ export function ChangeMobileInlineSection({ currentPhone, onSuccess, label }: Ch
             className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all active:scale-95 shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5"
           >
             <Lock size={12} />
-            <span>Update</span>
+            <span>{t('updateBtn') || "Update"}</span>
           </button>
         </div>
       </div>

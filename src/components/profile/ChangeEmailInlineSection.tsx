@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, ShieldCheck, Lock, AlertCircle, CheckCircle2, RefreshCw, ArrowRight, X } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface ChangeEmailInlineSectionProps {
   currentEmail: string;
@@ -11,6 +12,7 @@ interface ChangeEmailInlineSectionProps {
 }
 
 export function ChangeEmailInlineSection({ currentEmail, onSuccess, label }: ChangeEmailInlineSectionProps) {
+  const { t } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   // Sequential Auto-Trigger Flow for Email:
   // 'input_new_email': User enters New Email address up front
@@ -200,7 +202,7 @@ export function ChangeEmailInlineSection({ currentEmail, onSuccess, label }: Cha
     return (
       <div className="space-y-1">
         <label className="text-slate-500 text-[10px] uppercase block font-bold">
-          {label || "Primary Email Address"}
+          {label || t('primaryEmailLabel') || "Primary Email Address"}
         </label>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -210,7 +212,7 @@ export function ChangeEmailInlineSection({ currentEmail, onSuccess, label }: Cha
               readOnly
               disabled
               value={currentEmail} 
-              placeholder="No email linked"
+              placeholder={t('noEmailLinked') || "No email linked"}
               className="w-full p-2.5 pl-10 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold cursor-not-allowed select-none text-xs"
             />
           </div>
@@ -220,7 +222,7 @@ export function ChangeEmailInlineSection({ currentEmail, onSuccess, label }: Cha
             className="py-2.5 px-5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all active:scale-95 shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5"
           >
             <Lock size={12} />
-            <span>Update</span>
+            <span>{t('updateBtn') || "Update"}</span>
           </button>
         </div>
       </div>

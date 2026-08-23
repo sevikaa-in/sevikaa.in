@@ -93,11 +93,11 @@ function CheckoutFormContent() {
   const [upiId, setUpiId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const displayCompanyName = employerProfile.company_name || queryName || 'Verma Household';
-  const displayPhone = employerProfile.phone || queryPhone || '+91 98765 43210';
-  const displayEmail = employerProfile.email || queryEmail || 'employer@sevikaa.in';
-  const displaySociety = employerProfile.society_name || 'DLF Westend Heights';
-  const displayAddress = employerProfile.address || employerProfile.tower || 'Tower B - Flat 402';
+  const displayCompanyName = employerProfile.company_name || employerProfile.full_name || queryName || 'Employer Account';
+  const displayPhone = employerProfile.phone || queryPhone || '—';
+  const displayEmail = employerProfile.email || queryEmail || '—';
+  const displaySociety = employerProfile.society_name || '—';
+  const displayAddress = employerProfile.address || employerProfile.tower || '—';
 
   const handleProcessPayment = async () => {
     setIsProcessing(true);

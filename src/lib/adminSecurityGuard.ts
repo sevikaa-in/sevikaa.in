@@ -104,7 +104,7 @@ export async function verifyAdminSecurityContext(
     const roleCookie = request.cookies.get('sevikaa_user_role')?.value;
     const isDevToken = token === 'dev_admin_token' || token === 'superadmin_dev_token' || token === 'dev_token';
 
-    if (roleCookie === 'super-admin' || roleCookie === 'admin' || isDevToken || !supabaseUrl || supabaseUrl.includes('placeholder')) {
+    if (roleCookie === 'super-admin' || roleCookie === 'admin' || isDevToken) {
       const isSuperAdmin = roleCookie === 'super-admin' || token === 'superadmin_dev_token';
       if (options.requiredRole === 'super-admin' && !isSuperAdmin) {
         return {

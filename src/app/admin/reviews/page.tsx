@@ -105,7 +105,7 @@ export default function AdminReviewsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
         <div>
           <div className="flex items-center gap-2">
-            <Link href="/admin/dashboard" className="p-1 text-slate-400 hover:text-slate-700 transition-colors">
+            <Link href="/admin" className="p-1 text-slate-400 hover:text-slate-700 transition-colors">
               <ArrowLeft size={16} />
             </Link>
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">

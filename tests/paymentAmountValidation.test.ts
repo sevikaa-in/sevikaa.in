@@ -211,13 +211,15 @@ async function runPaymentAmountValidationTests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1770000000,
       payload: {
         payment: {
           entity: {
             id: 'pay_test5_nullexp',
             order_id: 'order_test5_nullexp',
             amount: 69900,
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1770000000
           }
         }
       }
@@ -243,6 +245,10 @@ async function runPaymentAmountValidationTests() {
       query: async (sql: string) => {
         if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_test6' }] };
         if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'user_test6', expected_amount: 699 }] };
+        if (sql.includes('employer_profiles')) {
+          subscriptionUpdated = true;
+          return { rows: [{ user_id: 'user_test6' }] };
+        }
         return { rows: [] };
       },
       release: () => {}
@@ -250,6 +256,7 @@ async function runPaymentAmountValidationTests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1770000000,
       payload: {
         payment: {
           entity: {
@@ -257,7 +264,8 @@ async function runPaymentAmountValidationTests() {
             order_id: 'order_test6_valid',
             amount: 69900, // 699 INR = 69900 paise
             currency: 'INR',
-            email: 'employer_test6@sevikaa.in'
+            email: 'employer_test6@sevikaa.in',
+            created_at: 1770000000
           }
         }
       }
@@ -283,6 +291,7 @@ async function runPaymentAmountValidationTests() {
       query: async (sql: string) => {
         if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_test7' }] };
         if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'user_test7', expected_amount: 699 }] };
+        if (sql.includes('employer_profiles')) return { rows: [{ user_id: 'user_test7' }] };
         return { rows: [] };
       },
       release: () => {}
@@ -290,13 +299,15 @@ async function runPaymentAmountValidationTests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1770000000,
       payload: {
         payment: {
           entity: {
             id: 'pay_test7_mismatch',
             order_id: 'order_test7_mismatch',
             amount: 19900, // 199 paid vs 699 expected
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1770000000
           }
         }
       }
@@ -320,12 +331,14 @@ async function runPaymentAmountValidationTests() {
     resetFlags();
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1770000000,
       payload: {
         payment: {
           entity: {
             id: 'pay_test8_nocurr',
             order_id: 'order_test8_nocurr',
-            amount: 69900
+            amount: 69900,
+            created_at: 1770000000
             // currency missing
           }
         }
@@ -350,13 +363,15 @@ async function runPaymentAmountValidationTests() {
     resetFlags();
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1770000000,
       payload: {
         payment: {
           entity: {
             id: 'pay_test9_usd',
             order_id: 'order_test9_usd',
             amount: 69900,
-            currency: 'USD'
+            currency: 'USD',
+            created_at: 1770000000
           }
         }
       }
@@ -389,6 +404,7 @@ async function runPaymentAmountValidationTests() {
       query: async (sql: string) => {
         if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_test10' }] };
         if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'user_test10', expected_amount: 699 }] };
+        if (sql.includes('employer_profiles')) return { rows: [{ user_id: 'user_test10' }] };
         return { rows: [] };
       },
       release: () => {}
@@ -396,13 +412,15 @@ async function runPaymentAmountValidationTests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1770000000,
       payload: {
         payment: {
           entity: {
             id: 'pay_test10_nomethod',
             order_id: 'order_test10_nomethod',
             amount: 69900,
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1770000000
             // method missing
           }
         }
@@ -436,6 +454,7 @@ async function runPaymentAmountValidationTests() {
       query: async (sql: string) => {
         if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_test11' }] };
         if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'user_test11', expected_amount: 699 }] };
+        if (sql.includes('employer_profiles')) return { rows: [{ user_id: 'user_test11' }] };
         return { rows: [] };
       },
       release: () => {}
@@ -443,13 +462,15 @@ async function runPaymentAmountValidationTests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1770000000,
       payload: {
         payment: {
           entity: {
             id: 'pay_test11_noemail',
             order_id: 'order_test11_noemail',
             amount: 69900,
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1770000000
             // email missing
           }
         }
@@ -483,6 +504,7 @@ async function runPaymentAmountValidationTests() {
       query: async (sql: string) => {
         if (sql.includes('INSERT INTO public.payment_events')) return { rows: [{ event_id: 'ev_test12' }] };
         if (sql.includes('checkout_sessions')) return { rows: [{ user_id: 'user_test12', expected_amount: 699 }] };
+        if (sql.includes('employer_profiles')) return { rows: [{ user_id: 'user_test12' }] };
         return { rows: [] };
       },
       release: () => {}
@@ -490,13 +512,15 @@ async function runPaymentAmountValidationTests() {
 
     const res = await PaymentService.processRazorpayEvent({
       event: 'payment.captured',
+      created_at: 1770000000,
       payload: {
         payment: {
           entity: {
             id: 'pay_test12_nophone',
             order_id: 'order_test12_nophone',
             amount: 69900,
-            currency: 'INR'
+            currency: 'INR',
+            created_at: 1770000000
             // contact missing
           }
         }
