@@ -108,36 +108,49 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
     }
   };
 
-  // Web Camera Live Stream state & ref
+  // Web Camera Live Stream state & refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const nativeCameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string>('');
+
+  const handleFileSelect = (file: File) => {
+    stopCameraStream();
+    setCameraError('');
+    setSelfieFile(file);
+    setSelfiePreview(URL.createObjectURL(file));
+  };
 
   const startCamera = async () => {
     setCameraError('');
     if (typeof window === 'undefined' || !navigator?.mediaDevices?.getUserMedia) {
-      setCameraError('Live webcam view unavailable. Use file upload below.');
+      setCameraError('Webcam view unavailable. Opening device camera...');
       nativeCameraInputRef.current?.click();
       return;
     }
 
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'user' } },
+        video: { facingMode: { ideal: 'user' }, width: { ideal: 720 }, height: { ideal: 720 } },
         audio: false
       });
 
       setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.play().catch(e => console.warn("Video play notice:", e));
-      }
     } catch (err: any) {
       console.warn("Camera permission notice:", err);
-      setCameraError('Camera permission blocked or unavailable. Select photo from device.');
+      setCameraError('Browser camera blocked. Tap below to use device camera or upload photo.');
+      nativeCameraInputRef.current?.click();
     }
   };
+
+  // Sync mediaStream to video element when video component mounts
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(e => console.warn("Video play notice:", e));
+    }
+  }, [stream]);
 
   const captureSelfie = () => {
     if (videoRef.current && stream) {
@@ -154,11 +167,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
         canvas.toBlob((blob) => {
           if (blob) {
             const file = new File([blob], "selfie.jpg", { type: "image/jpeg" });
-            setSelfieFile(file);
-            setSelfiePreview(URL.createObjectURL(file));
-            
-            stream.getTracks().forEach(track => track.stop());
-            setStream(null);
+            handleFileSelect(file);
           }
         }, 'image/jpeg');
       }
@@ -174,6 +183,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
 
   const handleRetake = () => {
     stopCameraStream();
+    setCameraError('');
     setSelfieFile(null);
     setSelfiePreview(null);
   };
@@ -249,6 +259,15 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
       };
       const formattedShiftString = selectedShifts.map((s: string) => SHIFT_LABEL_MAP[s] || s).join(', ');
 
+      let photoDataUrl: string | undefined = undefined;
+      if (selfieFile) {
+        photoDataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(selfieFile);
+        }).catch(() => undefined);
+      }
+
       // PART 1: Web Dedicated Onboarding API submit via fetch with credentials: 'same-origin'
       const res = await fetch('/api/worker/onboarding', {
         method: 'POST',
@@ -266,7 +285,9 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
           skills,
           languages_spoken: selectedLanguages,
           primary_gated_society: preferredSociety,
-          preferred_shift: formattedShiftString
+          preferred_shift: formattedShiftString,
+          profile_picture_url: photoDataUrl,
+          avatar_url: photoDataUrl
         })
       });
 
@@ -357,18 +378,53 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
             )}
 
             {cameraError && (
-              <p className="text-xs text-amber-600 font-bold text-center px-4">{cameraError}</p>
+              <p className="text-xs text-amber-600 font-bold text-center px-4 leading-relaxed">{cameraError}</p>
             )}
+
+            {/* Hidden native inputs for maximum device compatibility */}
+            <input
+              ref={nativeCameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="user"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileSelect(file);
+                e.target.value = '';
+              }}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileSelect(file);
+                e.target.value = '';
+              }}
+            />
 
             <div className="flex flex-col sm:flex-row gap-2 w-full max-w-xs">
               {stream ? (
-                <button
-                  type="button"
-                  onClick={captureSelfie}
-                  className="w-full py-3 px-4 bg-[#1A73E8] text-white rounded-2xl font-bold text-xs hover:bg-[#155cb4] active:scale-95 transition-all shadow-md cursor-pointer"
-                >
-                  Capture Photo 📸
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={captureSelfie}
+                    className="flex-1 py-3 px-4 bg-[#1A73E8] text-white rounded-2xl font-bold text-xs hover:bg-[#155cb4] active:scale-95 transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Camera size={16} />
+                    Capture 📸
+                  </button>
+                  <button
+                    type="button"
+                    onClick={stopCameraStream}
+                    className="py-3 px-4 bg-gray-200 text-gray-700 rounded-2xl font-bold text-xs hover:bg-gray-300 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Cancel ❌
+                  </button>
+                </>
               ) : selfiePreview ? (
                 <button
                   type="button"
@@ -382,26 +438,19 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
                   <button
                     type="button"
                     onClick={startCamera}
-                    className="flex-1 py-3 px-4 bg-[#1A73E8] text-white rounded-2xl font-bold text-xs hover:bg-[#155cb4] active:scale-95 transition-all cursor-pointer"
+                    className="flex-1 py-3 px-4 bg-[#1A73E8] text-white rounded-2xl font-bold text-xs hover:bg-[#155cb4] active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    Open Camera 📷
+                    <Camera size={16} />
+                    Open Camera
                   </button>
-                  <label htmlFor="selfie-file" className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-2xl font-bold text-xs text-center cursor-pointer hover:bg-gray-200 active:scale-95 transition-all">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-2xl font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-gray-200"
+                  >
+                    <Upload size={16} />
                     Upload Photo
-                    <input
-                      id="selfie-file"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setSelfieFile(file);
-                          setSelfiePreview(URL.createObjectURL(file));
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </label>
+                  </button>
                 </>
               )}
             </div>
