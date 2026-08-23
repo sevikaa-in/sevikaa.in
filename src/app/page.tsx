@@ -222,78 +222,75 @@ export default function Home() {
     window.history.pushState({}, '', '/');
   };
 
-  const handleLoginSuccess = async (sessionData: { user: { id: string; email?: string; phone?: string; role?: string }; role?: string; isExistingUser?: boolean; hasCompletedProfile?: boolean; accessToken?: string }) => {
+  const handleLoginSuccess = async (sessionData: { user: { id: string; email?: string; phone?: string; role?: string }; role?: string; isExistingUser?: boolean; hasCompletedProfile?: boolean; requiresOnboarding?: boolean; accessToken?: string }) => {
     const sessionUser = sessionData.user;
-    const userRole = sessionUser.role || sessionData.role;
-    const token = sessionData.accessToken || '';
+    const userRole = sessionUser.role || sessionData.role || targetRole;
     setUser(sessionUser);
-    setLoading(true);
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('sevikaa_user', JSON.stringify(sessionUser));
       localStorage.setItem('sevikaa_user_id', sessionUser.id);
-      // Correction #1: Access token is kept in JS memory / state — NO localStorage storage
+      document.cookie = `sevikaa_user_id=${sessionUser.id}; path=/; max-age=2592000; SameSite=Lax`;
     }
 
+    // 1. New user or missing sub-profile -> route directly to onboarding funnel
+    if (sessionData.requiresOnboarding || sessionData.hasCompletedProfile === false) {
+      setLoading(false);
+      if (userRole === 'employer') {
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=2592000; SameSite=Lax`;
+        setTargetRole('employer');
+        setView('employer-funnel');
+      } else if (userRole === 'worker') {
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=2592000; SameSite=Lax`;
+        setTargetRole('worker');
+        setView('worker-funnel');
+      } else {
+        setView('new-user-role-select');
+      }
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      // 1. TOP PRIORITY: Direct role-based redirection to dashboards!
+      // 2. Direct role-based redirection for existing users with completed profile
       if (userRole === 'super-admin') {
-        if (typeof window !== 'undefined') {
-          document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400`;
-          window.location.href = '/super-admin/dashboard';
-        }
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400; SameSite=Lax`;
+        window.location.href = '/super-admin/dashboard';
         return;
       }
       if (userRole === 'admin') {
-        if (typeof window !== 'undefined') {
-          document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400`;
-          window.location.href = '/admin/dashboard';
-        }
-        return;
-      }
-      if (userRole === 'employer') {
-        if (typeof window !== 'undefined') {
-          document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
-          window.location.href = '/employer';
-        }
-        return;
-      }
-      if (userRole === 'worker') {
-        if (typeof window !== 'undefined') {
-          document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
-          window.location.href = '/worker';
-        }
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400; SameSite=Lax`;
+        window.location.href = '/admin/dashboard';
         return;
       }
 
-      // 2. Server-side profile check via /api/auth/me
+      // 3. Server-side profile & sub-profile checks via /api/auth/me
       try {
         const { webApiClient } = await import('@/lib/webApiClient');
         const meData = await webApiClient.get('/api/auth/me');
         if (meData && meData.success) {
-          const dbRole = meData.profile?.role;
+          const dbRole = meData.profile?.role || meData.user?.role;
 
-          // Check role from profiles table first
           if (dbRole === 'super-admin') {
-            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400`;
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=super-admin; path=/; max-age=86400; SameSite=Lax`;
             router.push('/super-admin/dashboard');
             return;
           }
           if (dbRole === 'admin') {
-            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400`;
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=admin; path=/; max-age=86400; SameSite=Lax`;
             router.push('/admin/dashboard');
             return;
           }
 
-          // Even if profile row is missing, check for sub-profiles directly
           if (dbRole === 'employer' || meData.employerProfile) {
-            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
-            router.push('/employer');
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400; SameSite=Lax`;
+            window.location.href = '/employer';
             return;
           }
           if (dbRole === 'worker' || meData.workerProfile) {
-            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
-            router.push('/worker');
+            if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400; SameSite=Lax`;
+            window.location.href = '/worker';
             return;
           }
         }
@@ -301,22 +298,34 @@ export default function Home() {
         console.warn("Auth me fetch notice:", meErr);
       }
 
-      // 3. Existing Employers & Workers fallback checks
+      // 4. Fallback profile checks
       const employerProfile = await findEmployerProfile(sessionUser.id, sessionUser.phone, sessionUser.email);
       if (employerProfile) {
-        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400`;
-        router.push('/employer');
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400; SameSite=Lax`;
+        window.location.href = '/employer';
         return;
       }
 
       const workerProfile = await findWorkerProfile(sessionUser.id, sessionUser.phone, sessionUser.email);
       if (workerProfile) {
-        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400`;
-        router.push('/worker');
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400; SameSite=Lax`;
+        window.location.href = '/worker';
         return;
       }
 
-      // 4. Brand new user with no completed sub-profile: route to role & onboarding method selection
+      // 5. If role is explicitly worker or employer, redirect to dashboard
+      if (userRole === 'employer') {
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=employer; path=/; max-age=86400; SameSite=Lax`;
+        window.location.href = '/employer';
+        return;
+      }
+      if (userRole === 'worker') {
+        if (typeof window !== 'undefined') document.cookie = `sevikaa_user_role=worker; path=/; max-age=86400; SameSite=Lax`;
+        window.location.href = '/worker';
+        return;
+      }
+
+      // 6. Otherwise route to new user role selection
       setView('new-user-role-select');
     } catch (err) {
       console.error("Profile check error:", err);

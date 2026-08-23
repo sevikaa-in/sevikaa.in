@@ -83,6 +83,12 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Also check onboarding token cookie for new users completing onboarding
+  const onboardingToken = request.cookies.get('sevikaa_onboarding_token')?.value;
+  if (!token && onboardingToken) {
+    token = onboardingToken;
+  }
+
   // Role cookie — only used for unprivileged UI hints, NEVER for security authorization
   const roleCookie = request.cookies.get('sevikaa_user_role')?.value;
   void roleCookie; // explicitly unused for security decisions
@@ -93,13 +99,11 @@ export async function proxy(request: NextRequest) {
 
   if (token) {
     // Primary: decode our own HS256 JWT (issued by login-otp and refresh routes).
-    // The sevikaa_access_token is HttpOnly+Secure — clients cannot set or modify it.
-    // Our JWT stores the app role in user_metadata.role (Supabase-compatible format).
-    // The top-level `role` field is always 'authenticated' (PostgreSQL role).
+    // The sevikaa_access_token / sevikaa_onboarding_token is HttpOnly+Secure.
     const payload = parseJwtPayload(token);
     if (payload?.sub) {
       const meta = payload.user_metadata as Record<string, unknown> | undefined;
-      const appRole = (meta?.role as string) || null;
+      const appRole = (meta?.role as string) || (payload.role as string) || null;
       if (appRole && appRole !== 'authenticated') {
         verifiedRole = appRole;
       }
@@ -133,12 +137,19 @@ export async function proxy(request: NextRequest) {
   const effectiveRole = verifiedRole;
 
   // 4. Strict Unauthenticated & Account Status Guard for Protected Routes
+  const isOnboardingRoute = pathname === '/worker/onboarding' || pathname === '/employer/onboarding';
+  const hasUserCookie = Boolean(request.cookies.get('sevikaa_user_id')?.value || onboardingToken);
+
   const isProtectedRoute = pathname.startsWith('/worker') ||
                            pathname.startsWith('/employer') ||
                            pathname.startsWith('/admin') ||
                            pathname.startsWith('/super-admin');
 
   if (isProtectedRoute && !effectiveRole) {
+    // Allow onboarding sub-routes if user has an onboarding token or user ID cookie
+    if (isOnboardingRoute && hasUserCookie) {
+      return response;
+    }
     return NextResponse.redirect(new URL('/', request.url));
   }
 

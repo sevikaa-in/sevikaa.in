@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 interface OtpLoginProps {
   onBack: () => void;
-  onSuccess: (sessionData: { user: { id: string; phone?: string; email?: string }; role?: string; isExistingUser?: boolean; accessToken?: string; requiresOnboarding?: boolean; onboardingToken?: string }) => void;
+  onSuccess: (sessionData: { user: { id: string; phone?: string; email?: string; role?: string }; role?: string; isExistingUser?: boolean; hasCompletedProfile?: boolean; accessToken?: string; requiresOnboarding?: boolean; onboardingToken?: string }) => void;
   role?: 'worker' | 'employer' | null;
 }
 
@@ -128,6 +128,7 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
           user: data.user,
           role: data.user?.role || role || undefined,
           isExistingUser: data.isExistingUser,
+          hasCompletedProfile: false,
           requiresOnboarding: true,
           onboardingToken: data.onboarding_token,
           accessToken: ''
@@ -145,6 +146,7 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
         user: data.user,
         role: data.user.role || role || undefined,
         isExistingUser: data.isExistingUser,
+        hasCompletedProfile: true,
         accessToken: token
       });
     } catch (err: any) {
