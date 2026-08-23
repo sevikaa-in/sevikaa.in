@@ -84,10 +84,30 @@ export async function POST(req: NextRequest) {
     }
 
     if (dbProfile.status !== 'onboarding_pending') {
+      const wpCheck = await queryDb(`SELECT id FROM public.worker_profiles WHERE user_id = $1 OR id = $1 LIMIT 1`, [activeUserId]).catch(() => null);
+      if (wpCheck?.rows?.[0] || ['pending_review', 'approved', 'live', 'active', 'completed'].includes(dbProfile.status)) {
+        const accessToken = signSupabaseJwt(activeUserId, userEmail || dbProfile.email, userPhone || dbProfile.phone, 'worker');
+        const res = NextResponse.json({
+          success: true,
+          message: 'Worker onboarding already completed!',
+          hasCompletedProfile: true,
+          user: { id: activeUserId, email: userEmail || dbProfile.email, phone: userPhone || dbProfile.phone, role: 'worker', full_name: dbProfile.full_name },
+          token: accessToken,
+          access_token: accessToken
+        });
+
+        res.cookies.set('sevikaa_onboarding_token', '', { httpOnly: true, path: '/', expires: new Date(0) });
+        res.cookies.set('sevikaa_access_token', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 3600, path: '/' });
+        res.cookies.set('sevikaa_user_role', 'worker', { path: '/', maxAge: 2592000, sameSite: 'lax' });
+        res.cookies.set('sevikaa_user_id', activeUserId, { path: '/', maxAge: 2592000, sameSite: 'lax' });
+
+        return res;
+      }
+
       return NextResponse.json({
         success: false,
         error: 'Forbidden',
-        message: 'Account is not in onboarding_pending status. Onboarding credentials cannot be reused after completion.'
+        message: 'Account is not in onboarding_pending status.'
       }, { status: 403 });
     }
 
@@ -324,6 +344,16 @@ export async function POST(req: NextRequest) {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60,
+        path: '/'
+      });
+    }
+
+    if (accessToken) {
+      res.cookies.set('sevikaa_access_token', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 3600,
         path: '/'
       });
     }

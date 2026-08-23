@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
+import { signSupabaseJwt } from '@/lib/jwtHelper';
 
 import { getServerEnv } from '@/lib/env';
 
@@ -127,9 +128,14 @@ export async function POST(req: NextRequest) {
       WHERE id = $4 OR id::text = $4::text;
     `, [displayName, email.trim(), formattedPhone, activeUserId]);
 
-    return NextResponse.json({
+    const accessToken = signSupabaseJwt(activeUserId, email.trim(), formattedPhone, 'employer');
+    const res = NextResponse.json({
       success: true,
       message: 'Employer onboarding completed successfully!',
+      hasCompletedProfile: true,
+      user: { id: activeUserId, email: email.trim(), phone: formattedPhone, role: 'employer', full_name: displayName },
+      token: accessToken,
+      access_token: accessToken,
       profile: {
         user_id: activeUserId,
         id: activeUserId,
@@ -145,6 +151,13 @@ export async function POST(req: NextRequest) {
         status: 'live'
       }
     });
+
+    res.cookies.set('sevikaa_onboarding_token', '', { httpOnly: true, path: '/', expires: new Date(0) });
+    res.cookies.set('sevikaa_access_token', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 3600, path: '/' });
+    res.cookies.set('sevikaa_user_role', 'employer', { path: '/', maxAge: 2592000, sameSite: 'lax' });
+    res.cookies.set('sevikaa_user_id', activeUserId, { path: '/', maxAge: 2592000, sameSite: 'lax' });
+
+    return res;
 
   } catch (error: any) {
     console.error('Error in employer onboarding API route:', error);

@@ -348,11 +348,17 @@ export default function Home() {
   };
 
   const onWorkerOnboardingComplete = () => {
-    router.push('/worker');
+    if (typeof window !== 'undefined') {
+      document.cookie = `sevikaa_user_role=worker; path=/; max-age=2592000; SameSite=Lax`;
+      window.location.href = '/worker';
+    }
   };
 
   const onEmployerOnboardingComplete = () => {
-    router.push('/employer');
+    if (typeof window !== 'undefined') {
+      document.cookie = `sevikaa_user_role=employer; path=/; max-age=2592000; SameSite=Lax`;
+      window.location.href = '/employer';
+    }
   };
 
   const handleReset = async () => {

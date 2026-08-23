@@ -34,7 +34,7 @@ export async function proxy(request: NextRequest) {
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  response.headers.set('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(), payment=(self "https://checkout.razorpay.com" "https://api.razorpay.com")');
   response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
   response.headers.set('X-DNS-Prefetch-Control', 'off');
   response.headers.set('X-XSS-Protection', '1; mode=block');
@@ -158,11 +158,11 @@ export async function proxy(request: NextRequest) {
   }
 
   // 5. Strict Role-Based Access Control (RBAC) Route Isolation Matrix
-  if (pathname.startsWith('/worker') && effectiveRole && effectiveRole !== 'worker' && effectiveRole !== 'super-admin') {
+  if (pathname.startsWith('/worker') && effectiveRole && effectiveRole !== 'worker' && effectiveRole !== 'admin' && effectiveRole !== 'super-admin') {
     return NextResponse.redirect(new URL('/employer', request.url));
   }
 
-  if (pathname.startsWith('/employer') && effectiveRole && effectiveRole !== 'employer' && effectiveRole !== 'super-admin') {
+  if (pathname.startsWith('/employer') && effectiveRole && effectiveRole !== 'employer' && effectiveRole !== 'admin' && effectiveRole !== 'super-admin') {
     return NextResponse.redirect(new URL('/worker', request.url));
   }
 

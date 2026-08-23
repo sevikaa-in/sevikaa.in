@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
     const tab = searchParams.get('tab') || 'overview';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
-    const cacheKey = `admin_data_${tab}_p${page}_l${limit}`;
+    const dateRange = searchParams.get('dateRange') || 'Last 30 Days';
+    const cacheKey = `admin_data_${tab}_p${page}_l${limit}_dr_${encodeURIComponent(dateRange)}`;
 
     const bypassCache = searchParams.get('fresh') === 'true' || searchParams.get('nocache') === 'true';
 
@@ -44,14 +45,40 @@ export async function GET(req: NextRequest) {
       activeDisputes: 0
     };
 
+    // Helper for Date Filtering
+    const getDateConditionSql = (dr: string, col = 'created_at') => {
+      switch (dr) {
+        case 'Today':
+          return `${col} >= CURRENT_DATE`;
+        case 'Yesterday':
+          return `${col} >= (CURRENT_DATE - INTERVAL '1 day') AND ${col} < CURRENT_DATE`;
+        case 'Last 7 Days':
+          return `${col} >= (NOW() - INTERVAL '7 days')`;
+        case 'Last 30 Days':
+          return `${col} >= (NOW() - INTERVAL '30 days')`;
+        case 'This Month':
+          return `${col} >= DATE_TRUNC('month', CURRENT_DATE)`;
+        case 'Last Month':
+          return `${col} >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month') AND ${col} < DATE_TRUNC('month', CURRENT_DATE)`;
+        case 'Last 90 Days':
+          return `${col} >= (NOW() - INTERVAL '90 days')`;
+        case 'This Year':
+          return `${col} >= DATE_TRUNC('year', CURRENT_DATE)`;
+        default:
+          return '1=1';
+      }
+    };
+
+    const dateCond = getDateConditionSql(dateRange, 'created_at');
+
     // 2. Fetch Summary Counts (Joining public.profiles for status)
     try {
       const countsRes = await queryDb(`
         SELECT 
-          (SELECT COUNT(*) FROM public.profiles WHERE role = 'worker' AND (status = 'pending_review' OR status = 'admin_interview')) AS pending_workers,
-          (SELECT COUNT(*) FROM public.profiles WHERE role = 'employer' AND status = 'pending_review') AS pending_employers,
-          (SELECT COUNT(*) FROM public.jobs WHERE status = 'pending' OR status = 'pending_review') AS pending_jobs,
-          (SELECT COUNT(*) FROM public.profiles WHERE role = 'worker' AND status = 'admin_interview') AS interviews_today
+          (SELECT COUNT(*) FROM public.profiles WHERE role = 'worker' AND (status = 'pending_review' OR status = 'admin_interview') AND ${dateCond}) AS pending_workers,
+          (SELECT COUNT(*) FROM public.profiles WHERE role = 'employer' AND status = 'pending_review' AND ${dateCond}) AS pending_employers,
+          (SELECT COUNT(*) FROM public.jobs WHERE (status = 'pending' OR status = 'pending_review') AND ${dateCond}) AS pending_jobs,
+          (SELECT COUNT(*) FROM public.profiles WHERE role = 'worker' AND status = 'admin_interview' AND ${dateCond}) AS interviews_today
       `);
       if (countsRes?.rows?.[0]) {
         const row = countsRes.rows[0];
@@ -67,8 +94,6 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       console.warn("Admin counts query notice:", e);
     }
-
-
 
     const searchPattern = searchParams.get('q') ? `%${searchParams.get('q')}%` : null;
     const statusFilter = searchParams.get('status') || '';

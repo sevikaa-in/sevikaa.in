@@ -134,7 +134,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const [disputesList, setDisputesList] = useState<any[]>([]);
 
   // Fetch real statistics from Supabase tables
-  const fetchDashboardData = async (pageVal = 1, currentTab?: string) => {
+  const fetchDashboardData = async (pageVal = 1, currentTab?: string, dateRangeVal?: string) => {
     setError('');
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
@@ -168,158 +168,15 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         interviewsToday: 2,
         activeDisputes: 1
       });
-
-      const mockWorkers = [
-        { 
-          id: 'w1', 
-          name: 'Ramesh Kumar', 
-          full_name: 'Ramesh Kumar',
-          category: 'Cook', 
-          skills: ['Cook', 'Maid'],
-          languages_spoken: ['Hindi', 'English'],
-          status: 'pending_review', 
-          age: 34, 
-          gender: 'male',
-          badges: { mobile: 'Verified', aadhaar: 'Pending', police: 'Pending', interview: 'Pending', video: 'Pending', profile: 'Pending' },
-          preferred_society_name: 'DLF Westend Heights',
-          profile_picture_url: '',
-          aadhaar_front_url: '',
-          video_url: ''
-        },
-        { 
-          id: 'w2', 
-          name: 'Sunita Sharma', 
-          full_name: 'Sunita Sharma',
-          category: 'Nanny', 
-          skills: ['Nanny'],
-          languages_spoken: ['Kannada', 'Telugu'],
-          status: 'admin_interview', 
-          age: 28, 
-          gender: 'female',
-          badges: { mobile: 'Verified', aadhaar: 'Verified', police: 'Pending', interview: 'Pending', video: 'Pending', profile: 'Pending' },
-          preferred_society_name: 'Prestige Song of the South',
-          profile_picture_url: '',
-          aadhaar_front_url: '',
-          video_url: ''
-        }
-      ];
-
-      setWorkersList(mockWorkers);
-      setSelectedWorker(mockWorkers[0]);
-
-      setEmployersList([
-        { 
-          id: 'e1', 
-          name: 'Alok Goel', 
-          company_name: 'Goel Tech', 
-          billing_address: 'DLF Akshayanagar', 
-          subscription_status: 'premium',
-          email: 'alok@goeltech.com',
-          phone: '+91 9876543210',
-          status: 'live',
-          signup_date: '2026-07-01T10:00:00Z'
-        }
-      ]);
-
-      setPendingJobsList([
-        { 
-          id: 'job_102', 
-          title: 'Housemaid for Deep Cleaning & Ironing', 
-          category: 'maid', 
-          salary_offered: 12000, 
-          salary_range_min: 12000,
-          salary_range_max: 15000,
-          society_name: 'General Locality', 
-          employer: 'Household Employer', 
-          employer_email: '',
-          employer_phone: '',
-          description: 'Need reliable maid for daily sweeping, mopping, utensil cleaning, and clothes ironing.',
-          created_at: '2026-07-27T08:00:00Z'
-        }
-      ]);
-
-      setPendingReviewsList([
-        { 
-          id: 'r1', 
-          reviewer: 'Alok Goel', 
-          reviewer_email: 'alok@goeltech.com',
-          reviewer_phone: '+91 9876543210',
-          reviewer_company: 'Goel Tech',
-          target: 'Ramesh Kumar', 
-          target_email: 'ramesh@example.com',
-          target_phone: '+91 9123456789',
-          target_skills: ['Cook', 'Maid'],
-          rating: 5, 
-          comment: 'Ramesh is extremely punctual and clean. Highly recommended!',
-          created_at: '2026-07-26T12:00:00Z'
-        }
-      ]);
-
-      setInterviewsList([
-        { 
-          id: 'i1', 
-          workerName: 'Ramesh Kumar', 
-          category: 'Cook', 
-          time: '11:00 AM', 
-          status: 'Today', 
-          result: '', 
-          resultNotes: '',
-          worker: {
-            id: 'w1',
-            name: 'Ramesh Kumar',
-            full_name: 'Ramesh Kumar',
-            age: 29,
-            gender: 'Male',
-            skills: ['Cook', 'Maid'],
-            languages_spoken: ['Hindi', 'English'],
-            experience_years: 5,
-            expected_salary: 14000,
-            email: 'ramesh@gmail.com',
-            phone: '+91 9876543210',
-            emergency_contact: '+91 9999988888',
-            status: 'pending_review',
-            badges: { mobile: 'Verified', aadhaar: 'Verified', police: 'Pending', interview: 'Pending', video: 'Pending', profile: 'Pending' }
-          }
-        },
-        { 
-          id: 'i2', 
-          workerName: 'Sunita Sharma', 
-          category: 'Nanny', 
-          time: '02:30 PM', 
-          status: 'Today', 
-          result: '', 
-          resultNotes: '',
-          worker: {
-            id: 'w2',
-            name: 'Sunita Sharma',
-            full_name: 'Sunita Sharma',
-            age: 34,
-            gender: 'Female',
-            skills: ['Nanny', 'Maid'],
-            languages_spoken: ['Hindi', 'Punjabi'],
-            experience_years: 8,
-            expected_salary: 16000,
-            email: 'sunita@gmail.com',
-            phone: '+91 8888877777',
-            emergency_contact: '+91 7777766666',
-            status: 'pending_review',
-            badges: { mobile: 'Verified', aadhaar: 'Verified', police: 'Pending', interview: 'Pending', video: 'Verified', profile: 'Pending' }
-          }
-        }
-      ]);
-
-      setDisputesList([
-        { id: 'd1', reported_user: 'Ramesh Kumar', reporter: 'Alok Goel', reason: 'Worker did not show up for scheduled shift twice.', priority: 'High', evidence: 'WhatsApp screenshots' }
-      ]);
-
       setLoading(false);
       return;
     }
 
     try {
       const targetTab = currentTab || 'overview';
+      const activeRange = dateRangeVal || dateRange;
       const { webApiClient } = await import('@/lib/webApiClient');
-      const apiData = await webApiClient.get(`/api/admin/data?tab=${targetTab}&page=${pageVal}&limit=100`);
+      const apiData = await webApiClient.get(`/api/admin/data?tab=${targetTab}&page=${pageVal}&limit=100&dateRange=${encodeURIComponent(activeRange)}`);
 
       if (apiData && apiData.success) {
         const { workers, employers, societies, jobs, counts } = apiData;
@@ -541,9 +398,9 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   useEffect(() => {
     if (pathname) {
       const currentTab = pathname.split('/').pop() || 'overview';
-      fetchDashboardData(1, currentTab);
+      fetchDashboardData(1, currentTab, dateRange);
     }
-  }, [pathname]);
+  }, [pathname, dateRange]);
 
   useEffect(() => {
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
@@ -921,15 +778,16 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                 </div>
                 <nav className="space-y-1">
                   {[
-                    { id: 'overview', label: 'Operations Center', href: '/admin/dashboard', icon: <LayoutDashboard size={16} /> },
-                    { id: 'workers', label: 'Worker Verification', href: '/admin/dashboard/workers', icon: <Users size={16} /> },
-                    { id: 'employers', label: 'Employer Audits', href: '/admin/dashboard/employers', icon: <ShieldCheck size={16} /> },
-                    { id: 'jobs', label: 'Job Moderation', href: '/admin/dashboard/jobs', icon: <Briefcase size={16} /> },
-                    { id: 'reviews', label: 'Reviews Moderation', href: '/admin/dashboard/reviews', icon: <Star size={16} /> },
-                    { id: 'interviews', label: 'Interviews Panel', href: '/admin/dashboard/interviews', icon: <Calendar size={16} /> },
-                    { id: 'disputes', label: 'Disputes resolution', href: '/admin/dashboard/disputes', icon: <ShieldAlert size={16} /> }
+                    { id: 'overview', label: 'Operations Center', href: '/admin', icon: <LayoutDashboard size={16} /> },
+                    { id: 'tele-onboarding', label: 'Tele-Onboarding Hub', href: '/admin/tele-onboarding', icon: <PhoneCall size={16} /> },
+                    { id: 'workers', label: 'Worker Verification', href: '/admin/workers', icon: <Users size={16} /> },
+                    { id: 'employers', label: 'Employer Audits', href: '/admin/employers', icon: <ShieldCheck size={16} /> },
+                    { id: 'jobs', label: 'Job Moderation', href: '/admin/jobs', icon: <Briefcase size={16} /> },
+                    { id: 'reviews', label: 'Reviews Moderation', href: '/admin/reviews', icon: <Star size={16} /> },
+                    { id: 'interviews', label: 'Assisted Job Matcher', href: '/admin/interviews', icon: <Calendar size={16} /> },
+                    { id: 'disputes', label: 'Disputes Resolution', href: '/admin/disputes', icon: <ShieldAlert size={16} /> }
                   ].map((tab) => {
-                    const isActive = (tab.id === 'overview' && pathname === '/admin/dashboard') || (tab.id !== 'overview' && pathname === tab.href);
+                    const isActive = (tab.id === 'overview' && pathname === '/admin') || (tab.id !== 'overview' && pathname === tab.href);
                     return (
                       <Link
                         key={tab.id}

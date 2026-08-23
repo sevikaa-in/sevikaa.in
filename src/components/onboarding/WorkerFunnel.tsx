@@ -294,8 +294,13 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
       const data = await res.json();
 
       if (!res.ok || !data.success) {
+        if (data.hasCompletedProfile || data.message?.includes('already completed')) {
+          setLoading(false);
+          onComplete();
+          return;
+        }
         setLoading(false);
-        if (res.status === 401 || res.status === 403) {
+        if (res.status === 401) {
           setError(data.message || 'Onboarding session expired. Please verify OTP again.');
           setTimeout(() => {
             if (onCancel) onCancel();

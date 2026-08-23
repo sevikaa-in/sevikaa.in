@@ -220,7 +220,7 @@ export default function WorkerInterviewsPage() {
               </p>
             </div>
             <Link
-              href="/worker/dashboard/jobs"
+              href="/worker/jobs"
               className="py-2.5 px-5 bg-[#1A73E8] text-white rounded-xl text-xs font-black shadow-md cursor-pointer hover:bg-blue-600 transition-all inline-flex items-center gap-1.5"
             >
               <Briefcase size={14} /> {t('exploreJobsBtn') || "Explore Live Jobs"} ({availableJobs.length})

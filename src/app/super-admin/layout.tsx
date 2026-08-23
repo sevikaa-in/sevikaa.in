@@ -377,8 +377,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     { name: 'Backups', status: 'Healthy' as const, lastChecked: '4 hours ago', details: 'Daily DB dump captured' }
   ]);
 
-  // Fetch real statistics from Supabase tables with pagination and tab filter
-  const fetchDashboardData = async (pageVal = 1, currentTab?: string) => {
+  const fetchDashboardData = async (pageVal = 1, currentTab?: string, dateRangeVal?: string) => {
     setError('');
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -394,85 +393,6 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         pendingJobs: 9,
         pendingReviews: 5,
       });
-
-      setWorkersList([
-        { 
-          id: 'w1', 
-          full_name: 'Ramesh Kumar', 
-          skills: ['Cook', 'Driver'], 
-          status: 'pending_review',
-          age: 34,
-          gender: 'Male',
-          experience_years: 6,
-          expected_salary: 15000,
-          phone: '+91 98765 43210',
-          emergency_contact: '+91 98765 00000',
-          badges: { mobile: 'Verified', aadhaar: 'Verified', police: 'Pending', interview: 'Pending', video: 'Pending', profile: 'Pending' }
-        }
-      ]);
-
-      setEmployersList([
-        {
-          id: 'e1',
-          name: 'Alok Goel',
-          company_name: 'Goel Household',
-          billing_address: 'Flat 402, DLF Westend Heights, Bangalore',
-          society_name: 'DLF Westend Heights',
-          phone: '+91 91234 56789',
-          email: 'alok@goel.com',
-          subscription_status: 'premium',
-          status: 'active'
-        }
-      ]);
-
-      setPendingJobsList([
-        { 
-          id: 'j1', 
-          title: 'Full-time Cook & Housemaid', 
-          category: 'Cook', 
-          salary: 18000,
-          salary_offered: 18000,
-          society_name: 'DLF Westend Heights', 
-          status: 'pending',
-          employer: 'Household Employer',
-          employer_phone: '',
-          description: 'Need reliable maid for daily sweeping, mopping, utensil cleaning, and clothes ironing.', 
-          created_at: '2026-07-27' 
-        }
-      ]);
-
-      setPendingReviewsList([
-        { id: 'r1', reviewer_name: 'Alok Goel', reviewee_name: 'Seema Bai', rating: 5, comment: 'Seema is extremely punctual and clean. Highly recommended!', created_at: '2 hours ago' },
-        { id: 'r2', reviewer_name: 'Rajesh Mehta', reviewee_name: 'Ramesh Singh', rating: 4, comment: 'Good work, but sometimes arrives late.', created_at: '4 hours ago' }
-      ]);
-
-      setSocietiesList([
-        { id: 's1', name: 'DLF Westend Heights', city: 'Bangalore' },
-        { id: 's2', name: 'Prestige Song of the South', city: 'Bangalore' },
-        { id: 's3', name: 'SNN Raj Serenity', city: 'Bangalore' }
-      ]);
-
-      setAvailabilityMetrics({
-        earlyMorning: 45,
-        morning: 98,
-        afternoon: 23,
-        evening: 62,
-        night: 11,
-        fullDay: 35,
-        liveIn: 8
-      });
-
-      setSocietyAnalytics([
-        { name: 'DLF Westend Heights', workersCount: 42, activeJobs: 12 },
-        { name: 'Prestige Song of the South', workersCount: 31, activeJobs: 8 },
-        { name: 'SNN Raj Serenity', workersCount: 24, activeJobs: 6 }
-      ]);
-
-      setActivities([
-        { id: 'l1', actor: 'Super Admin', action: 'Update pricing settings', time: '10 mins ago' },
-        { id: 'l2', actor: 'Moderator 1', action: 'Approve worker Ramesh Kumar', time: '1 hour ago' },
-        { id: 'l3', actor: 'System Trigger', action: 'Auth User created: Sunita Sharma', time: '2 hours ago' }
-      ]);
 
       setLoading(false);
       return;
@@ -1309,20 +1229,21 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
                 </div>
                 <nav className="space-y-1">
                   {[
-                    { id: 'overview', label: 'Overview Dashboard', href: '/super-admin/dashboard', icon: <LayoutDashboard size={16} /> },
-                    { id: 'admins', label: 'Admin Management', href: '/super-admin/dashboard/admins', icon: <Settings size={16} /> },
-                    { id: 'workers', label: 'Worker Verification', href: '/super-admin/dashboard/workers', icon: <UserPlus size={16} /> },
-                    { id: 'employers', label: 'Employer Verification', href: '/super-admin/dashboard/employers', icon: <CheckCircle2 size={16} /> },
-                    { id: 'jobs', label: 'Job Moderation', href: '/super-admin/dashboard/jobs', icon: <FileText size={16} /> },
-                    { id: 'reviews', label: 'Review Moderation', href: '/super-admin/dashboard/reviews', icon: <Star size={16} /> },
-                    { id: 'societies', label: 'Societies List', href: '/super-admin/dashboard/societies', icon: <MapPin size={16} /> },
-                    { id: 'pricing', label: 'Pricing Config', href: '/super-admin/dashboard/pricing', icon: <IndianRupee size={16} /> },
-                    { id: 'transactions', label: 'Payments Ledger', href: '/super-admin/dashboard/transactions', icon: <CreditCard size={16} /> },
-                    { id: 'logs', label: 'Audit Security Logs', href: '/super-admin/dashboard/logs', icon: <Database size={16} /> },
-                    { id: 'sms', label: 'SMS Template Config', href: '/super-admin/dashboard/sms', icon: <MessageSquare size={16} /> },
-                    { id: 'system', label: 'System & API Health', href: '/super-admin/dashboard/system', icon: <Activity size={16} /> }
+                    { id: 'overview', label: 'Overview Dashboard', href: '/super-admin', icon: <LayoutDashboard size={16} /> },
+                    { id: 'tele-onboarding', label: 'Tele-Onboarding Hub', href: '/super-admin/tele-onboarding', icon: <PhoneCall size={16} /> },
+                    { id: 'admins', label: 'Admin Management', href: '/super-admin/admins', icon: <Settings size={16} /> },
+                    { id: 'workers', label: 'Worker Verification', href: '/super-admin/workers', icon: <UserPlus size={16} /> },
+                    { id: 'employers', label: 'Employer Verification', href: '/super-admin/employers', icon: <CheckCircle2 size={16} /> },
+                    { id: 'jobs', label: 'Job Moderation', href: '/super-admin/jobs', icon: <FileText size={16} /> },
+                    { id: 'reviews', label: 'Review Moderation', href: '/super-admin/reviews', icon: <Star size={16} /> },
+                    { id: 'societies', label: 'Societies List', href: '/super-admin/societies', icon: <MapPin size={16} /> },
+                    { id: 'pricing', label: 'Pricing Config', href: '/super-admin/pricing', icon: <IndianRupee size={16} /> },
+                    { id: 'transactions', label: 'Payments Ledger', href: '/super-admin/transactions', icon: <CreditCard size={16} /> },
+                    { id: 'logs', label: 'Audit Security Logs', href: '/super-admin/logs', icon: <Database size={16} /> },
+                    { id: 'sms', label: 'SMS Template Config', href: '/super-admin/sms', icon: <MessageSquare size={16} /> },
+                    { id: 'system', label: 'System & API Health', href: '/super-admin/system', icon: <Activity size={16} /> }
                   ].map((tab) => {
-                    const isActive = (tab.id === 'overview' && pathname === '/super-admin/dashboard') || (tab.id !== 'overview' && pathname === tab.href);
+                    const isActive = (tab.id === 'overview' && pathname === '/super-admin') || (tab.id !== 'overview' && pathname === tab.href);
                     return (
                       <Link
                         key={tab.id}

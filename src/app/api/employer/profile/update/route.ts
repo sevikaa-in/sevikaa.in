@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { queryDb } from '@/lib/db';
+import { signSupabaseJwt } from '@/lib/jwtHelper';
 
 import { getServerEnv } from '@/lib/env';
 
@@ -131,11 +132,21 @@ export async function POST(req: NextRequest) {
       console.warn("Employer profile update warning:", epErr);
     }
 
-    return NextResponse.json({
+    const accessToken = signSupabaseJwt(userId, user.email || '', user.phone || '', 'employer');
+    const res = NextResponse.json({
       success: true,
       message: 'Employer profile updated successfully.',
-      userId
+      userId,
+      token: accessToken,
+      access_token: accessToken
     });
+
+    res.cookies.set('sevikaa_onboarding_token', '', { httpOnly: true, path: '/', expires: new Date(0) });
+    res.cookies.set('sevikaa_access_token', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 3600, path: '/' });
+    res.cookies.set('sevikaa_user_role', 'employer', { path: '/', maxAge: 2592000, sameSite: 'lax' });
+    res.cookies.set('sevikaa_user_id', userId, { path: '/', maxAge: 2592000, sameSite: 'lax' });
+
+    return res;
   } catch (err: any) {
     console.error("POST /api/employer/profile/update error:", err);
     return NextResponse.json({ error: err.message || 'Failed to update profile' }, { status: 500 });

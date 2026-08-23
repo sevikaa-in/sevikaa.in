@@ -48,16 +48,47 @@ function ProgressBar({ label, pending, total, color }: { label: string; pending:
   );
 }
 
+function isTimeInRange(timeMs: number, range: string): boolean {
+  const now = new Date();
+  const date = new Date(timeMs);
+
+  switch (range) {
+    case 'Today':
+      return date.toDateString() === now.toDateString();
+    case 'Yesterday': {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return date.toDateString() === yesterday.toDateString();
+    }
+    case 'Last 7 Days':
+      return timeMs >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+    case 'Last 30 Days':
+      return timeMs >= Date.now() - 30 * 24 * 60 * 60 * 1000;
+    case 'This Month':
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    case 'Last Month': {
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
+    }
+    case 'Last 90 Days':
+      return timeMs >= Date.now() - 90 * 24 * 60 * 60 * 1000;
+    case 'This Year':
+    default:
+      return date.getFullYear() === now.getFullYear();
+  }
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
-  const { counts, loading } = useAdminDashboard();
+  const { counts, loading, dateRange } = useAdminDashboard();
   const activityFeed = useActivityFeed();
 
-  // Assume total queue for today is the sum of pending + some estimate of completed
-  // We use the current pending as "remaining" and localStorage-stored completed count as reference
+  // Completed count calculation for selected dateRange
   const [todayCompleted] = useState<number>(() => {
     try { return Number(localStorage.getItem('admin_completed_today') || '0'); } catch { return 0; }
   });
+
+  const rangeLabel = dateRange || 'Last 30 Days';
 
   const queueItems = [
     { label: 'Worker Verifications', pending: counts.pendingWorkers, total: counts.pendingWorkers + todayCompleted, color: 'text-amber-500' },
@@ -70,7 +101,9 @@ export default function AdminDashboard() {
   const defaultFeed = [
     { text: 'System initialised — Admin dashboard loaded', time: Date.now() - 60000, icon: '🚀' },
   ];
-  const displayFeed = activityFeed.length > 0 ? activityFeed : defaultFeed;
+
+  const rawFeed = activityFeed.length > 0 ? activityFeed : defaultFeed;
+  const displayFeed = rawFeed.filter(entry => isTimeInRange(entry.time, rangeLabel));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -78,11 +111,11 @@ export default function AdminDashboard() {
       {/* ── Productivity Stats ── */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {[
-          { label: "Today's Pending Tasks", value: counts.pendingWorkers + counts.pendingJobs, color: "text-[#FBBC05]" },
-          { label: "Completed Today",        value: `${todayCompleted} audits`,                color: "text-[#34A853]" },
-          { label: "Avg Review Time",        value: "4.8 mins",                                color: "text-[#1A73E8]" },
-          { label: "Interviews Scheduled",   value: counts.interviewsToday,                    color: "text-[#1A73E8]" },
-          { label: "Avg Approval Time",      value: "1.2 hours",                               color: "text-[#34A853]" }
+          { label: `Pending Tasks (${rangeLabel})`,  value: counts.pendingWorkers + counts.pendingJobs, color: "text-[#FBBC05]" },
+          { label: `Completed Audits (${rangeLabel})`, value: `${todayCompleted} audits`,                 color: "text-[#34A853]" },
+          { label: "Avg Review Time",                value: "4.8 mins",                                 color: "text-[#1A73E8]" },
+          { label: `Interviews (${rangeLabel})`,     value: counts.interviewsToday,                     color: "text-[#1A73E8]" },
+          { label: "Avg Approval Time",              value: "1.2 hours",                                color: "text-[#34A853]" }
         ].map((stat, idx) => (
           <div key={idx} className="bg-white p-4 border border-slate-100 rounded-[20px] shadow-sm text-center">
             <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider">{stat.label}</span>
@@ -117,7 +150,7 @@ export default function AdminDashboard() {
         <div className="bg-white border border-slate-100 p-5 rounded-[20px] shadow-sm space-y-4">
           <h4 className="text-xs font-black text-slate-800 flex items-center gap-2">
             <Activity size={13} className="text-[#1A73E8]" />
-            Operational Backlog Queue
+            Operational Backlog Queue ({rangeLabel})
           </h4>
           <div className="space-y-4">
             {queueItems.map((q) => (
@@ -142,23 +175,29 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ── Today's Activity Feed ── */}
+        {/* ── Activity Feed ── */}
         <div className="bg-white border border-slate-100 p-5 rounded-[20px] shadow-sm space-y-3 flex flex-col">
           <h4 className="text-xs font-black text-slate-800 flex items-center gap-2">
             <Clock size={13} className="text-[#34A853]" />
-            Today's Activity Feed
+            Activity Feed ({rangeLabel})
           </h4>
 
           <div className="flex-1 space-y-2 max-h-72 overflow-y-auto pr-1">
-            {[...displayFeed].reverse().map((entry, i) => (
-              <div key={i} className="flex items-start gap-2.5 p-2.5 bg-slate-50/70 rounded-xl border border-slate-100">
-                <span className="text-sm shrink-0">{entry.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-semibold text-slate-700 leading-tight">{entry.text}</p>
-                  <span className="text-[9px] text-slate-400 font-medium">{timeAgo(entry.time)}</span>
+            {displayFeed.length > 0 ? (
+              [...displayFeed].reverse().map((entry, i) => (
+                <div key={i} className="flex items-start gap-2.5 p-2.5 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-sm shrink-0">{entry.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-semibold text-slate-700 leading-tight">{entry.text}</p>
+                    <span className="text-[9px] text-slate-400 font-medium">{timeAgo(entry.time)}</span>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="py-6 text-center text-xs text-gray-400 font-medium">
+                No activity recorded for {rangeLabel}
               </div>
-            ))}
+            )}
           </div>
 
           <p className="text-[9px] text-slate-300 font-medium pt-1 border-t border-slate-50">

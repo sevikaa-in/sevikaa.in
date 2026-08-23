@@ -170,8 +170,8 @@ export default function SuperAdminDashboard() {
 
       {/* Shortcuts panel */}
       <QuickActionsWidget 
-        onAddAdminClick={() => router.push('/super-admin/dashboard/admins')} 
-        onAddSocietyClick={() => router.push('/super-admin/dashboard/societies')} 
+        onAddAdminClick={() => router.push('/super-admin/admins')} 
+        onAddSocietyClick={() => router.push('/super-admin/societies')} 
         onExportReportsClick={() => {}} 
       />
     </div>
