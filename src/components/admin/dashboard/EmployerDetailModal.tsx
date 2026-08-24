@@ -67,24 +67,7 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
     if (isPlaceholder) {
-      setJobs([
-        { 
-          id: 'mock-j1', 
-          category: 'cook', 
-          description: 'Organic healthy North Indian vegetarian cooking required for family of 4.', 
-          salary_range_min: 15000, 
-          status: 'pending',
-          created_at: '2026-07-02T10:15:00Z'
-        },
-        { 
-          id: 'mock-j2', 
-          category: 'maid', 
-          description: 'Daily house cleaning and kitchen cleaning services. Prefers morning slots.', 
-          salary_range_min: 9000, 
-          status: 'live',
-          created_at: '2026-07-15T09:00:00Z'
-        }
-      ]);
+      setJobs([]);
       return;
     }
 

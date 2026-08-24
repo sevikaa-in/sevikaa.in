@@ -16,9 +16,9 @@ export const executeRazorpayCheckout = async ({
   orderId,
   amount,
   planName,
-  userEmail = 'employer@sevikaa.in',
-  userName = 'Household Employer',
-  userPhone = '+919876543210',
+  userEmail = '',
+  userName = '',
+  userPhone = '',
   paymentMethod,
   onSuccess,
   onFailure

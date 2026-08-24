@@ -17,6 +17,8 @@ import crypto from 'crypto';
  *           → Webhook activates subscription exclusively
  */
 
+import { extractBearerOrCookieToken } from '@/lib/tokenExtractor';
+
 const PRICING_CACHE_KEY = 'platform:pricing_config';
 
 export async function POST(req: NextRequest) {
@@ -25,19 +27,8 @@ export async function POST(req: NextRequest) {
   const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   try {
-    // 1. Authenticate — identity strictly from verified bearer token
-    const authHeader = req.headers.get('authorization');
-    let token = authHeader ? authHeader.replace('Bearer ', '') : null;
-    if (!token) {
-      const sbCookie = Array.from(req.cookies.getAll()).find(c =>
-        c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
-      );
-      if (sbCookie?.value) {
-        try { const p = JSON.parse(sbCookie.value); token = p.access_token || sbCookie.value; }
-        catch { token = sbCookie.value; }
-      }
-    }
-
+    // 1. Authenticate — identity strictly from verified token (Bearer or Cookie)
+    const token = extractBearerOrCookieToken(req);
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to create a payment order.' }, { status: 401 });
     }

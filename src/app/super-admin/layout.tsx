@@ -288,8 +288,8 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
     const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                           !process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (isPlaceholder) {
-      const newMock = {
-        id: `mock-${Date.now()}`,
+      const newTmpl = {
+        id: `tmpl-${Date.now()}`,
         template_key: newTemplate.templateKey,
         category: newTemplate.category,
         provider: newTemplate.provider,
@@ -301,7 +301,7 @@ export default function SuperAdminDashboardLayout({ children }: { children: Reac
         is_active: true,
         version: 2
       };
-      setSmsTemplates(prev => [newMock, ...prev.map(t => t.template_key === newTemplate.templateKey && t.provider === newTemplate.provider ? { ...t, is_active: false } : t)]);
+      setSmsTemplates(prev => [newTmpl, ...prev.map(t => t.template_key === newTemplate.templateKey && t.provider === newTemplate.provider ? { ...t, is_active: false } : t)]);
       setShowAddModal(false);
       return;
     }

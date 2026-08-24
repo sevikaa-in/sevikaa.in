@@ -14,7 +14,7 @@ export default function WorkerOnboardingPage() {
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push('/login');
+      router.push('/?role=worker&step=login');
     }
   }, [loading, isAuthenticated, router]);
 
