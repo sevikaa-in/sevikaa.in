@@ -192,14 +192,24 @@ export default function EmployerDashboardLayout({ children }: { children: React.
       let dbJobsData: any[] = [];
 
       if (activeUserId) {
-        const { data: byEmpId, error: empIdErr } = await supabase
-          .from('jobs')
-          .select('*')
-          .or(`employer_id.eq.${activeUserId},created_by.eq.${activeUserId},user_id.eq.${activeUserId}`)
-          .order('created_at', { ascending: false });
+        try {
+          const { webApiClient } = await import('@/lib/webApiClient');
+          const apiRes = await webApiClient.get('/api/employer/jobs');
+          if (apiRes && Array.isArray(apiRes.jobs) && apiRes.jobs.length > 0) {
+            dbJobsData = apiRes.jobs;
+          }
+        } catch {}
 
-        if (!empIdErr && byEmpId) {
-          dbJobsData = byEmpId;
+        if (!dbJobsData || dbJobsData.length === 0) {
+          const { data: byEmpId, error: empIdErr } = await supabase
+            .from('jobs')
+            .select('*')
+            .eq('employer_id', activeUserId)
+            .order('created_at', { ascending: false });
+
+          if (!empIdErr && byEmpId) {
+            dbJobsData = byEmpId;
+          }
         }
       } else {
         dbJobsData = [];
@@ -390,18 +400,22 @@ export default function EmployerDashboardLayout({ children }: { children: React.
 
   const handleLogout = async () => {
     try {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
       const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
       if (!isPlaceholder) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut().catch(() => {});
       }
     } catch (err) {
       console.error("Logout error:", err);
     } finally {
       if (typeof window !== 'undefined') {
+        document.cookie = 'sevikaa_access_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'sevikaa_refresh_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'sevikaa_user_role=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
         window.localStorage.clear();
         window.sessionStorage.clear();
-        window.location.href = '/';
+        window.location.href = '/?role=employer&step=login';
       }
     }
   };

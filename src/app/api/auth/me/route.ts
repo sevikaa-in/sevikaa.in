@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     let userId: string | null = null;
 
     try {
-      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      const supabase = createClient(supabaseUrl || 'https://unconfigured.local', supabaseAnonKey || 'unconfigured', {
         global: { headers: { Authorization: `Bearer ${token}` } }
       });
       const { data: { user } } = await supabase.auth.getUser(token).catch(() => ({ data: { user: null } }));

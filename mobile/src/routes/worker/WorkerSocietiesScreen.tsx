@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity,
-  ActivityIndicator, TextInput, Modal, Platform
+  ActivityIndicator, TextInput, Modal, Platform, Alert
 } from 'react-native';
 import {
   Building2, MapPin, Search, Check, ShieldCheck,
@@ -219,14 +219,21 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
           lat: location.coords.latitude,
           lng: location.coords.longitude,
         });
+        Alert.alert('GPS Location Active', 'Live GPS location activated! Nearby societies updated.');
       } else {
-        // Permission denied — do not fabricate a location. Distance will show as 'Near you'.
         setUserGeoLocation(null);
+        Alert.alert(
+          'Location Permission Denied',
+          'Location permission was denied. Please allow location access in your device settings to detect nearby societies.'
+        );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn('GPS Location error:', error);
-      // Do not fabricate a location on error.
       setUserGeoLocation(null);
+      Alert.alert(
+        'GPS Location Error',
+        'Could not access live GPS position. Please ensure location services are enabled on your device.'
+      );
     } finally {
       setIsLocating(false);
     }
@@ -234,13 +241,9 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
 
   // Dynamically calculate GPS distances when user location changes
   const societiesWithDistance = useMemo(() => {
-    return societies.map(soc => {
-      // Only compute a distance if the user has granted GPS AND the society has
-      // verified coordinates (either from the static known-coords map or from
-      // the database lat/lng).  Do NOT use Bengaluru-centre as a fake fallback
-      // for societies whose real coordinates are unknown — show "Distance unavailable"
-      // instead so the user is never given an invented distance.
+    const mapped = societies.map(soc => {
       let distanceStr = 'Near you';
+      let distanceKm = 99999;
       if (userGeoLocation) {
         const geo = SOCIETY_GEO_MAP[soc.name];
         const hasRealCoords =
@@ -252,13 +255,20 @@ export const WorkerSocietiesScreen: React.FC<{ user?: any }> = ({ user }) => {
           const lat = geo?.lat ?? soc.lat;
           const lng = geo?.lng ?? soc.lng;
           const km = calculateHaversineKm(userGeoLocation.lat, userGeoLocation.lng, lat, lng);
+          distanceKm = km;
           distanceStr = `${km} km away`;
         } else {
           distanceStr = 'Distance unavailable';
         }
       }
-      return { ...soc, distance: distanceStr };
+      return { ...soc, distance: distanceStr, distanceKm };
     });
+
+    if (userGeoLocation) {
+      return [...mapped].sort((a, b) => a.distanceKm - b.distanceKm);
+    }
+
+    return mapped;
   }, [societies, userGeoLocation]);
 
   // High hiring threshold (top 25% percentile by active jobs)

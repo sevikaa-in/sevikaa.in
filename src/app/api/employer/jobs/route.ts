@@ -8,26 +8,13 @@ const env = getServerEnv();
 const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-async function getAuthenticatedUser(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  let token = authHeader ? authHeader.replace('Bearer ', '') : null;
+import { extractBearerOrCookieToken } from '@/lib/tokenExtractor';
 
-  if (!token) {
-    const sbCookie = Array.from(request.cookies.getAll()).find(c =>
-      c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
-    );
-    if (sbCookie?.value) {
-      try {
-        const parsed = JSON.parse(sbCookie.value);
-        token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
-      } catch {
-        token = sbCookie.value;
-      }
-    }
-  }
+async function getAuthenticatedUser(request: NextRequest) {
+  const token = extractBearerOrCookieToken(request);
   if (!token) return null;
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = createClient(supabaseUrl || 'https://unconfigured.local', supabaseAnonKey || 'unconfigured', {
     global: { headers: { Authorization: `Bearer ${token}` } }
   });
   const { data: { user: sbUser } } = await supabase.auth.getUser(token);

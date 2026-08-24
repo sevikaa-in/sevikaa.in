@@ -282,7 +282,7 @@ export function ChangeEmailInlineSection({ currentEmail, onSuccess, label }: Cha
               />
             </div>
             <p className="text-[10px] text-slate-500 font-medium">
-              A security code will first be sent to your registered contact ({maskEmailStr(currentEmail)}) to verify your identity.
+              A security code will first be sent to your registered contact ({currentEmail ? maskEmailStr(currentEmail) : 'mobile / email'}) to verify your identity.
             </p>
           </div>
 

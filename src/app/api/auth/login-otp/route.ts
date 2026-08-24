@@ -489,6 +489,18 @@ export async function POST(req: NextRequest) {
       const tokenHash = hashRefreshToken(refreshToken);
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+      // Guardrail: Enforce Single Active Session per Admin / Super Admin Credential
+      if (effectiveRole === 'admin' || effectiveRole === 'super-admin') {
+        try {
+          await queryDb(
+            `UPDATE public.refresh_tokens SET is_revoked = TRUE WHERE user_id = $1 AND is_revoked = FALSE`,
+            [resolvedUserId]
+          );
+        } catch (revokeErr) {
+          console.warn('[login-otp] Single session revocation warning:', revokeErr);
+        }
+      }
+
       let refreshPersisted = false;
       try {
         const refreshInsertRes = await queryDb(

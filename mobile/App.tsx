@@ -117,8 +117,12 @@ function AppMainContent() {
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem('sevikaa_user_session');
+      const { secureTokenStorage } = await import('./src/services/secureTokenStorage');
+      await secureTokenStorage.clearTokens();
       await clearProfile();
     } catch (e) {}
+    setCurrentUser(null);
+    setUser(null);
     setShowMobileMenu(false);
     setOnboardingStep('login');
   };

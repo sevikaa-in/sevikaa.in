@@ -409,18 +409,22 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
 
   const handleLogout = async () => {
     try {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
       const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
                             !process.env.NEXT_PUBLIC_SUPABASE_URL;
       if (!isPlaceholder) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut().catch(() => {});
       }
     } catch (err) {
       console.error("Logout error:", err);
     } finally {
       if (typeof window !== 'undefined') {
+        document.cookie = 'sevikaa_access_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'sevikaa_refresh_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'sevikaa_user_role=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
         window.localStorage.clear();
         window.sessionStorage.clear();
-        window.location.href = '/';
+        window.location.href = '/?role=worker&step=login';
       }
     }
   };

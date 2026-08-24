@@ -152,9 +152,23 @@ export const webApiClient = {
     return res;
   },
 
+  async safeJsonParse(res: Response): Promise<any> {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {
+        success: false,
+        error: `Server responded with status ${res.status}`,
+        status: res.status,
+        raw: text.slice(0, 200)
+      };
+    }
+  },
+
   async get(endpoint: string, headers: Record<string, string> = {}): Promise<any> {
     const res = await this.request(endpoint, { method: 'GET', headers });
-    return res.json();
+    return this.safeJsonParse(res);
   },
 
   async post(endpoint: string, body?: any, headers: Record<string, string> = {}): Promise<any> {
@@ -163,7 +177,7 @@ export const webApiClient = {
       headers,
       body: body instanceof FormData ? body : JSON.stringify(body || {})
     });
-    return res.json();
+    return this.safeJsonParse(res);
   },
 
   async put(endpoint: string, body?: any, headers: Record<string, string> = {}): Promise<any> {
@@ -172,7 +186,7 @@ export const webApiClient = {
       headers,
       body: body instanceof FormData ? body : JSON.stringify(body || {})
     });
-    return res.json();
+    return this.safeJsonParse(res);
   },
 
   async patch(endpoint: string, body?: any, headers: Record<string, string> = {}): Promise<any> {
@@ -181,11 +195,11 @@ export const webApiClient = {
       headers,
       body: body instanceof FormData ? body : JSON.stringify(body || {})
     });
-    return res.json();
+    return this.safeJsonParse(res);
   },
 
   async delete(endpoint: string, headers: Record<string, string> = {}): Promise<any> {
     const res = await this.request(endpoint, { method: 'DELETE', headers });
-    return res.json();
+    return this.safeJsonParse(res);
   }
 };

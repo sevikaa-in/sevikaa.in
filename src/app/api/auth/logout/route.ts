@@ -20,12 +20,18 @@ export async function POST(req: NextRequest) {
     }
 
     const res = NextResponse.json({ success: true, message: 'Logged out successfully.' });
+    res.cookies.delete('sevikaa_access_token');
     res.cookies.delete('sevikaa_refresh_token');
+    res.cookies.delete('sevikaa_user_role');
+    res.cookies.delete('sb-access-token');
+    res.cookies.delete('sb-refresh-token');
     return res;
   } catch (err: any) {
     console.error('[auth/logout] Server error:', err?.message);
     const res = NextResponse.json({ error: 'Service Unavailable', message: 'Failed to revoke session on server.' }, { status: 503 });
+    res.cookies.delete('sevikaa_access_token');
     res.cookies.delete('sevikaa_refresh_token');
+    res.cookies.delete('sevikaa_user_role');
     return res;
   }
 }

@@ -1,24 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 import { verifyAdminSecurityContext } from '@/lib/adminSecurityGuard';
+import { queryDb } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   const { errorResponse } = await verifyAdminSecurityContext(req, { requiredRole: 'admin' });
   if (errorResponse) return errorResponse;
 
   try {
-    const { data, error } = await supabaseAdmin
-      .from('contact_enquiries')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let enquiriesList: any[] = [];
 
-    if (error) {
-      console.warn("Supabase fetch contact_enquiries error:", error.message);
-      // Return empty array if table isn't initialized
-      return NextResponse.json({ enquiries: [] });
+    // 1. Try Supabase
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('contact_enquiries')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        enquiriesList = data;
+      }
+    } catch (sbErr) {
+      console.warn("[admin/enquiries] Supabase fetch notice:", sbErr);
     }
 
-    return NextResponse.json({ enquiries: data || [] });
+    // 2. Try Postgres DB if Supabase returned no rows or errored
+    if (enquiriesList.length === 0) {
+      try {
+        const pgRes = await queryDb(`
+          SELECT * FROM public.contact_enquiries 
+          ORDER BY created_at DESC
+        `, []);
+        if (pgRes?.rows && Array.isArray(pgRes.rows)) {
+          enquiriesList = pgRes.rows;
+        }
+      } catch (pgErr) {
+        console.warn("[admin/enquiries] Postgres fetch notice:", pgErr);
+      }
+    }
+
+    return NextResponse.json({ enquiries: enquiriesList });
   } catch (err: any) {
     console.error("Fetch enquiries API error:", err);
     return NextResponse.json({ enquiries: [] });
@@ -36,22 +57,30 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'ID and status are required' }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('contact_enquiries')
-      .update({
-        status,
-        admin_notes: admin_notes || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    const updatedAt = new Date().toISOString();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // 1. Update Supabase
+    try {
+      await supabaseAdmin
+        .from('contact_enquiries')
+        .update({
+          status,
+          admin_notes: admin_notes || null,
+          updated_at: updatedAt,
+        })
+        .eq('id', id);
+    } catch (sbErr) {}
 
-    return NextResponse.json({ success: true, enquiry: data });
+    // 2. Update Postgres DB
+    try {
+      await queryDb(`
+        UPDATE public.contact_enquiries
+        SET status = $1, admin_notes = $2, updated_at = $3
+        WHERE id = $4
+      `, [status, admin_notes || null, updatedAt, id]);
+    } catch (pgErr) {}
+
+    return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });
   }

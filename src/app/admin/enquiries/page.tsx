@@ -18,51 +18,6 @@ interface Enquiry {
   created_at: string;
 }
 
-const mockEnquiries: Enquiry[] = [
-  {
-    id: 'enq_1',
-    name: 'Anish Sharma',
-    email: 'anish.sharma@example.com',
-    phone: '+91 98765 43210',
-    subject: 'Employer Hiring',
-    message: 'Hello, I am looking to hire a full-time cook and maid for our apartment in DLF Westend Heights. Which plan should I select?',
-    status: 'pending',
-    created_at: '2026-07-30T09:15:00Z',
-  },
-  {
-    id: 'enq_2',
-    name: 'Sunita Devi',
-    email: 'sunita.worker@example.com',
-    phone: '+91 87654 32109',
-    subject: 'Worker Verification',
-    message: 'I submitted my Aadhaar front and back photos yesterday. When will my profile get the green Sevikaa Verified badge?',
-    status: 'replied',
-    admin_notes: 'Explained 24-hour verification window via SMS.',
-    created_at: '2026-07-29T16:30:00Z',
-  },
-  {
-    id: 'enq_3',
-    name: 'Rajesh Verma',
-    email: 'r.verma@apex-tech.in',
-    phone: '+91 99887 76655',
-    subject: 'Society Partnership',
-    message: 'We are the RWA committee for Prestige Song of the South (1200 apartments). We want to register our society on Sevikaa.',
-    status: 'pending',
-    created_at: '2026-07-29T11:00:00Z',
-  },
-  {
-    id: 'enq_4',
-    name: 'Pooja Mehta',
-    email: 'pooja.mehta@gmail.com',
-    phone: '+91 91234 56789',
-    subject: 'Billing & Tax Invoice',
-    message: 'Could you please resend the GST tax invoice for my employer monthly pass subscription?',
-    status: 'resolved',
-    admin_notes: 'Sent PDF invoice to email on July 28.',
-    created_at: '2026-07-28T14:20:00Z',
-  },
-];
-
 export default function AdminEnquiriesPage() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,14 +33,14 @@ export default function AdminEnquiriesPage() {
     try {
       const { webApiClient } = await import('@/lib/webApiClient');
       const data = await webApiClient.get('/api/admin/enquiries');
-      if (data && data.enquiries && data.enquiries.length > 0) {
+      if (data && Array.isArray(data.enquiries)) {
         setEnquiries(data.enquiries);
       } else {
-        setEnquiries(mockEnquiries);
+        setEnquiries([]);
       }
     } catch (err) {
-      console.warn("Failed to fetch enquiries, using mock data:", err);
-      setEnquiries(mockEnquiries);
+      console.warn("Failed to fetch enquiries:", err);
+      setEnquiries([]);
     } finally {
       setLoading(false);
     }

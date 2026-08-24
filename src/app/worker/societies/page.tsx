@@ -53,26 +53,59 @@ export default function WorkerSocietiesPage() {
   const [newSocietyLocality, setNewSocietyLocality] = useState('');
   const [newSocietyTower, setNewSocietyTower] = useState('');
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-  // Request browser GPS coordinates
+  // Request browser GPS coordinates with clear error handling & accuracy fallback
   const handleRequestLiveLocation = () => {
-    if (!navigator.geolocation) {
-      showToast('Geolocation is not supported by your browser.', 'error');
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser or device.', 'error');
       return;
     }
+
     setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setUserGeoLocation({ lat: latitude, lng: longitude });
-        setIsLocating(false);
-        showToast('Live GPS location activated! Distances calculated precisely.', 'success');
-      },
-      (error) => {
-        setIsLocating(false);
-        showToast('Could not access live GPS. Using default society proximity.', 'info');
-      },
-      { timeout: 8000, enableHighAccuracy: true }
-    );
+
+    const handleSuccess = (position: GeolocationPosition) => {
+      const { latitude, longitude } = position.coords;
+      setUserGeoLocation({ lat: latitude, lng: longitude });
+      setIsLocating(false);
+      showToast('Live GPS location activated! Nearby societies updated.', 'success');
+    };
+
+    const handleFailure = (error: GeolocationPositionError) => {
+      // If high accuracy times out or fails, retry once with standard accuracy
+      if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
+        navigator.geolocation.getCurrentPosition(
+          handleSuccess,
+          (fallbackErr) => {
+            setIsLocating(false);
+            let message = 'Could not access live GPS location.';
+            if (fallbackErr.code === fallbackErr.PERMISSION_DENIED) {
+              message = 'Location permission denied. Please allow location access in your browser settings to detect nearby societies.';
+            } else if (fallbackErr.code === fallbackErr.TIMEOUT) {
+              message = 'GPS signal timed out. Please verify your device location settings.';
+            } else if (fallbackErr.code === fallbackErr.POSITION_UNAVAILABLE) {
+              message = 'GPS position unavailable. Please turn on location services on your device.';
+            }
+            showToast(message, 'error');
+          },
+          { timeout: 12000, enableHighAccuracy: false, maximumAge: 60000 }
+        );
+        return;
+      }
+
+      setIsLocating(false);
+      let message = 'Could not access live GPS location.';
+      if (error.code === error.PERMISSION_DENIED) {
+        message = 'Location permission denied. Please allow location access in your browser settings to detect nearby societies.';
+      } else if (error.code === error.POSITION_UNAVAILABLE) {
+        message = 'GPS position unavailable. Please ensure location services are enabled on your device.';
+      }
+      showToast(message, 'error');
+    };
+
+    navigator.geolocation.getCurrentPosition(handleSuccess, handleFailure, {
+      timeout: 8000,
+      enableHighAccuracy: true,
+      maximumAge: 30000
+    });
   };
 
   // Build 100% dynamic societies list with real database fields & live job metrics
@@ -81,7 +114,7 @@ export default function WorkerSocietiesPage() {
       return [];
     }
 
-    return societiesList.map((soc: any) => {
+    const mapped = societiesList.map((soc: any) => {
       const liveJobs = Number(soc.active_jobs_count) || (availableJobs?.filter((job: any) => 
         job.society_id === soc.id || 
         (job.society_name && soc.name && (
@@ -92,13 +125,28 @@ export default function WorkerSocietiesPage() {
       ).length) || 0;
 
       const formattedLocality = [soc.area, soc.city, soc.pincode].filter(Boolean).join(', ') || soc.locality || 'Bengaluru';
-      const distanceStr = soc.distance ? `${soc.distance} away` : 'Near you';
+      
+      const socLat = Number(soc.latitude || soc.lat) || SOCIETY_GEO_MAP[soc.name]?.lat;
+      const socLng = Number(soc.longitude || soc.lng) || SOCIETY_GEO_MAP[soc.name]?.lng;
+      
+      let computedKm: number | null = null;
+      if (userGeoLocation && socLat && socLng) {
+        computedKm = calculateHaversineKm(userGeoLocation.lat, userGeoLocation.lng, socLat, socLng);
+      } else if (soc.distance_km || soc.distance) {
+        const parsed = parseFloat(String(soc.distance_km || soc.distance));
+        if (!isNaN(parsed)) computedKm = parsed;
+      }
+
+      const distanceStr = computedKm !== null && !isNaN(computedKm)
+        ? `${computedKm.toFixed(1)} km away`
+        : (soc.distance ? `${soc.distance} away` : 'Near you');
 
       return {
         id: soc.id,
         name: soc.name,
         locality: formattedLocality,
         distance: distanceStr,
+        distanceKm: computedKm ?? 99999,
         activeJobsCount: liveJobs,
         employersCount: Number(soc.employers_count) || Number(soc.employersCount) || 0,
         activeWorkersCount: Number(soc.workers_count) || 0,
@@ -106,7 +154,13 @@ export default function WorkerSocietiesPage() {
         totalFlats: Number(soc.total_flats) || 0
       };
     });
-  }, [societiesList, availableJobs]);
+
+    if (userGeoLocation) {
+      return [...mapped].sort((a, b) => a.distanceKm - b.distanceKm);
+    }
+
+    return mapped;
+  }, [societiesList, availableJobs, userGeoLocation]);
 
   // Sync primary & secondary societies dynamically when workerProfile or allSocieties changes
   React.useEffect(() => {

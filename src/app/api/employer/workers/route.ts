@@ -9,6 +9,8 @@ const env = getServerEnv();
 const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+import { extractBearerOrCookieToken } from '@/lib/tokenExtractor';
+
 export async function GET(request: NextRequest) {
   // Rate limiting: 60 req/min per IP (CRITICAL: fail-closed, no in-memory fallback)
   const rateLimit = await checkRateLimitCritical(extractClientIp(request), 60, 60000);
@@ -19,23 +21,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
   }
 
-  // 1. Extract Bearer Token
-  const authHeader = request.headers.get('authorization');
-  let token = authHeader ? authHeader.replace('Bearer ', '') : null;
-
-  if (!token) {
-    const sbCookie = Array.from(request.cookies.getAll()).find(c => 
-      c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
-    );
-    if (sbCookie?.value) {
-      try {
-        const parsed = JSON.parse(sbCookie.value);
-        token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null) || sbCookie.value;
-      } catch {
-        token = sbCookie.value;
-      }
-    }
-  }
+  // 1. Extract Token from Bearer Header or Cookies
+  const token = extractBearerOrCookieToken(request);
 
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to view candidate directory.' }, { status: 401 });
