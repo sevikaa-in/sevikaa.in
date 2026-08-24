@@ -113,86 +113,74 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
 
   const fetchSession = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || 
+                            !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-      // Fetch societies — fallback to MOCK_SOCIETIES if DB unavailable
+      if (isPlaceholder) {
+        setUser({ id: 'w_demo', email: 'worker@demo.com' });
+        setLoading(false);
+        return;
+      }
+
+      // Fetch real societies from database unconditionally via API
       let dbSocieties: any[] = [];
       try {
         const { webApiClient } = await import('@/lib/webApiClient');
         const socData = await webApiClient.get('/api/societies');
-        if (socData && socData.societies && socData.societies.length > 0) {
+        if (socData && socData.societies) {
           dbSocieties = socData.societies;
           setSocietiesList(dbSocieties);
         }
       } catch (socErr) {
-        console.warn('Societies API fetch warning:', socErr);
+        console.warn("Societies API fetch warning:", socErr);
       }
 
       if (dbSocieties.length === 0) {
-        try {
-          const { data: clientSoc } = await supabase
-            .from('societies')
-            .select('*')
-            .order('name', { ascending: true });
+        const { data: clientSoc } = await supabase
+          .from('societies')
+          .select('*')
+          .order('name', { ascending: true });
 
-          if (clientSoc && clientSoc.length > 0) {
-            dbSocieties = clientSoc;
-            setSocietiesList(dbSocieties);
-          } else {
-            // DB unavailable locally — use placeholder list so UI doesn't break
-            setSocietiesList(MOCK_SOCIETIES);
-            dbSocieties = MOCK_SOCIETIES;
-          }
-        } catch {
-          setSocietiesList(MOCK_SOCIETIES);
-          dbSocieties = MOCK_SOCIETIES;
+        if (clientSoc && clientSoc.length > 0) {
+          dbSocieties = clientSoc;
+          setSocietiesList(dbSocieties);
         }
       }
 
-      // Fetch live jobs via webApiClient API endpoint with fallback to Supabase query
+      // Fetch live jobs with explicit columns & limit 50 (Fix Audit 6 Items 18 & 19)
       let rawLiveJobs: any[] = [];
-      try {
-        const { webApiClient } = await import('@/lib/webApiClient');
-        const jobsData = await webApiClient.get('/api/worker/jobs?limit=50');
-        if (jobsData && Array.isArray(jobsData.jobs) && jobsData.jobs.length > 0) {
-          rawLiveJobs = jobsData.jobs;
-        }
-      } catch (jobsApiErr) {
-        console.warn('Worker jobs API fetch notice:', jobsApiErr);
-      }
+      const { data: liveJobs } = await supabase
+        .from('jobs')
+        .select('id, title, category, salary, shift_hours, society_name, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-      if (rawLiveJobs.length === 0) {
-        try {
-          const { data: liveJobs } = await supabase
-            .from('jobs')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(50);
-          if (liveJobs && liveJobs.length > 0) rawLiveJobs = liveJobs;
-        } catch {
-          // Jobs unavailable
-        }
+      if (liveJobs && liveJobs.length > 0) {
+        rawLiveJobs = liveJobs;
       }
 
       if (rawLiveJobs && rawLiveJobs.length > 0) {
         const mappedJobs = rawLiveJobs.map((j: any) => {
-          const society = dbSocieties.find((s: any) => s.id === j.society_id);
-          const minSal = j.salary_range_min || j.salary_offered || 12000;
-          const maxSal = j.salary_range_max || minSal;
-          const salText = minSal === maxSal ? `₹${minSal.toLocaleString('en-IN')}/mo` : `₹${minSal.toLocaleString('en-IN')}–₹${maxSal.toLocaleString('en-IN')}/mo`;
-
+          let resolvedSociety = j.society_name && j.society_name !== 'Residential Society' ? j.society_name : null;
+          if (!resolvedSociety && j.societies?.name) {
+            resolvedSociety = j.societies.name;
+          }
+          if (!resolvedSociety && j.society_id && dbSocieties) {
+            const found = dbSocieties.find((s: any) => s.id === j.society_id);
+            if (found) resolvedSociety = found.name;
+          }
+          if (!resolvedSociety && dbSocieties && dbSocieties.length > 0) {
+            resolvedSociety = dbSocieties[0].name;
+          }
           return {
             ...j,
-            title: j.title || (j.category ? j.category.charAt(0).toUpperCase() + j.category.slice(1) : 'Domestic Helper Requisition'),
-            salary_offered: minSal,
-            salary: salText,
-            shift_hours: 'Full Day (8–12 Hours)',
-            society_name: j.society_name || society?.name || 'DLF Westend Heights - Akshayanagar'
+            society_name: resolvedSociety || 'DLF Westend Heights - Akshayanagar'
           };
         });
         setAvailableJobs(mappedJobs);
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
       let activeUser: any = session?.user;
 
       if (!activeUser && typeof window !== 'undefined') {
@@ -243,8 +231,8 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
 
         if (profile?.role && profile.role !== 'worker') {
           if (profile.role === 'employer') router.push('/employer');
-          else if (profile.role === 'super-admin') router.push('/super-admin');
-          else if (profile.role === 'admin') router.push('/admin');
+          else if (profile.role === 'super-admin') router.push('/super-admin/dashboard');
+          else if (profile.role === 'admin') router.push('/admin/dashboard');
           return;
         }
 
@@ -260,7 +248,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             setDeletionRequested(true);
           }
 
-          const pSoc = wProf?.preferred_society_name || wProf?.society || wProf?.primary_gated_society || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas[0]) || '';
+          const pSoc = wProf?.preferred_society_name || wProf?.society || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas[0]) || '';
           const secSocList = wProf?.secondary_society_name 
             ? wProf.secondary_society_name.split(',').map((s: string) => s.trim()).filter(Boolean)
             : (Array.isArray(wProf?.secondary_societies) 
@@ -269,18 +257,12 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                     ? wProf.preferred_areas.slice(1) 
                     : []));
 
-          const rawSkills = Array.isArray(wProf?.skills) && wProf.skills.length > 0
-            ? wProf.skills 
-            : (Array.isArray(wProf?.category) && wProf.category.length > 0
-                ? wProf.category 
-                : (wProf?.skills ? [wProf.skills] : (wProf?.category ? [wProf.category] : ['maid'])));
-
           setWorkerProfile({
             id: wProf?.id || activeUser.id,
             user_id: wProf?.user_id || activeUser.id,
             name: wProf?.full_name || wProf?.name || profile?.full_name || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_worker_name') : null) || 'Worker',
-            category: rawSkills,
-            skills: rawSkills,
+            category: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
+            skills: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
             expectedSalary: String(wProf?.expected_salary || '15000'),
             experience: wProf?.experience_years ? `${wProf.experience_years} Years` : '0 Years',
             society: pSoc,
@@ -305,17 +287,14 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           });
 
           // Onboarding Route Guard for Workers
-          // IMPORTANT: Only redirect if wProf was actually loaded — not when DB is unavailable
-          if (wProf) {
-            const hasName = !!(wProf.full_name || wProf.name || profile?.full_name);
-            const hasSociety = !!(pSoc || wProf.primary_gated_society || wProf.preferred_society_name || wProf.society || wProf.preferred_society_id || (Array.isArray(wProf.preferred_areas) && wProf.preferred_areas.length > 0));
-            const hasSkills = Array.isArray(wProf.skills) ? wProf.skills.length > 0 : !!wProf.skills;
-            const isWorkerComplete = hasName && (hasSociety || hasSkills);
-            const isExplicitIncomplete = profStatus === 'onboarding_pending' || profStatus === 'incomplete';
+          const hasName = !!(wProf?.full_name || wProf?.name || profile?.full_name);
+          const hasSociety = !!(pSoc || wProf?.primary_gated_society || wProf?.preferred_society_name || wProf?.society || wProf?.preferred_society_id || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas.length > 0));
+          const hasSkills = Array.isArray(wProf?.skills) ? wProf.skills.length > 0 : !!wProf?.skills;
+          const isWorkerComplete = hasName && (hasSociety || hasSkills);
+          const isExplicitIncomplete = profStatus === 'onboarding_pending' || profStatus === 'incomplete';
 
-            if (!isApproved && (!isWorkerComplete || isExplicitIncomplete) && pathname !== '/worker/onboarding') {
-              router.push('/worker/onboarding');
-            }
+          if (!isApproved && (!isWorkerComplete || isExplicitIncomplete) && pathname !== '/worker/onboarding') {
+            router.push('/worker/onboarding');
           }
 
           setBadges([
@@ -473,45 +452,37 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
       badges, applications, availableJobs, societiesList, saveLoading, deletionRequested,
       showToast, handleSaveProfile, handleRequestAccountDeletion, handleLogout
     }}>
-      <div className="bg-slate-50 min-h-screen flex flex-col font-sans antialiased">
+      <div className="bg-slate-100 min-h-screen flex justify-center items-start font-sans antialiased">
         <ToastContainer toasts={toasts} onDismiss={removeToast} />
         
-        {/* Responsive Viewport Wrapper */}
-        <div className="w-full min-h-screen flex flex-col relative">
+        {/* Mobile Viewport Container - Clean Flat Interface */}
+        <div className="w-full max-w-md bg-slate-50 min-h-screen border-x border-slate-200/80 shadow-xl flex flex-col relative">
 
-          {/* Clean Responsive Header */}
+          {/* Clean Mobile App Header */}
           <header className="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-xs">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+            <div className="px-4 py-3 flex items-center justify-between">
               {isOnboarding ? (
                 <>
-                  <div className="flex items-center gap-2.5">
-                    <img src="/logo.png" alt="Sevikaa Logo" className="h-7 sm:h-8 w-auto object-contain" />
-                    <span className="font-semibold text-xs sm:text-sm text-slate-800 tracking-tight">Sevikaa</span>
+                  <div className="flex items-center gap-2">
+                    <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain" />
+                    <span className="font-semibold text-xs text-slate-800">Sevikaa</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-[#34A853] border border-emerald-200">
                       {t('workerSetup') || 'Worker Setup'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <GlobalLanguageSelector />
                     <button
                       onClick={() => setShowMobileMenu(!showMobileMenu)}
-                      className="md:hidden p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
                       aria-label="Toggle Navigation Menu"
                     >
                       {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
-                    >
-                      <LogOut size={14} />
-                      <span>Log Out</span>
                     </button>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     {(() => {
                       const isDashboardHome = pathname === '/worker' || pathname === '/worker/dashboard';
                       const logoHref = isDashboardHome ? '/?browse=true' : '/worker';
@@ -519,58 +490,33 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                       return (
                         <Link href={logoHref} className="flex items-center gap-2 group cursor-pointer" title={logoTitle}>
                           {!isDashboardHome && (
-                            <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors md:hidden" />
+                            <ArrowLeft size={18} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
                           )}
-                          <img src="/logo.png" alt="Sevikaa Logo" className="h-7 sm:h-8 w-auto object-contain transition-transform group-hover:scale-105" />
-                          <span className="font-semibold text-xs sm:text-sm text-slate-800 tracking-tight">{t('headerWorker') || 'Worker Candidate'}</span>
+                          <img src="/logo.png" alt="Sevikaa Logo" className="h-7 w-auto object-contain transition-transform group-hover:scale-105" />
+                          <span className="font-semibold text-xs text-slate-800">{t('headerWorker')}</span>
                         </Link>
                       );
                     })()}
                   </div>
 
-                  {/* Desktop Navigation */}
-                  <nav className="hidden md:flex items-center gap-1 lg:gap-2">
-                    {navItems.map((item) => {
-                      const isActive = (item.id === 'overview' && pathname === '/worker') || (item.id !== 'overview' && pathname === item.href);
-                      return (
-                        <Link
-                          key={item.id}
-                          href={item.href}
-                          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-                            isActive
-                              ? 'bg-blue-50 text-[#1A73E8] border border-blue-200/80 shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                          }`}
-                        >
-                          {React.cloneElement(item.icon, { size: 16 })}
-                          <span>{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </nav>
-
-                  <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2">
                     {/* Verification Pill */}
                     {workerProfile.status === 'live' || workerProfile.status === 'approved' ? (
-                      <div className="bg-emerald-50 text-[#34A853] border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] sm:text-[11px] font-semibold flex items-center gap-1">
-                        <CheckCircle2 size={11} />
-                        <span>{t('aadhaarVerifiedBadge') || 'Verified'}</span>
+                      <div className="bg-emerald-50 text-[#34A853] border border-emerald-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
+                        <CheckCircle2 size={10} />
+                        <span>{t('aadhaarVerifiedBadge')}</span>
                       </div>
                     ) : (
-                      <div className="bg-amber-50 text-amber-700 border border-amber-200/50 py-1 px-2.5 rounded-xl text-[10px] sm:text-[11px] font-semibold flex items-center gap-1">
-                        <Lock size={11} />
-                        <span>{t('pendingAdminAudit') || 'Pending Audit'}</span>
+                      <div className="bg-amber-50 text-amber-700 border border-amber-200/50 py-1 px-2.5 rounded-xl text-[10px] font-semibold flex items-center gap-1">
+                        <Lock size={10} />
+                        <span>{t('pendingAdminAudit')}</span>
                       </div>
                     )}
-
-                    <div className="hidden lg:block">
-                      <GlobalLanguageSelector />
-                    </div>
 
                     {/* Notifications Bell Button */}
                     <Link
                       href="/worker/notifications"
-                      className="p-1.5 sm:p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer relative flex items-center justify-center"
                       title="Notifications & Alerts"
                     >
                       <Bell size={18} />
@@ -580,20 +526,10 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                     {/* Hamburger Mobile Menu Toggle Button */}
                     <button
                       onClick={() => setShowMobileMenu(!showMobileMenu)}
-                      className="md:hidden p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center"
                       aria-label="Toggle Navigation Menu"
                     >
                       {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
-                    </button>
-
-                    {/* Desktop Logout Button */}
-                    <button
-                      onClick={handleLogout}
-                      className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-xl text-xs font-semibold transition-all cursor-pointer"
-                      title="Log Out Session"
-                    >
-                      <LogOut size={15} />
-                      <span className="hidden lg:inline">{t('logOut') || 'Log Out'}</span>
                     </button>
                   </div>
                 </>
@@ -716,13 +652,13 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
           )}
 
           {/* Main Scrollable Screen Area */}
-          <main className={`flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 ${isOnboarding ? 'pb-8' : 'pb-24 md:pb-12'}`}>
+          <main className={`flex-1 p-4 space-y-4 ${isOnboarding ? 'pb-6' : 'pb-20'}`}>
             {children}
           </main>
 
-          {/* Sticky Mobile Bottom Navigation Bar (Hidden on md: and above) */}
+          {/* Sticky Mobile Bottom Navigation Bar (Hidden during onboarding) */}
           {!isOnboarding && (
-            <nav className="md:hidden sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2.5 px-2 flex justify-around items-center z-50 shadow-xl shrink-0">
+            <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2.5 px-2 flex justify-around items-center z-50 shadow-xl shrink-0">
               {navItems.map((item) => {
                 const isActive = (item.id === 'overview' && pathname === '/worker') || (item.id !== 'overview' && pathname === item.href);
                 return (
