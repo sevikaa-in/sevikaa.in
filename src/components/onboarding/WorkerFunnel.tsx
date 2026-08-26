@@ -21,9 +21,35 @@ const SLOTS = [
   { id: 'night', label: 'Night (6 PM - 9 PM)' }
 ];
 
+const getSavedDraft = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const str = sessionStorage.getItem('sevikaa_worker_onboarding_draft') || localStorage.getItem('sevikaa_worker_onboarding_draft');
+    return str ? JSON.parse(str) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel }) => {
   const { t, language } = useLanguage();
-  const [step, setStep] = useState(1);
+
+  const [step, setStep] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1;
+    const urlParams = new URLSearchParams(window.location.search);
+    const stepParam = urlParams.get('step');
+    if (stepParam) {
+      const parsed = parseInt(stepParam, 10);
+      if (parsed >= 1 && parsed <= 5) return parsed;
+    }
+    const savedStep = sessionStorage.getItem('sevikaa_worker_onboarding_step') || localStorage.getItem('sevikaa_worker_onboarding_step');
+    if (savedStep) {
+      const parsed = parseInt(savedStep, 10);
+      if (parsed >= 1 && parsed <= 5) return parsed;
+    }
+    return 1;
+  });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [societiesList, setSocietiesList] = useState<any[]>([]);
@@ -51,21 +77,21 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
 
   // Step 2 State: Basic Details & Languages
-  const [fullName, setFullName] = useState('');
-  const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>('');
-  const [age, setAge] = useState('');
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [fullName, setFullName] = useState<string>(() => getSavedDraft()?.fullName || '');
+  const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>(() => getSavedDraft()?.gender || '');
+  const [age, setAge] = useState<string>(() => getSavedDraft()?.age ? String(getSavedDraft().age) : '');
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(() => Array.isArray(getSavedDraft()?.selectedLanguages) ? getSavedDraft().selectedLanguages : []);
 
   // Step 3 State: Skills & Experience
-  const [skills, setSkills] = useState<string[]>([]);
-  const [experience, setExperience] = useState('');
-  const [selectedShifts, setSelectedShifts] = useState<string[]>(['full_day']);
+  const [skills, setSkills] = useState<string[]>(() => Array.isArray(getSavedDraft()?.skills) ? getSavedDraft().skills : []);
+  const [experience, setExperience] = useState<string>(() => getSavedDraft()?.experience !== undefined && getSavedDraft()?.experience !== null ? String(getSavedDraft().experience) : '');
+  const [selectedShifts, setSelectedShifts] = useState<string[]>(() => Array.isArray(getSavedDraft()?.selectedShifts) && getSavedDraft().selectedShifts.length > 0 ? getSavedDraft().selectedShifts : ['full_day']);
 
   // Step 4 State: Salary & Society Preferences
-  const [expectedSalary, setExpectedSalary] = useState('');
-  const [preferredSociety, setPreferredSociety] = useState('');
+  const [expectedSalary, setExpectedSalary] = useState<string>(() => getSavedDraft()?.expectedSalary ? String(getSavedDraft().expectedSalary) : '');
+  const [preferredSociety, setPreferredSociety] = useState<string>(() => getSavedDraft()?.preferredSociety || '');
   const [preferredAreasInput, setPreferredAreasInput] = useState('');
-  const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
+  const [preferredAreas, setPreferredAreas] = useState<string[]>(() => Array.isArray(getSavedDraft()?.preferredAreas) ? getSavedDraft().preferredAreas : []);
   const [societyDropdownOpen, setSocietyDropdownOpen] = useState(false);
   const [societySearch, setSocietySearch] = useState('');
   const societyDropdownRef = useRef<HTMLDivElement>(null);
@@ -241,23 +267,59 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
     };
   }, []);
 
-  // Sync URL with current step whenever step changes
+  // Listen for browser Back/Forward navigation (popstate)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const urlParams = new URLSearchParams(window.location.search);
-    const stepParam = urlParams.get('step');
-    if (stepParam) {
-      const parsedStep = parseInt(stepParam, 10);
-      if (parsedStep >= 1 && parsedStep <= 5 && parsedStep !== step) {
-        setStep(parsedStep);
+
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const stepParam = urlParams.get('step');
+      if (stepParam) {
+        const parsed = parseInt(stepParam, 10);
+        if (parsed >= 1 && parsed <= 5) {
+          setStep(parsed);
+          sessionStorage.setItem('sevikaa_worker_onboarding_step', String(parsed));
+          localStorage.setItem('sevikaa_worker_onboarding_step', String(parsed));
+        }
       }
-    }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Save current step & draft input fields to sessionStorage & localStorage on every update
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.history.replaceState({ step }, '', `?role=worker&step=${step}`);
-  }, [step]);
+
+    try {
+      sessionStorage.setItem('sevikaa_worker_onboarding_step', String(step));
+      localStorage.setItem('sevikaa_worker_onboarding_step', String(step));
+
+      const draft = {
+        step,
+        fullName,
+        gender,
+        age,
+        selectedLanguages,
+        skills,
+        experience,
+        selectedShifts,
+        expectedSalary,
+        preferredSociety,
+        preferredAreas
+      };
+      sessionStorage.setItem('sevikaa_worker_onboarding_draft', JSON.stringify(draft));
+      localStorage.setItem('sevikaa_worker_onboarding_draft', JSON.stringify(draft));
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('step') !== String(step)) {
+        window.history.replaceState({ step }, '', `?role=worker&step=${step}`);
+      }
+    } catch (e) {
+      console.warn("Failed to save worker onboarding progress:", e);
+    }
+  }, [step, fullName, gender, age, selectedLanguages, skills, experience, selectedShifts, expectedSalary, preferredSociety, preferredAreas]);
 
   // Form Validations per step
   const validateStep = () => {
@@ -286,7 +348,13 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
 
   const handleNext = () => {
     if (validateStep()) {
-      setStep(prev => prev + 1);
+      const nextStep = Math.min(step + 1, 5);
+      setStep(nextStep);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('sevikaa_worker_onboarding_step', String(nextStep));
+        localStorage.setItem('sevikaa_worker_onboarding_step', String(nextStep));
+        window.history.pushState({ step: nextStep }, '', `?role=worker&step=${nextStep}`);
+      }
     }
   };
 
@@ -294,7 +362,13 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
     setError('');
     setSocietyDropdownOpen(false);
     if (step > 1) {
-      setStep(prev => prev - 1);
+      const prevStep = step - 1;
+      setStep(prevStep);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('sevikaa_worker_onboarding_step', String(prevStep));
+        localStorage.setItem('sevikaa_worker_onboarding_step', String(prevStep));
+        window.history.pushState({ step: prevStep }, '', `?role=worker&step=${prevStep}`);
+      }
     } else {
       if (onCancel) onCancel();
     }
@@ -382,6 +456,10 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('sevikaa_worker_draft_photo');
           localStorage.removeItem('sevikaa_worker_draft_photo');
+          sessionStorage.removeItem('sevikaa_worker_onboarding_step');
+          localStorage.removeItem('sevikaa_worker_onboarding_step');
+          sessionStorage.removeItem('sevikaa_worker_onboarding_draft');
+          localStorage.removeItem('sevikaa_worker_onboarding_draft');
         }
       } catch (e) {}
 

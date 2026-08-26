@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useWorkerDashboard } from '../layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { 
-  User, CheckCircle2, ShieldAlert, AlertTriangle, ChevronDown, ChevronUp, 
+  User, CheckCircle2, ShieldAlert, AlertTriangle, AlertCircle, ChevronDown, ChevronUp, 
   Trash2, Save, Phone, IndianRupee, Briefcase, Languages, Clock,
   Upload, Camera, FileText, Image, Star, ChevronRight, Lock, X, Video, ShieldCheck, MapPin, Eye, Play, Sparkles, Check
 } from 'lucide-react';
@@ -233,7 +233,7 @@ export default function WorkerProfilePage() {
   };
 
   // Discrete Danger Zone State
-  const [showDangerZone, setShowDangerZone] = useState(false);
+  const [showDangerZone, setShowDangerZone] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletionReason, setDeletionReason] = useState('Moving to another city');
   const [customReason, setCustomReason] = useState('');
@@ -680,13 +680,15 @@ export default function WorkerProfilePage() {
           </div>
         </div>
 
-        {/* Animated Progress Bar */}
-        <div className="space-y-3 relative z-10 pt-4 border-t border-slate-200/80">
-          <div className="flex justify-between items-center text-xs font-black text-slate-700">
-            <span>{t('profileCompletenessTitle') || "Profile Readiness"}</span>
-            <span>{completedCount} {t('ofText') || 'of'} {completionSteps.length} {t('stepsCompletedSuffix') || 'steps completed'}</span>
+        {/* Animated Progress Bar & Clean Profile Completeness Summary */}
+        <div className="space-y-2.5 relative z-10 pt-4 border-t border-slate-200/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs font-black text-slate-800">
+            <span className="text-slate-900 font-black tracking-tight">{t('profileCompletenessTitle') || "Profile Completeness"}</span>
+            <span className="text-slate-500 font-extrabold text-[11px] sm:text-xs">
+              {completedCount} {t('ofText') || 'of'} {completionSteps.length} {t('stepsCompletedSuffix') || 'steps completed'}
+            </span>
           </div>
-          <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
+          <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200 shadow-inner">
             <div 
               className={`h-full rounded-full transition-all duration-700 ${
                 completionPercent === 100 ? 'bg-gradient-to-r from-[#34A853] to-emerald-400' : 'bg-gradient-to-r from-[#1A73E8] to-blue-400'
@@ -1377,7 +1379,7 @@ export default function WorkerProfilePage() {
       <LegalComplianceHubCard href="/worker/legal" />
 
       {/* 🔴 DANGER ZONE: ACCOUNT DELETION */}
-      <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-3">
+      <div className="bg-white p-6 rounded-3xl border border-red-200/80 shadow-xs space-y-3">
         <button
           type="button"
           onClick={() => setShowDangerZone(!showDangerZone)}
@@ -1391,17 +1393,22 @@ export default function WorkerProfilePage() {
         </button>
 
         {showDangerZone && (
-          <div className="pt-3 border-t border-red-50 space-y-3 animate-fade-in">
-            <p className="text-xs text-slate-500 font-medium">
+          <div className="pt-3 border-t border-red-100 space-y-3 animate-fade-in">
+            <p className="text-xs text-slate-600 font-medium leading-relaxed">
               If you are moving or no longer wish to work through Sevikaa, you can request profile offboarding.
             </p>
             <button
               type="button"
               onClick={() => setShowDeleteModal(true)}
               disabled={deletionRequested}
-              className="py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl text-xs font-black transition-all border border-red-200/70 disabled:opacity-50 cursor-pointer"
+              className={`w-full sm:w-auto py-3 px-5 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md ${
+                deletionRequested
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300 cursor-not-allowed'
+                  : 'bg-red-600 hover:bg-red-700 active:scale-95 text-white border border-red-600 shadow-red-500/20'
+              }`}
             >
-              {deletionRequested ? 'Account Deletion Pending Review' : 'Request Worker Profile Deletion'}
+              <Trash2 size={15} />
+              <span>{deletionRequested ? 'Account Deletion Pending Review' : 'Request Worker Profile Deletion'}</span>
             </button>
           </div>
         )}
@@ -1418,6 +1425,87 @@ export default function WorkerProfilePage() {
           />
         </div>
       </div>
+
+      {/* ⚠️ WORKER PROFILE DELETION CONFIRMATION MODAL */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5 text-red-600">
+                <div className="p-2 bg-red-50 rounded-2xl shrink-0">
+                  <AlertCircle size={22} className="text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 leading-tight">Request Profile Deletion</h3>
+                  <p className="text-[11px] text-slate-400 font-bold">Worker Account Offboarding</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                Are you sure you want to request deletion of your Sevikaa worker profile?
+                Once submitted, Sevikaa Admin will review your offboarding request and contact you at <strong className="text-slate-900">{phone || workerProfile.phone || 'your phone number'}</strong>.
+              </p>
+
+              <div className="space-y-1.5 pt-1">
+                <label className="text-xs font-bold text-slate-700">Reason for Offboarding *</label>
+                <select
+                  value={deletionReason}
+                  onChange={(e) => setDeletionReason(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-red-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="Moving to another city">Moving to another city / state</option>
+                  <option value="Found permanent employment">Found permanent employment independently</option>
+                  <option value="Taking a break from work">Taking a temporary break from domestic work</option>
+                  <option value="Other">Other / Custom Reason</option>
+                </select>
+              </div>
+
+              {deletionReason === 'Other' && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Specify Custom Reason</label>
+                  <input
+                    type="text"
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    placeholder="Please specify why you are requesting profile deletion..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const finalReason = deletionReason === 'Other' ? (customReason || 'Other reason') : deletionReason;
+                  setShowDeleteModal(false);
+                  await handleRequestAccountDeletion(finalReason);
+                }}
+                className="py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-md shadow-red-500/20"
+              >
+                Confirm &amp; Submit Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

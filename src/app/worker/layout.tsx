@@ -412,8 +412,17 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
   };
 
   const handleRequestAccountDeletion = async (reason: string) => {
+    try {
+      const { webApiClient } = await import('@/lib/webApiClient');
+      await webApiClient.post('/api/worker/offboard', { reason }).catch(() => {});
+    } catch (e) {
+      console.warn("Offboard request error:", e);
+    }
     setDeletionRequested(true);
-    showToast('Account deletion request submitted. Sevikaa admin will contact you to confirm.', 'warning');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sevikaa_worker_deletion_requested', 'true');
+    }
+    showToast('Profile deletion request submitted successfully! Sevikaa Admin will review and process offboarding.', 'success');
   };
 
   const handleLogout = async () => {

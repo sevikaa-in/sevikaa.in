@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
           NULLIF(TRIM(INITCAP(REPLACE(SPLIT_PART(p.email, '@', 1), '.', ' '))), ''),
           'Resident Employer'
         ) AS employer_name,
-        ep.phone AS employer_phone
+        COALESCE(p.phone, ep.alternate_phone, '') AS employer_phone
       FROM public.jobs j
       LEFT JOIN public.societies s ON s.id = j.society_id
       LEFT JOIN public.employer_profiles ep ON ep.user_id::text = j.employer_id::text OR ep.id::text = j.employer_id::text
