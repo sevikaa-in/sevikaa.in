@@ -83,11 +83,11 @@ export default function EmployerOverviewPage() {
           </span>
           {isEmployerVerified ? (
             <span className="bg-emerald-100 text-emerald-800 text-[9.5px] font-black uppercase px-2.5 py-1 rounded-full border border-emerald-200/90 flex items-center gap-1">
-              <ShieldCheck size={11} className="text-emerald-600 shrink-0" /> Verified Employer Account
+              <ShieldCheck size={11} className="text-emerald-600 shrink-0" /> {t('verifiedEmployerAccount') || 'Verified Employer Account'}
             </span>
           ) : (
             <span className="bg-amber-100 text-amber-800 text-[9.5px] font-black uppercase px-2.5 py-1 rounded-full border border-amber-200/90 flex items-center gap-1">
-              <Clock size={11} className="text-amber-600 shrink-0" /> Pending Admin Audit
+              <Clock size={11} className="text-amber-600 shrink-0" /> {t('pendingAdminAudit') || 'Pending Admin Audit'}
             </span>
           )}
         </div>
@@ -125,22 +125,22 @@ export default function EmployerOverviewPage() {
               <ShieldCheck size={16} />
             </div>
             <div>
-              <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-wider">Gate Pass Verified</h4>
-              <p className="text-[9.5px] text-emerald-600 font-bold">Live DLT SMS Alerts</p>
+              <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-wider">{t('gatePassVerified') || 'Gate Pass Verified'}</h4>
+              <p className="text-[9.5px] text-emerald-600 font-bold">{t('liveDltSmsAlerts') || 'Live DLT SMS Alerts'}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-4 flex-wrap text-[10.5px]">
             <span className="flex items-center gap-1.5 whitespace-nowrap">
               <Users size={13} className="text-[#1A73E8]" />
-              <span className="text-slate-500">Society Helpers:</span>
-              <strong className="text-slate-900">{totalWorkersCount} Verified</strong>
+              <span className="text-slate-500">{t('societyHelpers') || 'Society Helpers:'}</span>
+              <strong className="text-slate-900">{totalWorkersCount} {t('verified') || 'Verified'}</strong>
             </span>
 
             <span className="flex items-center gap-1.5 whitespace-nowrap">
               <CheckCircle2 size={13} className="text-emerald-600" />
-              <span className="text-slate-500">Aadhaar Record:</span>
-              <strong className="text-emerald-600">100% Passed</strong>
+              <span className="text-slate-500">{t('aadhaarRecord') || 'Aadhaar Record:'}</span>
+              <strong className="text-emerald-600">{t('passed100') || '100% Passed'}</strong>
             </span>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWorkerDashboard } from './layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { JobCard } from '@/components/worker/JobCard';
@@ -62,40 +62,28 @@ export default function WorkerOverviewPage() {
     }
   ];
 
-  const fallbackJobs = [
-    { 
-      id: 'c9bf0b7b-3b02-44e1-a20d-70498b8c2d1b', 
-      title: 'Full Day Housekeeping & Deep Cleaning', 
-      category: 'MAID',
-      employer_name: 'Ria Bhagat',
-      description: 'Looking for an experienced and reliable maid for daily dusting, mopping, utensil washing, and laundry for our family in a 3BHK flat.', 
-      salary_offered: 15000, 
-      society_name: 'DLF Westend Heights - Akshayanagar', 
-      created_at: '2026-07-27' 
-    },
-    { 
-      id: 'd78a9e4f-8f12-4c22-921a-5b12847a98b1', 
-      title: 'North & South Indian Family Cook', 
-      category: 'COOK',
-      employer_name: 'Vikram Sharma',
-      description: 'Family of 4 needs an experienced home cook for North Indian thali (roti, sabzi, dal, rice) and South Indian breakfast preparation.', 
-      salary_offered: 18000, 
-      society_name: 'Prestige Song of the South - Gate 1', 
-      created_at: '2026-07-27' 
-    },
-    { 
-      id: 'e412a89c-1120-4e55-901b-1b918a204910', 
-      title: 'Toddler Nanny & Infant Caregiver', 
-      category: 'NANNY',
-      employer_name: 'Priya Nair',
-      description: 'Loving and attentive nanny needed to take care of an 18-month-old baby boy. Responsibilities include feeding, playtime, reading stories, and hygiene.', 
-      salary_offered: 20000, 
-      society_name: 'SNN Raj Serenity - Block B', 
-      created_at: '2026-07-27' 
-    }
-  ];
+  const [homeJobs, setHomeJobs] = useState<any[]>(availableJobs);
 
-  const rawJobs = availableJobs;
+  useEffect(() => {
+    if (availableJobs && availableJobs.length > 0) {
+      setHomeJobs(availableJobs);
+    } else {
+      const fetchHomeJobs = async () => {
+        try {
+          const { webApiClient } = await import('@/lib/webApiClient');
+          const res = await webApiClient.get('/api/worker/jobs');
+          if (res && res.success && Array.isArray(res.jobs) && res.jobs.length > 0) {
+            setHomeJobs(res.jobs);
+          }
+        } catch (e) {
+          console.warn("Home feed jobs fetch notice:", e);
+        }
+      };
+      fetchHomeJobs();
+    }
+  }, [availableJobs]);
+
+  const rawJobs = homeJobs.length > 0 ? homeJobs : availableJobs;
 
   // Targeted Home Feed Filter: Filter by Worker's Registered Skill + Category Synonyms
   const workerSkillsList = (

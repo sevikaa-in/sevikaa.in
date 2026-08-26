@@ -34,149 +34,53 @@ export default function WorkerJobDetailsPage() {
   const [translatedShift, setTranslatedShift] = useState('');
   const [translatedDietary, setTranslatedDietary] = useState('');
 
-  // Fallback verified jobs list if not found in database
-  const fallbackJobs = useMemo(() => [
-    { 
-      id: 'c9bf0b7b-3b02-44e1-a20d-70498b8c2d1b', 
-      title: t('jobTitleHousekeeping') || 'Full Day Housekeeping & Deep Cleaning', 
-      category: 'maid',
-      employer_name: 'Ria Bhagat',
-      employer_phone: '+91 98765 43210',
-      description: t('jobDescHousekeeping') || 'Looking for an experienced and reliable maid for daily dusting, mopping, utensil washing, and laundry for our family in a 3BHK flat.', 
-      salary_offered: 15000, 
-      society_name: t('societyDLF') || 'DLF Westend Heights - Tower 4', 
-      locality: 'Akshayanagar, DLF Road, Bangalore - 560068',
-      shift_hours: 'Full Day (8:00 AM – 4:00 PM)',
-      weekly_off: 'Sundays Off',
-      family_members: '4 Members (2 Adults, 2 Kids)',
-      flat_type: '3BHK Apartment (Tower 4, 8th Floor)',
-      dietary_pref: 'Vegetarian Household',
-      payment_terms: '1st of every month via Direct Bank Transfer / UPI',
-      responsibilities: [
-        'Daily floor sweeping, mopping & balcony cleaning',
-        'Utensil washing & dishwasher loading',
-        'Dusting furniture, TV unit, and window sills',
-        'Washing clothes in washing machine & ironing daily wear'
-      ],
-      qualifications: [
-        '2+ Years experience in gated apartment housekeeping',
-        'Punctual, honest and hygienic work habits',
-        'Aadhaar card verification & local reference mandatory'
-      ],
-      perks: ['Meals Included on Duty', 'Tea & Morning Snacks', 'Sunday Off', 'Diwali Bonus']
-    },
-    { 
-      id: 'd78a9e4f-8f12-4c22-921a-5b12847a98b1', 
-      title: t('jobTitleCook') || 'North & South Indian Family Cook', 
-      category: 'cook',
-      employer_name: 'Vikram Sharma',
-      employer_phone: '+91 98123 45678',
-      description: t('jobDescCook') || 'Family of 4 needs an experienced home cook for North Indian thali (roti, sabzi, dal, rice) and South Indian breakfast preparation.', 
-      salary_offered: 18000, 
-      society_name: t('societyPrestige') || 'Prestige Song of the South - Gate 1', 
-      locality: 'Begur Main Road, Hulimavu, Bangalore - 560068',
-      shift_hours: 'Split Shift: 7:00 AM – 10:00 AM & 6:00 PM – 9:00 PM',
-      weekly_off: 'Sundays Off',
-      family_members: '4 Members (2 Adults, 2 Elderly Parents)',
-      flat_type: '3BHK Apartment (Block B, 3rd Floor)',
-      dietary_pref: 'Pure Vegetarian / Jain Meal Options Required',
-      payment_terms: '1st of every month in cash or UPI',
-      responsibilities: [
-        'Prepare fresh breakfast (Idli, Dosa, Poha, Parathas)',
-        'Cook North Indian thali dinner for 4 members',
-        'Keep kitchen platform, gas stove & cooking utensils clean',
-        'Follow hygienic cooking standards & low oil preferences'
-      ],
-      qualifications: [
-        '3+ Years home cooking experience in residential societies',
-        'Expertise in Jain food prep (no onion/garlic dishes)',
-        'Clean hygiene habits & neat presentation'
-      ],
-      perks: ['Tea & Evening Snacks', 'Festival Bonus', 'Annual Salary Revision']
-    },
-    { 
-      id: 'e412a89c-1120-4e55-901b-1b918a204910', 
-      title: t('jobTitleNanny') || 'Toddler Nanny & Infant Caregiver', 
-      category: 'nanny',
-      employer_name: 'Priya Nair',
-      employer_phone: '+91 97654 32109',
-      description: t('jobDescNanny') || 'Loving and attentive nanny needed to take care of an 18-month-old baby boy. Responsibilities include feeding, playtime, reading stories, and hygiene.', 
-      salary_offered: 20000, 
-      society_name: t('societySNN') || 'SNN Raj Serenity - Block B', 
-      locality: 'Begur Road, Electronic City Link Road, Bangalore - 560068',
-      shift_hours: 'Full Day (9:00 AM – 6:00 PM)',
-      weekly_off: 'Sundays Off',
-      family_members: '3 Members (2 Working Parents, 1 Toddler Boy)',
-      flat_type: '3BHK Gated Apartment (Block B)',
-      dietary_pref: 'Non-Vegetarian Household',
-      payment_terms: '5th of every month via Bank Transfer',
-      responsibilities: [
-        'Feeding baby age-appropriate healthy meals & milk',
-        'Sterilizing feeding bottles & maintaining baby hygiene',
-        'Engaging toddler in fun educational games & storybooks',
-        'Accompanying toddler for evening walk in society park'
-      ],
-      qualifications: [
-        '3+ Years infant care or nanny experience required',
-        'Patient, loving, non-smoker with good hygiene',
-        'Background verification & police clearance mandatory'
-      ],
-      perks: ['Lunch Provided on Duty', 'Paid Annual Leaves (12 Days)', 'Overtime Pay Allowance']
-    },
-    { 
-      id: 'f9201a44-7711-4822-b91c-2c9018471b05', 
-      title: t('jobTitleDriver') || 'Personal Family Car Driver', 
-      category: 'driver',
-      employer_name: 'Anand Kulkarni',
-      employer_phone: '+91 99000 11223',
-      description: t('jobDescDriver') || 'Private family driver needed for daily office commutes, city errands, and airport drops in automatic SUV and manual sedan.', 
-      salary_offered: 22000, 
-      society_name: t('societyPurva') || 'Purva Westend - Kudlu Gate', 
-      locality: 'Kudlu Gate, Hosur Main Road, Bangalore - 560068',
-      shift_hours: '10 Hours Duty (9:00 AM – 7:00 PM)',
-      weekly_off: 'Sundays Off',
-      family_members: '4 Members (Executive Family)',
-      flat_type: '4BHK Penthouse',
-      dietary_pref: 'Non-Vegetarian Household',
-      payment_terms: '1st of every month via Bank Transfer',
-      responsibilities: [
-        'Daily morning office drop & evening pick-up',
-        'Maintain vehicle cleanliness, tire pressure & fuel level',
-        'Safe driving with valid Commercial / Private DL',
-        'Handling GPS navigation & city traffic routes'
-      ],
-      qualifications: [
-        '4+ Years private driving experience with clean record',
-        'Valid LMV Driving License mandatory',
-        'No traffic violation history & police verification cleared'
-      ],
-      perks: ['Uniform Allowance Provided', 'Overtime Pay Allowance', 'Diwali Bonus']
+  const [directFetchedJob, setDirectFetchedJob] = useState<any>(null);
+
+  useEffect(() => {
+    if (!jobId) return;
+    const exists = availableJobs.find((j: any) => j.id === jobId);
+    if (!exists) {
+      const fetchSingleJob = async () => {
+        try {
+          const { webApiClient } = await import('@/lib/webApiClient');
+          const res = await webApiClient.get('/api/worker/jobs');
+          if (res && res.success && Array.isArray(res.jobs)) {
+            const found = res.jobs.find((j: any) => j.id === jobId);
+            if (found) setDirectFetchedJob(found);
+          }
+        } catch (e) {
+          console.warn("Direct job fetch error:", e);
+        }
+      };
+      fetchSingleJob();
     }
-  ], [t]);
+  }, [jobId, availableJobs]);
 
   // Target job lookup
   const job = useMemo(() => {
     const fromProps = availableJobs.find((j: any) => j.id === jobId);
     if (fromProps) return fromProps;
-    return fallbackJobs.find(j => j.id === jobId) || fallbackJobs[0];
-  }, [jobId, availableJobs, fallbackJobs]);
+    if (directFetchedJob) return directFetchedJob;
+    return availableJobs[0] || null;
+  }, [jobId, availableJobs, directFetchedJob]);
 
   // Formatted professional Job Reference ID
   const formattedJobId = useMemo(() => {
-    if (!job.id) return 'SVK-C9BF0B';
+    if (!job || !job.id) return 'SVK-PENDING';
     if (job.id.length > 8) {
       return `SVK-${job.id.slice(0, 6).toUpperCase()}`;
     }
     return `SVK-${job.id.toUpperCase()}`;
-  }, [job.id]);
+  }, [job]);
 
   // Translate free-form text & specifications dynamically whenever language or job changes
   useEffect(() => {
     let isMounted = true;
     async function translateFields() {
+      if (!job) return;
       if (language === 'en') {
-        setTranslatedTitle(job.title);
-        setTranslatedDesc(job.description);
+        setTranslatedTitle(job.title || 'Domestic Worker Job');
+        setTranslatedDesc(job.description || 'Household helper needed for daily family chores.');
         setTranslatedResponsibilities(job.responsibilities || []);
         setTranslatedQualifications(job.qualifications || []);
         setTranslatedFamily(job.family_members || '');

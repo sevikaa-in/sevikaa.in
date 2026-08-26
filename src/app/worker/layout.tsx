@@ -147,16 +147,28 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
         }
       }
 
-      // Fetch live jobs with explicit columns & limit 50 (Fix Audit 6 Items 18 & 19)
+      // Fetch live employer job postings with full details
       let rawLiveJobs: any[] = [];
-      const { data: liveJobs } = await supabase
-        .from('jobs')
-        .select('id, title, category, salary, shift_hours, society_name, status, created_at')
-        .order('created_at', { ascending: false })
-        .limit(50);
+      try {
+        const { webApiClient } = await import('@/lib/webApiClient');
+        const apiJobData = await webApiClient.get('/api/worker/jobs');
+        if (apiJobData && apiJobData.success && Array.isArray(apiJobData.jobs) && apiJobData.jobs.length > 0) {
+          rawLiveJobs = apiJobData.jobs;
+        }
+      } catch (e) {
+        console.warn("API worker jobs fetch notice:", e);
+      }
 
-      if (liveJobs && liveJobs.length > 0) {
-        rawLiveJobs = liveJobs;
+      if (rawLiveJobs.length === 0) {
+        const { data: liveJobs } = await supabase
+          .from('jobs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (liveJobs && liveJobs.length > 0) {
+          rawLiveJobs = liveJobs;
+        }
       }
 
       if (rawLiveJobs && rawLiveJobs.length > 0) {
@@ -169,12 +181,9 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
             const found = dbSocieties.find((s: any) => s.id === j.society_id);
             if (found) resolvedSociety = found.name;
           }
-          if (!resolvedSociety && dbSocieties && dbSocieties.length > 0) {
-            resolvedSociety = dbSocieties[0].name;
-          }
           return {
             ...j,
-            society_name: resolvedSociety || 'DLF Westend Heights - Akshayanagar'
+            society_name: resolvedSociety || 'Gated Society'
           };
         });
         setAvailableJobs(mappedJobs);

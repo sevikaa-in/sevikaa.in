@@ -115,11 +115,48 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string>('');
 
+  // Restore cached draft selfie photo on mount if available
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const cachedPhoto = sessionStorage.getItem('sevikaa_worker_draft_photo') || localStorage.getItem('sevikaa_worker_draft_photo');
+      if (cachedPhoto) {
+        setSelfiePreview(cachedPhoto);
+      } else {
+        const uStr = localStorage.getItem('sevikaa_user') || sessionStorage.getItem('sevikaa_user');
+        if (uStr) {
+          const uObj = JSON.parse(uStr);
+          const existingPhoto = uObj.profile_picture_url || uObj.avatar_url || uObj.user_metadata?.avatar_url;
+          if (existingPhoto) {
+            setSelfiePreview(existingPhoto);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to restore cached worker photo:", e);
+    }
+  }, []);
+
   const handleFileSelect = (file: File) => {
     stopCameraStream();
     setCameraError('');
     setSelfieFile(file);
-    setSelfiePreview(URL.createObjectURL(file));
+    
+    // Convert to Data URL so it persists in sessionStorage / localStorage across page refreshes
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      setSelfiePreview(dataUrl);
+      try {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('sevikaa_worker_draft_photo', dataUrl);
+          localStorage.setItem('sevikaa_worker_draft_photo', dataUrl);
+        }
+      } catch (e) {
+        console.warn('Failed to cache draft photo to storage:', e);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleUploadPhoto = () => {
@@ -190,6 +227,12 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
     setCameraError('');
     setSelfieFile(null);
     setSelfiePreview(null);
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('sevikaa_worker_draft_photo');
+        localStorage.removeItem('sevikaa_worker_draft_photo');
+      }
+    } catch (e) {}
   };
 
   useEffect(() => {
@@ -199,6 +242,18 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
   }, []);
 
   // Sync URL with current step whenever step changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const stepParam = urlParams.get('step');
+    if (stepParam) {
+      const parsedStep = parseInt(stepParam, 10);
+      if (parsedStep >= 1 && parsedStep <= 5 && parsedStep !== step) {
+        setStep(parsedStep);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.history.replaceState({ step }, '', `?role=worker&step=${step}`);
@@ -270,6 +325,8 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
           reader.onloadend = () => resolve(reader.result as string);
           reader.readAsDataURL(selfieFile);
         }).catch(() => undefined);
+      } else if (selfiePreview) {
+        photoDataUrl = selfiePreview;
       }
 
       // PART 1: Web Dedicated Onboarding API submit via fetch with credentials: 'same-origin'
@@ -299,6 +356,12 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
 
       if (!res.ok || !data.success) {
         if (data.hasCompletedProfile || data.message?.includes('already completed')) {
+          try {
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('sevikaa_worker_draft_photo');
+              localStorage.removeItem('sevikaa_worker_draft_photo');
+            }
+          } catch (e) {}
           setLoading(false);
           onComplete();
           return;
@@ -314,6 +377,13 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
         setError(data.message || data.error || 'Failed to complete worker onboarding. Please check your entries.');
         return;
       }
+
+      try {
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('sevikaa_worker_draft_photo');
+          localStorage.removeItem('sevikaa_worker_draft_photo');
+        }
+      } catch (e) {}
 
       // Establish normal session token
       if (data.access_token || data.token) {

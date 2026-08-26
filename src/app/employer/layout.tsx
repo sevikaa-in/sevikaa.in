@@ -537,16 +537,16 @@ export default function EmployerDashboardLayout({ children }: { children: React.
                     <>
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                         <div>
-                          <h4 className="text-xs font-black text-slate-900">Employer Account</h4>
-                          <p className="text-[10px] text-slate-400 font-semibold">{user?.email || employerProfile.email || 'Setup Pending'}</p>
+                          <h4 className="text-xs font-black text-slate-900">{t('employerAccount') || 'Employer Account'}</h4>
+                          <p className="text-[10px] text-slate-400 font-semibold">{user?.email || employerProfile.email || (t('setupPending') || 'Setup Pending')}</p>
                         </div>
                         <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase bg-blue-50 text-[#1A73E8]">
-                          Setup Pending
+                          {t('setupPending') || 'Setup Pending'}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between pt-1">
-                        <span className="text-xs font-bold text-slate-500">App Language:</span>
+                        <span className="text-xs font-bold text-slate-500">{t('appLanguage') || 'App Language:'}</span>
                         <GlobalLanguageSelector />
                       </div>
 
@@ -556,7 +556,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
                           className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
                         >
                           <LogOut size={14} />
-                          <span>Log Out Session</span>
+                          <span>{t('logoutSession') || 'Log Out Session'}</span>
                         </button>
                       </div>
                     </>
@@ -572,12 +572,12 @@ export default function EmployerDashboardLayout({ children }: { children: React.
                             ? 'bg-amber-100 text-amber-800' 
                             : 'bg-blue-50 text-[#1A73E8]'
                         }`}>
-                          {deletionRequested ? 'Pending' : 'Active'}
+                          {deletionRequested ? (t('pending') || 'Pending') : (t('active') || 'Active')}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between pt-1">
-                        <span className="text-xs font-bold text-slate-500">App Language:</span>
+                        <span className="text-xs font-bold text-slate-500">{t('appLanguage') || 'App Language:'}</span>
                         <GlobalLanguageSelector />
                       </div>
 
@@ -587,7 +587,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
                           onClick={() => setShowMobileMenu(false)}
                           className="w-full py-2.5 px-4 bg-blue-50 hover:bg-blue-100 text-[#1A73E8] border border-blue-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
                         >
-                          <span>🌐 Visit Public Homepage</span>
+                          <span>{t('visitPublicHomepage') || '🌐 Visit Public Homepage'}</span>
                         </Link>
 
                         <button
@@ -595,7 +595,7 @@ export default function EmployerDashboardLayout({ children }: { children: React.
                           className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
                         >
                           <LogOut size={14} />
-                          <span>Log Out Session</span>
+                          <span>{t('logoutSession') || 'Log Out Session'}</span>
                         </button>
                       </div>
                     </>
