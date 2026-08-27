@@ -45,9 +45,22 @@ export async function secureUpload(
   // Direct Cloudinary Upload for videos or files > 3.5MB to bypass Next.js Serverless 4.5MB Payload limit
   if (assetType === 'video_url' || file.size > 3.5 * 1024 * 1024) {
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('sevikaa_worker_token') || 
+                      localStorage.getItem('sevikaa_access_token') || 
+                      localStorage.getItem('sevikaa_user_token') || 
+                      localStorage.getItem('sevikaa_employer_token') ||
+                      sessionStorage.getItem('sevikaa_access_token') ||
+                      sessionStorage.getItem('sevikaa_worker_token');
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+
       const signRes = await fetch('/api/upload/cloudinary/sign', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           userId,
           folder: `sevikaa/${role || 'worker'}/${userId}/${assetType.replace('_url', '')}`,

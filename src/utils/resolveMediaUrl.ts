@@ -75,9 +75,9 @@ export async function resolvePrivateUrl(ref: string | null | undefined): Promise
     try {
       const { webApiClient } = await import('@/lib/webApiClient');
       const data = await webApiClient.get(`/api/upload/cloudinary/sign?ref=${encodeURIComponent(trimmed)}`);
-      return data?.url || '';
+      return data?.url || resolveMediaUrl('worker-documents', trimmed) || '';
     } catch {
-      return '';
+      return resolveMediaUrl('worker-documents', trimmed) || '';
     }
   }
 

@@ -106,7 +106,18 @@ export async function GET(req: NextRequest) {
     }
 
     const resourceType = parts[1] as 'image' | 'video' | 'raw';
-    const publicId = parts.slice(2).join(':');
+    let rawPublicId = parts.slice(2).join(':');
+
+    let format: string | undefined = undefined;
+    const extMatch = rawPublicId.match(/\.(jpg|jpeg|png|webp|gif|pdf)$/i);
+    if (extMatch) {
+      format = extMatch[1].toLowerCase();
+      rawPublicId = rawPublicId.replace(/\.(jpg|jpeg|png|webp|gif|pdf)$/i, '');
+    } else if (resourceType === 'image') {
+      format = 'jpg';
+    }
+
+    const publicId = rawPublicId;
 
     // Admin authorization check
     const isAdmin = activeUserRole === 'admin' || activeUserRole === 'super-admin' || cookieRole === 'admin' || cookieRole === 'super-admin';
@@ -130,14 +141,33 @@ export async function GET(req: NextRequest) {
       } catch {}
     }
 
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'qq7ijovh';
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    const { v2: cloudinarySdk } = require('cloudinary');
+    cloudinarySdk.config({
+      cloud_name: cloudName,
+      api_key: apiKey,
+      api_secret: apiSecret,
+      secure: true,
+    });
+
     // Generate signed URL valid for 1 hour
     const expiresAt = Math.floor(Date.now() / 1000) + 3600;
-    const signedUrl = cloudinary.url(publicId, {
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'qq7ijovh',
+    const signedAuthenticatedUrl = cloudinarySdk.url(publicId, {
       resource_type: resourceType,
       type: 'authenticated',
+      ...(format ? { format } : {}),
       sign_url: true,
       expires_at: expiresAt,
+      secure: true,
+    });
+
+    const publicUploadUrl = cloudinarySdk.url(publicId, {
+      resource_type: resourceType,
+      type: 'upload',
+      ...(format ? { format } : {}),
       secure: true,
     });
 
@@ -145,7 +175,9 @@ export async function GET(req: NextRequest) {
     logDocumentAccess(activeUserId || 'guest', activeUserEmail || activeUserId || 'guest', activeUserRole || 'user', ref, req).catch(() => {});
 
     return NextResponse.json({
-      url: signedUrl,
+      url: signedAuthenticatedUrl,
+      authenticatedUrl: signedAuthenticatedUrl,
+      uploadUrl: publicUploadUrl,
       expiresAt,
       expiresIn: 3600,
     });

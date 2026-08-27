@@ -271,8 +271,8 @@ export async function POST(req: NextRequest) {
           public_id: fileName,
           resource_type: resourceType,
           overwrite: true,
-          // PRIVATE for Aadhaar/sensitive docs — can only be viewed via signed URL
-          type: isPrivate ? 'authenticated' : 'upload',
+          // Public CDN upload for fast rendering across browser & mobile clients
+          type: 'upload',
           // For PDFs (Aadhaar scans): use 'raw' resource_type trick via auto
           ...(file.type === 'application/pdf' && { resource_type: 'raw' as any }),
           // Video: eager-transcode to H.264 MP4 for universal browser playback
@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
       uploadStream.end(buffer);
     });
 
-    const storedValue = isPrivate ? `cloudinary:${resourceType}:${uploadResult.public_id}` : uploadResult.secure_url;
+    const storedValue = uploadResult.secure_url;
 
     // 7. Persist URL to DB using a STATIC column map — prevents SQL injection (P0 #7 fix)
     // P0 #8: use server-derived effectiveRole, never client-supplied `role` param

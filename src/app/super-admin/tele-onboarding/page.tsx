@@ -44,12 +44,20 @@ const getAdminName = () => {
 };
 
 const MediaPreviewImage: React.FC<{ url: string; title: string }> = ({ url, title }) => {
-  const { url: signedUrl } = usePrivateUrl(url);
-  const displayUrl = signedUrl || resolveMediaUrl('worker-documents', url);
+  const { url: signedUrl, loading } = usePrivateUrl(url);
+  const displayUrl = signedUrl || (loading ? '' : resolveMediaUrl('worker-documents', url));
+
+  if (!displayUrl) {
+    return (
+      <div className="flex items-center justify-center p-8 text-slate-400">
+        <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <img 
-      src={displayUrl || undefined} 
+      src={displayUrl} 
       alt={title} 
       className="max-h-[70vh] w-auto rounded-xl object-contain" 
     />
@@ -57,10 +65,12 @@ const MediaPreviewImage: React.FC<{ url: string; title: string }> = ({ url, titl
 };
 
 const MediaThumbnail: React.FC<{ url?: string; bucket: string; alt: string; className?: string }> = ({ url, bucket, alt, className = "w-full h-full object-cover" }) => {
-  const { url: signedUrl } = usePrivateUrl(url);
-  const displayUrl = signedUrl || resolveMediaUrl(bucket, url);
+  const { url: signedUrl, loading } = usePrivateUrl(url);
+  const displayUrl = signedUrl || (loading ? '' : resolveMediaUrl(bucket, url));
 
-  if (!displayUrl) return null;
+  if (!displayUrl) {
+    return <div className="w-full h-full bg-slate-800 animate-pulse rounded-xl" />;
+  }
 
   return (
     <img 
@@ -1980,12 +1990,12 @@ export default function TeleOnboardingPage() {
                         {(selectedLead.avatar_url || selectedLead.profile_picture_url) ? (
                           <div 
                             onClick={() => {
-                              const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.avatar_url || selectedLead.profile_picture_url);
+                              const mediaUrl = selectedLead.avatar_url || selectedLead.profile_picture_url;
                               if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Selfie Photo`, type: 'image' });
                             }}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            <img src={resolveMediaUrl('verification-documents', selectedLead.avatar_url || selectedLead.profile_picture_url)} alt="Employer Selfie" className="w-full h-full object-cover" />
+                            <MediaThumbnail url={selectedLead.avatar_url || selectedLead.profile_picture_url} bucket="verification-documents" alt="Employer Selfie" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>
@@ -2000,15 +2010,15 @@ export default function TeleOnboardingPage() {
                       {/* 2. Aadhaar Front */}
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Aadhaar Front</span>
-                        {resolveMediaUrl('verification-documents', selectedLead.aadhaar_front_url) ? (
+                        {selectedLead.aadhaar_front_url ? (
                           <div 
                             onClick={() => {
-                              const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.aadhaar_front_url);
+                              const mediaUrl = selectedLead.aadhaar_front_url;
                               if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Aadhaar Front Card`, type: 'image' });
                             }}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            <img src={resolveMediaUrl('verification-documents', selectedLead.aadhaar_front_url)} alt="Aadhaar Front" className="w-full h-full object-cover" />
+                            <MediaThumbnail url={selectedLead.aadhaar_front_url} bucket="verification-documents" alt="Aadhaar Front" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>
@@ -2023,15 +2033,15 @@ export default function TeleOnboardingPage() {
                       {/* 3. Aadhaar Back */}
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Aadhaar Back</span>
-                        {resolveMediaUrl('verification-documents', selectedLead.aadhaar_back_url) ? (
+                        {selectedLead.aadhaar_back_url ? (
                           <div 
                             onClick={() => {
-                              const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.aadhaar_back_url);
+                              const mediaUrl = selectedLead.aadhaar_back_url;
                               if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Aadhaar Back Card`, type: 'image' });
                             }}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            <img src={resolveMediaUrl('verification-documents', selectedLead.aadhaar_back_url)} alt="Aadhaar Back" className="w-full h-full object-cover" />
+                            <MediaThumbnail url={selectedLead.aadhaar_back_url} bucket="verification-documents" alt="Aadhaar Back" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>
@@ -2046,15 +2056,15 @@ export default function TeleOnboardingPage() {
                       {/* 4. Society Residency Proof */}
                       <div className="p-2.5 bg-white rounded-2xl border border-slate-200/90 flex flex-col justify-between text-center space-y-2 relative overflow-hidden group">
                         <span className="text-[9.5px] font-bold text-slate-600 uppercase">Residency Proof</span>
-                        {resolveMediaUrl('verification-documents', selectedLead.residency_proof_url) ? (
+                        {selectedLead.residency_proof_url ? (
                           <div 
                             onClick={() => {
-                              const mediaUrl = resolveMediaUrl('verification-documents', selectedLead.residency_proof_url);
+                              const mediaUrl = selectedLead.residency_proof_url;
                               if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Employer'} - Society Residency Proof`, type: 'image' });
                             }}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            <img src={resolveMediaUrl('verification-documents', selectedLead.residency_proof_url)} alt="Residency Proof" className="w-full h-full object-cover" />
+                            <MediaThumbnail url={selectedLead.residency_proof_url} bucket="verification-documents" alt="Residency Proof" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>

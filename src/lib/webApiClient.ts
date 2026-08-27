@@ -21,6 +21,23 @@ export function getInMemoryAccessToken(): string | null {
   if (inMemoryAccessToken) return inMemoryAccessToken;
   if (typeof window === 'undefined') return null;
 
+  // 1. Direct Sevikaa Token Keys from localStorage / sessionStorage
+  const sevikaaKeys = [
+    'sevikaa_access_token',
+    'sevikaa_admin_token',
+    'sevikaa_worker_token',
+    'sevikaa_employer_token',
+    'sevikaa_user_token'
+  ];
+
+  for (const k of sevikaaKeys) {
+    const val = localStorage.getItem(k) || sessionStorage.getItem(k);
+    if (val && typeof val === 'string' && val.length > 5) {
+      inMemoryAccessToken = val;
+      return val;
+    }
+  }
+
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
