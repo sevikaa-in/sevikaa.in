@@ -266,43 +266,59 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
                     ? wProf.preferred_areas.slice(1) 
                     : []));
 
-          setWorkerProfile({
+          let localCache: any = null;
+          if (typeof window !== 'undefined') {
+            try {
+              const cached = localStorage.getItem('sevikaa_worker_profile_cache');
+              if (cached) localCache = JSON.parse(cached);
+            } catch (e) {}
+          }
+
+          const finalProfile = {
             id: wProf?.id || activeUser.id,
             user_id: wProf?.user_id || activeUser.id,
-            name: wProf?.full_name || wProf?.name || profile?.full_name || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_worker_name') : null) || 'Worker',
-            category: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
-            skills: Array.isArray(wProf?.skills) ? wProf.skills : (wProf?.skills ? [wProf.skills] : ['maid']),
-            expectedSalary: String(wProf?.expected_salary || '15000'),
-            experience: wProf?.experience_years ? `${wProf.experience_years} Years` : '0 Years',
-            society: pSoc,
+            name: wProf?.full_name || wProf?.name || profile?.full_name || localCache?.name || (typeof window !== 'undefined' ? localStorage.getItem('sevikaa_worker_name') : null) || 'Worker',
+            category: Array.isArray(wProf?.skills) ? wProf.skills : (localCache?.skills || (wProf?.skills ? [wProf.skills] : ['maid'])),
+            skills: Array.isArray(wProf?.skills) ? wProf.skills : (localCache?.skills || (wProf?.skills ? [wProf.skills] : ['maid'])),
+            expectedSalary: String(wProf?.expected_salary || localCache?.expectedSalary || '15000'),
+            experience: String(wProf?.experience_years !== undefined && wProf?.experience_years !== null ? wProf.experience_years : (localCache?.experience || '0')),
+            society: pSoc || localCache?.society || '',
             society_id: wProf?.preferred_society_id || '',
             secondary_societies: secSocList,
-            phone: profile?.phone || wProf?.phone || activeUser?.phone || '',
-            email: profile?.email || wProf?.email || activeUser?.email || '',
-            languages: wProf?.languages_spoken || [],
-            gender: wProf?.gender || 'female',
-            age: wProf?.age || 28,
-            bio: wProf?.bio || '',
-            preferredShift: wProf?.preferred_shift || 'Full Day (8–12 Hours)',
-            emergencyContact: wProf?.emergency_contact || '',
+            phone: profile?.phone || wProf?.phone || activeUser?.phone || localCache?.phone || '',
+            email: profile?.email || wProf?.email || activeUser?.email || localCache?.email || '',
+            languages: wProf?.languages_spoken || localCache?.languages || [],
+            gender: wProf?.gender || localCache?.gender || 'female',
+            age: wProf?.age || localCache?.age || 28,
+            bio: wProf?.bio || localCache?.bio || '',
+            preferredShift: wProf?.preferred_shift || localCache?.preferredShift || 'Full Day (8–12 Hours)',
+            emergencyContact: wProf?.emergency_contact || localCache?.emergencyContact || '',
             status: profStatus,
-            profile_picture_url: wProf?.profile_picture_url || wProf?.avatar_url || profile?.avatar_url || '',
-            aadhaar_front_url: wProf?.aadhaar_front_url || '',
-            aadhaar_back_url: wProf?.aadhaar_back_url || '',
+            profile_picture_url: wProf?.profile_picture_url || wProf?.avatar_url || profile?.avatar_url || localCache?.profile_picture_url || localCache?.avatar_url || '',
+            aadhaar_front_url: wProf?.aadhaar_front_url || localCache?.aadhaar_front_url || '',
+            aadhaar_back_url: wProf?.aadhaar_back_url || localCache?.aadhaar_back_url || '',
             video_url: wProf?.video_url || '',
             police_verification_url: wProf?.police_verification_url || '',
             is_aadhaar_verified: wProf?.is_aadhaar_verified || isApproved,
             is_police_verified: wProf?.is_police_verified || false
-          });
+          };
+
+          setWorkerProfile(finalProfile);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('sevikaa_worker_profile_cache', JSON.stringify(finalProfile));
+            } catch (e) {}
+          }
 
           // Onboarding Route Guard for Workers
-          const hasName = !!(wProf?.full_name || wProf?.name || profile?.full_name);
-          const hasSociety = !!(pSoc || wProf?.primary_gated_society || wProf?.preferred_society_name || wProf?.society || wProf?.preferred_society_id || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas.length > 0));
-          const hasSkills = Array.isArray(wProf?.skills) ? wProf.skills.length > 0 : !!wProf?.skills;
-          const isWorkerComplete = hasName && (hasSociety || hasSkills);
-          const isExplicitIncomplete = profStatus === 'onboarding_pending' || profStatus === 'incomplete';
+          const hasSubmitted = ['pending_review', 'approved', 'live', 'active', 'completed'].includes(profStatus) || ['pending_review', 'approved', 'live', 'active', 'completed'].includes(wProf?.status);
+          const hasName = !!(wProf?.full_name || wProf?.name || profile?.full_name || localCache?.name);
+          const hasSociety = !!(pSoc || wProf?.primary_gated_society || wProf?.preferred_society_name || wProf?.society || wProf?.preferred_society_id || (Array.isArray(wProf?.preferred_areas) && wProf.preferred_areas.length > 0) || localCache?.society);
+          const hasSkills = Array.isArray(wProf?.skills) ? wProf.skills.length > 0 : !!(wProf?.skills || localCache?.skills);
+          const isWorkerComplete = hasSubmitted || (hasName && (hasSociety || hasSkills));
+          const isExplicitIncomplete = !hasSubmitted && (profStatus === 'onboarding_pending' || profStatus === 'incomplete');
 
-          if (!isApproved && (!isWorkerComplete || isExplicitIncomplete) && pathname !== '/worker/onboarding') {
+          if (!isApproved && !hasSubmitted && (!isWorkerComplete || isExplicitIncomplete) && pathname !== '/worker/onboarding') {
             router.push('/worker/onboarding');
           }
 

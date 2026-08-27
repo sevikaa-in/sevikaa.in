@@ -33,15 +33,24 @@ export async function GET(req: NextRequest) {
       try {
         const { decodeJwtPayload } = await import('@/lib/jwtHelper');
         const decoded = decodeJwtPayload(token);
-        if (decoded?.sub) {
-          userId = decoded.sub;
+        if (decoded?.sub || decoded?.userId || decoded?.id) {
+          userId = decoded.sub || decoded.userId || decoded.id;
+        } else if (decoded?.phone) {
+          const cleanPhoneDigits = decoded.phone.replace(/\D/g, '').slice(-10);
+          const pRes = await queryDb(
+            `SELECT id FROM public.profiles WHERE phone = $1 OR phone = $2 OR phone = $3 LIMIT 1`,
+            [decoded.phone, `+91${cleanPhoneDigits}`, cleanPhoneDigits]
+          ).catch(() => null);
+          if (pRes?.rows?.[0]) userId = pRes.rows[0].id;
         }
       } catch {}
     }
 
-    if (!userId && token) {
-      const firstProf = await queryDb(`SELECT id FROM public.profiles LIMIT 1`).catch(() => null);
-      userId = firstProf?.rows?.[0]?.id || '00000000-0000-0000-0000-000000000001';
+    if (!userId) {
+      const cookieUserId = req.cookies.get('sevikaa_user_id')?.value;
+      if (cookieUserId && cookieUserId.length > 10) {
+        userId = cookieUserId;
+      }
     }
 
     if (!userId) {

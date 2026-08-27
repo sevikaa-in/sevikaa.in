@@ -454,6 +454,20 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
 
       try {
         if (typeof window !== 'undefined') {
+          const completedProfileCache = {
+            name: fullName.trim(),
+            gender: gender,
+            age: parseInt(age, 10) || 28,
+            experience: experience.trim() || '0',
+            expectedSalary: expectedSalary.trim() || '15000',
+            skills: skills,
+            languages: selectedLanguages,
+            society: preferredSociety,
+            preferredShift: formattedShiftString,
+            profile_picture_url: photoDataUrl || null,
+            avatar_url: photoDataUrl || null
+          };
+          localStorage.setItem('sevikaa_worker_profile_cache', JSON.stringify(completedProfileCache));
           sessionStorage.removeItem('sevikaa_worker_draft_photo');
           localStorage.removeItem('sevikaa_worker_draft_photo');
           sessionStorage.removeItem('sevikaa_worker_onboarding_step');
@@ -805,7 +819,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
                           setSocietyDropdownOpen(false);
                           setSocietySearch('');
                         }}
-                        className="w-full py-2 px-3 rounded-xl text-xs font-bold text-left hover:bg-blue-50 hover:text-[#1A73E8] cursor-pointer"
+                        className="w-full py-2.5 px-3.5 rounded-xl text-xs font-extrabold text-left text-slate-900 bg-white hover:bg-blue-50 hover:text-[#1A73E8] transition-colors cursor-pointer"
                       >
                         {s.name}
                       </button>
