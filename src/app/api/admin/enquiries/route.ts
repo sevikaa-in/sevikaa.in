@@ -27,6 +27,21 @@ export async function GET(req: NextRequest) {
     // 2. Try Postgres DB if Supabase returned no rows or errored
     if (enquiriesList.length === 0) {
       try {
+        await queryDb(`
+          CREATE TABLE IF NOT EXISTS public.contact_enquiries (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            phone TEXT,
+            subject TEXT,
+            message TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            admin_notes TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+          )
+        `, []);
+
         const pgRes = await queryDb(`
           SELECT * FROM public.contact_enquiries 
           ORDER BY created_at DESC
