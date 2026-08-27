@@ -145,6 +145,72 @@ export async function POST(req: NextRequest) {
     // PART 4: Upsert worker_profiles with real validated onboarding input
     const categoryString = Array.isArray(rawSkills) ? rawSkills.join(', ') : (rawSkills || '');
 
+    let finalAvatarUrl = avatar_url || profile_picture_url || null;
+    let finalAadhaarFront = aadhaar_front_url || null;
+    let finalAadhaarBack = aadhaar_back_url || null;
+
+    if (finalAvatarUrl && finalAvatarUrl.startsWith('data:')) {
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+        const uploadRes = await cloudinary.uploader.upload(finalAvatarUrl, {
+          folder: `sevikaa/worker/${activeUserId}/selfies`,
+          resource_type: 'image'
+        });
+        if (uploadRes?.secure_url) {
+          finalAvatarUrl = uploadRes.secure_url;
+        }
+      } catch (e) {
+        console.warn('[Onboarding Avatar Cloudinary Upload Warning]:', e);
+      }
+    }
+
+    if (finalAadhaarFront && finalAadhaarFront.startsWith('data:')) {
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+        const uploadRes = await cloudinary.uploader.upload(finalAadhaarFront, {
+          folder: `sevikaa/worker/${activeUserId}/documents`,
+          type: 'authenticated',
+          resource_type: 'image'
+        });
+        if (uploadRes?.public_id) {
+          finalAadhaarFront = `cloudinary:image:${uploadRes.public_id}`;
+        }
+      } catch (e) {
+        console.warn('[Onboarding Aadhaar Front Cloudinary Upload Warning]:', e);
+      }
+    }
+
+    if (finalAadhaarBack && finalAadhaarBack.startsWith('data:')) {
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+        const uploadRes = await cloudinary.uploader.upload(finalAadhaarBack, {
+          folder: `sevikaa/worker/${activeUserId}/documents`,
+          type: 'authenticated',
+          resource_type: 'image'
+        });
+        if (uploadRes?.public_id) {
+          finalAadhaarBack = `cloudinary:image:${uploadRes.public_id}`;
+        }
+      } catch (e) {
+        console.warn('[Onboarding Aadhaar Back Cloudinary Upload Warning]:', e);
+      }
+    }
+
     await queryDb(`
       INSERT INTO public.worker_profiles 
            (user_id, id, name, full_name, gender, age, experience_years, expected_salary, skills, category, languages_spoken, primary_gated_society, preferred_shift, aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url, status)
@@ -180,10 +246,10 @@ export async function POST(req: NextRequest) {
       rawLanguages,
       finalSociety,
       finalShift,
-      aadhaar_front_url || null,
-      aadhaar_back_url || null,
-      avatar_url || profile_picture_url || null,
-      profile_picture_url || avatar_url || null
+      finalAadhaarFront,
+      finalAadhaarBack,
+      finalAvatarUrl,
+      finalAvatarUrl
     ]);
 
     // Update public.profiles status

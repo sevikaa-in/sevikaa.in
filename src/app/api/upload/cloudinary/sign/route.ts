@@ -140,3 +140,43 @@ export async function GET(req: NextRequest) {
   }
 }
 
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const { folder = 'sevikaa/videos', resourceType = 'video', userId } = body;
+
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      return NextResponse.json({ error: 'Cloudinary credentials missing from server environment.' }, { status: 500 });
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const targetFolder = userId ? `sevikaa/worker/${userId}/videos` : folder;
+
+    const { v2: cloudinary } = require('cloudinary');
+    cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
+
+    const paramsToSign = {
+      timestamp,
+      folder: targetFolder
+    };
+
+    const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
+
+    return NextResponse.json({
+      success: true,
+      signature,
+      timestamp,
+      apiKey,
+      cloudName,
+      folder: targetFolder,
+      uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Failed to generate upload signature' }, { status: 500 });
+  }
+}
+

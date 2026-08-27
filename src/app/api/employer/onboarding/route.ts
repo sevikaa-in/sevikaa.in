@@ -74,6 +74,86 @@ export async function POST(req: NextRequest) {
     }
     const finalAltPhone = cleanAltDigits ? `+91 ${cleanAltDigits.slice(-10)}` : null;
 
+    let finalAvatarUrl = avatar_url || null;
+    let finalResidencyProof = residency_proof_url || null;
+    let finalAadhaarFront = aadhaar_front_url || null;
+    let finalAadhaarBack = aadhaar_back_url || null;
+
+    if (finalAvatarUrl && finalAvatarUrl.startsWith('data:')) {
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+        const uploadRes = await cloudinary.uploader.upload(finalAvatarUrl, {
+          folder: `sevikaa/employer/${activeUserId}/photos`,
+          resource_type: 'image'
+        });
+        if (uploadRes?.secure_url) finalAvatarUrl = uploadRes.secure_url;
+      } catch (e) {
+        console.warn('[Employer Avatar Upload Notice]:', e);
+      }
+    }
+
+    if (finalResidencyProof && finalResidencyProof.startsWith('data:')) {
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+        const uploadRes = await cloudinary.uploader.upload(finalResidencyProof, {
+          folder: `sevikaa/employer/${activeUserId}/documents`,
+          type: 'authenticated',
+          resource_type: 'image'
+        });
+        if (uploadRes?.public_id) finalResidencyProof = `cloudinary:image:${uploadRes.public_id}`;
+      } catch (e) {
+        console.warn('[Employer Residency Proof Upload Notice]:', e);
+      }
+    }
+
+    if (finalAadhaarFront && finalAadhaarFront.startsWith('data:')) {
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+        const uploadRes = await cloudinary.uploader.upload(finalAadhaarFront, {
+          folder: `sevikaa/employer/${activeUserId}/documents`,
+          type: 'authenticated',
+          resource_type: 'image'
+        });
+        if (uploadRes?.public_id) finalAadhaarFront = `cloudinary:image:${uploadRes.public_id}`;
+      } catch (e) {
+        console.warn('[Employer Aadhaar Front Upload Notice]:', e);
+      }
+    }
+
+    if (finalAadhaarBack && finalAadhaarBack.startsWith('data:')) {
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+        const uploadRes = await cloudinary.uploader.upload(finalAadhaarBack, {
+          folder: `sevikaa/employer/${activeUserId}/documents`,
+          type: 'authenticated',
+          resource_type: 'image'
+        });
+        if (uploadRes?.public_id) finalAadhaarBack = `cloudinary:image:${uploadRes.public_id}`;
+      } catch (e) {
+        console.warn('[Employer Aadhaar Back Upload Notice]:', e);
+      }
+    }
+
     // 2. Upsert employer_profiles (no runtime DDL — schema managed via migrations)
     await queryDb(`
       INSERT INTO public.employer_profiles 
@@ -109,10 +189,10 @@ export async function POST(req: NextRequest) {
       gstin || null,
       finalAltPhone,
       verification_requirement || 'Aadhaar + Police Audit (Default)',
-      residency_proof_url || null,
-      aadhaar_front_url || null,
-      aadhaar_back_url || null,
-      avatar_url || null
+      finalResidencyProof,
+      finalAadhaarFront,
+      finalAadhaarBack,
+      finalAvatarUrl
     ]);
 
     // 3. Update public.profiles (no runtime DDL)

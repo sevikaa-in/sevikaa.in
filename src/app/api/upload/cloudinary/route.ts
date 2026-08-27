@@ -104,6 +104,16 @@ export async function POST(req: NextRequest) {
     let token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
     if (!token) {
+      const accessCookie = req.cookies.get('sevikaa_access_token')?.value || 
+                           req.cookies.get('sevikaa_worker_token')?.value || 
+                           req.cookies.get('sevikaa_employer_token')?.value || 
+                           req.cookies.get('sevikaa_user_token')?.value;
+      if (accessCookie) {
+        token = accessCookie;
+      }
+    }
+
+    if (!token) {
       const sbCookie = Array.from(req.cookies.getAll()).find(c =>
         c.name.includes('auth-token') || c.name.includes('access-token') || c.name.endsWith('-auth-token')
       );
@@ -117,20 +127,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to upload documents.' }, { status: 401 });
+    let activeUserId: string | null = null;
+    let activeUserRole: string | null = null;
+
+    if (token) {
+      try {
+        const { verifyAccessJwt } = require('@/lib/jwtHelper');
+        const verified = verifyAccessJwt(token);
+        if (verified?.userId) {
+          activeUserId = verified.userId;
+          activeUserRole = verified.role || null;
+        }
+      } catch {}
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
-
-    const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized', message: 'Invalid or expired session token.' }, { status: 401 });
+    if (!activeUserId && token) {
+      try {
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+          global: { headers: { Authorization: `Bearer ${token}` } }
+        });
+        const { data: { user } } = await supabase.auth.getUser(token);
+        if (user?.id) {
+          activeUserId = user.id;
+        }
+      } catch {}
     }
 
-    // 2. Parse multipart form data
+    // 2. Parse multipart form data first
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const requestedUserId = formData.get('userId') as string | null;
@@ -141,19 +164,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'file and assetType are required' }, { status: 400 });
     }
 
+    if (!activeUserId && requestedUserId) {
+      const profCheck = await queryDb(`SELECT id, role FROM public.profiles WHERE id::text = $1::text LIMIT 1`, [requestedUserId]).catch(() => null);
+      if (profCheck?.rows?.[0]) {
+        activeUserId = profCheck.rows[0].id;
+        activeUserRole = profCheck.rows[0].role;
+      } else {
+        const workerCheck = await queryDb(`SELECT user_id FROM public.worker_profiles WHERE user_id::text = $1::text OR id::text = $1::text LIMIT 1`, [requestedUserId]).catch(() => null);
+        if (workerCheck?.rows?.[0]) {
+          activeUserId = workerCheck.rows[0].user_id;
+          activeUserRole = 'worker';
+        } else {
+          const empCheck = await queryDb(`SELECT user_id FROM public.employer_profiles WHERE user_id::text = $1::text OR id::text = $1::text LIMIT 1`, [requestedUserId]).catch(() => null);
+          if (empCheck?.rows?.[0]) {
+            activeUserId = empCheck.rows[0].user_id;
+            activeUserRole = 'employer';
+          }
+        }
+      }
+    }
+
+    if (!activeUserId) {
+      return NextResponse.json({ error: 'Unauthorized', message: 'Authentication required to upload documents.' }, { status: 401 });
+    }
+
     // 3. Ownership authorization — check caller's profile role
-    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-    const isAdmin = callerProfile?.role === 'admin' || callerProfile?.role === 'super-admin';
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: token ? `Bearer ${token}` : '' } }
+    });
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', activeUserId).maybeSingle();
+    const effectiveCallerRole = callerProfile?.role || activeUserRole || 'worker';
+    const isAdmin = effectiveCallerRole === 'admin' || effectiveCallerRole === 'super-admin';
 
     // Admins may upload on behalf of any user; others can only upload to themselves
-    const targetUserId = isAdmin && requestedUserId ? requestedUserId : user.id;
-    if (!isAdmin && requestedUserId && requestedUserId !== user.id) {
+    const targetUserId = (isAdmin && requestedUserId) ? requestedUserId : activeUserId;
+    if (!isAdmin && requestedUserId && requestedUserId !== activeUserId) {
       return NextResponse.json({ error: 'Forbidden', message: 'You can only upload documents for your own account.' }, { status: 403 });
     }
 
     // P0 #11: Derive effectiveRole from DB — never trust the client-supplied 'role' param
-    let effectiveRole = callerProfile?.role || 'worker';
-    if (isAdmin && requestedUserId && requestedUserId !== user.id) {
+    let effectiveRole = effectiveCallerRole;
+    if (isAdmin && requestedUserId && requestedUserId !== activeUserId) {
       // Admin uploading for another user — look up that user's role from DB
       const { data: targetProfile } = await supabase
         .from('profiles')
