@@ -85,7 +85,7 @@ export default function WorkerLegalHubPage() {
     if (activeTab !== 'directory') {
       setActiveTab('directory');
     } else {
-      router.back();
+      router.push('/worker/profile');
     }
   };
 
@@ -93,14 +93,15 @@ export default function WorkerLegalHubPage() {
     <div className="max-w-4xl mx-auto space-y-4 pb-20 font-sans animate-fade-in">
       
       {/* WORKER DASHBOARD LEGAL HEADER */}
-      <div className="bg-white p-4.5 rounded-3xl border border-slate-100 shadow-xs flex items-center justify-between">
+      <div className="bg-white p-4.5 rounded-3xl border border-slate-100 shadow-xs flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={handleHeaderBack}
-            className="p-2 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            className="p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer flex items-center justify-center"
+            title="Return to Settings Profile"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={18} />
           </button>
           <div>
             <h1 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -113,9 +114,20 @@ export default function WorkerLegalHubPage() {
           </div>
         </div>
 
-        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-black uppercase">
-          ✓ Verified Worker
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push('/worker/profile')}
+            className="px-3.5 py-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200/80"
+          >
+            <ArrowLeft size={14} />
+            <span>Return to Settings</span>
+          </button>
+
+          <span className="px-2.5 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-black uppercase hidden sm:inline-block">
+            ✓ Verified Worker
+          </span>
+        </div>
       </div>
 
       {/* VIEW 1: DIRECTORY MAIN HUB */}

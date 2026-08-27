@@ -93,7 +93,7 @@ export default function EmployerLegalHubPage() {
     if (activeTab !== 'directory') {
       setActiveTab('directory');
     } else {
-      router.back();
+      router.push('/employer/account');
     }
   };
 
@@ -101,14 +101,15 @@ export default function EmployerLegalHubPage() {
     <div className="max-w-4xl mx-auto space-y-4 pb-20 font-sans animate-fade-in">
       
       {/* EMPLOYER DASHBOARD LEGAL HEADER */}
-      <div className="bg-white p-4.5 rounded-3xl border border-slate-100 shadow-xs flex items-center justify-between">
+      <div className="bg-white p-4.5 rounded-3xl border border-slate-100 shadow-xs flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={handleHeaderBack}
-            className="p-2 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            className="p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer flex items-center justify-center"
+            title="Return to Account Settings"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={18} />
           </button>
           <div>
             <h1 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -121,9 +122,20 @@ export default function EmployerLegalHubPage() {
           </div>
         </div>
 
-        <span className="px-2.5 py-1 rounded-full bg-blue-50 text-[#1A73E8] border border-blue-200 text-[9px] font-black uppercase">
-          ✓ Verified Employer
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push('/employer/account')}
+            className="px-3.5 py-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200/80"
+          >
+            <ArrowLeft size={14} />
+            <span>Return to Account</span>
+          </button>
+
+          <span className="px-2.5 py-1.5 rounded-full bg-blue-50 text-[#1A73E8] border border-blue-200 text-[9px] font-black uppercase hidden sm:inline-block">
+            ✓ Verified Employer
+          </span>
+        </div>
       </div>
 
       {/* VIEW 1: DIRECTORY MAIN HUB */}

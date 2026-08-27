@@ -5,7 +5,7 @@ import { useEmployerDashboard } from './layout';
 import { useLanguage } from '@/context/LanguageContext';
 import { 
   Home, PlusCircle, Search, User, CreditCard, Phone, 
-  CheckCircle2, MapPin, IndianRupee, Sparkles, ArrowRight, ShieldCheck, Clock, Briefcase, Users, Eye, X, AlertTriangle, Edit, RefreshCw, ChevronRight, UserCheck, Star, Calendar, ShieldAlert
+  CheckCircle2, MapPin, IndianRupee, Sparkles, ArrowRight, ShieldCheck, Clock, Briefcase, Users, Eye, X, AlertTriangle, Edit, RefreshCw, ChevronRight, UserCheck, Star, Calendar, ShieldAlert, Lock
 } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
@@ -55,17 +55,24 @@ export default function EmployerOverviewPage() {
   const totalApplicantsCount = postedJobs.reduce((sum, j) => sum + (j.applicationsCount || 0), 0);
   const isEmployerVerified = employerProfile.status === 'live' || employerProfile.status === 'approved';
 
-  // Profile completion calculation for widget
+  // Profile completion calculation matching Account Settings (10 total steps)
   const cleanPhone = (employerProfile.phone || '').replace(/\D/g, '').slice(-10);
+  const hasAadhaarFront = !!employerProfile.aadhaar_front_url;
+  const hasAadhaarBack = !!employerProfile.aadhaar_back_url;
+  const isResidencyDone = !!employerProfile.residency_proof_url;
+  const isPhotoDone = !!employerProfile.avatar_url;
+
   const completionSteps = [
     { label: t('stepFullName') || 'Employer Name', done: !!employerProfile.company_name?.trim() },
     { label: t('stepMobileNumber') || 'Mobile Number', done: cleanPhone.length === 10 },
     { label: 'Email Address', done: !!employerProfile.email?.trim() },
     { label: 'Gated Society', done: !!employerProfile.society_name },
-    { label: 'Tower / Block', done: !!employerProfile.tower?.trim() },
+    { label: 'Tower / Block', done: !!employerProfile.tower?.trim() || !!employerProfile.tower_block?.trim() },
     { label: 'Flat Address', done: !!employerProfile.address?.trim() },
-    { label: t('stepProfilePhoto') || 'Profile Photo', done: !!employerProfile.avatar_url },
-    { label: t('stepAadhaarUploaded') || 'Aadhaar Uploaded', done: employerProfile.status === 'live' || employerProfile.status === 'approved' }
+    { label: t('stepProfilePhoto') || 'Profile Photo', done: isPhotoDone },
+    { label: 'Residency Proof', done: isResidencyDone },
+    { label: 'Aadhaar (Front)', done: hasAadhaarFront },
+    { label: 'Aadhaar (Back)', done: hasAadhaarBack }
   ];
   const completedCount = completionSteps.filter(s => s.done).length;
   const completionPercent = Math.round((completedCount / completionSteps.length) * 100);
@@ -107,7 +114,7 @@ export default function EmployerOverviewPage() {
           </p>
         </div>
 
-        {/* Row 4: Button AFTER Name and Society */}
+        {/* Row 4: Action Button */}
         <div>
           <Link
             href="/employer/post-job"
@@ -118,29 +125,51 @@ export default function EmployerOverviewPage() {
           </Link>
         </div>
 
-        {/* Row 5: Full-Width Executive Gate Pass & Trust Info Strip (No Overflow) */}
-        <div className="w-full bg-white/95 backdrop-blur-md p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-bold text-slate-700">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-blue-50 text-[#1A73E8] rounded-lg shrink-0">
-              <ShieldCheck size={16} />
+        {/* Row 5: Full-Width Executive Gate Pass & Trust Info Strip */}
+        <div className="w-full bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs space-y-3 text-xs font-bold text-slate-700">
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-xl shrink-0 ${isEmployerVerified ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+              {isEmployerVerified ? <ShieldCheck size={18} /> : <Clock size={18} />}
             </div>
-            <div>
-              <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-wider">{t('gatePassVerified') || 'Gate Pass Verified'}</h4>
-              <p className="text-[9.5px] text-emerald-600 font-bold">{t('liveDltSmsAlerts') || 'Live DLT SMS Alerts'}</p>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider truncate">
+                {isEmployerVerified ? (t('gatePassVerified') || 'Gate Pass Verified') : 'Gate Pass Audit'}
+              </h4>
+              <p className={`text-[10.5px] sm:text-xs font-extrabold truncate ${isEmployerVerified ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {isEmployerVerified ? (t('liveDltSmsAlerts') || 'Live DLT SMS Alerts') : 'Pending Admin Verification'}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 flex-wrap text-[10.5px]">
-            <span className="flex items-center gap-1.5 whitespace-nowrap">
-              <Users size={13} className="text-[#1A73E8]" />
-              <span className="text-slate-500">{t('societyHelpers') || 'Society Helpers:'}</span>
-              <strong className="text-slate-900">{totalWorkersCount} {t('verified') || 'Verified'}</strong>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-[10.5px] sm:text-xs flex-wrap">
+            <span className="flex items-center gap-1.5 min-w-0">
+              <Users size={13} className="text-[#1A73E8] shrink-0" />
+              <span className="text-slate-500 truncate">{t('societyHelpers') || 'Society Helpers:'}</span>
+              <strong className="text-slate-900 shrink-0">
+                {totalWorkersCount > 0 ? `${totalWorkersCount} ${t('verified') || 'Verified'}` : 'Platform Active'}
+              </strong>
             </span>
 
-            <span className="flex items-center gap-1.5 whitespace-nowrap">
-              <CheckCircle2 size={13} className="text-emerald-600" />
-              <span className="text-slate-500">{t('aadhaarRecord') || 'Aadhaar Record:'}</span>
-              <strong className="text-emerald-600">{t('passed100') || '100% Passed'}</strong>
+            <span className="flex items-center gap-1.5 min-w-0">
+              {hasAadhaarFront && hasAadhaarBack ? (
+                <>
+                  <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                  <span className="text-slate-500 truncate">{t('aadhaarRecord') || 'Aadhaar Record:'}</span>
+                  <strong className="text-emerald-600 shrink-0">100% Passed</strong>
+                </>
+              ) : hasAadhaarFront || hasAadhaarBack ? (
+                <>
+                  <Clock size={13} className="text-amber-600 shrink-0" />
+                  <span className="text-slate-500 truncate">{t('aadhaarRecord') || 'Aadhaar Record:'}</span>
+                  <strong className="text-amber-600 shrink-0">50% Uploaded</strong>
+                </>
+              ) : (
+                <>
+                  <Lock size={13} className="text-slate-400 shrink-0" />
+                  <span className="text-slate-500 truncate">{t('aadhaarRecord') || 'Aadhaar Record:'}</span>
+                  <strong className="text-slate-500 shrink-0">Pending Upload</strong>
+                </>
+              )}
             </span>
           </div>
         </div>

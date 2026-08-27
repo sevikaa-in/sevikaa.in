@@ -4,6 +4,7 @@ import "./globals.css";
 import React from 'react';
 import { LanguageProvider } from "../context/LanguageContext";
 import { TopNavigationLoader } from "../components/common/TopNavigationLoader";
+import { BrowserExtensionErrorFilter } from "../components/common/BrowserExtensionErrorFilter";
 import Script from "next/script";
 
 const geistSans = Geist({
@@ -47,6 +48,7 @@ export default function RootLayout({
         </Script>
       </head>
       <body className="min-h-full flex flex-col bg-gray-50 text-[#202124]">
+        <BrowserExtensionErrorFilter />
         <LanguageProvider>
           <React.Suspense fallback={null}>
             <TopNavigationLoader />
