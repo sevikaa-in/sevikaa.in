@@ -141,6 +141,25 @@ export async function logAuditAction(options: AuditLogOptions) {
     const detectedIp = (rawDetectedIp && rawDetectedIp !== 'null') ? rawDetectedIp : 'unknown';
 
     let detectedAdminEmail = admin_email || (actor && actor.includes('@') ? actor : null);
+    let detectedAdminName = admin_name || (actor && !actor.includes('@') ? actor : null);
+
+    if (req) {
+      try {
+        const authHeader = req.headers?.get ? req.headers.get('authorization') : null;
+        const token = authHeader ? authHeader.replace('Bearer ', '').trim() : null;
+        if (token) {
+          const { decodeJwtPayload } = require('@/lib/jwtHelper');
+          const decoded = decodeJwtPayload(token);
+          if (decoded?.email && decoded.email.includes('@')) {
+            detectedAdminEmail = decoded.email;
+          }
+          if (decoded?.name || decoded?.full_name) {
+            detectedAdminName = decoded.name || decoded.full_name;
+          }
+        }
+      } catch {}
+    }
+
     if (!detectedAdminEmail && req) {
       try {
         const emailCookie = req.cookies?.get ? req.cookies.get('sevikaa_user_email')?.value : null;
@@ -152,20 +171,15 @@ export async function logAuditAction(options: AuditLogOptions) {
           if (parsed?.email && parsed.email.includes('@')) {
             detectedAdminEmail = parsed.email;
           }
-        }
-      } catch {}
-    }
-    if (!detectedAdminEmail && req) {
-      try {
-        const roleCookie = req.cookies?.get ? req.cookies.get('sevikaa_user_role')?.value : null;
-        if (roleCookie === 'super-admin') {
-          detectedAdminEmail = 'yugayatra@sevikaa.in';
+          if (parsed?.name || parsed?.full_name) {
+            detectedAdminName = parsed.name || parsed.full_name;
+          }
         }
       } catch {}
     }
 
-    const finalAdminEmail = detectedAdminEmail || 'admin@sevikaa.in';
-    const finalAdminName = admin_name || (actor && !actor.includes('@') ? actor : (finalAdminEmail.includes('@') ? finalAdminEmail.split('@')[0] : 'Admin Moderator'));
+    const finalAdminEmail = detectedAdminEmail || null;
+    const finalAdminName = detectedAdminName || (detectedAdminEmail && detectedAdminEmail.includes('@') ? detectedAdminEmail.split('@')[0] : null);
     const finalTargetName = sanitizeAuditText(target_name || resource || 'System Resource');
     const finalTargetId = (target_id || userId) ? String(target_id || userId) : null;
 

@@ -332,7 +332,11 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             return s === 'pending' || s === 'pending_review';
           }).length || apiData.counts?.pendingJobs || 0,
           pendingReviews: 0,
-          interviewsToday: apiData.workers?.filter((w: any) => w.status === 'admin_interview').length || apiData.counts?.interviewsToday || 0,
+          interviewsToday: apiData.workers?.filter((w: any) => {
+            if (w.status !== 'admin_interview') return false;
+            const wDate = new Date(w.scheduled_date || w.created_at || Date.now());
+            return wDate.toDateString() === new Date().toDateString();
+          }).length || 0,
           activeDisputes: 0
         });
       }

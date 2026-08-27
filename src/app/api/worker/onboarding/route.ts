@@ -143,11 +143,13 @@ export async function POST(req: NextRequest) {
     const finalShift = preferred_shift || shift_hours || null;
 
     // PART 4: Upsert worker_profiles with real validated onboarding input
+    const categoryString = Array.isArray(rawSkills) ? rawSkills.join(', ') : (rawSkills || '');
+
     await queryDb(`
       INSERT INTO public.worker_profiles 
            (user_id, id, name, full_name, gender, age, experience_years, expected_salary, skills, category, languages_spoken, primary_gated_society, preferred_shift, aadhaar_front_url, aadhaar_back_url, avatar_url, profile_picture_url, status)
       VALUES 
-           ($1, $1, $2, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, $13, $13, 'pending_review')
+           ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'pending_review')
       ON CONFLICT (user_id) DO UPDATE SET
            name = EXCLUDED.name,
            full_name = EXCLUDED.full_name,
@@ -168,17 +170,20 @@ export async function POST(req: NextRequest) {
     `, [
       activeUserId,
       displayName,
+      displayName,
       rawGender,
       parsedAge,
       parsedExp,
       parsedSalary,
       rawSkills,
+      categoryString,
       rawLanguages,
       finalSociety,
       finalShift,
       aadhaar_front_url || null,
       aadhaar_back_url || null,
-      avatar_url || profile_picture_url || null
+      avatar_url || profile_picture_url || null,
+      profile_picture_url || avatar_url || null
     ]);
 
     // Update public.profiles status

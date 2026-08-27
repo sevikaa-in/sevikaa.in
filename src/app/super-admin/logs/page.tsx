@@ -251,7 +251,7 @@ export default function LogsPage() {
         ) : (
           paginatedLogs.map((log, index) => {
             const itemNumber = startIndex + index + 1;
-            const displayActor = log.admin_email || (log.actor && log.actor.includes('@') ? log.actor : (user?.email || 'admin@sevikaa.in'));
+            const displayActor = log.admin_email || log.actor || log.admin_name || '';
             const targetSubject = log.target_name || 'System Resource';
 
             return (

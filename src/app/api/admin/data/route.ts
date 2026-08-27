@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
           (SELECT COUNT(*) FROM public.profiles WHERE role = 'worker' AND (status = 'pending_review' OR status = 'admin_interview') AND ${dateCond}) AS pending_workers,
           (SELECT COUNT(*) FROM public.profiles WHERE role = 'employer' AND status = 'pending_review' AND ${dateCond}) AS pending_employers,
           (SELECT COUNT(*) FROM public.jobs WHERE (status = 'pending' OR status = 'pending_review') AND ${dateCond}) AS pending_jobs,
-          (SELECT COUNT(*) FROM public.profiles WHERE role = 'worker' AND status = 'admin_interview' AND ${dateCond}) AS interviews_today
+          (SELECT COUNT(*) FROM public.profiles WHERE role = 'worker' AND status = 'admin_interview' AND created_at::date = CURRENT_DATE) AS interviews_today
       `);
       if (countsRes?.rows?.[0]) {
         const row = countsRes.rows[0];

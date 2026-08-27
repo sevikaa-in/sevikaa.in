@@ -13,19 +13,15 @@ export async function GET(request: NextRequest) {
 
     // Item 30: audit_logs table created in migration 20260810000004 — no runtime DDL
 
-    // 2. Fetch logs safely
+    // Fetch logs safely directly from database
     const res = await queryDb(
       `SELECT * FROM public.audit_logs ORDER BY created_at DESC LIMIT $1`,
       [limit]
     );
 
     const logs = (res?.rows || []).map((row, idx) => {
-      let adminEmail = row.admin_email || row.actor || 'admin@sevikaa.in';
-      if (!adminEmail || adminEmail === 'Admin' || adminEmail === 'null' || !adminEmail.includes('@')) {
-        adminEmail = 'admin@sevikaa.in';
-      }
-
-      let adminName = row.admin_name || (row.actor && !row.actor.includes('@') ? row.actor : 'Admin Moderator');
+      let adminEmail = row.admin_email || (row.actor && row.actor.includes('@') ? row.actor : null);
+      let adminName = row.admin_name || (row.actor && !row.actor.includes('@') ? row.actor : (adminEmail && adminEmail.includes('@') ? adminEmail.split('@')[0] : null));
 
       let detailsText = row.changes_summary || (typeof row.details === 'object' && row.details !== null 
         ? JSON.stringify(row.details) 

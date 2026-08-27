@@ -58,8 +58,8 @@ export const AuditLogDetailModal: React.FC<AuditLogDetailModalProps> = ({ log, o
     }
   };
 
-  const adminEmail = log.admin_email || (log.actor && log.actor.includes('@') ? log.actor : 'admin@sevikaa.in');
-  const adminName = log.admin_name || (log.actor && !log.actor.includes('@') ? log.actor : 'Admin Moderator');
+  const adminEmail = log.admin_email || (log.actor && log.actor.includes('@') ? log.actor : '');
+  const adminName = log.admin_name || (log.actor && !log.actor.includes('@') ? log.actor : (adminEmail && adminEmail.includes('@') ? adminEmail.split('@')[0] : ''));
   const targetName = log.target_name || 'System Resource';
 
   return createPortal(
