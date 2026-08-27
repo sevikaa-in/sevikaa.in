@@ -352,7 +352,7 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
               {activeDocTab === 'profile_photo' && (
                 (avatarRes.url || employer.avatar_url || employer.profile_photo_url) ? (
                   <img 
-                    src={avatarRes.url || employer.avatar_url || employer.profile_photo_url} 
+                    src={avatarRes.url || employer.avatar_url || employer.profile_photo_url || undefined} 
                     alt="Employer Profile Photo" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -369,7 +369,7 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
               {activeDocTab === 'residency_proof' && (
                 (residencyRes.url || employer.residency_proof_url || employer.maintenance_bill_url) ? (
                   <img 
-                    src={residencyRes.url || employer.residency_proof_url || employer.maintenance_bill_url} 
+                    src={residencyRes.url || employer.residency_proof_url || employer.maintenance_bill_url || undefined} 
                     alt="Society Residency Proof / Maintenance Receipt" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -386,7 +386,7 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
               {activeDocTab === 'aadhaar_front' && (
                 (aadhaarFrontRes.url || employer.aadhaar_front_url) ? (
                   <img 
-                    src={aadhaarFrontRes.url || employer.aadhaar_front_url} 
+                    src={aadhaarFrontRes.url || employer.aadhaar_front_url || undefined} 
                     alt="Aadhaar Front" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -403,7 +403,7 @@ export const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
               {activeDocTab === 'aadhaar_back' && (
                 (aadhaarBackRes.url || employer.aadhaar_back_url) ? (
                   <img 
-                    src={aadhaarBackRes.url || employer.aadhaar_back_url} 
+                    src={aadhaarBackRes.url || employer.aadhaar_back_url || undefined} 
                     alt="Aadhaar Back" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}

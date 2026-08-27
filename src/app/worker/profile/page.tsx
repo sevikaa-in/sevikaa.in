@@ -1123,7 +1123,7 @@ export default function WorkerProfilePage() {
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
                   {(resolvedAadhaarFrontRes.url || aadhaarFrontUrl || workerProfile.aadhaar_front_url) ? (
-                    <img src={resolvedAadhaarFrontRes.url || aadhaarFrontUrl || workerProfile.aadhaar_front_url || ''} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
+                    <img src={resolvedAadhaarFrontRes.url || aadhaarFrontUrl || workerProfile.aadhaar_front_url || undefined} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
@@ -1200,7 +1200,7 @@ export default function WorkerProfilePage() {
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
                   {(resolvedAadhaarBackRes.url || aadhaarBackUrl || workerProfile.aadhaar_back_url) ? (
-                    <img src={resolvedAadhaarBackRes.url || aadhaarBackUrl || workerProfile.aadhaar_back_url || ''} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
+                    <img src={resolvedAadhaarBackRes.url || aadhaarBackUrl || workerProfile.aadhaar_back_url || undefined} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
@@ -1283,7 +1283,7 @@ export default function WorkerProfilePage() {
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
                   {(resolvedPoliceDocRes.url || policeDocUrl || workerProfile.police_verification_url) ? (
-                    <img src={resolvedPoliceDocRes.url || policeDocUrl || workerProfile.police_verification_url || ''} alt="Police Verification Document" className="max-h-[320px] w-full object-contain rounded-lg" />
+                    <img src={resolvedPoliceDocRes.url || policeDocUrl || workerProfile.police_verification_url || undefined} alt="Police Verification Document" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <ShieldCheck size={32} className="mx-auto text-amber-400 opacity-60 mb-2" />

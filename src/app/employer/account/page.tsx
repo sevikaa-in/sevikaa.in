@@ -1072,7 +1072,7 @@ export default function EmployerAccountPage() {
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
                   {(residencyRes.url || residencyProofUrl || employerProfile.residency_proof_url) ? (
-                    <img src={residencyRes.url || residencyProofUrl || employerProfile.residency_proof_url || ''} alt="Residency Proof" className="max-h-[320px] w-full object-contain rounded-lg" />
+                    <img src={residencyRes.url || residencyProofUrl || employerProfile.residency_proof_url || undefined} alt="Residency Proof" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <Building size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
@@ -1148,7 +1148,7 @@ export default function EmployerAccountPage() {
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
                   {(aadhaarFrontRes.url || aadhaarFrontUrl || employerProfile.aadhaar_front_url) ? (
-                    <img src={aadhaarFrontRes.url || aadhaarFrontUrl || employerProfile.aadhaar_front_url || ''} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
+                    <img src={aadhaarFrontRes.url || aadhaarFrontUrl || employerProfile.aadhaar_front_url || undefined} alt="Aadhaar Front" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
@@ -1221,7 +1221,7 @@ export default function EmployerAccountPage() {
                 </div>
                 <div className="flex justify-center bg-black/60 rounded-xl p-2 min-h-[200px] max-h-[340px] overflow-hidden">
                   {(aadhaarBackRes.url || aadhaarBackUrl || employerProfile.aadhaar_back_url) ? (
-                    <img src={aadhaarBackRes.url || aadhaarBackUrl || employerProfile.aadhaar_back_url || ''} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
+                    <img src={aadhaarBackRes.url || aadhaarBackUrl || employerProfile.aadhaar_back_url || undefined} alt="Aadhaar Back" className="max-h-[320px] w-full object-contain rounded-lg" />
                   ) : (
                     <div className="p-8 text-center text-slate-400 text-xs font-bold space-y-1 my-auto">
                       <FileText size={32} className="mx-auto text-blue-400 opacity-60 mb-2" />
