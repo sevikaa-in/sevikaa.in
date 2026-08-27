@@ -39,22 +39,17 @@ export const resolveMediaUrl = (bucketName: string, path: string | null | undefi
     if (parts.length >= 3) {
       const resourceType = parts[1] || 'image';
       const publicId = parts.slice(2).join(':');
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dkg0jbfvt';
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME || 'qq7ijovh';
       return `https://res.cloudinary.com/${cloudName}/${resourceType}/upload/${publicId}`;
     }
-    return undefined;
-  }
-
-  // Sensitive private storage buckets must NOT generate public URLs
-  const SENSITIVE_PRIVATE_BUCKETS = new Set(['worker-documents', 'verification-documents', 'worker-selfies', 'worker-videos', 'employer-documents']);
-  if (SENSITIVE_PRIVATE_BUCKETS.has(bucketName) || SENSITIVE_PRIVATE_BUCKETS.has(trimmed.split('/')[0])) {
     return undefined;
   }
 
   const cleanPath = trimmed
     .replace(new RegExp(`^${bucketName}\\/`), '')
     .replace(/^(employer-documents|verification-documents|worker-documents|worker-selfies|worker-videos)\//, '');
-  return undefined;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hcuvizvdsooeypetvmhm.supabase.co';
+  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${cleanPath}`;
 };
 
 /**

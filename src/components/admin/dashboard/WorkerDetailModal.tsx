@@ -9,6 +9,7 @@ import {
 import { isRegionalScript, translateToEnglish } from '@/lib/adminTranslator';
 import { formatWorkerShift } from '@/utils/formatWorkerShift';
 import { usePrivateUrl } from '@/hooks/usePrivateUrl';
+import { resolveMediaUrl } from '@/utils/resolveMediaUrl';
 
 interface WorkerDetailModalProps {
   isOpen: boolean;
@@ -406,9 +407,9 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
             {/* Viewer canvas */}
             <div className="relative w-full h-[360px] bg-slate-900/5 rounded-2xl overflow-hidden flex items-center justify-center p-3 border border-slate-100">
               {activeDocTab === 'selfie' && (
-                (selfieRes.url || worker.profile_picture_url || worker.avatar_url) ? (
+                resolveMediaUrl('worker-selfies', selfieRes.url || worker.profile_picture_url || worker.avatar_url) ? (
                   <img 
-                    src={selfieRes.url || worker.profile_picture_url || worker.avatar_url || undefined} 
+                    src={resolveMediaUrl('worker-selfies', selfieRes.url || worker.profile_picture_url || worker.avatar_url)} 
                     alt="Candidate Selfie" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -422,9 +423,9 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               )}
 
               {activeDocTab === 'aadhaar_front' && (
-                (aadhaarFrontRes.url || worker.aadhaar_front_url) ? (
+                resolveMediaUrl('worker-documents', aadhaarFrontRes.url || worker.aadhaar_front_url) ? (
                   <img 
-                    src={aadhaarFrontRes.url || worker.aadhaar_front_url || undefined} 
+                    src={resolveMediaUrl('worker-documents', aadhaarFrontRes.url || worker.aadhaar_front_url)} 
                     alt="Aadhaar Front" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -438,9 +439,9 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               )}
 
               {activeDocTab === 'aadhaar_back' && (
-                (aadhaarBackRes.url || worker.aadhaar_back_url) ? (
+                resolveMediaUrl('worker-documents', aadhaarBackRes.url || worker.aadhaar_back_url) ? (
                   <img 
-                    src={aadhaarBackRes.url || worker.aadhaar_back_url || undefined} 
+                    src={resolveMediaUrl('worker-documents', aadhaarBackRes.url || worker.aadhaar_back_url)} 
                     alt="Aadhaar Back" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}
@@ -454,9 +455,9 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               )}
 
               {activeDocTab === 'police' && (
-                (policeDocRes.url || worker.police_verification_url) ? (
+                resolveMediaUrl('worker-documents', policeDocRes.url || worker.police_verification_url) ? (
                   <img 
-                    src={policeDocRes.url || worker.police_verification_url || undefined} 
+                    src={resolveMediaUrl('worker-documents', policeDocRes.url || worker.police_verification_url)} 
                     alt="Police Verification Document" 
                     className="max-h-full max-w-full object-contain transition-transform duration-200 rounded-lg shadow-sm"
                     style={{ transform: `scale(${zoomLevel}) rotate(${rotation}deg)` }}

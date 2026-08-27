@@ -5,6 +5,8 @@ import { Phone, ShieldCheck, Lock, AlertCircle, CheckCircle2, RefreshCw, ArrowRi
 import { supabase } from '@/lib/supabaseClient';
 import { useLanguage } from '@/context/LanguageContext';
 
+import { webApiClient } from '@/lib/webApiClient';
+
 interface ChangeMobileInlineSectionProps {
   currentPhone: string;
   onSuccess: (newPhone: string) => void;
@@ -92,9 +94,9 @@ export function ChangeMobileInlineSection({ currentPhone, onSuccess, label }: Ch
 
     setLoading(true);
     try {
-      const { webApiClient } = await import('@/lib/webApiClient');
       const data = await webApiClient.post('/api/auth/change-mobile', {
-        action: 'request-step1-otp'
+        action: 'request-step1-otp',
+        newPhone: cleanNew
       });
       if (data.error) {
         throw new Error(data.error || 'Failed to send security verification code');
@@ -128,7 +130,6 @@ export function ChangeMobileInlineSection({ currentPhone, onSuccess, label }: Ch
 
     setLoading(true);
     try {
-      const { webApiClient } = await import('@/lib/webApiClient');
       const data = await webApiClient.post('/api/auth/change-mobile', {
         action: 'verify-step1-otp',
         requestId,
@@ -165,7 +166,6 @@ export function ChangeMobileInlineSection({ currentPhone, onSuccess, label }: Ch
 
     setLoading(true);
     try {
-      const { webApiClient } = await import('@/lib/webApiClient');
       const data = await webApiClient.post('/api/auth/change-mobile', {
         action: 'verify-step2-otp',
         requestId,

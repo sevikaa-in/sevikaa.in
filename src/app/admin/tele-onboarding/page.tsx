@@ -12,6 +12,7 @@ import {
 import { useAdminData, prefetchAdminData, invalidateAdminCache } from '@/hooks/useAdminData';
 import { formatWorkerShift, ALL_SHIFT_OPTIONS, normalizeShiftOption } from '@/utils/formatWorkerShift';
 import { resolveMediaUrl } from '@/utils/resolveMediaUrl';
+import { usePrivateUrl } from '@/hooks/usePrivateUrl';
 import { webApiClient } from '@/lib/webApiClient';
 
 const getAdminId = () => {
@@ -40,6 +41,34 @@ const getAdminName = () => {
     name = 'Admin ' + getAdminId().slice(-4).toUpperCase();
   }
   return name;
+};
+
+const MediaPreviewImage: React.FC<{ url: string; title: string }> = ({ url, title }) => {
+  const { url: signedUrl } = usePrivateUrl(url);
+  const displayUrl = signedUrl || resolveMediaUrl('worker-documents', url);
+
+  return (
+    <img 
+      src={displayUrl || undefined} 
+      alt={title} 
+      className="max-h-[70vh] w-auto rounded-xl object-contain" 
+    />
+  );
+};
+
+const MediaThumbnail: React.FC<{ url?: string; bucket: string; alt: string; className?: string }> = ({ url, bucket, alt, className = "w-full h-full object-cover" }) => {
+  const { url: signedUrl } = usePrivateUrl(url);
+  const displayUrl = signedUrl || resolveMediaUrl(bucket, url);
+
+  if (!displayUrl) return null;
+
+  return (
+    <img 
+      src={displayUrl} 
+      alt={alt} 
+      className={className} 
+    />
+  );
 };
 
 export default function TeleOnboardingPage() {
@@ -1711,16 +1740,11 @@ export default function TeleOnboardingPage() {
                         {selectedLead.profile_picture_url ? (
                           <div 
                             onClick={() => {
-                              const mediaUrl = resolveMediaUrl('worker-selfies', selectedLead.profile_picture_url);
-                              if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - Selfie Photo`, type: 'image' });
+                              setPreviewMedia({ url: selectedLead.profile_picture_url, title: `${editName || 'Candidate'} - Selfie Photo`, type: 'image' });
                             }}
                             className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                           >
-                            {resolveMediaUrl('worker-selfies', selectedLead.profile_picture_url) ? (
-                              <img src={resolveMediaUrl('worker-selfies', selectedLead.profile_picture_url)} alt="Selfie" className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-[10px] text-slate-400 font-medium italic">Photo Available</span>
-                            )}
+                            <MediaThumbnail url={selectedLead.profile_picture_url} bucket="worker-selfies" alt="Selfie" />
                             <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                               <FileText size={12} /> Inspect
                             </div>
@@ -1739,16 +1763,11 @@ export default function TeleOnboardingPage() {
                           <div className="space-y-1.5">
                             <div 
                               onClick={() => {
-                                const mediaUrl = resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url);
-                                if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - Aadhaar Front Card`, type: 'image', docKey: 'aadhaar_front' });
+                                setPreviewMedia({ url: selectedLead.aadhaar_front_url, title: `${editName || 'Candidate'} - Aadhaar Front Card`, type: 'image', docKey: 'aadhaar_front' });
                               }}
                               className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                             >
-                              {resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url) ? (
-                                <img src={resolveMediaUrl('worker-documents', selectedLead.aadhaar_front_url)} alt="Aadhaar Front" className="w-full h-full object-cover" />
-                              ) : (
-                                <span className="text-[10px] text-slate-400 font-medium italic">Doc Uploaded</span>
-                              )}
+                              <MediaThumbnail url={selectedLead.aadhaar_front_url} bucket="worker-documents" alt="Aadhaar Front" />
                               <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                                 <FileText size={12} /> Inspect
                               </div>
@@ -1777,16 +1796,11 @@ export default function TeleOnboardingPage() {
                           <div className="space-y-1.5">
                             <div 
                               onClick={() => {
-                                const mediaUrl = resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url);
-                                if (mediaUrl) setPreviewMedia({ url: mediaUrl, title: `${editName || 'Candidate'} - Aadhaar Back Card`, type: 'image', docKey: 'aadhaar_back' });
+                                setPreviewMedia({ url: selectedLead.aadhaar_back_url, title: `${editName || 'Candidate'} - Aadhaar Back Card`, type: 'image', docKey: 'aadhaar_back' });
                               }}
                               className="relative h-20 w-full rounded-xl overflow-hidden cursor-pointer group-hover:opacity-90 transition-opacity border border-slate-100 bg-slate-900 flex items-center justify-center"
                             >
-                              {resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url) ? (
-                                <img src={resolveMediaUrl('worker-documents', selectedLead.aadhaar_back_url)} alt="Aadhaar Back" className="w-full h-full object-cover" />
-                              ) : (
-                                <span className="text-[10px] text-slate-400 font-medium italic">Doc Uploaded</span>
-                              )}
+                              <MediaThumbnail url={selectedLead.aadhaar_back_url} bucket="worker-documents" alt="Aadhaar Back" />
                               <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                                 <FileText size={12} /> Inspect
                               </div>
@@ -2422,19 +2436,7 @@ export default function TeleOnboardingPage() {
                   className="max-h-[70vh] w-auto rounded-xl object-contain" 
                 />
               ) : (
-                <img 
-                  src={previewMedia.url} 
-                  alt={previewMedia.title} 
-                  className="max-h-[70vh] w-auto rounded-xl object-contain" 
-                  onError={(e) => {
-                    const img = e.currentTarget;
-                    if (img.src.includes('/worker-documents/')) {
-                      img.src = img.src.replace('/worker-documents/', '/verification-documents/');
-                    } else if (img.src.includes('/verification-documents/')) {
-                      img.src = img.src.replace('/verification-documents/', '/documents/');
-                    }
-                  }}
-                />
+                <MediaPreviewImage url={previewMedia.url} title={previewMedia.title} />
               )}
             </div>
 
