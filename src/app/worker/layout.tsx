@@ -7,6 +7,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { supabase } from '@/lib/supabaseClient';
 import { GlobalLanguageSelector } from '@/components/GlobalLanguageSelector';
 import { ToastContainer, ToastItem } from '@/components/admin/dashboard/Toast';
+import { PremiumLoadingScreen } from '@/components/ui/PremiumLoadingScreen';
 import { 
   Home, User, Briefcase, MapPin, Calendar, CheckCircle2, LogOut, 
   ArrowLeft, ShieldAlert, Settings, Phone, Menu, X, Building2, Lock, Bell 
@@ -472,14 +473,7 @@ export default function WorkerDashboardLayout({ children }: { children: React.Re
   ];
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-[#1A73E8] border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-xs font-bold text-slate-300">Loading Worker Mobile App...</span>
-        </div>
-      </div>
-    );
+    return <PremiumLoadingScreen portalType="worker" />;
   }
 
   const isOnboarding = pathname === '/worker/onboarding';

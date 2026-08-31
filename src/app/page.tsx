@@ -9,6 +9,7 @@ import { NewUserRoleSelector } from '../components/onboarding/NewUserRoleSelecto
 import { WorkerFunnel } from '../components/onboarding/WorkerFunnel';
 import { EmployerFunnel } from '../components/onboarding/EmployerFunnel';
 import { StatusPending } from '../components/onboarding/StatusPending';
+import { PremiumLoadingScreen } from '@/components/ui/PremiumLoadingScreen';
 import { useLanguage } from '../context/LanguageContext';
 import { GlobalLanguageSelector } from '../components/GlobalLanguageSelector';
 import { PublicNavbar } from '../components/public/PublicNavbar';
@@ -108,6 +109,7 @@ export default function Home() {
   const [targetRole, setTargetRole] = useState<'worker' | 'employer' | null>(null);
   const [user, setUser] = useState<{ id: string; email?: string; phone?: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mismatchNotice, setMismatchNotice] = useState<{ requestedRole: string; actualRole: string } | null>(null);
   
   // FAQ Accordion local state
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -252,6 +254,12 @@ export default function Home() {
 
     setLoading(true);
 
+    // 1b. Role Mismatch Detection (e.g. user clicked Employer login but registered as Worker)
+    if (targetRole && userRole && targetRole !== userRole && (userRole === 'worker' || userRole === 'employer')) {
+      setMismatchNotice({ requestedRole: targetRole, actualRole: userRole });
+      await new Promise((res) => setTimeout(res, 2200));
+    }
+
     try {
       // 2. Direct role-based redirection for existing users with completed profile
       if (userRole === 'super-admin') {
@@ -391,11 +399,7 @@ export default function Home() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 text-gray-500 font-bold text-sm">
-        Loading Sevikaa Onboarding...
-      </div>
-    );
+    return <PremiumLoadingScreen portalType={targetRole || 'general'} mismatchNotice={mismatchNotice} />;
   }
 
   // Render onboarding wizard pages if in active signup flows
