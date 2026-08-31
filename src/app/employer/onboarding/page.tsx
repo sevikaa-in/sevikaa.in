@@ -67,11 +67,7 @@ export default function EmployerOnboardingPage() {
       (err) => {
         console.warn("Geolocation permission error:", err);
         setLocationStatus('denied');
-        if (err.code === err.PERMISSION_DENIED) {
-          setLocationMessage('Location permission denied. Please search or select your society manually below.');
-        } else {
-          setLocationMessage('Unable to retrieve location. Please search or select your society manually below.');
-        }
+        setLocationMessage('GPS location not enabled. Search or select your society by name, locality, or landmark below.');
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
@@ -97,7 +93,6 @@ export default function EmployerOnboardingPage() {
     };
 
     fetchSocietiesData();
-    detectLocation();
   }, []);
 
   // Calculate distance between user coordinates & society coordinates in KM

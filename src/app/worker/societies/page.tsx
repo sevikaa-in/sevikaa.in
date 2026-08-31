@@ -74,17 +74,9 @@ export default function WorkerSocietiesPage() {
       if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
         navigator.geolocation.getCurrentPosition(
           handleSuccess,
-          (fallbackErr) => {
+          () => {
             setIsLocating(false);
-            let message = 'Could not access live GPS location.';
-            if (fallbackErr.code === fallbackErr.PERMISSION_DENIED) {
-              message = 'Location permission denied. Please allow location access in your browser settings to detect nearby societies.';
-            } else if (fallbackErr.code === fallbackErr.TIMEOUT) {
-              message = 'GPS signal timed out. Please verify your device location settings.';
-            } else if (fallbackErr.code === fallbackErr.POSITION_UNAVAILABLE) {
-              message = 'GPS position unavailable. Please turn on location services on your device.';
-            }
-            showToast(message, 'error');
+            showToast('GPS location not enabled. Search or select your society by name, locality, or landmark below.', 'info');
           },
           { timeout: 12000, enableHighAccuracy: false, maximumAge: 60000 }
         );
@@ -92,13 +84,7 @@ export default function WorkerSocietiesPage() {
       }
 
       setIsLocating(false);
-      let message = 'Could not access live GPS location.';
-      if (error.code === error.PERMISSION_DENIED) {
-        message = 'Location permission denied. Please allow location access in your browser settings to detect nearby societies.';
-      } else if (error.code === error.POSITION_UNAVAILABLE) {
-        message = 'GPS position unavailable. Please ensure location services are enabled on your device.';
-      }
-      showToast(message, 'error');
+      showToast('GPS location not enabled. Search or select your society by name, locality, or landmark below.', 'info');
     };
 
     navigator.geolocation.getCurrentPosition(handleSuccess, handleFailure, {
