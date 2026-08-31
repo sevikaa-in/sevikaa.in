@@ -94,8 +94,8 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
     e.preventDefault();
     setError('');
 
-    if (otpValue.length < 4) {
-      setError('Please enter the complete verification code');
+    if (otpValue.length !== 6 || !/^\d{6}$/.test(otpValue)) {
+      setError('Please enter the complete 6-digit verification code');
       return;
     }
 
@@ -331,7 +331,10 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
                 maxLength={6}
                 placeholder="• • • • • •"
                 value={otpValue}
-                onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setOtpValue(val);
+                }}
                 disabled={loading}
                 autoFocus
                 className="w-full py-4 bg-slate-50 border border-slate-200 rounded-2xl text-center text-2xl font-black tracking-[0.4em] text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition-all placeholder:text-slate-300"
@@ -340,7 +343,7 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
 
             <button
               type="submit"
-              disabled={loading || otpValue.length < 4}
+              disabled={loading || otpValue.length !== 6}
               className="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.99] text-white font-bold rounded-2xl shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 transition-all duration-200 disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 cursor-pointer text-sm"
             >
               {loading ? (

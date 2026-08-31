@@ -98,7 +98,7 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
   const handleVerifyOtp = async (targetOtp?: string) => {
     setErrorMsg('');
     const codeToVerify = targetOtp || otp;
-    if (codeToVerify.length < 4) {
+    if (codeToVerify.length !== 6 || !/^\d{6}$/.test(codeToVerify)) {
       setErrorMsg('Please enter the complete 6-digit verification code');
       return;
     }
@@ -322,10 +322,10 @@ export const AuthLoginScreen: React.FC<AuthLoginProps> = ({ onLoginSuccess, onBa
 
               <TouchableOpacity
                 activeOpacity={0.85}
-                disabled={loading || otp.length < 4}
+                disabled={loading || otp.length !== 6}
                 style={[
                   styles.ctaButton,
-                  (otp.length < 4 || loading) && styles.ctaButtonDisabled
+                  (otp.length !== 6 || loading) && styles.ctaButtonDisabled
                 ]}
                 onPress={() => handleVerifyOtp()}
               >

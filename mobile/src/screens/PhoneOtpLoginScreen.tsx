@@ -30,8 +30,8 @@ export const PhoneOtpLoginScreen: React.FC<PhoneOtpLoginProps> = ({ onLoginSucce
   };
 
   const handleVerifyOtp = () => {
-    if (otp.length < 4) {
-      Alert.alert("Invalid OTP", "Please enter the verification code sent to your phone.");
+    if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+      Alert.alert("Invalid OTP", "Please enter the complete 6-digit verification code sent to your phone.");
       return;
     }
     onLoginSuccess(phone);
