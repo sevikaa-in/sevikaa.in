@@ -721,7 +721,7 @@ export const WorkerFunnel: React.FC<WorkerFunnelProps> = ({ onComplete, onCancel
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Languages Spoken</label>
               <div className="flex flex-wrap gap-2 pt-1">
-                {['Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Bengali', 'Marathi'].map(lang => {
+                {['Hindi', 'English', 'Hinglish', 'Kannada', 'Tamil', 'Telugu', 'Assamese', 'Nepali', 'Bengali', 'Marathi', 'Malayalam', 'Odia', 'Gujarati', 'Punjabi'].map(lang => {
                   const isSelected = selectedLanguages.includes(lang);
                   return (
                     <button

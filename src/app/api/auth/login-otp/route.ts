@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { action, phone, email, otp, role: rawRole } = body;
+    const { action, phone, email, otp, role: rawRole, preferred_language: rawLang } = body;
+    const userPreferredLang = rawLang || 'hi';
 
     // Role guard: prevent admin/super-admin self-selection through OTP
     const role = SELF_SELECTABLE_ROLES.has(rawRole) ? rawRole : 'worker';
@@ -319,13 +320,14 @@ export async function POST(req: NextRequest) {
       // =========================================================================
       try {
         await queryDb(
-          `INSERT INTO public.profiles (id, phone, email, role, status, created_at)
-           VALUES ($1, $2, $3, $4, 'pending_review', NOW())
+          `INSERT INTO public.profiles (id, phone, email, role, preferred_language, status, created_at)
+           VALUES ($1, $2, $3, $4, $5, 'pending_review', NOW())
            ON CONFLICT (id) DO UPDATE 
              SET phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
                  email = COALESCE(EXCLUDED.email, public.profiles.email),
-                 role = COALESCE(public.profiles.role, EXCLUDED.role)`,
-          [resolvedUserId, userPhone || null, userEmail || null, userRole]
+                 role = COALESCE(public.profiles.role, EXCLUDED.role),
+                 preferred_language = COALESCE(EXCLUDED.preferred_language, public.profiles.preferred_language)`,
+          [resolvedUserId, userPhone || null, userEmail || null, userRole, userPreferredLang]
         );
       } catch (profErr: any) {
         console.error('[login-otp] Profiles upsert error:', profErr?.message);
@@ -335,7 +337,8 @@ export async function POST(req: NextRequest) {
               id: resolvedUserId,
               phone: userPhone || null,
               email: userEmail || null,
-              role: userRole
+              role: userRole,
+              preferred_language: userPreferredLang
             });
           } catch (sbProfErr) {
             console.error('[login-otp] Supabase profiles fallback error:', sbProfErr);

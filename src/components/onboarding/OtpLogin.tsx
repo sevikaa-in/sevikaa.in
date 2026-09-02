@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { supabase } from '../../lib/supabaseClient';
 import { ArrowLeft, Key, Mail, Phone, ShieldCheck, Sparkles, CheckCircle2, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { GlobalLanguageSelector } from '../GlobalLanguageSelector';
 import Link from 'next/link';
 
 interface OtpLoginProps {
@@ -13,7 +14,7 @@ interface OtpLoginProps {
 }
 
 export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [inputValue, setInputValue] = useState('');
   const [otpValue, setOtpValue] = useState('');
   const [step, setStep] = useState<'input' | 'verify'>('input');
@@ -112,7 +113,8 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
           phone: loginMethod === 'mobile' ? formattedInput : undefined,
           email: loginMethod === 'email' ? formattedInput : undefined,
           otp: otpValue,
-          role: role || undefined
+          role: role || undefined,
+          preferred_language: language
         })
       });
 
@@ -178,14 +180,18 @@ export const OtpLogin: React.FC<OtpLoginProps> = ({ onBack, onSuccess, role }) =
       {/* Main Glass Card */}
       <div className="w-full bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200/80 shadow-2xl shadow-blue-900/5 p-7 relative transition-all duration-300">
         
-        {/* Back Button */}
-        <button
-          onClick={step === 'verify' ? () => setStep('input') : onBack}
-          className="absolute left-6 top-6 text-slate-400 hover:text-slate-700 transition-colors p-2 hover:bg-slate-100 rounded-full cursor-pointer group"
-          title="Go back"
-        >
-          <ArrowLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
-        </button>
+        {/* Top Bar: Back Button & Language Selector */}
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={step === 'verify' ? () => setStep('input') : onBack}
+            className="text-slate-400 hover:text-slate-700 transition-colors p-2 hover:bg-slate-100 rounded-full cursor-pointer group"
+            title="Go back"
+          >
+            <ArrowLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
+          </button>
+
+          <GlobalLanguageSelector />
+        </div>
 
         {/* Card Title & Icon */}
         <div className="text-center pt-3 mb-6">
